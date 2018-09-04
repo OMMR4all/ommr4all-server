@@ -40,7 +40,7 @@ def page_annotation(request, book, page):
     }
     if os.path.exists(annotation_file):
         with open(annotation_file, 'r') as f:
-            data['data'] = f.read()
+            data['data'] = json.loads(f.read())
 
     return JsonResponse(data)
 
