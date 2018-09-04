@@ -3,9 +3,10 @@ from django.contrib.auth.decorators import login_required
 from django.views.static import serve
 from django.conf import settings
 from . import views
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse, HttpResponseBadRequest
 import os
 import json
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 
 
 # @login_required
@@ -41,12 +42,23 @@ def page_annotation(request, book, page):
         with open(annotation_file, 'r') as f:
             data['data'] = f.read()
 
-    return HttpResponse(json.dumps(data), content_type='application/json')
+    return JsonResponse(data)
+
+
+@csrf_exempt
+def save_page(request, book, page):
+    if request.method == 'POST':
+        annotation_file = os.path.join(page_dir(book, page), 'annotation.json')
+        with open(annotation_file, 'w') as f:
+            f.write(request.body.decode('utf-8'))
+
+        return JsonResponse({'status': 'ok'})
+
+    return HttpResponseBadRequest()
 
 
 def get_content(request, book, page, content):
     page_d = page_dir(book, page)
-    print(page_d)
     if content == 'original':
         return protected_serve(request, os.path.join(page_d, 'original.jpg'), "/", False)
 
@@ -57,5 +69,6 @@ urlpatterns = [
         protected_serve, {'document_root': settings.PRIVATE_MEDIA_ROOT}),
     re_path(r'^listpages/(?P<book>\w+)$', list_pages),
     re_path(r'^annotation/(?P<book>\w+)/(?P<page>\w+)$', page_annotation),
+    re_path(r'^save_page/(?P<book>\w+)/(?P<page>\w+)$', save_page),
     path('', views.index, name='index')
 ]
