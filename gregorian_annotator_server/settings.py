@@ -31,6 +31,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -123,3 +124,6 @@ STATIC_URL = '/static/'
 
 PRIVATE_MEDIA_URL = '/storage/'
 PRIVATE_MEDIA_ROOT = os.path.join(BASE_DIR, 'storage')
+
+
+ASGI_APPLICATION = 'gregorian_annotator_server.routing.application'
