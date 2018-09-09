@@ -7,6 +7,7 @@ from django.http import HttpResponse, JsonResponse, HttpResponseBadRequest
 import os
 import json
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
+from .book import *
 
 
 # @login_required
@@ -19,27 +20,27 @@ def page_dir(book, page, root=settings.PRIVATE_MEDIA_ROOT):
     return os.path.join(root, book, page)
 
 def list_pages(request, book: str):
-    book = book.strip("/")
-    book_dir = os.path.join(settings.PRIVATE_MEDIA_ROOT, book);
-    pages = os.listdir(book_dir)
+    book = Book(book)
+    pages = os.listdir(book.local_path())
     data = {
         'pages': [
             {
                 'id': page,
-                'preview': os.path.join(page_dir(book, page, root=settings.PRIVATE_MEDIA_URL), 'original.jpg')
+                'preview': File(Page(book, page), 'preview').remote_path(),
             } for page in pages]
     }
     return HttpResponse(json.dumps(data), content_type='application/json')
 
 
 def page_annotation(request, book, page):
-    annotation_file = os.path.join(page_dir(book, page), 'annotation.json')
+    annotation_file = File(Page(Book(book), page), 'annotation')
     data = {
-        'originalImageUrl': os.path.join(page_dir(book, page, root=settings.PRIVATE_MEDIA_URL), 'original.jpg'),
+        'originalImageUrl': File(annotation_file.page, 'original').remote_path(),
+        'binaryImageUrl': File(annotation_file.page, 'binary').remote_path(),
         'data': ''
     }
-    if os.path.exists(annotation_file):
-        with open(annotation_file, 'r') as f:
+    if annotation_file.exists():
+        with open(annotation_file.local_path(), 'r') as f:
             data['data'] = json.loads(f.read())
 
     return JsonResponse(data)
@@ -58,15 +59,20 @@ def save_page(request, book, page):
 
 
 def get_content(request, book, page, content):
-    page_d = page_dir(book, page)
-    if content == 'original':
-        return protected_serve(request, os.path.join(page_d, 'original.jpg'), "/", False)
+    page = Page(Book(book), page)
+    file = File(page, content)
+
+    if not file.exists():
+        file.create()
+
+    return protected_serve(request, file.local_path(), "/", False)
 
 
 urlpatterns = [
     re_path(r'^content/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
-    re_path(r'^{0}(?P<path>.*)$'.format(settings.PRIVATE_MEDIA_URL.lstrip('/')),
-        protected_serve, {'document_root': settings.PRIVATE_MEDIA_ROOT}),
+    re_path(r'^storage/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
+    # re_path(r'^{0}(?P<path>.*)$'.format(settings.PRIVATE_MEDIA_URL.lstrip('/')),
+    #   protected_serve, {'document_root': settings.PRIVATE_MEDIA_ROOT}),
     re_path(r'^listpages/(?P<book>\w+)$', list_pages),
     re_path(r'^annotation/(?P<book>\w+)/(?P<page>\w+)$', page_annotation),
     re_path(r'^save_page/(?P<book>\w+)/(?P<page>\w+)$', save_page),

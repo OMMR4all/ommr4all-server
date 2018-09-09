@@ -127,3 +127,23 @@ PRIVATE_MEDIA_ROOT = os.path.join(BASE_DIR, 'storage')
 
 
 ASGI_APPLICATION = 'gregorian_annotator_server.routing.application'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        '': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
+}

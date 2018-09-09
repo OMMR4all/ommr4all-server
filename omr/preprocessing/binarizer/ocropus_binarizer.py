@@ -3,14 +3,11 @@ from skimage.io import imread, imsave
 from skimage.filters import threshold_adaptive, threshold_yen, threshold_local
 from scipy.ndimage import filters,interpolation,morphology,measurements,binary_erosion,binary_fill_holes
 import scipy.stats as stats
+from PIL import Image
+from omr.image_util import normalize_raw_image
 
 from .binarize import Binarizer
 
-def normalize_raw_image(raw):
-    ''' perform image normalization '''
-    image = raw-np.amin(raw)
-    image /= np.amax(image)
-    return image
 
 def estimate_local_whitelevel(image, zoom=0.5, perc=80, range=20, debug=0):
     '''flatten it by estimating the local whitelevel
@@ -65,19 +62,12 @@ def estimate_thresholds(flat, bignore=0.1, escale=1.0, lo=5, hi=90, debug=0):
 
 
 def binarize(image):
-    if len(image.shape) == 3:
-        image = image.mean(axis=-1)
-
-    if image.dtype != np.float:
-        image = image.astype(np.float)
-    image = normalize_raw_image(image)
-
     flat = estimate_local_whitelevel(image)
     lo, hi = estimate_thresholds(flat)
 
     flat -= lo
     flat /= (hi-lo)
-    flat = np.clip(flat,0,1)
+    flat = np.clip(flat, 0, 1)
 
     return flat > 0.5
 
@@ -86,6 +76,6 @@ class OCRopusBin(Binarizer):
     def __init__(self):
         super().__init__()
 
-    def binarize(self, image):
-        return binarize(image)
+    def binarize(self, image: Image):
+        return Image.fromarray(binarize(normalize_raw_image(np.array(image.convert('L')))).astype(np.uint8) * 255)
 
