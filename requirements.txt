@@ -1,3 +1,4 @@
 django
 channels
 locked_dict
+opencv-python

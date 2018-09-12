@@ -37,6 +37,10 @@ def page_annotation(request, book, page):
     data = {
         'originalImageUrl': File(annotation_file.page, 'original').remote_path(),
         'binaryImageUrl': File(annotation_file.page, 'binary').remote_path(),
+        'grayImageUrl': File(annotation_file.page, 'gray').remote_path(),
+        'deskewedOriginalImageUrl': File(annotation_file.page, 'deskewed_original').remote_path(),
+        'deskewedGrayImageUrl': File(annotation_file.page, 'deskewed_gray').remote_path(),
+        'deskewedBinaryImageUrl': File(annotation_file.page, 'deskewed_binary').remote_path(),
         'data': ''
     }
     if annotation_file.exists():
