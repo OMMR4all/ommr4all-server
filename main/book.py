@@ -3,6 +3,7 @@ import os
 from PIL import Image
 from multiprocessing import Lock
 from locked_dict.locked_dict import LockedDict
+import numpy as np
 import logging
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,12 @@ file_definitions = {
         'deskewed_binary',
         ['deskewed_binary.png'],
         requires=['deskewed_original'],
-    )
+    ),
+    'detected_staffs': FileDefinition(
+        'detected_staffs',
+        ['detected_staffs.json'],
+        requires=['deskewed_binary'],
+    ),
 
 }
 
@@ -138,6 +144,15 @@ class File:
                 orig.save(self.local_path(0))
                 gray.save(self.local_path(1))
                 binary.save(self.local_path(2))
+            elif self.definition.id == 'detected_staffs':
+                from omr.stafflines.detection.dummy_detector import detect
+                import json
+                binary = Image.open(File(self.page, 'deskewed_binary').local_path())
+                lines = detect(np.array(binary) // 255)
+                logging.debug(lines)
+                with open(self.local_path(), 'w') as f:
+                    json.dump(lines, f)
+
 
 
 
