@@ -4,8 +4,14 @@ from tqdm import tqdm
 import logging
 from scipy.ndimage.morphology import binary_erosion, binary_dilation
 from main.book import Book, Page, File
+from omr.stafflines.staffline import *
 
 logger = logging.getLogger("Staffline Detector")
+
+def imshow(img):
+    import matplotlib.pyplot as plt
+    plt.imshow(img)
+    plt.show()
 
 def detect(binary: np.ndarray):
     #filtered = gaussian_filter1d(img[:,:,2] + img[:,:,1] - img[:,:,0], 3, axis=1)
@@ -20,7 +26,7 @@ def detect(binary: np.ndarray):
 
 
     staffs = staffs.astype(np.uint8)
-    # imshow(staffs)
+    imshow(staffs)
 
     staffs, point_list, line_distance = detect_staffs(staffs)
 
@@ -101,6 +107,16 @@ def detect(binary: np.ndarray):
     staffs = [l for l in map(normalize_staff, staffs) if l]
     logger.debug(len(staffs))
     logger.debug([len(l[0]) for l in staffs])
+
+    def to_staff_line(line) -> StaffLine:
+        return StaffLine(line)
+
+    def to_staff(staff) -> Staff:
+        staff = staff[0]
+        lines = list(map(to_staff_line, staff))
+        return Staff(lines)
+
+    staffs = Staffs(list(map(to_staff, staffs)))
 
     return staffs
 
@@ -230,4 +246,9 @@ if __name__=='__main__':
     import os
     from PIL import Image
     binary = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_binary.png'))
-    detect(np.array(binary) // 255)
+    staffs = detect(np.array(binary) // 255)
+    img = np.array(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_original.jpg')), dtype=np.uint8)
+    staffs.draw(img)
+    import matplotlib.pyplot as plt
+    plt.imshow(img)
+    plt.show()

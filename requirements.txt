@@ -2,3 +2,6 @@ django
 channels
 locked_dict
 opencv-python
+Pillow
+scikit-image
+tqdm
