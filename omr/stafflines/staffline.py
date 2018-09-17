@@ -1,21 +1,32 @@
 import numpy as np
 from typing import List
 import cv2
+from skimage.measure import approximate_polygon
 
 class StaffLine:
     def __init__(self, points: np.ndarray):
-        self.points = points
+        self.points = np.asarray(points)
         self.approx_line = self.points
 
     def approximate(self, distance):
-        pass
+        self.approx_line = approximate_polygon(self.points, distance)
 
     def center_y(self):
         return np.mean(self.points[:, 1])
 
     def draw(self, canvas):
-        pts = self.points.reshape((-1, 1, 2)).astype(np.int32)
+        # pts = self.points.reshape((-1, 1, 2)).astype(np.int32)
+        pts = self.approx_line.reshape((-1, 1, 2)).astype(np.int32)
         cv2.polylines(canvas, [pts], False, (0, 255, 0), 5)
+
+    def json(self):
+        out = {
+            'points': []
+        }
+        for x, y in self.approx_line:
+            out['points'].append({'x': x, 'y': y})
+
+        return {'line': out}
 
 
 class Staff:
@@ -38,6 +49,13 @@ class Staff:
         for line in self.staff_lines:
             line.draw(canvas)
 
+    def json(self):
+        out = {'lines': []}
+        for line in self.staff_lines:
+            out['lines'].append(line.json())
+
+        return out
+
 
 class Staffs:
     def __init__(self, staffs: List[Staff]):
@@ -49,11 +67,18 @@ class Staffs:
 
     def approximate(self):
         for staff in self.staffs:
-            staff.approximate(self.avg_staff_line_distance)
+            staff.approximate(self.avg_staff_line_distance / 10)
 
     def draw(self, canvas):
         for staff in self.staffs:
             staff.draw(canvas)
+
+    def json(self):
+        out = {'staffs': []}
+        for staff in self.staffs:
+            out['staffs'].append(staff.json())
+
+        return out
 
 
 

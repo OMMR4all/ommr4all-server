@@ -34,6 +34,7 @@ def list_pages(request, book: str):
 
 def page_annotation(request, book, page):
     annotation_file = File(Page(Book(book), page), 'annotation')
+    img = Image.open(File(annotation_file.page, 'deskewed_original').local_path())
     data = {
         'originalImageUrl': File(annotation_file.page, 'original').remote_path(),
         'binaryImageUrl': File(annotation_file.page, 'binary').remote_path(),
@@ -42,6 +43,8 @@ def page_annotation(request, book, page):
         'deskewedGrayImageUrl': File(annotation_file.page, 'deskewed_gray').remote_path(),
         'deskewedBinaryImageUrl': File(annotation_file.page, 'deskewed_binary').remote_path(),
         'detectedStaffsUrl': File(annotation_file.page, 'detected_staffs').remote_path(),
+        'width': img.size[0],
+        'height': img.size[1],
         'data': ''
     }
     if annotation_file.exists():

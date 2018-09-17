@@ -148,10 +148,10 @@ class File:
                 from omr.stafflines.detection.dummy_detector import detect
                 import json
                 binary = Image.open(File(self.page, 'deskewed_binary').local_path())
-                lines = detect(np.array(binary) // 255)
-                logging.debug(lines)
+                gray = Image.open(File(self.page, 'deskewed_gray').local_path())
+                lines = detect(np.array(binary) // 255, np.array(gray) / 255)
                 with open(self.local_path(), 'w') as f:
-                    json.dump(lines, f)
+                    json.dump(lines.json(), f, indent=2)
 
 
 

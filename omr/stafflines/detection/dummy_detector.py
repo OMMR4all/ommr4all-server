@@ -3,18 +3,24 @@ import cv2
 from tqdm import tqdm
 import logging
 from scipy.ndimage.morphology import binary_erosion, binary_dilation
+from scipy.signal import convolve2d
 from main.book import Book, Page, File
 from omr.stafflines.staffline import *
+import matplotlib.pyplot as plt
+from omr.preprocessing.binarizer.ocropus_binarizer import binarize
 
 logger = logging.getLogger("Staffline Detector")
 
 def imshow(img):
-    import matplotlib.pyplot as plt
     plt.imshow(img)
     plt.show()
 
-def detect(binary: np.ndarray):
+def detect(binary: np.ndarray, gray: np.ndarray):
     #filtered = gaussian_filter1d(img[:,:,2] + img[:,:,1] - img[:,:,0], 3, axis=1)
+    gray = cv2.bilateralFilter((gray * 255).astype(np.uint8), 5, 75, 75)
+    gray = (1 - np.clip(convolve2d(1 - gray, np.full((1, 10), 0.2)), 0, 255)) / 255
+    binary = binarize(gray)
+
     binarized = 1 - binary
     morph = binary_erosion(binarized, structure=np.full((5, 1), 1))
     morph = binary_dilation(morph, structure=np.full((5, 1), 1))
@@ -26,7 +32,6 @@ def detect(binary: np.ndarray):
 
 
     staffs = staffs.astype(np.uint8)
-    imshow(staffs)
 
     staffs, point_list, line_distance = detect_staffs(staffs)
 
@@ -35,6 +40,8 @@ def detect(binary: np.ndarray):
     staffs = [staff for staff in staffs if len(staff) >= 3 and len(staff) <= 6]
     print(staffs)
     staffs = [[point_list[l_id] for l_id in staff] for staff in staffs]
+    #staffs_out = Staffs([Staff([StaffLine(line) for line in staff]) for staff in staffs])
+    #return staffs_out
 
     def normalize_staff(staff):
         if len(staff) > 4:
@@ -226,7 +233,7 @@ def detect_staffs(staff_binary: np.ndarray):
             for s_i, s in enumerate(staff):
                 o_y = point_list_y_center[s]
                 # allow even to skip a line
-                if np.abs(o_y - center_y) < 2.5 * line_distance:
+                if np.abs(o_y - center_y) <2.1 * line_distance:
                     found = staff
                     break
 
@@ -246,9 +253,9 @@ if __name__=='__main__':
     import os
     from PIL import Image
     binary = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_binary.png'))
-    staffs = detect(np.array(binary) // 255)
+    gray = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_gray.jpg'))
+    staffs = detect(np.array(binary) // 255, np.array(gray) / 255)
     img = np.array(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_original.jpg')), dtype=np.uint8)
     staffs.draw(img)
-    import matplotlib.pyplot as plt
     plt.imshow(img)
     plt.show()
