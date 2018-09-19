@@ -26,6 +26,11 @@ def detect(binary: np.ndarray, gray: np.ndarray):
     morph = binary_dilation(morph, structure=np.full((5, 1), 1))
 
     staffs = (binarized ^ morph)
+    f, ax = plt.subplots(1, 3)
+    ax[0].imshow(binary)
+    ax[1].imshow(morph)
+    ax[2].imshow(staffs)
+    plt.show()
 
     morph = binary_dilation(morph, structure=np.full((3, 3), 1), iterations=2)
     binary_text = binarized & morph

@@ -3,7 +3,13 @@ from typing import List
 import cv2
 from skimage.measure import approximate_polygon
 
+
 class StaffLine:
+    @staticmethod
+    def from_json(line):
+        line = line['line']
+        return StaffLine([(p['x'], p['y']) for p in line['points']])
+
     def __init__(self, points: np.ndarray):
         self.points = np.asarray(points)
         self.approx_line = self.points
@@ -30,6 +36,10 @@ class StaffLine:
 
 
 class Staff:
+    @staticmethod
+    def from_json(staff):
+        return Staff([StaffLine.from_json(line) for line in staff['lines']])
+
     def __init__(self, staff_lines: List[StaffLine]):
         self.staff_lines = staff_lines
         self.avg_staff_line_distance = self._avg_line_distance()
@@ -58,12 +68,26 @@ class Staff:
 
 
 class Staffs:
-    def __init__(self, staffs: List[Staff]):
+    @staticmethod
+    def from_json(obj):
+        return Staffs([Staff.from_json(jstaff) for jstaff in obj['staffs']], approx=False)
+
+    def __init__(self, staffs: List[Staff], approx=True):
         self.staffs = staffs
 
         self.avg_staff_line_distance = np.mean([v for v in [d.avg_staff_line_distance for d in self.staffs] if v > 0])
         self.avg_staff_line_distance = max([5, self.avg_staff_line_distance])
-        self.approximate()
+        if approx:
+            self.approximate()
+
+    def avg_staff_distance(self):
+        d = []
+        for i in range(1, len(self.staffs)):
+            top = self.staffs[i - 1].staff_lines[-1].center_y()
+            bot = self.staffs[i].staff_lines[0].center_y()
+            d.append(bot - top)
+
+        return np.mean(d)
 
     def approximate(self):
         for staff in self.staffs:
