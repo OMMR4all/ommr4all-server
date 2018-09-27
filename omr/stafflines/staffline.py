@@ -13,24 +13,32 @@ class StaffLine:
     def __init__(self, points: np.ndarray):
         self.points = np.asarray(points)
         self.approx_line = self.points
+        self._center_y = np.mean(self.points[:, 1])
+        self._dewarped_y = int(self._center_y)
 
     def approximate(self, distance):
         self.approx_line = approximate_polygon(self.points, distance)
 
-    def center_y(self):
-        return np.mean(self.points[:, 1])
+    def interpolate_y(self, x):
+        return np.interp(x, self.approx_line[:, 0], self.approx_line[:, 1])
 
-    def draw(self, canvas):
+    def center_y(self):
+        return self._center_y
+
+    def dewarped_y(self):
+        return self._dewarped_y
+
+    def draw(self, canvas, color=(0, 255, 0), thickness=5):
         # pts = self.points.reshape((-1, 1, 2)).astype(np.int32)
         pts = self.approx_line.reshape((-1, 1, 2)).astype(np.int32)
-        cv2.polylines(canvas, [pts], False, (0, 255, 0), 5)
+        cv2.polylines(canvas, [pts], False, color, int(thickness))
 
     def json(self):
         out = {
             'points': []
         }
         for x, y in self.approx_line:
-            out['points'].append({'x': x, 'y': y})
+            out['points'].append({'x': int(x), 'y': int(y)})
 
         return {'line': out}
 
@@ -55,9 +63,9 @@ class Staff:
         for line in self.staff_lines:
             line.approximate(distance)
 
-    def draw(self, canvas):
+    def draw(self, canvas, color=(0, 255, 0), thickness=5):
         for line in self.staff_lines:
-            line.draw(canvas)
+            line.draw(canvas, color, thickness)
 
     def json(self):
         out = {'lines': []}
@@ -69,11 +77,14 @@ class Staff:
 
 class Staffs:
     @staticmethod
-    def from_json(obj):
-        return Staffs([Staff.from_json(jstaff) for jstaff in obj['staffs']], approx=False)
+    def from_json(obj: dict):
+        return Staffs([Staff.from_json(jstaff) for jstaff in obj['staffs']] if 'staffs' in obj else [],
+                      crop=tuple(obj['crop']) if 'crop' in 'staffs' else (0, 0, -1, -1),
+                      approx=False)
 
-    def __init__(self, staffs: List[Staff], approx=True):
+    def __init__(self, staffs: List[Staff], crop=(0, 0, -1, -1), approx=True):
         self.staffs = staffs
+        self.crop = crop
 
         self.avg_staff_line_distance = np.mean([v for v in [d.avg_staff_line_distance for d in self.staffs] if v > 0])
         self.avg_staff_line_distance = max([5, self.avg_staff_line_distance])
@@ -93,16 +104,18 @@ class Staffs:
         for staff in self.staffs:
             staff.approximate(self.avg_staff_line_distance / 10)
 
-    def draw(self, canvas):
+    def draw(self, canvas, color=(0, 255, 0), thickness=-1):
+        if thickness < 0:
+            thickness = self.avg_staff_line_distance / 10 if self.avg_staff_line_distance > 0 else 5
+
         for staff in self.staffs:
-            staff.draw(canvas)
+            staff.draw(canvas, color, thickness)
 
     def json(self):
-        out = {'staffs': []}
-        for staff in self.staffs:
-            out['staffs'].append(staff.json())
-
-        return out
+        return {
+            'staffs': [s.json() for s in self.staffs],
+            'crop': list(map(int, self.crop)),
+        }
 
 
 

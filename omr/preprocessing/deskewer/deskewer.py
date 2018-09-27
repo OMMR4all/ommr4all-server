@@ -9,6 +9,9 @@ from omr.preprocessing.binarizer.ocropus_binarizer import binarize, normalize_ra
 
 def extract_line_angles(staff_binary):
     lines = cv2.HoughLines(staff_binary, 1, np.pi / 180, 200)
+    if lines is None:
+        return []
+
     angles = []
     for (rho, theta), in lines:
         angle = theta * 180 / np.pi - 90

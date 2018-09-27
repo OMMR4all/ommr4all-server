@@ -15,7 +15,7 @@ def imshow(img):
     plt.imshow(img)
     plt.show()
 
-def detect(binary: np.ndarray, gray: np.ndarray):
+def detect(binary: np.ndarray, gray: np.ndarray, debug=False):
     #filtered = gaussian_filter1d(img[:,:,2] + img[:,:,1] - img[:,:,0], 3, axis=1)
     gray = cv2.bilateralFilter((gray * 255).astype(np.uint8), 5, 75, 75)
     gray = (1 - np.clip(convolve2d(1 - gray, np.full((1, 10), 0.2)), 0, 255)) / 255
@@ -26,11 +26,13 @@ def detect(binary: np.ndarray, gray: np.ndarray):
     morph = binary_dilation(morph, structure=np.full((5, 1), 1))
 
     staffs = (binarized ^ morph)
-    f, ax = plt.subplots(1, 3)
-    ax[0].imshow(binary)
-    ax[1].imshow(morph)
-    ax[2].imshow(staffs)
-    plt.show()
+
+    if debug:
+        f, ax = plt.subplots(1, 3)
+        ax[0].imshow(binary)
+        ax[1].imshow(morph)
+        ax[2].imshow(staffs)
+        plt.show()
 
     morph = binary_dilation(morph, structure=np.full((3, 3), 1), iterations=2)
     binary_text = binarized & morph
@@ -148,6 +150,8 @@ def detect_staffs(staff_binary: np.ndarray):
         else:
             lines.append(l)
 
+
+    # detect staff line distance
     distances = []
     for i, l1 in enumerate(lines):
         y1 = stats[l1, cv2.CC_STAT_TOP]

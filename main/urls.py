@@ -8,6 +8,7 @@ import os
 import json
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from .book import *
+from PIL import Image
 
 
 # @login_required
@@ -21,7 +22,11 @@ def page_dir(book, page, root=settings.PRIVATE_MEDIA_ROOT):
 
 def list_pages(request, book: str):
     book = Book(book)
-    pages = os.listdir(book.local_path())
+    if os.path.exists(book.local_path()) and os.path.isdir(book.local_path()):
+        pages = os.listdir(book.local_path())
+    else:
+        pages = []
+
     data = {
         'pages': [
             {
@@ -35,21 +40,19 @@ def list_pages(request, book: str):
 def page_annotation(request, book, page):
     annotation_file = File(Page(Book(book), page), 'annotation')
     img = Image.open(File(annotation_file.page, 'deskewed_original').local_path())
+    files = {}
+    for label, definition in file_definitions.items():
+        files[label] = File(annotation_file.page, label).remote_path()
+
     data = {
-        'originalImageUrl': File(annotation_file.page, 'original').remote_path(),
-        'binaryImageUrl': File(annotation_file.page, 'binary').remote_path(),
-        'grayImageUrl': File(annotation_file.page, 'gray').remote_path(),
-        'deskewedOriginalImageUrl': File(annotation_file.page, 'deskewed_original').remote_path(),
-        'deskewedGrayImageUrl': File(annotation_file.page, 'deskewed_gray').remote_path(),
-        'deskewedBinaryImageUrl': File(annotation_file.page, 'deskewed_binary').remote_path(),
-        'detectedStaffsUrl': File(annotation_file.page, 'detected_staffs').remote_path(),
+        'files': files,
         'width': img.size[0],
         'height': img.size[1],
-        'data': ''
+        'annotation_data': {},
     }
     if annotation_file.exists():
         with open(annotation_file.local_path(), 'r') as f:
-            data['data'] = json.loads(f.read())
+            data['annotation_data'] = json.load(f)
 
     return JsonResponse(data)
 
@@ -73,8 +76,37 @@ def get_content(request, book, page, content):
     if not file.exists():
         file.create()
 
-    return protected_serve(request, file.local_path(), "/", False)
+    return protected_serve(request, file.local_request_path(), "/", False)
 
+@csrf_exempt
+def upload_to_book(request, book):
+    if request.method == 'POST':
+        book = Book(book)
+        if not os.path.exists(book.local_path()):
+            os.mkdir(book.local_path())
+
+        for type, file in request.FILES.items():
+            name = os.path.splitext(os.path.basename(file.name))[0].replace(" ", "_").replace("-", "_").replace('.', '_')
+            page = Page(book, name)
+            if not os.path.exists(page.local_path()):
+                os.mkdir(page.local_path())
+
+            type = file.content_type
+            if not type.startswith('image/'):
+                return HttpResponseBadRequest()
+
+            try:
+                img = Image.open(file.file, 'r').convert('RGB')
+                original = File(page, 'color_original')
+                img.save(original.local_path())
+
+            except:
+                return HttpResponseBadRequest()
+
+
+        return HttpResponse()
+
+    return HttpResponseBadRequest()
 
 urlpatterns = [
     re_path(r'^content/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
@@ -84,5 +116,11 @@ urlpatterns = [
     re_path(r'^listpages/(?P<book>\w+)$', list_pages),
     re_path(r'^annotation/(?P<book>\w+)/(?P<page>\w+)$', page_annotation),
     re_path(r'^save_page/(?P<book>\w+)/(?P<page>\w+)$', save_page),
-    path('', views.index, name='index')
+    re_path(r'^book/(?P<book>\w+)/upload/$', upload_to_book),
+    re_path(r'^book/(?P<book>\w+)/list/$', views.list_book),
+    re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/save$', save_page),
+    re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
+    path('books/list', views.list_all_books, name='list_all_books'),
+    re_path(r'^books/new/(?P<book>\w+)$', views.new_book, name='new_book'),
+    path('', views.index, name='index'),
 ]
