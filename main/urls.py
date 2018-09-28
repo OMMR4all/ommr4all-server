@@ -120,6 +120,7 @@ urlpatterns = [
     re_path(r'^book/(?P<book>\w+)/list/$', views.list_book),
     re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/save$', save_page),
     re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
+    re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/operation/(?P<operation>\w+)$', views.get_operation),
     path('books/list', views.list_all_books, name='list_all_books'),
     re_path(r'^books/new/(?P<book>\w+)$', views.new_book, name='new_book'),
     path('', views.index, name='index'),
