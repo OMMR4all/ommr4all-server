@@ -1,4 +1,4 @@
-from django.http import HttpResponse, JsonResponse, HttpResponseNotModified, HttpResponseBadRequest
+from django.http import HttpResponse, JsonResponse, HttpResponseNotModified, HttpResponseBadRequest, FileResponse
 from .book import Book, Page, File
 from omr.stafflines.text_line import TextLine
 from omr.stafflines.json_util import json_to_line
@@ -45,6 +45,32 @@ def new_book(request, book):
 def list_all_books(request):
     books = Book.list_available()
     return JsonResponse({'books': sorted([{'label': book.book} for book in books if book.is_valid()], key=lambda v: v['label'])})
+
+
+def book_download(request, book, type):
+    book = Book(book)
+    if type == 'annotations.zip':
+        import zipfile, io, os
+        s = io.BytesIO()
+        zf = zipfile.ZipFile(s, 'w')
+        pages = book.pages()
+        for page in pages:
+            color_img = page.file('color_deskewed')
+            binary_img = page.file('binary_deskewed')
+            annotation = page.file('annotation')
+            if not color_img.exists() or not binary_img.exists() or not annotation.exists():
+                continue
+
+            zf.write(color_img.local_path(), os.path.join('color', page.page + color_img.ext()))
+            zf.write(binary_img.local_path(), os.path.join('binary', page.page + binary_img.ext()))
+            zf.write(annotation.local_path(), os.path.join('annotation', page.page + annotation.ext()))
+
+        zf.close()
+        s.seek(0)
+        return FileResponse(s, as_attachment=True, filename=book.book + '.zip')
+
+    return HttpResponseBadRequest()
+
 
 
 def index(request):

@@ -264,6 +264,9 @@ class File:
         else:
             return self.local_path()
 
+    def ext(self):
+        return os.path.splitext(self.local_request_path())[-1]
+
     def remote_path(self):
         if self.preview:
             return os.path.join(self.page.remote_path(), self.definition.id + '_preview')

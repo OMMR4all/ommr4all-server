@@ -118,6 +118,7 @@ urlpatterns = [
     re_path(r'^save_page/(?P<book>\w+)/(?P<page>\w+)$', save_page),
     re_path(r'^book/(?P<book>\w+)/upload/$', upload_to_book),
     re_path(r'^book/(?P<book>\w+)/list/$', views.list_book),
+    re_path(r'^book/(?P<book>\w+)/download/(?P<type>[\w\.]+)$', views.book_download),
     re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/save$', save_page),
     re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
     re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/operation/(?P<operation>\w+)$', views.get_operation),
