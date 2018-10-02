@@ -31,20 +31,20 @@ class Page:
     @staticmethod
     def from_json(json: dict):
         page = Page(
-            [TextRegion.from_json(t) for t in json.get('text_regions', [])],
-            [MusicRegion.from_json(m) for m in json.get('music_regions', [])],
-            json.get('image_filename', ""),
-            json.get('image_height', 0),
-            json.get('image_width', 0),
+            [TextRegion.from_json(t) for t in json.get('textRegions', [])],
+            [MusicRegion.from_json(m) for m in json.get('musicRegions', [])],
+            json.get('imageFilename', ""),
+            json.get('imageHeight', 0),
+            json.get('imageWidth', 0),
         )
         page._resolve_cross_refs()
         return page
 
     def to_json(self):
         return {
-            "text_regions": [t.to_json() for t in self.text_regions],
-            "music_regions": [m.to_json() for m in self.music_regions],
-            "image_filename": self.image_filename,
-            "image_width": self.image_width,
-            "image_height": self.image_height,
+            "textRegions": [t.to_json() for t in self.text_regions],
+            "musicRegions": [m.to_json() for m in self.music_regions],
+            "imageFilename": self.image_filename,
+            "imageWidth": self.image_width,
+            "imageHeight": self.image_height,
         }

@@ -15,11 +15,11 @@ class MusicRegion:
     def from_json(json):
         return MusicRegion(
             Coords.from_json(json.get('coords', [])),
-            [StaffEquiv.from_json(s) for s in json.get('staff_equivs', [])],
+            [StaffEquiv.from_json(s) for s in json.get('staffEquivs', [])],
         )
 
     def to_json(self):
         return {
             "coords": self.coords.to_json(),
-            "staff_equivs": [s.to_json() for s in self.staffs],
+            "staffEquivs": [s.to_json() for s in self.staffs],
         }

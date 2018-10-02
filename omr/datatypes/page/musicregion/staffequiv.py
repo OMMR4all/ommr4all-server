@@ -1,4 +1,4 @@
-from . import Coords, Point, Syllable
+from . import Coords, Point, Syllable, EquivIndex
 from typing import List
 from enum import Enum
 
@@ -10,7 +10,7 @@ class AccidentalType(Enum):
 
 
 class MusicSymbolPositionInStaff(Enum):
-    UNDEFINED = -1
+    UNDEFINED = -1000
 
     # usual notation
     SPACE_0 = 0
@@ -53,6 +53,8 @@ class Accidental:
 
     @staticmethod
     def from_json(json):
+        if json is None:
+            return None
         return Accidental(
             AccidentalType(json.get('type', AccidentalType.NATURAL)),
             Point.from_json(json.get('coord', Point().to_json())),
@@ -66,12 +68,12 @@ class Accidental:
 
 
 class NoteType(Enum):
-    NORMAL = 'normal'
+    NORMAL = 0
 
 
 class GraphicalConnectionType(Enum):
-    NONE = 'none'
-    CONNECTED = 'connected'
+    NONE = 0
+    CONNECTED = 1
 
 
 class Note:
@@ -81,7 +83,6 @@ class Note:
                  graphical_connection=GraphicalConnectionType.NONE,
                  accidental: Accidental = None,
                  syllable: Syllable = None,
-                 index = 0,
                  ):
         self.note_type = note_type
         self.coord = coord
@@ -89,7 +90,6 @@ class Note:
         self.graphical_connection = graphical_connection
         self.accidental = accidental
         self.syllable = syllable
-        self.index = 0
 
     def _resolve_cross_refs(self, page):
         if self.syllable is not None and not isinstance(self.syllable, Syllable):
@@ -104,22 +104,20 @@ class Note:
         return Note(
             NoteType(json.get('type', NoteType.NORMAL)),
             Coords.from_json(json.get('coord', [])),
-            MusicSymbolPositionInStaff(json.get('position_in_staff', MusicSymbolPositionInStaff.UNDEFINED)),
-            GraphicalConnectionType(json.get('graphical_connection', GraphicalConnectionType.NONE)),
+            MusicSymbolPositionInStaff(json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED)),
+            GraphicalConnectionType(json.get('graphicalConnection', GraphicalConnectionType.NONE)),
             Accidental.from_json(json.get('accidental', {})),
             json.get('syllable', None),
-            json.get('index', 0),
         )
 
     def to_json(self):
         return {
             'type': self.note_type.value,
             'coord': self.coord.to_json(),
-            'position_in_staff': self.position_in_staff.value,
-            'graphical_connection': self.graphical_connection.value,
-            'accidental': self.accidental.to_json(),
-            'syllable': self.syllable.id,
-            'index': self.index,
+            'positionInStaff': self.position_in_staff.value,
+            'graphicalConnection': self.graphical_connection.value,
+            'accidental': self.accidental.to_json() if self.accidental else None,
+            'syllable': self.syllable.id if self.syllable else None,
         }
 
 
@@ -141,15 +139,15 @@ class Clef:
     def from_json(json: dict):
         return Clef(
             ClefType(json.get("type", ClefType.CLEF_F)),
-            Coords.from_json(json.get("coords", [])),
-            MusicSymbolPositionInStaff(json.get('position_in_staff', MusicSymbolPositionInStaff.UNDEFINED)),
+            Coords.from_json(json.get("coord", "0,0")),
+            MusicSymbolPositionInStaff(json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED)),
         )
 
     def to_json(self):
         return {
             "type": self.clef_type.value,
             "coord": self.coord.to_json(),
-            "position_in_staff": self.position_in_staff.value,
+            "positionInStaff": self.position_in_staff.value,
         }
 
 
@@ -174,11 +172,13 @@ class StaffEquiv:
                  coords=Coords(),
                  staff_lines: List[StaffLine]=list(),
                  clefs: List[Clef]=list(),
-                 notes: List[Note]=list()):
+                 notes: List[Note]=list(),
+                 index=EquivIndex.CORRECTED):
         self.coords = coords
         self.staff_lines = staff_lines
         self.clefs = clefs
         self.notes = notes
+        self.index = index
 
     def _resolve_cross_refs(self, page):
         for note in self.notes:
@@ -188,15 +188,17 @@ class StaffEquiv:
     def from_json(json):
         return StaffEquiv(
             Coords.from_json(json.get('coords', [])),
-            [StaffLine.from_json(l) for l in json.get('staff_lines', [])],
+            [StaffLine.from_json(l) for l in json.get('staffLines', [])],
             [Clef.from_json(c) for c in json.get('clefs', [])],
-            [Note.from_json(n) for n in json.get('note', [])]
+            [Note.from_json(n) for n in json.get('notes', [])],
+            json.get('index', EquivIndex.CORRECTED),
         )
 
     def to_json(self):
         return {
             "coords": self.coords.to_json(),
-            "staff_lines": [l.to_json() for l in self.staff_lines],
+            "staffLines": [l.to_json() for l in self.staff_lines],
             'clefs': [c.to_json() for c in self.clefs],
             "notes": [n.to_json() for n in self.notes],
+            'index': self.index,
         }

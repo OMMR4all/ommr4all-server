@@ -39,14 +39,14 @@ class TextRegion:
         return TextRegion(
             TextRegionType(json.get('type', TextRegionType.PARAGRAPH)),
             Coords.from_json(json.get('coords', [])),
-            [TextLine.from_json(l) for l in json.get('text_lines', [])],
-            [TextEquiv.from_json(t) for t in json.get('text_equivs', [])],
+            [TextLine.from_json(l) for l in json.get('textLines', [])],
+            [TextEquiv.from_json(t) for t in json.get('textEquivs', [])],
         )
 
     def to_json(self):
         return {
             'type': self.region_type.value,
             'coords': self.coords.to_json(),
-            'text_lines': [l.to_json for l in self.text_lines],
-            'text_equivs': [t.to_json for t in self.text_equivs],
+            'textLines': [l.to_json for l in self.text_lines],
+            'textEquivs': [t.to_json for t in self.text_equivs],
         }

@@ -3,17 +3,19 @@ from .book import Book, Page, File
 from omr.stafflines.text_line import TextLine
 from omr.stafflines.json_util import json_to_line
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
+from omr.datatypes.pcgts import PcGts
 import json
+from omr.datatypes.pcgts import PcGts
 
 
 @csrf_exempt
 def get_operation(request, book, page, operation):
+    page = Page(Book(book), page)
     if operation == 'text_polygones':
         obj = json.loads(request.body, encoding='utf-8')
         initial_line = json_to_line(obj['points'])
         from omr.segmentation.text.extract_text_from_intersection import extract_text
         import pickle
-        page = Page(Book(book), page)
         f = page.file('connected_components_deskewed')
         f.create()
         with open(f.local_path(), 'rb') as pkl:
@@ -21,9 +23,24 @@ def get_operation(request, book, page, operation):
 
         return JsonResponse(text_line.to_json())
 
+    elif operation == 'save':
+        obj = json.loads(request.body, encoding='utf-8')
+        pcgts = PcGts.from_json(obj)
+        pcgts.to_file(page.file('pcgts').local_path())
+
+        return HttpResponse()
+
     else:
         HttpResponseBadRequest()
 
+def get_pcgts(request, book, page):
+    page = Page(Book(book), page)
+    file = File(page, 'pcgts')
+
+    if not file.exists():
+        file.create()
+
+    return JsonResponse(PcGts.from_file(file.local_request_path()).to_json())
 
 def list_book(request, book):
     book = Book(book)

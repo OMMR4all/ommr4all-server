@@ -149,6 +149,11 @@ file_definitions = {
         ['annotation.json'],
         requires=['color_original'],
     ),
+    'pcgts': FileDefinition(
+        'pcgts',
+        ['pcgts.json'],
+        requires=['color_original'],
+    ),
     'color_deskewed': FileDefinition(
         'color_deskewed',
         ['color_deskewed.jpg', 'gray_deskewed.jpg', 'binary_deskewed.png'],
@@ -293,6 +298,12 @@ class File:
                 import json
                 with open(self.local_path(), 'w') as f:
                     json.dump({}, f)
+            elif self.definition.id == 'pcgts':
+                from omr.datatypes.pcgts import PcGts
+                img = Image.open(File(self.page, 'color_original').local_path())
+                pcgts = PcGts()
+                pcgts.page.image_width, pcgts.page.image_height = img.size
+                pcgts.to_file(self.local_path())
             elif self.definition.id == 'meta':
                 img = Image.open(File(self.page, 'color_original').local_path())
                 width, height = img.size

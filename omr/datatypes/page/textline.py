@@ -19,11 +19,11 @@ class TextLine:
     def from_json(json: dict):
         return TextLine(
             Coords.from_json(json.get('coords', [])),
-            [TextEquiv.from_json(t) for t in json.get('text_equivs', [])],
+            [TextEquiv.from_json(t) for t in json.get('textEquivs', [])],
         )
 
     def to_json(self):
         return {
             'coords': self.coords.to_json(),
-            'text_equivs': [t.to_json() for t in self.text_equivs]
+            'textEquivs': [t.to_json() for t in self.text_equivs]
         }
