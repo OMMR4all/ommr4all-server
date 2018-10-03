@@ -23,3 +23,12 @@ class MusicRegion:
             "coords": self.coords.to_json(),
             "staffEquivs": [s.to_json() for s in self.staffs],
         }
+
+    def has_staff_equiv_by_index(self, index):
+        return len([s for s in self.staffs if s.index == index]) > 0
+
+    def staff_equiv_by_index(self, index):
+        for s in self.staffs:
+            if s.index == index:
+                return s
+        return None

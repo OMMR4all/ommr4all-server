@@ -1,4 +1,6 @@
 import numpy as np
+from skimage.measure import approximate_polygon
+import cv2
 
 
 class Point:
@@ -47,6 +49,16 @@ class Coords:
 
     def to_json(self):
         return self.to_string()
+
+    def interpolate_y(self, x):
+        return np.interp(x, self.points[:, 0], self.points[:, 1])
+
+    def approximate(self, distance):
+        self.points = approximate_polygon(self.points, distance)
+
+    def draw(self, canvas, color=(0, 255, 0), thickness=5):
+        pts = self.points.reshape((-1, 1, 2)).astype(np.int32)
+        cv2.polylines(canvas, [pts], False, color, int(thickness))
 
 
 if __name__ == '__main__':

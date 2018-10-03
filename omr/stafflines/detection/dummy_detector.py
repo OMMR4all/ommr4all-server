@@ -5,17 +5,21 @@ import logging
 from scipy.ndimage.morphology import binary_erosion, binary_dilation
 from scipy.signal import convolve2d
 from main.book import Book, Page, File
-from omr.stafflines.staffline import *
+from omr.datatypes import *
+from typing import List
 import matplotlib.pyplot as plt
 from omr.preprocessing.binarizer.ocropus_binarizer import binarize
+from scipy.spatial import ConvexHull
 
 logger = logging.getLogger("Staffline Detector")
+
 
 def imshow(img):
     plt.imshow(img)
     plt.show()
 
-def detect(binary: np.ndarray, gray: np.ndarray, debug=False):
+
+def detect(binary: np.ndarray, gray: np.ndarray, debug=False) -> List[StaffEquiv]:
     #filtered = gaussian_filter1d(img[:,:,2] + img[:,:,1] - img[:,:,0], 3, axis=1)
     gray = cv2.bilateralFilter((gray * 255).astype(np.uint8), 5, 75, 75)
     gray = (1 - np.clip(convolve2d(1 - gray, np.full((1, 10), 0.2)), 0, 255)) / 255
@@ -123,14 +127,18 @@ def detect(binary: np.ndarray, gray: np.ndarray, debug=False):
     logger.debug([len(l[0]) for l in staffs])
 
     def to_staff_line(line) -> StaffLine:
-        return StaffLine(line)
+        coords = Coords(line)
+        coords.approximate(line_distance / 10)
+        return StaffLine(coords)
 
-    def to_staff(staff) -> Staff:
+    def to_staff(staff) -> StaffEquiv:
         staff = staff[0]
-        lines = list(map(to_staff_line, staff))
-        return Staff(lines)
+        lines: List[StaffLine] = list(map(to_staff_line, staff))
+        all_points = np.concatenate(tuple([f.coords.points for f in lines]), axis=0)
+        coords = Coords(ConvexHull(all_points).points)
+        return StaffEquiv(coords, lines, index=EquivIndex.AI)
 
-    staffs = Staffs(list(map(to_staff, staffs)))
+    staffs = list(map(to_staff, staffs))
 
     return staffs
 
@@ -265,6 +273,7 @@ if __name__=='__main__':
     gray = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_gray.jpg'))
     staffs = detect(np.array(binary) // 255, np.array(gray) / 255)
     img = np.array(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_original.jpg')), dtype=np.uint8)
-    staffs.draw(img)
+    for staff in staffs:
+        staff.draw(img)
     plt.imshow(img)
     plt.show()

@@ -1,5 +1,4 @@
 from django.conf import settings
-from omr.stafflines.staffline import Staffs
 import os
 from PIL import Image
 from multiprocessing import Lock

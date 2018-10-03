@@ -1,6 +1,9 @@
 from . import Coords, Point, Syllable, EquivIndex
 from typing import List
 from enum import Enum
+from skimage.measure import approximate_polygon
+import cv2
+import numpy as np
 
 
 class AccidentalType(Enum):
@@ -154,6 +157,9 @@ class Clef:
 class StaffLine:
     def __init__(self, coords=Coords()):
         self.coords = coords
+        self._center_y = 0
+        self._dewarped_y = 0
+        self.update()
 
     @staticmethod
     def from_json(json):
@@ -166,18 +172,38 @@ class StaffLine:
             'coords': self.coords.to_json()
         }
 
+    def update(self):
+        self._center_y = np.mean(self.coords.points[:, 1])
+        self._dewarped_y = int(self._center_y)
+
+    def approximate(self, distance):
+        self.coords.approximate(distance)
+        self.update()
+
+    def interpolate_y(self, x):
+        return self.coords.interpolate_y(x)
+
+    def center_y(self):
+        return self._center_y
+
+    def dewarped_y(self):
+        return self._dewarped_y
+
+    def draw(self, canvas, color=(0, 255, 0), thickness=5):
+        self.coords.draw(canvas, color, thickness)
+
 
 class StaffEquiv:
     def __init__(self,
                  coords=Coords(),
-                 staff_lines: List[StaffLine]=list(),
-                 clefs: List[Clef]=list(),
-                 notes: List[Note]=list(),
+                 staff_lines: List[StaffLine]=None,
+                 clefs: List[Clef]=None,
+                 notes: List[Note]=None,
                  index=EquivIndex.CORRECTED):
         self.coords = coords
-        self.staff_lines = staff_lines
-        self.clefs = clefs
-        self.notes = notes
+        self.staff_lines = staff_lines if staff_lines else []
+        self.clefs = clefs if clefs else []
+        self.notes = notes if notes else []
         self.index = index
 
     def _resolve_cross_refs(self, page):
@@ -191,7 +217,7 @@ class StaffEquiv:
             [StaffLine.from_json(l) for l in json.get('staffLines', [])],
             [Clef.from_json(c) for c in json.get('clefs', [])],
             [Note.from_json(n) for n in json.get('notes', [])],
-            json.get('index', EquivIndex.CORRECTED),
+            EquivIndex(json.get('index', EquivIndex.CORRECTED)),
         )
 
     def to_json(self):
@@ -200,5 +226,20 @@ class StaffEquiv:
             "staffLines": [l.to_json() for l in self.staff_lines],
             'clefs': [c.to_json() for c in self.clefs],
             "notes": [n.to_json() for n in self.notes],
-            'index': self.index,
+            'index': self.index.value,
         }
+
+    def _avg_line_distance(self, default=-1):
+        if len(self.staff_lines) <= 1:
+            return default
+
+        d = self.staff_lines[-1].center_y() - self.staff_lines[0].center_y()
+        return d / (len(self.staff_lines) - 1)
+
+    def approximate(self, distance):
+        for line in self.staff_lines:
+            line.approximate(distance)
+
+    def draw(self, canvas, color=(0, 255, 0), thickness=5):
+        for line in self.staff_lines:
+            line.draw(canvas, color, thickness)

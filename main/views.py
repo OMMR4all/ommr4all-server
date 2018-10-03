@@ -6,6 +6,8 @@ from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from omr.datatypes.pcgts import PcGts
 import json
 from omr.datatypes.pcgts import PcGts
+from PIL import Image
+import numpy as np
 
 
 @csrf_exempt
@@ -22,6 +24,13 @@ def get_operation(request, book, page, operation):
             text_line = extract_text(pickle.load(pkl), initial_line)
 
         return JsonResponse(text_line.to_json())
+
+    elif operation == 'staffs':
+        from omr.stafflines.detection.dummy_detector import detect
+        binary = Image.open(File(page, 'binary_deskewed').local_path())
+        gray = Image.open(File(page, 'gray_deskewed').local_path())
+        lines = detect(np.array(binary) // 255, np.array(gray) / 255)
+        return JsonResponse({'staffs': [l.to_json() for l in lines]})
 
     elif operation == 'save':
         obj = json.loads(request.body, encoding='utf-8')
