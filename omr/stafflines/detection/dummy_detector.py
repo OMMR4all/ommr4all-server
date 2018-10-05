@@ -132,10 +132,11 @@ def detect(binary: np.ndarray, gray: np.ndarray, debug=False) -> List[StaffEquiv
         return StaffLine(coords)
 
     def to_staff(staff) -> StaffEquiv:
+        global lines_only
         staff = staff[0]
         lines: List[StaffLine] = list(map(to_staff_line, staff))
         all_points = np.concatenate(tuple([f.coords.points for f in lines]), axis=0)
-        coords = Coords(ConvexHull(all_points).points)
+        coords = Coords(all_points[ConvexHull(all_points).vertices])
         return StaffEquiv(coords, lines, index=EquivIndex.AI)
 
     staffs = list(map(to_staff, staffs))
