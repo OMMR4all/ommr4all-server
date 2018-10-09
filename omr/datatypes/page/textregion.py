@@ -4,9 +4,10 @@ from enum import Enum
 
 
 class TextRegionType(Enum):
-    PARAGRAPH = "paragraph"
-    HEADING = "heading"
-    LYRICS = "lyrics"
+    PARAGRAPH = 0
+    HEADING = 1
+    LYRICS = 2
+    DROP_CAPITAL = 3
 
 
 class TextRegion:
@@ -47,6 +48,6 @@ class TextRegion:
         return {
             'type': self.region_type.value,
             'coords': self.coords.to_json(),
-            'textLines': [l.to_json for l in self.text_lines],
-            'textEquivs': [t.to_json for t in self.text_equivs],
+            'textLines': [l.to_json() for l in self.text_lines],
+            'textEquivs': [t.to_json() for t in self.text_equivs],
         }
