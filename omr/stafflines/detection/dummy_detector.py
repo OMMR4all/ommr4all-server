@@ -19,7 +19,7 @@ def imshow(img):
     plt.show()
 
 
-def detect(binary: np.ndarray, gray: np.ndarray, debug=False) -> List[StaffEquiv]:
+def detect(binary: np.ndarray, gray: np.ndarray, debug=False) -> List[MusicLine]:
     #filtered = gaussian_filter1d(img[:,:,2] + img[:,:,1] - img[:,:,0], 3, axis=1)
     gray = cv2.bilateralFilter((gray * 255).astype(np.uint8), 5, 75, 75)
     gray = (1 - np.clip(convolve2d(1 - gray, np.full((1, 10), 0.2)), 0, 255)) / 255
@@ -131,13 +131,13 @@ def detect(binary: np.ndarray, gray: np.ndarray, debug=False) -> List[StaffEquiv
         coords.approximate(line_distance / 10)
         return StaffLine(coords)
 
-    def to_staff(staff) -> StaffEquiv:
+    def to_staff(staff) -> MusicLine:
         global lines_only
         staff = staff[0]
         lines: List[StaffLine] = list(map(to_staff_line, staff))
         all_points = np.concatenate(tuple([f.coords.points for f in lines]), axis=0)
         coords = Coords(all_points[ConvexHull(all_points).vertices])
-        return StaffEquiv(coords, lines, index=EquivIndex.AI)
+        return MusicLine(coords, lines)
 
     staffs = list(map(to_staff, staffs))
 

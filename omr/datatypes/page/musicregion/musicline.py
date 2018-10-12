@@ -4,6 +4,7 @@ from enum import Enum
 from skimage.measure import approximate_polygon
 import cv2
 import numpy as np
+from uuid import uuid4
 
 
 class AccidentalType(Enum):
@@ -75,52 +76,78 @@ class NoteType(Enum):
 
 
 class GraphicalConnectionType(Enum):
-    NONE = 0
-    CONNECTED = 1
+    GAPED = 0
+    LOOPED = 1
 
 
-class Note:
-    def __init__(self, note_type=NoteType.NORMAL,
+class NoteName(Enum):
+    UNDEFINED = -1
+    A = 0
+    B = 1
+    C = 2
+    D = 3
+    E = 4
+    F = 5
+    G = 6
+
+
+class NoteComponent:
+    def __init__(self,
+                 note_name=NoteName.UNDEFINED,
+                 octave=-1,
+                 note_type=NoteType.NORMAL,
                  coord=Point(),
                  position_in_staff=MusicSymbolPositionInStaff.UNDEFINED,
-                 graphical_connection=GraphicalConnectionType.NONE,
-                 accidental: Accidental = None,
-                 syllable: Syllable = None,
+                 graphical_connection=GraphicalConnectionType.GAPED,
                  ):
+        self.note_name = note_name
+        self.octave = octave
         self.note_type = note_type
         self.coord = coord
         self.position_in_staff = position_in_staff
         self.graphical_connection = graphical_connection
-        self.accidental = accidental
-        self.syllable = syllable
-
-    def _resolve_cross_refs(self, page):
-        if self.syllable is not None and not isinstance(self.syllable, Syllable):
-            # resolve cross ref
-            s_id = self.syllable
-            self.syllable = page.syllable_by_id(s_id)
-            if self.syllable is None:
-                raise Exception("Syllable id '{}' not found!".format(s_id))
 
     @staticmethod
     def from_json(json: dict):
-        return Note(
+        return NoteComponent(
+            NoteName(json.get('pname', NoteName.UNDEFINED)),
+            json.get('oct', -1),
             NoteType(json.get('type', NoteType.NORMAL)),
             Coords.from_json(json.get('coord', [])),
             MusicSymbolPositionInStaff(json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED)),
             GraphicalConnectionType(json.get('graphicalConnection', GraphicalConnectionType.NONE)),
-            Accidental.from_json(json.get('accidental', {})),
-            json.get('syllable', None),
         )
 
     def to_json(self):
         return {
+            'pname': self.note_name.value,
+            'oct': self.octave,
             'type': self.note_type.value,
             'coord': self.coord.to_json(),
             'positionInStaff': self.position_in_staff.value,
             'graphicalConnection': self.graphical_connection.value,
-            'accidental': self.accidental.to_json() if self.accidental else None,
-            'syllable': self.syllable.id if self.syllable else None,
+        }
+
+
+class Neume:
+    def __init__(self,
+                 n_id = str(uuid4()),
+                 notes: List[NoteComponent] = None,
+                 ):
+        self.id = n_id
+        self.notes: List[NoteComponent] = notes if notes else []
+
+    @staticmethod
+    def from_json(json: dict):
+        return Neume(
+            json.get('id', str(uuid4())),
+            [NoteComponent.from_json(nc) for nc in json.get('nc', [])]
+        )
+
+    def to_json(self):
+        return {
+            'id': self.id,
+            'nc': [nc.to_json() for nc in self.notes]
         }
 
 
@@ -193,31 +220,28 @@ class StaffLine:
         self.coords.draw(canvas, color, thickness)
 
 
-class StaffEquiv:
+class MusicLine:
     def __init__(self,
                  coords=Coords(),
                  staff_lines: List[StaffLine]=None,
                  clefs: List[Clef]=None,
-                 notes: List[Note]=None,
+                 neumes: List[Neume]=None,
+                 accidentals: List[Accidental] = None,
                  index=EquivIndex.CORRECTED):
         self.coords = coords
         self.staff_lines = staff_lines if staff_lines else []
         self.clefs = clefs if clefs else []
-        self.notes = notes if notes else []
-        self.index = index
-
-    def _resolve_cross_refs(self, page):
-        for note in self.notes:
-            note._resolve_cross_refs(page)
+        self.neumes = neumes if neumes else []
+        self.accidentals = accidentals if accidentals else []
 
     @staticmethod
     def from_json(json):
-        return StaffEquiv(
+        return MusicLine(
             Coords.from_json(json.get('coords', [])),
             [StaffLine.from_json(l) for l in json.get('staffLines', [])],
             [Clef.from_json(c) for c in json.get('clefs', [])],
-            [Note.from_json(n) for n in json.get('notes', [])],
-            EquivIndex(json.get('index', EquivIndex.CORRECTED)),
+            [Neume.from_json(n) for n in json.get('neumes', [])],
+            [Accidental.from_json(n) for n in json.get('accidentals', [])],
         )
 
     def to_json(self):
@@ -225,8 +249,8 @@ class StaffEquiv:
             "coords": self.coords.to_json(),
             "staffLines": [l.to_json() for l in self.staff_lines],
             'clefs': [c.to_json() for c in self.clefs],
-            "notes": [n.to_json() for n in self.notes],
-            'index': self.index.value,
+            "neumes": [n.to_json() for n in self.neumes],
+            'accidentals': [a.to_json() for a in self.accidentals],
         }
 
     def _avg_line_distance(self, default=-1):

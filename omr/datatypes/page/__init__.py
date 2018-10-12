@@ -3,5 +3,5 @@ from .coords import Coords, Point
 from .textequiv import TextEquiv, Syllable, SyllableConnection
 from .textline import TextLine
 from .textregion import TextRegion, TextRegionType
-from .musicregion import MusicRegion, StaffEquiv, StaffLine
+from .musicregion import MusicRegion, MusicLine, StaffLine
 from .page import Page

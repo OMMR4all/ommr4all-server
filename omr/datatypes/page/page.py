@@ -25,9 +25,6 @@ class Page:
         for t in self.text_regions:
             t._resolve_cross_refs(self)
 
-        for m in self.music_regions:
-            m._resolve_cross_refs(self)
-
     @staticmethod
     def from_json(json: dict):
         page = Page(

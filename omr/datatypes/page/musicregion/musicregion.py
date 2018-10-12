@@ -1,27 +1,23 @@
-from . import Coords, StaffEquiv
+from . import Coords, MusicLine
 from typing import List
 
 
 class MusicRegion:
-    def __init__(self, coords=Coords(), staffs: List[StaffEquiv]=list()):
+    def __init__(self, coords=Coords(), staffs: List[MusicLine]=None):
         self.coords = coords
-        self.staffs = staffs
-
-    def _resolve_cross_refs(self, page):
-        for staff in self.staffs:
-            staff._resolve_cross_refs(page)
+        self.staffs = staffs if staffs else []
 
     @staticmethod
     def from_json(json):
         return MusicRegion(
             Coords.from_json(json.get('coords', [])),
-            [StaffEquiv.from_json(s) for s in json.get('staffEquivs', [])],
+            [MusicLine.from_json(s) for s in json.get('musicLines', [])],
         )
 
     def to_json(self):
         return {
             "coords": self.coords.to_json(),
-            "staffEquivs": [s.to_json() for s in self.staffs],
+            "musicLines": [s.to_json() for s in self.staffs],
         }
 
     def has_staff_equiv_by_index(self, index):
