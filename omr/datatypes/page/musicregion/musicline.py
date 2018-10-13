@@ -115,7 +115,7 @@ class NoteComponent:
             NoteType(json.get('type', NoteType.NORMAL)),
             Coords.from_json(json.get('coord', [])),
             MusicSymbolPositionInStaff(json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED)),
-            GraphicalConnectionType(json.get('graphicalConnection', GraphicalConnectionType.NONE)),
+            GraphicalConnectionType(json.get('graphicalConnection', GraphicalConnectionType.GAPED)),
         )
 
     def to_json(self):
