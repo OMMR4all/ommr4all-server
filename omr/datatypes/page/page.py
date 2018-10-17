@@ -1,6 +1,9 @@
+from . import *
 from omr.datatypes.page import TextRegion, MusicRegion
+from omr.datatypes.page import annotations as annotations
 from typing import List
 import numpy as np
+
 
 class Page:
     def __init__(self,
@@ -12,6 +15,7 @@ class Page:
         self.image_filename = image_filename
         self.image_height = image_height
         self.image_width = image_width
+        self.annotations = annotations.Annotations(self)
 
     def syllable_by_id(self, syllable_id):
         for t in self.text_regions:
@@ -34,6 +38,8 @@ class Page:
             json.get('imageHeight', 0),
             json.get('imageWidth', 0),
         )
+        if 'annotations' in json:
+            page.annotations = annotations.Annotations.from_json(json['annotations'], page)
         page._resolve_cross_refs()
         return page
 
@@ -44,7 +50,20 @@ class Page:
             "imageFilename": self.image_filename,
             "imageWidth": self.image_width,
             "imageHeight": self.image_height,
+            'annotations': self.annotations.to_json(),
         }
+
+    def music_region_by_id(self, id: str):
+        for mr in self.music_regions:
+            if mr.id == id:
+                return mr
+        return None
+
+    def text_region_by_id(self, id: str):
+        for tr in self.text_regions:
+            if tr.id == id:
+                return tr
+        return None
 
     def staff_equivs(self, index):
         return [m.staff_equiv_by_index(index) for m in self.music_regions if m.has_staff_equiv_by_index(index)]

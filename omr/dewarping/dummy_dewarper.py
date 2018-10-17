@@ -1,10 +1,12 @@
-from omr.stafflines.staffline import Staffs, StaffLine
+from omr.datatypes.page.musicregion.musicline import MusicLine, StaffLine
+from omr.datatypes import PcGts
 import numpy as np
 import json
 import cv2
 import matplotlib.pyplot as plt
 import logging
 from PIL import Image
+from typing import List
 
 logger = logging.Logger("dummy_dewarper")
 
@@ -51,13 +53,13 @@ def griddify(rect, w_div, h_div):
     return np.array(grid_vertex_matrix)
 
 
-def transform(point, staffs: Staffs):
+def transform(point, staffs: List[MusicLine]):
     x, y = point[0], point[1]
     top_staff_line_d = 10000000
     top_staff_line: StaffLine = None
     bot_staff_line_d = 10000000
     bot_staff_line: StaffLine = None
-    for staff in staffs.staffs:
+    for staff in staffs:
         for staff_line in staff.staff_lines:
             o_y = staff_line.interpolate_y(x)
             if o_y < y and y - o_y < top_staff_line_d:
@@ -131,12 +133,13 @@ def dewarp(images, staffs):
 if __name__ == '__main__':
     from gregorian_annotator_server.settings import PRIVATE_MEDIA_ROOT
     import os
-    binary = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'deskewed_binary.png'))
-    gray = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'deskewed_gray.jpg'))
-    staffs_json = json.load(open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'annotation.json'), 'r'))
-    staffs = Staffs.from_json(staffs_json)
+    binary = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'binary_deskewed.png'))
+    gray = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'gray_deskewed.jpg'))
+    staffs_json = json.load(open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'pcgts.json'), 'r'))
+    pcgts = PcGts.from_json(staffs_json)
+    staffs = [m for m in pcgts.page.music_regions if len(m.staffs) > 0]
     overlay = np.array(gray)
-    staffs.draw(overlay)
+    # staffs.draw(overlay)
     images = [binary, gray, Image.fromarray(overlay)]
     f, ax = plt.subplots(2, len(images), True, True)
     for a, l in enumerate(images):

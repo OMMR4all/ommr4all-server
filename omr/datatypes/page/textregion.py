@@ -1,6 +1,7 @@
 from . import Coords, TextLine, TextEquiv
 from typing import List
 from enum import Enum
+from uuid import uuid4
 
 
 class TextRegionType(Enum):
@@ -12,14 +13,16 @@ class TextRegionType(Enum):
 
 class TextRegion:
     def __init__(self,
+                 id: str = None,
                  region_type=TextRegionType.PARAGRAPH,
-                 coords=Coords(),
-                 text_lines: List[TextLine]=list(),
-                 text_equivs: List[TextEquiv]=list()):
+                 coords: Coords = None,
+                 text_lines: List[TextLine] = None,
+                 text_equivs: List[TextEquiv] = None):
+        self.id = id if id else str(uuid4())
         self.region_type = region_type
-        self.coords = coords
-        self.text_lines = text_lines
-        self.text_equivs = text_equivs
+        self.coords = coords if coords else Coords()
+        self.text_lines = text_lines if text_lines else []
+        self.text_equivs = text_equivs if text_equivs else []
 
     def syllable_by_id(self, syllable_id):
         if self.region_type != TextRegionType.LYRICS:
@@ -38,6 +41,7 @@ class TextRegion:
     @staticmethod
     def from_json(json: dict):
         return TextRegion(
+            json.get('id', None),
             TextRegionType(json.get('type', TextRegionType.PARAGRAPH)),
             Coords.from_json(json.get('coords', [])),
             [TextLine.from_json(l) for l in json.get('textLines', [])],
@@ -46,6 +50,7 @@ class TextRegion:
 
     def to_json(self):
         return {
+            'id': self.id,
             'type': self.region_type.value,
             'coords': self.coords.to_json(),
             'textLines': [l.to_json() for l in self.text_lines],

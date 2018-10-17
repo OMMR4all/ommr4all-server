@@ -1,7 +1,10 @@
 from .definitions import EquivIndex
 from .coords import Coords, Point
-from .textequiv import TextEquiv, Syllable, SyllableConnection
+from .syllable import Syllable, SyllableConnection
+from .word import Word
+from .textequiv import TextEquiv
 from .textline import TextLine
 from .textregion import TextRegion, TextRegionType
-from .musicregion import MusicRegion, MusicLine, StaffLine
+from .musicregion import *
+from .annotations import *
 from .page import Page
