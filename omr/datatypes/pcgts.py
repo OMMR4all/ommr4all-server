@@ -1,3 +1,5 @@
+from json import JSONDecodeError
+
 from omr.datatypes import Meta, Page
 
 
@@ -12,15 +14,16 @@ class PcGts:
             import json
             with open(filename, 'r') as f:
                 return PcGts.from_json(json.load(f))
-
         else:
             raise Exception("Invalid file extension of file '{}'".format(filename))
 
     def to_file(self, filename):
         if filename.endswith(".json"):
             import json
+            # first dump to keep file if an error occurs
+            s = json.dumps(self.to_json(), indent=2)
             with open(filename, 'w') as f:
-                json.dump(self.to_json(), f, indent=2)
+                f.write(s)
         else:
             raise Exception("Invalid file extension of file '{}'".format(filename))
 

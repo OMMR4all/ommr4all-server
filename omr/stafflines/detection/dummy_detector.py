@@ -137,7 +137,7 @@ def detect(binary: np.ndarray, gray: np.ndarray, debug=False) -> List[MusicLine]
         lines: List[StaffLine] = list(map(to_staff_line, staff))
         all_points = np.concatenate(tuple([f.coords.points for f in lines]), axis=0)
         coords = Coords(all_points[ConvexHull(all_points).vertices])
-        return MusicLine(coords, lines)
+        return MusicLine(coords=coords, staff_lines=lines)
 
     staffs = list(map(to_staff, staffs))
 

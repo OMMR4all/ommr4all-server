@@ -8,6 +8,7 @@ class NeumeConnector:
                  neume: Neume,
                  ):
         self.neume = neume
+        assert(self.neume is not None)
 
     @staticmethod
     def from_json(json: dict, mr: MusicRegion):

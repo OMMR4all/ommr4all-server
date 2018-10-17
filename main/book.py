@@ -281,6 +281,11 @@ class File:
         return all(map(os.path.exists, [self.local_path(i) for i in range(len(self.definition.output))])) \
                and (not self.definition.has_preview or all(map(os.path.exists, [self.local_thumbnail_path(i) for i in range(len(self.definition.output))])))
 
+    def delete(self):
+        for i in range(len(self.definition.output)):
+            if os.path.exists(self.local_path(file_id=i)):
+                os.remove(self.local_path(file_id=i))
+
     def create(self):
         with mutex_dict.get(self.local_path(), Lock()):
             if self.exists():

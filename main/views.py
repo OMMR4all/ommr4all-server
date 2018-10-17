@@ -1,3 +1,5 @@
+from json import JSONDecodeError
+
 from django.http import HttpResponse, JsonResponse, HttpResponseNotModified, HttpResponseBadRequest, FileResponse
 from .book import Book, Page, File
 from omr.stafflines.text_line import TextLine
@@ -8,6 +10,7 @@ import json
 from omr.datatypes.pcgts import PcGts
 from PIL import Image
 import numpy as np
+import logging
 
 
 @csrf_exempt
@@ -42,6 +45,7 @@ def get_operation(request, book, page, operation):
     else:
         HttpResponseBadRequest()
 
+
 def get_pcgts(request, book, page):
     page = Page(Book(book), page)
     file = File(page, 'pcgts')
@@ -49,7 +53,14 @@ def get_pcgts(request, book, page):
     if not file.exists():
         file.create()
 
-    return JsonResponse(PcGts.from_file(file.local_request_path()).to_json())
+    try:
+        return JsonResponse(PcGts.from_file(file.local_request_path()).to_json())
+    except JSONDecodeError as e:
+        logging.error(e)
+        file.delete()
+        file.create()
+        return JsonResponse(PcGts.from_file(file.local_request_path()).to_json())
+
 
 def list_book(request, book):
     book = Book(book)

@@ -222,19 +222,25 @@ class StaffLine:
 
 class MusicLine:
     def __init__(self,
-                 ml_id=str(uuid4()),
-                 coords=Coords(),
-                 staff_lines: List[StaffLine]=None,
-                 clefs: List[Clef]=None,
-                 neumes: List[Neume]=None,
+                 ml_id: str = None,
+                 coords: Coords = None,
+                 staff_lines: List[StaffLine] = None,
+                 clefs: List[Clef] = None,
+                 neumes: List[Neume] = None,
                  accidentals: List[Accidental] = None,
-                 index=EquivIndex.CORRECTED):
-        self.id = ml_id
-        self.coords = coords
+                 ):
+        self.id = ml_id if ml_id else str(uuid4())
+        self.coords = coords if coords else Coords()
         self.staff_lines = staff_lines if staff_lines else []
         self.clefs = clefs if clefs else []
         self.neumes = neumes if neumes else []
         self.accidentals = accidentals if accidentals else []
+        assert(isinstance(self.coords, Coords))
+        assert(isinstance(self.id, str))
+        assert(isinstance(self.staff_lines, list))
+        assert(isinstance(self.clefs, list))
+        assert(isinstance(self.neumes, list))
+        assert(isinstance(self.accidentals, list))
 
     @staticmethod
     def from_json(json):
