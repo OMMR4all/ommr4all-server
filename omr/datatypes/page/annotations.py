@@ -28,7 +28,8 @@ class SyllableConnector:
                  neume_connections: List[NeumeConnector],
                  ):
         self.syllable = syllable
-        self.neume_connections = neume_connections
+        self.neume_connections = neume_connections if neume_connections else []
+        assert(self.syllable is not None)
 
     @staticmethod
     def from_json(json: dict, mr: MusicRegion, tr: TextRegion):
@@ -53,6 +54,8 @@ class Connection:
         self.music_region = music_region
         self.text_region = text_region
         self.syllable_connections: List[SyllableConnector] = syllable_connections if syllable_connections else []
+        assert(self.music_region is not None)
+        assert(self.text_region is not None)
 
     @staticmethod
     def from_json(json: dict, page: dt_page.Page):
@@ -75,6 +78,7 @@ class Annotations:
     def __init__(self, page: dt_page.Page, connections: List[Connection] = None):
         self.page = page
         self.connections: List[Connection] = connections if connections else []
+        assert(self.page is not None)
 
     @staticmethod
     def from_json(json: dict, page: dt_page.Page):
