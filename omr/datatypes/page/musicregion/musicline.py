@@ -4,7 +4,33 @@ from enum import Enum
 from skimage.measure import approximate_polygon
 import cv2
 import numpy as np
+from abc import ABC, abstractmethod
 from uuid import uuid4
+
+
+class SymbolType(Enum):
+    NEUME = 0
+    CLEF = 1
+    ACCID = 2
+
+
+class Symbol(ABC):
+    def __init__(self, symbol_type: SymbolType):
+        self.symbol_type = symbol_type
+
+    @abstractmethod
+    def to_json(self):
+        return {
+            'symbol': self.symbol_type.value,
+        }
+
+    @staticmethod
+    def from_json(json: dict):
+        return {
+            SymbolType.NEUME: Neume.from_json,
+            SymbolType.CLEF: Clef.from_json,
+            SymbolType.ACCID: Accidental.from_json,
+        }[SymbolType(json.get('symbol'))](json)
 
 
 class AccidentalType(Enum):
@@ -48,10 +74,11 @@ class MusicSymbolPositionInStaff(Enum):
         return MusicSymbolPositionInStaff.UP <= self.value <= MusicSymbolPositionInStaff.DOWN
 
 
-class Accidental:
+class Accidental(Symbol):
     def __init__(self,
                  accidental=AccidentalType.NATURAL,
                  coord=Point()):
+        super().__init__(SymbolType.ACCID)
         self.accidental = accidental
         self.coord = coord
 
@@ -65,10 +92,10 @@ class Accidental:
         )
 
     def to_json(self):
-        return {
+        return dict(super().to_json(), **{
             'type': self.accidental.value,
             'coord': self.coord.to_json()
-        }
+        })
 
 
 class NoteType(Enum):
@@ -129,11 +156,12 @@ class NoteComponent:
         }
 
 
-class Neume:
+class Neume(Symbol):
     def __init__(self,
                  n_id = str(uuid4()),
                  notes: List[NoteComponent] = None,
                  ):
+        super().__init__(SymbolType.NEUME)
         self.id = n_id
         self.notes: List[NoteComponent] = notes if notes else []
 
@@ -145,10 +173,10 @@ class Neume:
         )
 
     def to_json(self):
-        return {
+        return dict(super().to_json(), **{
             'id': self.id,
             'nc': [nc.to_json() for nc in self.notes]
-        }
+        })
 
 
 class ClefType(Enum):
@@ -156,11 +184,12 @@ class ClefType(Enum):
     CLEF_C = 1
 
 
-class Clef:
+class Clef(Symbol):
     def __init__(self,
                  clef_type=ClefType.CLEF_F,
                  coord=Point(),
                  position_in_staff=MusicSymbolPositionInStaff.UNDEFINED):
+        super().__init__(SymbolType.CLEF)
         self.clef_type = clef_type
         self.coord = coord
         self.position_in_staff = position_in_staff
@@ -174,11 +203,11 @@ class Clef:
         )
 
     def to_json(self):
-        return {
+        return dict(super().to_json(), **{
             "type": self.clef_type.value,
             "coord": self.coord.to_json(),
             "positionInStaff": self.position_in_staff.value,
-        }
+        })
 
 
 class StaffLine:
@@ -225,22 +254,16 @@ class MusicLine:
                  ml_id: str = None,
                  coords: Coords = None,
                  staff_lines: List[StaffLine] = None,
-                 clefs: List[Clef] = None,
-                 neumes: List[Neume] = None,
-                 accidentals: List[Accidental] = None,
+                 symbols: List[Symbol] = None,
                  ):
         self.id = ml_id if ml_id else str(uuid4())
         self.coords = coords if coords else Coords()
         self.staff_lines = staff_lines if staff_lines else []
-        self.clefs = clefs if clefs else []
-        self.neumes = neumes if neumes else []
-        self.accidentals = accidentals if accidentals else []
+        self.symbols = symbols if symbols else []
         assert(isinstance(self.coords, Coords))
         assert(isinstance(self.id, str))
         assert(isinstance(self.staff_lines, list))
-        assert(isinstance(self.clefs, list))
-        assert(isinstance(self.neumes, list))
-        assert(isinstance(self.accidentals, list))
+        assert(isinstance(self.symbols, list))
 
     @staticmethod
     def from_json(json):
@@ -248,9 +271,7 @@ class MusicLine:
             json.get('id', str(uuid4())),
             Coords.from_json(json.get('coords', [])),
             [StaffLine.from_json(l) for l in json.get('staffLines', [])],
-            [Clef.from_json(c) for c in json.get('clefs', [])],
-            [Neume.from_json(n) for n in json.get('neumes', [])],
-            [Accidental.from_json(n) for n in json.get('accidentals', [])],
+            [Symbol.from_json(s) for s in json.get('symbols', [])],
         )
 
     def to_json(self):
@@ -258,9 +279,7 @@ class MusicLine:
             "id": self.id,
             "coords": self.coords.to_json(),
             "staffLines": [l.to_json() for l in self.staff_lines],
-            'clefs': [c.to_json() for c in self.clefs],
-            "neumes": [n.to_json() for n in self.neumes],
-            'accidentals': [a.to_json() for a in self.accidentals],
+            "symbols": [s.to_json() for s in self.symbols],
         }
 
     def _avg_line_distance(self, default=-1):

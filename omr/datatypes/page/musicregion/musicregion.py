@@ -1,4 +1,4 @@
-from . import Coords, MusicLine
+from . import Coords, MusicLine, SymbolType
 from typing import List
 from uuid import uuid4
 
@@ -29,8 +29,8 @@ class MusicRegion:
 
     def neume_by_id(self, id):
         for ml in self.staffs:
-            for neume in ml.neumes:
-                if neume.id == id:
+            for neume in ml.symbols:
+                if neume.symbol_type == SymbolType.NEUME and neume.id == id:
                     return neume
 
         return None
