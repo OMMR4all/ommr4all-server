@@ -1,51 +1,55 @@
-import numpy as np
-from scipy.misc import imrotate
-from scipy.ndimage.morphology import binary_erosion, binary_dilation
+from abc import ABC, abstractmethod
 from PIL import Image
-import cv2
+import numpy as np
 
-from omr.preprocessing.binarizer.ocropus_binarizer import binarize, normalize_raw_image, OCRopusBin
+from ..binarizer import default_binarizer
 
-
-def extract_line_angles(staff_binary):
-    lines = cv2.HoughLines(staff_binary, 1, np.pi / 180, 200)
-    if lines is None:
-        return []
-
-    angles = []
-    for (rho, theta), in lines:
-        angle = theta * 180 / np.pi - 90
-        if np.abs(angle) < 5:
-            angles.append(angle)
-
-    return angles
+def default_deskewer(
+        binarizer=default_binarizer()
+        ):
+    from . import OcropusDeskewer
+    return OcropusDeskewer(binarizer)
 
 
-def gray_to_staff_binary(gray_image):
-    binarized = 1 - binarize(normalize_raw_image(gray_image))
-    morph = binary_erosion(binarized, structure=np.full((5, 1), 1))
-    morph = binary_dilation(morph, structure=np.full((5, 1), 1))
+class Deskewer(ABC):
+    def __init__(self,
+                 binarizer
+                 ):
+        self.original_image = None
+        self.gray_image = None
+        self.binary_image = None
+        self.binarizer = binarizer
 
-    staffs = (binarized  ^ morph)
-    return staffs.astype(np.uint8)
+        self.angle = 0
+        self.original_out = None
+        self.gray_out = None
+        self.binary_out = None
 
+    def deskew(self,
+               original_image: Image,
+               gray_image: Image,
+               binary_image: Image,
+               ):
+        self.original_image = original_image
+        self.gray_image = gray_image
+        self.binary_image = binary_image
+        self.angle = self._estimate_skew_angle()
+        self.original_out = self.original_image.rotate(self.angle)
+        self.gray_out = self.gray_image.rotate(self.angle)
+        self.binary_out = self.binarizer.binarize(self.original_out)
+        return self.original_out, self.gray_out, self.binary_out
 
-def estimate_rotation(gray_image: np.ndarray):
-    angles_to_test = [-3, -2, -1, 0, 1, 2, 3]
-    rotated_images = [imrotate(gray_image, angle) for angle in angles_to_test]
-    rotated_images = map(gray_to_staff_binary, rotated_images)
-    line_angles = map(extract_line_angles, rotated_images)
-    all_angles = []
-    for la, ang in zip(line_angles, angles_to_test):
-        all_angles += [l + ang for l in la]
+    @abstractmethod
+    def _estimate_skew_angle(self) -> float:
+        return 0
 
-    return np.median(all_angles)
-
-
-def deskew(original_image: Image, gray_image: Image):
-    rot_angle = estimate_rotation(np.array(gray_image))
-    o = original_image.rotate(rot_angle)
-    g = gray_image.rotate(rot_angle)
-    b = OCRopusBin().binarize(o)
-
-    return o, g, b
+    def plot(self):
+        import matplotlib.pyplot as plt
+        f, ax = plt.subplots(2, 3, sharex='all', sharey='all')
+        ax[0, 0].imshow(np.array(self.original_image))
+        ax[0, 1].imshow(np.array(self.gray_image))
+        ax[0, 2].imshow(np.array(self.binary_image))
+        ax[1, 0].imshow(np.array(self.original_out))
+        ax[1, 1].imshow(np.array(self.gray_out))
+        ax[1, 2].imshow(np.array(self.binary_out))
+        plt.show()

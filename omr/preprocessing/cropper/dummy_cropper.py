@@ -2,7 +2,7 @@ from PIL import Image
 import json
 import numpy as np
 import matplotlib.pyplot as plt
-from omr.stafflines.staffline import Staffs, StaffLine
+from omr.datatypes import MusicLines, StaffLine, StaffLines, MusicLine
 import cv2
 from scipy.misc import imresize
 from scipy.ndimage import distance_transform_edt

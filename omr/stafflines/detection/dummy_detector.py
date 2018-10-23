@@ -19,7 +19,7 @@ def imshow(img):
     plt.show()
 
 
-def detect(binary: np.ndarray, gray: np.ndarray, debug=False) -> List[MusicLine]:
+def detect(binary: np.ndarray, gray: np.ndarray, debug=False) -> MusicLines:
     #filtered = gaussian_filter1d(img[:,:,2] + img[:,:,1] - img[:,:,0], 3, axis=1)
     gray = cv2.bilateralFilter((gray * 255).astype(np.uint8), 5, 75, 75)
     gray = (1 - np.clip(convolve2d(1 - gray, np.full((1, 10), 0.2)), 0, 255)) / 255
@@ -137,11 +137,11 @@ def detect(binary: np.ndarray, gray: np.ndarray, debug=False) -> List[MusicLine]
         lines: List[StaffLine] = list(map(to_staff_line, staff))
         all_points = np.concatenate(tuple([f.coords.points for f in lines]), axis=0)
         coords = Coords(all_points[ConvexHull(all_points).vertices])
-        return MusicLine(coords=coords, staff_lines=lines)
+        return MusicLine(coords=coords, staff_lines=StaffLines(lines))
 
-    staffs = list(map(to_staff, staffs))
+    staffs = StaffLines(map(to_staff, staffs))
 
-    return staffs
+    return MusicLines(staffs)
 
 
 def detect_staffs(staff_binary: np.ndarray):
@@ -270,11 +270,10 @@ if __name__=='__main__':
     from gregorian_annotator_server.settings import PRIVATE_MEDIA_ROOT
     import os
     from PIL import Image
-    binary = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_binary.png'))
-    gray = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_gray.jpg'))
+    binary = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'binary_deskewed.png'))
+    gray = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'gray_deskewed.jpg'))
     staffs = detect(np.array(binary) // 255, np.array(gray) / 255)
-    img = np.array(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_original.jpg')), dtype=np.uint8)
-    for staff in staffs:
-        staff.draw(img)
+    img = np.array(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'color_deskewed.jpg')), dtype=np.uint8)
+    staffs.draw(img)
     plt.imshow(img)
     plt.show()

@@ -5,6 +5,9 @@ from multiprocessing import Lock
 from locked_dict.locked_dict import LockedDict
 import numpy as np
 import logging
+
+from omr.datatypes import MusicLines
+
 logger = logging.getLogger(__name__)
 import re
 
@@ -192,7 +195,7 @@ file_definitions = {
     ),
     'binary_cropped': FileDefinition(
         'binary_cropped',
-        ['original_cropped.jpg', 'original_cropped.jpg', 'original_cropped.png'],
+        ['color_cropped.jpg', 'gray_cropped.jpg', 'binary_cropped.png'],
         default=2,
         requires=['color_cropped'],
         has_preview=True,
@@ -245,6 +248,7 @@ mutex_dict = LockedDict()
 
 thumbnail_size = (200, 350)
 
+
 class File:
     def __init__(self, page: Page, fileId: str):
         self.page = page
@@ -285,6 +289,8 @@ class File:
         for i in range(len(self.definition.output)):
             if os.path.exists(self.local_path(file_id=i)):
                 os.remove(self.local_path(file_id=i))
+            if os.path.exists(self.local_thumbnail_path(file_id=i)):
+                os.remove(self.local_thumbnail_path(file_id=i))
 
     def create(self):
         with mutex_dict.get(self.local_path(), Lock()):
@@ -295,6 +301,10 @@ class File:
             # check if requirement files exist
             for file in self.definition.requires:
                 File(self.page, file).create()
+
+            # check again if exists since the requirements might have created that file!
+            if self.exists():
+                return
 
             # create local file
             logger.info('Creating local file {}'.format(self.local_path()))
@@ -336,9 +346,13 @@ class File:
                 gray.thumbnail(thumbnail_size)
                 gray.save(self.local_thumbnail_path())
             elif self.definition.id == 'color_deskewed':
-                from omr.preprocessing.deskewer.deskewer import deskew
-                orig, gray, binary = deskew(Image.open(File(self.page, 'color_original').local_path()),
-                                            Image.open(File(self.page, 'gray_original').local_path()))
+                from omr.preprocessing.deskewer import default_deskewer
+                deskewer = default_deskewer()
+                orig, gray, binary = deskewer.deskew(
+                    Image.open(File(self.page, 'color_original').local_path()),
+                    Image.open(File(self.page, 'gray_original').local_path()),
+                    Image.open(File(self.page, 'binary_original').local_path()),
+                )
                 orig.save(self.local_path(0))
                 gray.save(self.local_path(1))
                 binary.save(self.local_path(2))
@@ -360,17 +374,19 @@ class File:
                 binary = Image.open(File(self.page, 'binary_deskewed').local_path())
                 gray = Image.open(File(self.page, 'gray_deskewed').local_path())
                 lines = detect(np.array(binary) // 255, np.array(gray) / 255)
+                s = lines.to_json()
                 with open(self.local_path(), 'w') as f:
-                    json.dump(lines.json(), f, indent=2)
+                    json.dump(s, f, indent=2)
             elif self.definition.id == 'color_cropped':
-                from omr.preprocessing.cropper.dummy_cropper import crop_images
+                from omr.preprocessing.cropper import default_cropper
                 import json
                 images = (
                     Image.open(File(self.page, 'color_deskewed').local_path()),
                     Image.open(File(self.page, 'gray_deskewed').local_path()),
                     Image.open(File(self.page, 'binary_deskewed').local_path()),
                 )
-                (orig, gray, binary), rect = crop_images(images[-1], images)
+                cropper = default_cropper()
+                (orig, gray, binary) = cropper.crop(images[0], images[1], images[2])
                 orig.save(self.local_path(0))
                 orig.thumbnail(thumbnail_size)
                 orig.save(self.local_thumbnail_path(0))
@@ -381,16 +397,16 @@ class File:
                 binary.thumbnail(thumbnail_size)
                 binary.save(self.local_thumbnail_path(2))
 
-                annotation = File(self.page, 'annotation').local_path()
-                s = Staffs.from_json(json.load(open(annotation, 'r')))
-                s.crop = rect
-                with open(annotation, 'w') as f:
-                    json.dump(s.json(), f, indent=2)
+                # annotation = File(self.page, 'annotation').local_path()
+                # s = MusicLines.from_json(json.load(open(annotation, 'r')))
+                # s.crop = cropper.rect
+                # with open(annotation, 'w') as f:
+                #    json.dump(s.to_json(), f, indent=2)
             elif self.definition.id == 'color_detected_staffs':
                 import json
                 img = Image.open(File(self.page, 'color_deskewed').local_path())
                 with open(File(self.page, 'detected_staffs').local_path(), 'r') as f:
-                    staffs = Staffs.from_json(json.load(f))
+                    staffs = MusicLines.from_json(json.load(f))
                     img = np.array(img)
                     staffs.draw(img)
                     img = Image.fromarray(img)
@@ -401,7 +417,7 @@ class File:
                 import json
                 img = Image.open(File(self.page, 'gray_deskewed').local_path())
                 with open(File(self.page, 'detected_staffs').local_path(), 'r') as f:
-                    staffs = Staffs.from_json(json.load(f))
+                    staffs = MusicLines.from_json(json.load(f))
                     img = np.array(img)
                     staffs.draw(img, color=(0, ))
                     img = Image.fromarray(img)
@@ -412,7 +428,7 @@ class File:
                 import json
                 img = Image.open(File(self.page, 'binary_deskewed').local_path())
                 with open(File(self.page, 'detected_staffs').local_path(), 'r') as f:
-                    staffs = Staffs.from_json(json.load(f))
+                    staffs = MusicLines.from_json(json.load(f))
                     img = np.array(img)
                     staffs.draw(img, color=(0, ))
                     img = Image.fromarray(img)
@@ -427,7 +443,7 @@ class File:
                     (Image.open(File(self.page, 'cropped_original').local_path()),
                      Image.open(File(self.page, 'cropped_gray').local_path()),
                      Image.open(File(self.page, 'cropped_binary').local_path())),
-                    Staffs.from_json(json.load(open(File(self.page, 'annotation').local_path(), 'r')))
+                    MusicLines.from_json(json.load(open(File(self.page, 'annotation').local_path(), 'r')))
                 )
                 orig.save(self.local_path(0))
                 gray.save(self.local_path(1))

@@ -1,7 +1,7 @@
 from json import JSONDecodeError
 
 from django.http import HttpResponse, JsonResponse, HttpResponseNotModified, HttpResponseBadRequest, FileResponse
-from .book import Book, Page, File
+from .book import Book, Page, File, file_definitions
 from omr.stafflines.text_line import TextLine
 from omr.stafflines.json_util import json_to_line
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
@@ -42,8 +42,15 @@ def get_operation(request, book, page, operation):
 
         return HttpResponse()
 
+    elif operation == 'clean':
+        for key, _ in file_definitions.items():
+            if key != 'color_original':
+                File(page, key).delete()
+
+        return HttpResponse()
+
     else:
-        HttpResponseBadRequest()
+        return HttpResponseBadRequest()
 
 
 def get_pcgts(request, book, page):

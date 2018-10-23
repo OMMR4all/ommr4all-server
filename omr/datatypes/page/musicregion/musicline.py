@@ -249,20 +249,33 @@ class StaffLine:
         self.coords.draw(canvas, color, thickness)
 
 
+class StaffLines(List[StaffLine]):
+    @staticmethod
+    def from_json(json):
+        return StaffLines([StaffLine.from_json(l) for l in json])
+
+    def to_json(self):
+        return [l.to_json() for l in self]
+
+    def draw(self, canvas, color=(0, 255, 0), thickness=5):
+        for l in self:
+            l.draw(canvas, color, thickness)
+
+
 class MusicLine:
     def __init__(self,
                  ml_id: str = None,
                  coords: Coords = None,
-                 staff_lines: List[StaffLine] = None,
+                 staff_lines: StaffLines = None,
                  symbols: List[Symbol] = None,
                  ):
         self.id = ml_id if ml_id else str(uuid4())
         self.coords = coords if coords else Coords()
-        self.staff_lines = staff_lines if staff_lines else []
+        self.staff_lines = staff_lines if staff_lines else StaffLines()
         self.symbols = symbols if symbols else []
         assert(isinstance(self.coords, Coords))
         assert(isinstance(self.id, str))
-        assert(isinstance(self.staff_lines, list))
+        assert(isinstance(self.staff_lines, StaffLines))
         assert(isinstance(self.symbols, list))
 
     @staticmethod
@@ -270,7 +283,7 @@ class MusicLine:
         return MusicLine(
             json.get('id', str(uuid4())),
             Coords.from_json(json.get('coords', [])),
-            [StaffLine.from_json(l) for l in json.get('staffLines', [])],
+            StaffLines.from_json(json.get('staffLines', [])),
             [Symbol.from_json(s) for s in json.get('symbols', [])],
         )
 
@@ -278,7 +291,7 @@ class MusicLine:
         return {
             "id": self.id,
             "coords": self.coords.to_json(),
-            "staffLines": [l.to_json() for l in self.staff_lines],
+            "staffLines": self.staff_lines.to_json(),
             "symbols": [s.to_json() for s in self.symbols],
         }
 
@@ -294,5 +307,19 @@ class MusicLine:
             line.approximate(distance)
 
     def draw(self, canvas, color=(0, 255, 0), thickness=5):
-        for line in self.staff_lines:
-            line.draw(canvas, color, thickness)
+        self.staff_lines.draw(canvas, color, thickness)
+
+
+class MusicLines(List[MusicLine]):
+    @staticmethod
+    def from_json(json):
+        return MusicLines([MusicLine.from_json(l) for l in json])
+
+    def to_json(self):
+        return [l.to_json() for l in self]
+
+    def draw(self, canvas):
+        for ml in self:
+            ml.draw(canvas)
+
+
