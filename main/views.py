@@ -11,6 +11,8 @@ from omr.datatypes.pcgts import PcGts
 from PIL import Image
 import numpy as np
 import logging
+import zipfile
+import datetime
 
 
 @csrf_exempt
@@ -39,6 +41,10 @@ def get_operation(request, book, page, operation):
         obj = json.loads(request.body, encoding='utf-8')
         pcgts = PcGts.from_json(obj)
         pcgts.to_file(page.file('pcgts').local_path())
+
+        # add to backup archive
+        with zipfile.ZipFile(page.file('pcgts_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('pcgts_{}.json'.format(datetime.datetime.now()), json.dumps(pcgts.to_json(), indent=2))
 
         return HttpResponse()
 

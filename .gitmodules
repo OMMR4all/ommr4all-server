@@ -1,0 +1,3 @@
+[submodule "omr/symboldetection/thirdparty/calamari"]
+	path = omr/symboldetection/thirdparty/calamari
+	url = https://github.com/Calamari-OCR/calamari.git

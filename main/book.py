@@ -156,6 +156,10 @@ file_definitions = {
         ['pcgts.json'],
         requires=['color_original'],
     ),
+    'pcgts_backup': FileDefinition(
+        'pcgts_backup',
+        ['pcgts_backup.zip'],
+    ),
     'color_deskewed': FileDefinition(
         'color_deskewed',
         ['color_deskewed.jpg', 'gray_deskewed.jpg', 'binary_deskewed.png'],
@@ -318,6 +322,10 @@ class File:
                 pcgts = PcGts()
                 pcgts.page.image_width, pcgts.page.image_height = img.size
                 pcgts.to_file(self.local_path())
+            elif self.definition.id == 'pcgts_backup':
+                import zipfile
+                zf = zipfile.ZipFile(self.local_path(), mode='w', compression=zipfile.ZIP_DEFLATED)
+                zf.close()
             elif self.definition.id == 'meta':
                 img = Image.open(File(self.page, 'color_original').local_path())
                 width, height = img.size
