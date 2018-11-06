@@ -1,5 +1,5 @@
 from . import Coords, Point, Syllable, EquivIndex
-from typing import List
+from typing import List, Tuple
 from enum import Enum
 from skimage.measure import approximate_polygon
 import cv2
@@ -309,6 +309,13 @@ class MusicLine:
     def draw(self, canvas, color=(0, 255, 0), thickness=5):
         self.staff_lines.draw(canvas, color, thickness)
 
+    def extract_image_and_gt(self, page: np.ndarray) -> (np.ndarray, str):
+        image = None
+        if len(self.coords.points) > 2:
+            image = self.coords.extract_from_image(page)
+
+        return image, None
+
 
 class MusicLines(List[MusicLine]):
     @staticmethod
@@ -322,4 +329,8 @@ class MusicLines(List[MusicLine]):
         for ml in self:
             ml.draw(canvas)
 
+    def extract_images_and_gt(self, page: np.ndarray) -> List[Tuple[MusicLine, np.ndarray, str]]:
+        for ml in self:
+            img, gt = ml.extract_image_and_gt(page)
+            yield ml, img, gt
 

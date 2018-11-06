@@ -91,3 +91,8 @@ class Annotations:
             'connections': [c.to_json() for c in self.connections]
         }
 
+    def lyrics_of_music_line(self, mr: MusicRegion) -> TextRegion:
+        for connection in self.connections:
+            if connection.music_region == mr:
+                return connection.text_region
+

@@ -5,3 +5,9 @@ opencv-python
 Pillow
 scikit-image
 tqdm
+numpy
+python-bidi
+edit_distance
+xlsxwriter
+lxml
+protobuf

@@ -1,6 +1,7 @@
 import numpy as np
 from skimage.measure import approximate_polygon
 import cv2
+from omr.datatypes.page.definitions import AABB
 
 
 class Point:
@@ -56,15 +57,36 @@ class Coords:
     def approximate(self, distance):
         self.points = approximate_polygon(self.points, distance)
 
-    def draw(self, canvas, color=(0, 255, 0), thickness=5):
+    def draw(self, canvas, color=(0, 255, 0), thickness=5, fill=False):
         pts = self.points.reshape((-1, 1, 2)).astype(np.int32)
-        cv2.polylines(canvas, [pts], False, color, int(thickness))
+        if thickness > 0:
+            cv2.polylines(canvas, [pts], False, color, int(thickness))
+        if fill:
+            cv2.fillPoly(canvas, [pts], color)
+
+    def aabb(self):
+        if len(self.points) == 0:
+            return AABB(np.zeros((2, )), np.zeros((2, )))
+
+        tl = self.points[0]
+        br = self.points[0]
+        for p in self.points[1:]:
+            tl = np.min([tl, p], axis=0)
+            br = np.max([br, p], axis=0)
+
+        return AABB(tl, br)
+
+    def extract_from_image(self, image: np.ndarray):
+        aabb = self.aabb()
+        sub_image = image[int(aabb.tl[1]):int(aabb.br[1]), int(aabb.tl[0]):int(aabb.br[0])]
+        return sub_image
 
 
 if __name__ == '__main__':
     c = Coords(np.array([[0, 1], [1, 2], [6, -123]]))
     print(c.to_json())
     print(Coords.from_json(c.to_json()).to_json() == c.to_json())
+    print(c.aabb())
 
     p = Point(-20, 100)
     print(p.to_json())

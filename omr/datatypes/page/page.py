@@ -3,19 +3,26 @@ from omr.datatypes.page import TextRegion, MusicRegion
 from omr.datatypes.page import annotations as annotations
 from typing import List
 import numpy as np
+from PIL import Image
+import os
+import main.book as book
 
 
 class Page:
     def __init__(self,
                  text_regions: List[TextRegion]=None,
                  music_regions: List[MusicRegion]=None,
-                 image_filename="", image_height=0, image_width=0):
+                 image_filename="", image_height=0, image_width=0,
+                 location: book.Page = None):
         self.text_regions = text_regions if text_regions else []
         self.music_regions = music_regions if music_regions else []
         self.image_filename = image_filename
         self.image_height = image_height
         self.image_width = image_width
         self.annotations = annotations.Annotations(self)
+        self.location = location
+        if not os.path.exists(location.local_file_path(self.image_filename)):
+            raise Exception("Image not found at {}".format(location.local_file_path(self.image_filename)))
 
     def syllable_by_id(self, syllable_id):
         for t in self.text_regions:
@@ -30,13 +37,14 @@ class Page:
             t._resolve_cross_refs(self)
 
     @staticmethod
-    def from_json(json: dict):
+    def from_json(json: dict, location: book.Page):
         page = Page(
             [TextRegion.from_json(t) for t in json.get('textRegions', [])],
             [MusicRegion.from_json(m) for m in json.get('musicRegions', [])],
             json.get('imageFilename', ""),
             json.get('imageHeight', 0),
             json.get('imageWidth', 0),
+            location=location,
         )
         if 'annotations' in json:
             page.annotations = annotations.Annotations.from_json(json['annotations'], page)
@@ -91,4 +99,7 @@ class Page:
 
         for staff in self.staff_equivs(index):
             staff.draw(canvas, color, thickness)
+
+    def extract_music_line_images_and_gt(self, dewarped=True):
+        pass
 

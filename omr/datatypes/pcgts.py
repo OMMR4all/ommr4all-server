@@ -1,21 +1,37 @@
 from json import JSONDecodeError
+from typing import Generator, Tuple
 
-from omr.datatypes import Meta, Page
+from omr.datatypes import Meta, Page, MusicLine, MusicRegion
+
+import numpy as np
+import main.book as book
+import os
 
 
 class PcGts:
-    def __init__(self, meta=Meta(), page=Page()):
-        self.meta = meta
-        self.page = page
+    def __init__(self, meta: Meta, page: Page):
+        self.meta: Meta = meta
+        self.page: Page = page
 
     @staticmethod
-    def from_file(filename):
+    def from_file(file: book.File):
+        filename = file.local_path()
         if filename.endswith(".json"):
             import json
             with open(filename, 'r') as f:
-                return PcGts.from_json(json.load(f))
+                pcgts = PcGts.from_json(json.load(f), file.page)
         else:
             raise Exception("Invalid file extension of file '{}'".format(filename))
+
+        if len(pcgts.page.image_filename) == 0:
+            from main.book import file_definitions
+            pcgts.page.image_filename = file_definitions['color_deskewed'].output[0]
+
+        img_path = os.path.join(os.path.split(filename)[0], pcgts.page.image_filename)
+        if not os.path.exists(img_path):
+            raise Exception('Missing image file at {}'.format(img_path))
+
+        return pcgts
 
     def to_file(self, filename):
         if filename.endswith(".json"):
@@ -28,10 +44,10 @@ class PcGts:
             raise Exception("Invalid file extension of file '{}'".format(filename))
 
     @staticmethod
-    def from_json(json: dict):
+    def from_json(json: dict, location: Page):
         return PcGts(
             Meta.from_json(json.get('meta', {})),
-            Page.from_json(json.get('page', {})),
+            Page.from_json(json.get('page', {}), location=location),
         )
 
     def to_json(self):
@@ -46,6 +62,7 @@ if __name__ == '__main__':
     pcgts = PcGts(Meta(), Page(
         [
             TextRegion(
+                '1',
                 TextRegionType.LYRICS
             )
         ]

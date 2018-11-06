@@ -1,4 +1,11 @@
 from enum import Enum
+from typing import NamedTuple
+import numpy as np
+
+
+class AABB(NamedTuple):
+    tl: np.ndarray
+    br: np.ndarray
 
 
 class EquivIndex(Enum):

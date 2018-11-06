@@ -1,4 +1,4 @@
-from omr.datatypes.page.musicregion.musicline import MusicLine, StaffLine
+from omr.datatypes.page.musicregion.musicline import MusicLine, MusicLines, StaffLine
 from omr.datatypes import PcGts
 import numpy as np
 import json
@@ -77,7 +77,6 @@ def transform(point, staffs: List[MusicLine]):
         bot_staff_line_d = top_staff_line_d
         bot_staff_line = top_staff_line
 
-
     top_offset = top_staff_line.center_y() - top_staff_line.interpolate_y(x)
     bot_offset = bot_staff_line.center_y() - bot_staff_line.interpolate_y(x)
 
@@ -86,7 +85,7 @@ def transform(point, staffs: List[MusicLine]):
     return x, np.rint(y - interp_y)
 
 
-def transform_grid(dst_grid, staffs, shape):
+def transform_grid(dst_grid, staffs: List[MusicLine], shape):
     src_grid = dst_grid.copy()
 
     for idx in np.ndindex(src_grid.shape[:2]):
@@ -116,28 +115,30 @@ def grid_to_mesh(src_grid, dst_grid):
     return mesh
 
 
-def dewarp(images, staffs):
-    logger.info("Dewarping {} images based on {} staffs".format(len(images), len(staffs.staffs)))
+def dewarp(images, staffs: List[MusicLine], resamples: List[int] = None):
+    if resamples is None:
+        resamples = [0] * len(images)
+
+    logger.info("Dewarping {} images based on {} staffs".format(len(images), len(staffs)))
     shape = images[0].size
-    dst_grid = griddify(shape_to_rect(shape), 20, 100)
+    dst_grid = griddify(shape_to_rect(shape), 10, 30)
     logger.debug("Transforming grid)")
     src_grid = transform_grid(dst_grid, staffs, shape)
     logger.debug("Creating mesh")
     mesh = grid_to_mesh(src_grid, dst_grid)
     logger.debug("Transforming images based on mesh")
-    images = [im.transform(im.size, Image.MESH, mesh) for im in images]
+    images = [im.transform(im.size, Image.MESH, mesh, res) for im, res in zip(images, resamples)]
     logger.info("Finished")
     return images
 
 
 if __name__ == '__main__':
-    from gregorian_annotator_server.settings import PRIVATE_MEDIA_ROOT
-    import os
-    binary = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'binary_deskewed.png'))
-    gray = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'gray_deskewed.jpg'))
-    staffs_json = json.load(open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'pcgts.json'), 'r'))
-    pcgts = PcGts.from_json(staffs_json)
-    staffs = [m for m in pcgts.page.music_regions if len(m.staffs) > 0]
+    from main.book import Book
+    page = Book('Graduel').page('Graduel_de_leglise_de_Nevers_023')
+    binary = Image.open(page.file('binary_deskewed').local_path())
+    gray = Image.open(page.file('gray_deskewed').local_path())
+    pcgts = PcGts.from_file(page.file('pcgts').local_path())
+    staffs = [mr.staffs[0] for mr in pcgts.page.music_regions if len(mr.staffs) > 0]
     overlay = np.array(gray)
     # staffs.draw(overlay)
     images = [binary, gray, Image.fromarray(overlay)]

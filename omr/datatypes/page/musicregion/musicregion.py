@@ -1,5 +1,6 @@
 from . import Coords, MusicLine, SymbolType, MusicLines
 from uuid import uuid4
+import numpy as np
 
 
 class MusicRegion:
@@ -35,3 +36,7 @@ class MusicRegion:
                     return neume
 
         return None
+
+    def extract_music_line_images_and_gt(self, page: np.ndarray) -> (MusicLine, np.ndarray, str):
+        for r in self.staffs.extract_images_and_gt(page):
+            yield r

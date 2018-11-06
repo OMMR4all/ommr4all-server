@@ -5,8 +5,8 @@ from multiprocessing import Lock
 from locked_dict.locked_dict import LockedDict
 import numpy as np
 import logging
+from gregorian_annotator_server.settings import PRIVATE_MEDIA_ROOT, PRIVATE_MEDIA_URL
 
-from omr.datatypes import MusicLines
 
 logger = logging.getLogger(__name__)
 import re
@@ -33,10 +33,10 @@ class Book:
         return Page(self, page)
 
     def local_path(self):
-        return os.path.join(settings.PRIVATE_MEDIA_ROOT, self.book)
+        return os.path.join(PRIVATE_MEDIA_ROOT, self.book)
 
     def remote_path(self):
-        return os.path.join(settings.PRIVATE_MEDIA_URL, self.book)
+        return os.path.join(PRIVATE_MEDIA_URL, self.book)
 
     def is_valid_name(self):
         return file_name_validator.fullmatch(self.book)
@@ -74,6 +74,9 @@ class Page:
 
     def file(self, fileId):
         return File(self, fileId)
+
+    def local_file_path(self, f):
+        return os.path.join(self.local_path(), f)
 
     def local_path(self):
         return os.path.join(self.book.local_path(), self.page)
@@ -297,6 +300,8 @@ class File:
                 os.remove(self.local_thumbnail_path(file_id=i))
 
     def create(self):
+        from omr.datatypes import MusicLines
+
         with mutex_dict.get(self.local_path(), Lock()):
             if self.exists():
                 # check if exists
