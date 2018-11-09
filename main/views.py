@@ -39,7 +39,7 @@ def get_operation(request, book, page, operation):
 
     elif operation == 'save':
         obj = json.loads(request.body, encoding='utf-8')
-        pcgts = PcGts.from_json(obj)
+        pcgts = PcGts.from_json(obj, page)
         pcgts.to_file(page.file('pcgts').local_path())
 
         # add to backup archive
@@ -67,12 +67,12 @@ def get_pcgts(request, book, page):
         file.create()
 
     try:
-        return JsonResponse(PcGts.from_file(file.local_request_path()).to_json())
+        return JsonResponse(PcGts.from_file(file).to_json())
     except JSONDecodeError as e:
         logging.error(e)
         file.delete()
         file.create()
-        return JsonResponse(PcGts.from_file(file.local_request_path()).to_json())
+        return JsonResponse(PcGts.from_file(file).to_json())
 
 
 def list_book(request, book):

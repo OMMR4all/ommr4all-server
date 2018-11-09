@@ -140,7 +140,7 @@ class NoteComponent:
             NoteName(json.get('pname', NoteName.UNDEFINED)),
             json.get('oct', -1),
             NoteType(json.get('type', NoteType.NORMAL)),
-            Coords.from_json(json.get('coord', [])),
+            Point.from_json(json.get('coord', [])),
             MusicSymbolPositionInStaff(json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED)),
             GraphicalConnectionType(json.get('graphicalConnection', GraphicalConnectionType.GAPED)),
         )
@@ -198,7 +198,7 @@ class Clef(Symbol):
     def from_json(json: dict):
         return Clef(
             ClefType(json.get("type", ClefType.CLEF_F)),
-            Coords.from_json(json.get("coord", "0,0")),
+            Point.from_json(json.get("coord", "0,0")),
             MusicSymbolPositionInStaff(json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED)),
         )
 

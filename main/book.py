@@ -18,7 +18,7 @@ file_name_validator = re.compile('\w+')
 class Book:
     @staticmethod
     def list_available():
-        return [Book(name) for name in os.listdir(settings.PRIVATE_MEDIA_ROOT)]
+        return [Book(name) for name in os.listdir(PRIVATE_MEDIA_ROOT)]
 
     def __init__(self, book: str):
         self.book = book.strip('/')
@@ -26,14 +26,14 @@ class Book:
     def pages(self):
         assert(self.is_valid())
 
-        pages = [Page(self, p) for p in os.listdir(self.local_path())]
+        pages = [Page(self, p) for p in sorted(os.listdir(self.local_path('pages')))]
         return [p for p in pages if p.is_valid()]
 
     def page(self, page):
         return Page(self, page)
 
-    def local_path(self):
-        return os.path.join(PRIVATE_MEDIA_ROOT, self.book)
+    def local_path(self, sub=''):
+        return os.path.join(PRIVATE_MEDIA_ROOT, self.book, sub)
 
     def remote_path(self):
         return os.path.join(PRIVATE_MEDIA_URL, self.book)
@@ -79,7 +79,7 @@ class Page:
         return os.path.join(self.local_path(), f)
 
     def local_path(self):
-        return os.path.join(self.book.local_path(), self.page)
+        return os.path.join(self.book.local_path('pages'), self.page)
 
     def remote_path(self):
         return os.path.join(self.book.remote_path(), self.page)
