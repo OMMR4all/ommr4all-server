@@ -322,9 +322,12 @@ class File:
                 with open(self.local_path(), 'w') as f:
                     json.dump({}, f)
             elif self.definition.id == 'pcgts':
-                from omr.datatypes.pcgts import PcGts
+                from omr.datatypes.pcgts import PcGts, Page, Meta
                 img = Image.open(File(self.page, 'color_original').local_path())
-                pcgts = PcGts()
+                pcgts = PcGts(
+                    meta=Meta(),
+                    page=Page(location=self.page),
+                )
                 pcgts.page.image_width, pcgts.page.image_height = img.size
                 pcgts.to_file(self.local_path())
             elif self.definition.id == 'pcgts_backup':

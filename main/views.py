@@ -37,6 +37,17 @@ def get_operation(request, book, page, operation):
         lines = detect(np.array(binary) // 255, np.array(gray) / 255)
         return JsonResponse({'staffs': [l.to_json() for l in lines]})
 
+    elif operation == 'symbols':
+        from omr.symboldetection.pixelclassifier.predictor import PCPredictor
+        pred = PCPredictor([page.book.local_path('pc_paths')])
+        pcgts = PcGts.from_file(page.file('pcgts'))
+        ps = list(pred.predict([pcgts]))
+        music_lines = []
+        for line_prediction in ps:
+            music_lines.append({'symbols': [s.to_json() for s in line_prediction.symbols],
+                                'id': line_prediction.line.operation.music_line.id})
+        return JsonResponse({'musicLines': music_lines})
+
     elif operation == 'save':
         obj = json.loads(request.body, encoding='utf-8')
         pcgts = PcGts.from_json(obj, page)

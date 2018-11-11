@@ -1,6 +1,7 @@
 import numpy as np
 from skimage.measure import approximate_polygon
 import cv2
+from typing import Type
 from omr.datatypes.page.definitions import AABB
 
 
@@ -8,6 +9,15 @@ class Point:
     def __init__(self, x=0, y=0):
         self.x = x
         self.y = y
+
+    def astype(self, type: Type):
+        return Point(type(self.x), type(self.y))
+
+    def xy(self):
+        return self.x, self.y
+
+    def yx(self):
+        return self.y, self.x
 
     def __str__(self):
         return self.to_string()

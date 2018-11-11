@@ -32,13 +32,16 @@ class PCPredictor:
                 ax[3].imshow((p.probabilities[:, :, 0] <= 0.8) * (1 + np.argmax(p.probabilities[:, :, 1:], axis=-1)))
                 ax[4].imshow(p.data.mask)
                 plt.show()
-            yield PredictionResult(self.exract_symbols(p.labels), p.data.user_data)
+            m: MusicLineAndMarkedSymbol = p.data.user_data
+            yield PredictionResult(self.exract_symbols(p.labels, m), p.data.user_data)
 
-    def exract_symbols(self, p) -> List[Symbol]:
+    def exract_symbols(self, p: np.ndarray, m: MusicLineAndMarkedSymbol) -> List[Symbol]:
         n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
         symbols = []
         for i in range(n_labels):
-            symbols.append(Neume(notes=[NoteComponent(coord=Point(x=centroids[i, 0], y=centroids[i, 1]))]))
+            coord = self.dataset.line_and_mask_operations.local_to_global_pos(
+                Point(x=centroids[i, 0], y=centroids[i, 1]), m.operation.params)
+            symbols.append(Neume(notes=[NoteComponent(coord=coord.astype(int))]))
 
         return symbols
 
@@ -55,8 +58,7 @@ if __name__ == '__main__':
         for s in p.symbols:
             n: Neume = s
             for nc in n.notes:
-                o = pred.dataset.line_and_mask_operations.local_to_global_pos(nc.coord, p.line.operation.params)
-                t, l = int(o.y), int(o.x)
+                t, l = nc.coord.y, nc.coord.x
                 orig[t - 2:t + 2, l-2:l+2] = 255
 
     plt.imshow(orig)

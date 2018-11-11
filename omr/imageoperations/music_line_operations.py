@@ -37,8 +37,8 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
                 img_data = copy(data)
                 img_data.page_image = image
-                data.music_region = mr
-                data.music_line = ml
+                img_data.music_region = mr
+                img_data.music_line = ml
                 img_data.images = [ImageData(mask, True), ImageData(dew_page, False), ImageData(dew_symbols, True)]
                 cropped = self.cropper.apply_single(img_data)[0]
                 self._extract_image_op(img_data)
