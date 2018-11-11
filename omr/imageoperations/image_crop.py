@@ -56,12 +56,11 @@ class ImagePadToPowerOf2(ImageOperation):
         else:
             py = 0
 
-        pad = ((px, 0), (py, 0))
+        pad = ((0, px), (0, py))
 
         data.images = [ImageData(np.pad(d.image, pad, 'edge'), d.nearest_neighbour_rescale) for d in data]
         data.params = (px, py)
         return [data]
 
     def local_to_global_pos(self, p: Point, params: Any) -> Point:
-        px, py = params
-        return Point(p.x + px, py.y + py)
+        return p  # added at bottom right, thus position does not change

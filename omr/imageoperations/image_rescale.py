@@ -26,7 +26,7 @@ class ImageRescaleToHeightOperation(ImageOperation):
         scale = target_height * 1.0 / h
         target_width = np.maximum(int(scale * w), 1)
         output = interpolation.affine_transform(
-            1.0 * img,
+            img,
             np.eye(2) / scale,
             order=order,
             output_shape=(target_height,target_width),

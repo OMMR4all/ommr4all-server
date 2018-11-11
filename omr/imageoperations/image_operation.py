@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from copy import copy
 
 
-class ImageData(NamedTuple):
+@dataclass
+class ImageData:
     image: np.ndarray
     nearest_neighbour_rescale: bool
 
@@ -17,6 +18,7 @@ class ImageOperationData:
     params: Any = None
 
     page: Optional[Page] = None
+    page_image: np.ndarray = None
     music_region: Optional[MusicRegion] = None
     music_line: Optional[MusicLine] = None
 
@@ -58,9 +60,11 @@ class ImageOperationList(ImageOperation):
 
         return data
 
-    def local_to_global_pos(self, p: Point, params: List[Any]):
+    def local_to_global_pos(self, p: Point, params: List[Any]) -> Point:
         for op, param in zip(reversed(self.operations), reversed(params)):
             p = op.local_to_global_pos(p, param)
+
+        return p
 
 
 

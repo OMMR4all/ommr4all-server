@@ -18,10 +18,11 @@ class PCPredictor:
             network=os.path.splitext(checkpoints[0])[0]
         )
         self.predictor = Predictor(settings)
+        self.dataset: PcGtsDataset = None
 
     def predict(self, pcgts_files: List[PcGts]) -> Generator[PredictionResult, None, None]:
-        dataset = PcGtsDataset(pcgts_files, gt_required=False, height=self.height)
-        for p in self.predictor.predict(dataset.to_music_line_page_segmentation_dataset()):
+        self.dataset = PcGtsDataset(pcgts_files, gt_required=False, height=self.height)
+        for p in self.predictor.predict(self.dataset.to_music_line_page_segmentation_dataset()):
             if False:
                 import matplotlib.pyplot as plt
                 f, ax = plt.subplots(5, 1, sharey='all', sharex='all')
@@ -49,13 +50,13 @@ if __name__ == '__main__':
     pred = PCPredictor([b.local_path('pc_paths')])
     ps = list(pred.predict(val_pcgts))
     import matplotlib.pyplot as plt
-    orig = np.array(ps[0].line.loaded_image.original_image)
+    orig = np.array(ps[0].line.operation.page_image)
     for p in ps:
-        r = p.line.loaded_image.rect
         for s in p.symbols:
             n: Neume = s
             for nc in n.notes:
-                t, l = int(nc.coord.y + r.t), int(nc.coord.x + r.l)
+                o = pred.dataset.line_and_mask_operations.local_to_global_pos(nc.coord, p.line.operation.params)
+                t, l = int(o.y), int(o.x)
                 orig[t - 2:t + 2, l-2:l+2] = 255
 
     plt.imshow(orig)

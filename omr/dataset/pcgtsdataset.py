@@ -9,7 +9,7 @@ import PIL.ImageOps
 from typing import NamedTuple
 
 from omr.imageoperations import ImageExtractDewarpedStaffLineImages, ImageOperationList, ImageLoadFromPageOperation, \
-    ImageOperationData, ImageRescaleToHeightOperation
+    ImageOperationData, ImageRescaleToHeightOperation, ImagePadToPowerOf2
 
 class Rect(NamedTuple):
     t: int
@@ -49,11 +49,12 @@ class PcGtsDataset:
             ImageLoadFromPageOperation(invert=True),
             ImageExtractDewarpedStaffLineImages(),
             ImageRescaleToHeightOperation(height=self.height),
+            ImagePadToPowerOf2(),
         ])
 
     def to_music_line_page_segmentation_dataset(self):
         from thirdparty.page_segmentation.lib.dataset import Dataset, SingleData
-        return Dataset([SingleData(image=d.line_image, binary=None, mask=d.marks_image,
+        return Dataset([SingleData(image=d.line_image, binary=None, mask=d.mask,
                                    user_data=d) for d in self.marked_symbols()])
 
     def marked_symbols(self) -> List[MusicLineAndMarkedSymbol]:
