@@ -1,4 +1,4 @@
-from .image_operation import ImageOperation, ImageDataInput, OperationOutput, ImageData, Point
+from .image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point
 from typing import Tuple, List, NamedTuple, Any
 import numpy as np
 
@@ -14,7 +14,7 @@ class ImageCropToSmallestBoxOperation(ImageOperation):
     def __init__(self):
         super().__init__()
 
-    def apply_single(self, data: ImageDataInput) -> OperationOutput:
+    def apply_single(self, data: ImageOperationData) -> OperationOutput:
         def smallestbox(a, datas) -> Tuple[List[np.ndarray], Rect]:
             r = a.any(1)
             m, n = a.shape
@@ -22,9 +22,10 @@ class ImageCropToSmallestBoxOperation(ImageOperation):
             q, w, e, r = (r.argmax(), m - r[::-1].argmax(), c.argmax(), n - c[::-1].argmax())
             return [d[q:w, e:r] for d in datas], Rect(q, w, e, r)
 
-        imgs, r = smallestbox([d.image for d in data])
+        imgs, r = smallestbox(data.images[0].image, [d.image for d in data])
         data.images = [ImageData(i, d.nearest_neighbour_rescale) for d, i in zip(data, imgs)]
-        return OperationOutput(data, r)
+        data.params = r
+        return [data]
 
     def local_to_global_pos(self, p: Point, params: Any) -> Point:
         r: Rect = params
@@ -36,7 +37,7 @@ class ImagePadToPowerOf2(ImageOperation):
         super().__init__()
         self.power = power
 
-    def apply_single(self, data: ImageDataInput) -> OperationOutput:
+    def apply_single(self, data: ImageOperationData) -> OperationOutput:
         x, y = data.images[0].image.shape
 
         f = 2 ** 3
@@ -58,7 +59,8 @@ class ImagePadToPowerOf2(ImageOperation):
         pad = ((px, 0), (py, 0))
 
         data.images = [ImageData(np.pad(d.image, pad, 'edge'), d.nearest_neighbour_rescale) for d in data]
-        return OperationOutput(data, (px, py))
+        data.params = (px, py)
+        return [data]
 
     def local_to_global_pos(self, p: Point, params: Any) -> Point:
         px, py = params

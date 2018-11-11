@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, NamedTuple, Tuple, Any, Optional
+from typing import List, NamedTuple, Tuple, Any, Optional, Generator
 import numpy as np
 from omr.datatypes import Point, MusicLine, Page, MusicRegion
 from dataclasses import dataclass
@@ -12,20 +12,19 @@ class ImageData(NamedTuple):
 
 
 @dataclass
-class ImageDataInput:
+class ImageOperationData:
     images: List[ImageData]
+    params: Any = None
 
-    page: Optional[Page]
-    music_region: Optional[MusicRegion]
-    music_line: Optional[MusicLine]
+    page: Optional[Page] = None
+    music_region: Optional[MusicRegion] = None
+    music_line: Optional[MusicLine] = None
 
     def __iter__(self):
         return self.images.__iter__()
 
 
-class OperationOutput(NamedTuple):
-    data: ImageDataInput
-    params: Any
+OperationOutput = List[ImageOperationData]
 
 
 class ImageOperation(ABC):
@@ -33,7 +32,7 @@ class ImageOperation(ABC):
         super().__init__()
 
     @abstractmethod
-    def apply_single(self, data: ImageDataInput) -> OperationOutput:
+    def apply_single(self, data: ImageOperationData) -> OperationOutput:
         pass
 
     def local_to_global_pos(self, p: Point, params: Any) -> Point:
@@ -43,17 +42,21 @@ class ImageOperation(ABC):
 class ImageOperationList(ImageOperation):
     def __init__(self, operations: List[ImageOperation]):
         super().__init__()
-        self.operations: List[ImageOperation] = operations
+        self.operations = operations
 
-    def apply_single(self, data: ImageDataInput) -> OperationOutput:
-        data = copy(data)
-        params = []
+    def apply_single(self, data: ImageOperationData) -> OperationOutput:
+        data = [copy(data)]
+        data[0].params = [data[0].params]
         for op in self.operations:
-            op_out = op.apply_single(data)
-            data = op_out.data
-            params.append(op_out.params)
+            out = []
+            for d in data:
+                for o in op.apply_single(copy(d)):
+                    o.params = d.params + [o.params]
+                    out.append(o)
 
-        return OperationOutput(data, params)
+            data = out
+
+        return data
 
     def local_to_global_pos(self, p: Point, params: List[Any]):
         for op, param in zip(reversed(self.operations), reversed(params)):

@@ -1,4 +1,4 @@
-from .image_operation import ImageOperation, ImageDataInput, OperationOutput, ImageData, Point
+from .image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point
 from typing import Tuple, List, NamedTuple, Any
 import numpy as np
 from scipy.ndimage import interpolation
@@ -9,11 +9,12 @@ class ImageRescaleToHeightOperation(ImageOperation):
         super().__init__()
         self.height = height
 
-    def apply_single(self, data: ImageDataInput) -> OperationOutput:
+    def apply_single(self, data: ImageOperationData) -> OperationOutput:
         s = [ImageRescaleToHeightOperation.scale_to_h(d.image, self.height, 0 if d.nearest_neighbour_rescale else 3) for d in data]
-        scale = s[0].shape[1] / data[0].image.shape[1]
+        scale = s[0].shape[1] / data.images[0].image.shape[1]
         data.images = [ImageData(i, d.nearest_neighbour_rescale) for d, i in zip(data, s)]
-        return OperationOutput(data, (scale, ))
+        data.params = (scale, )
+        return [data]
 
     def local_to_global_pos(self, p: Point, params: Any) -> Point:
         scale, = params

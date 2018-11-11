@@ -8,6 +8,9 @@ from PIL import Image
 import PIL.ImageOps
 from typing import NamedTuple
 
+from omr.imageoperations import ImageExtractDewarpedStaffLineImages, ImageOperationList, ImageLoadFromPageOperation, \
+    ImageOperationData, ImageRescaleToHeightOperation
+
 class Rect(NamedTuple):
     t: int
     b: int
@@ -21,10 +24,13 @@ class LoadedImage(NamedTuple):
     rect: Rect
     str_gt: List[str]
 
-class MusicLineAndMarkedSymbol(NamedTuple):
-    loaded_image: LoadedImage
-    line_image: np.ndarray
-    marks_image: np.ndarray
+class MusicLineAndMarkedSymbol:
+    def __init__(self, op: ImageOperationData):
+        self.operation = op
+        self.line_image = op.images[1].image
+        self.region = op.images[0].image
+        self.mask = op.images[2].image
+
 
 class ScaleImage(NamedTuple):
     img: np.ndarray
@@ -39,6 +45,12 @@ class PcGtsDataset:
         self.height = height
         self.marked_symbol_data: List[Tuple[MusicLine, np.ndarray]] = None
 
+        self.line_and_mask_operations = ImageOperationList([
+            ImageLoadFromPageOperation(invert=True),
+            ImageExtractDewarpedStaffLineImages(),
+            ImageRescaleToHeightOperation(height=self.height),
+        ])
+
     def to_music_line_page_segmentation_dataset(self):
         from thirdparty.page_segmentation.lib.dataset import Dataset, SingleData
         return Dataset([SingleData(image=d.line_image, binary=None, mask=d.marks_image,
@@ -52,47 +64,15 @@ class PcGtsDataset:
 
     def _create_marked_symbols(self) -> Generator[MusicLineAndMarkedSymbol, None, None]:
         for f in self.files:
-            for loaded_image in self._load_images_of_file(f.page):
-                ml = loaded_image.music_line
-                mask = self._symbols_to_mask(ml, np.zeros(loaded_image.line_image.shape), loaded_image.rect)
+            input = ImageOperationData([], page=f.page)
+            for outputs in self.line_and_mask_operations.apply_single(input):
 
-                img, mask = self._resize_to_height([ScaleImage(loaded_image.line_image, 3), ScaleImage(mask, 0)], ml, loaded_image.rect)
+                # img, mask = self._resize_to_height([ScaleImage(loaded_image.images[0], 3), ScaleImage(mask, 0)], ml, loaded_image.rect)
 
-                mask = mask.astype(np.uint8)
+                # mask = mask.astype(np.uint8)
 
-                yield MusicLineAndMarkedSymbol(loaded_image, img, mask)
+                yield MusicLineAndMarkedSymbol(outputs)
 
-    def _symbols_to_mask(self, ml: MusicLine, img: np.ndarray, rect) -> np.ndarray:
-        t, b, l, r = rect
-        radius = (ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 4
-        start_note_label = 1
-        looped_label = 2
-        gapped_label = 3
-        clef_label = 4
-        accid_label = 5
-
-        def set(coord, label):
-            img[int(coord.y - t):int(coord.y - t + radius * 2), int(coord.x - l): int(coord.x - l + radius * 2)] = label
-
-        for s in ml.symbols:
-            if isinstance(s, Neume):
-                n: Neume = s
-                for i, nc in enumerate(n.notes):
-                    if i == 0:
-                        set(nc.coord, start_note_label)
-                    elif nc.graphical_connection == GraphicalConnectionType.LOOPED:
-                        set(nc.coord, looped_label)
-                    else:
-                        set(nc.coord, gapped_label)
-
-            elif isinstance(s, Clef):
-                c: Clef = s
-                set(c.coord, clef_label)
-            elif isinstance(s, Accidental):
-                a: Accidental = s
-                set(a.coord, accid_label)
-
-        return img
 
     def music_lines(self) -> List[Tuple[MusicLine, np.ndarray, str]]:
         if self.loaded is None:
@@ -240,11 +220,13 @@ if __name__ == '__main__':
     dataset = PcGtsDataset([pcgts], True)
     images = dataset.marked_symbols()
 
-    f, ax = plt.subplots(len(images), 2, sharex='all')
-    for i, (ml, img, mask) in enumerate(images):
+    f, ax = plt.subplots(len(images), 3, sharex='all')
+    for i, out in enumerate(images):
+        img, region, mask = out.line_image, out.region, out.mask
         if np.min(img.shape) > 0:
             print(img.shape)
             ax[i, 0].imshow(img)
-            ax[i, 1].imshow(mask)
+            ax[i, 1].imshow(region)
+            ax[i, 2].imshow(img / 4 + mask * 50)
 
     plt.show()
