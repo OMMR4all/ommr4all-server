@@ -38,10 +38,12 @@ class PCPredictor:
     def exract_symbols(self, p: np.ndarray, m: MusicLineAndMarkedSymbol) -> List[Symbol]:
         n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
         symbols = []
-        for i in range(n_labels):
+        sorted_labels = sorted(range(n_labels), key=lambda i: centroids[i, 0])
+        for i in sorted_labels:
             coord = self.dataset.line_and_mask_operations.local_to_global_pos(
                 Point(x=centroids[i, 0], y=centroids[i, 1]), m.operation.params)
             symbols.append(Neume(notes=[NoteComponent(coord=coord.astype(int))]))
+
 
         return symbols
 
