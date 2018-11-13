@@ -1,6 +1,7 @@
 from . import ImageOperation, ImageOperationData, OperationOutput, ImageData
 from copy import copy
 from PIL import Image
+import numpy as np
 import PIL.ImageOps
 
 
@@ -17,7 +18,7 @@ class ImageLoadFromPageOperation(ImageOperation):
         if self.invert:
             bin = PIL.ImageOps.invert(bin)
 
-        d.images = [ImageData(bin, False)]
+        d.images = [ImageData(np.array(bin), False)]
         d.params = None
         return [d]
 

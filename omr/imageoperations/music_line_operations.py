@@ -1,11 +1,25 @@
 from .image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point, ImageOperationList
 from .image_crop import ImageCropToSmallestBoxOperation
 from typing import Tuple, List, NamedTuple, Any
-from omr.datatypes import Page, MusicLine, Neume, NoteComponent, Clef, Accidental, AccidentalType, GraphicalConnectionType
+from omr.datatypes import Page, MusicLine, Neume, NoteComponent, Clef, ClefType, Accidental, AccidentalType, GraphicalConnectionType
 import numpy as np
 import PIL.ImageOps
 from PIL import Image
 from copy import copy
+from enum import Enum
+from omr.dewarping.dummy_dewarper import dewarp, transform
+
+
+class SymbolLabel(Enum):
+    BACKGROUND = 0
+    NOTE_START = 1
+    NOTE_LOOPED = 2
+    NOTE_GAPPED = 3
+    CLEF_C = 4
+    CLEF_F = 5
+    ACCID_NATURAL = 6
+    ACCID_SHARP = 7
+    ACCID_FLAT = 8
 
 
 class ImageExtractDewarpedStaffLineImages(ImageOperation):
@@ -15,7 +29,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
     def apply_single(self, data: ImageOperationData) -> OperationOutput:
         image = data.images[0].image
-        labels = np.zeros(image.size[::-1], dtype=np.uint8)
+        labels = np.zeros(image.shape, dtype=np.uint8)
         marked_symbols = np.zeros(labels.shape, dtype=np.uint8)
         i = 1
         s = []
@@ -26,11 +40,14 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                 self._symbols_to_mask(ml, marked_symbols)
                 i += 1
 
-        from omr.dewarping.dummy_dewarper import dewarp
-        dew_page, dew_labels, dew_symbols = tuple(map(np.array, dewarp([image, Image.fromarray(labels), Image.fromarray(marked_symbols)], s, None)))
+        dew_page, dew_labels, dew_symbols = tuple(map(np.array, dewarp([Image.fromarray(image), Image.fromarray(labels), Image.fromarray(marked_symbols)], s, None)))
 
         i = 1
         out = []
+        all_music_lines = []
+        for mr in data.page.music_regions:
+            all_music_lines += mr.staffs
+
         for mr in data.page.music_regions:
             for ml in mr.staffs:
                 mask = dew_labels == i
@@ -43,7 +60,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                 cropped = self.cropper.apply_single(img_data)[0]
                 self._extract_image_op(img_data)
                 img_data.images, r_params = self._resize_to_height(cropped.images, ml, rect=cropped.params)
-                img_data.params = (i, cropped.params, r_params)
+                img_data.params = (i, cropped.params, r_params, all_music_lines)
                 out.append(img_data)
                 i += 1
 
@@ -76,37 +93,44 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         data.images = [data.images[1], ImageData(data.images[0].image * data.images[1].image, False)] + data.images[2:]
 
     def _symbols_to_mask(self, ml: MusicLine, img: np.ndarray):
-        radius = (ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 4
-        start_note_label = 1
-        looped_label = 2
-        gapped_label = 3
-        clef_label = 4
-        accid_label = 5
+        radius = (ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 8
 
-        def set(coord, label):
-            img[int(coord.y - radius):int(coord.y + radius * 2), int(coord.x - radius): int(coord.x + radius * 2)] = label
+        def set(coord, label: SymbolLabel):
+            img[int(coord.y - radius):int(coord.y + radius * 2), int(coord.x - radius): int(coord.x + radius * 2)] = label.value
 
         for s in ml.symbols:
             if isinstance(s, Neume):
                 n: Neume = s
                 for i, nc in enumerate(n.notes):
                     if i == 0:
-                        set(nc.coord, start_note_label)
+                        set(nc.coord, SymbolLabel.NOTE_START)
                     elif nc.graphical_connection == GraphicalConnectionType.LOOPED:
-                        set(nc.coord, looped_label)
+                        set(nc.coord, SymbolLabel.NOTE_LOOPED)
                     else:
-                        set(nc.coord, gapped_label)
+                        set(nc.coord, SymbolLabel.NOTE_GAPPED)
 
             elif isinstance(s, Clef):
                 c: Clef = s
-                set(c.coord, clef_label)
+                if c.clef_type == ClefType.CLEF_F:
+                    set(c.coord, SymbolLabel.CLEF_F)
+                else:
+                    set(c.coord, SymbolLabel.CLEF_C)
             elif isinstance(s, Accidental):
                 a: Accidental = s
-                set(a.coord, accid_label)
+                if a.symbol_type == AccidentalType.NATURAL:
+                    set(a.coord, SymbolLabel.ACCID_NATURAL)
+                elif a.symbol_type == AccidentalType.FLAT:
+                    set(a.coord, SymbolLabel.ACCID_FLAT)
+                else:
+                    set(a.coord, SymbolLabel.ACCID_SHARP)
 
         return img
 
     def local_to_global_pos(self, p: Point, params: Any):
-        i, (t, b, l, r), (top, ) = params
-        return Point(p.x + l, t + p.y - top)
+        i, (t, b, l, r), (top, ), mls = params
+        # default operations
+        p = Point(p.x + l, t + p.y - top)
+        # dewarp
+        return Point(*transform(p.xy(), mls))
+
 

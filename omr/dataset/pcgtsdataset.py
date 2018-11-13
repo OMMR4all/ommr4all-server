@@ -216,7 +216,7 @@ class PcGtsDataset:
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from omr.dewarping.dummy_dewarper import dewarp
-    page = book.Book('Graduel').page('Graduel_de_leglise_de_Nevers_025')
+    page = book.Book('demo').pages()[0]
     pcgts = PcGts.from_file(page.file('pcgts'))
     dataset = PcGtsDataset([pcgts], True)
     images = dataset.marked_symbols()

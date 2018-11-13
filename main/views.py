@@ -13,6 +13,7 @@ import numpy as np
 import logging
 import zipfile
 import datetime
+import os
 
 
 @csrf_exempt
@@ -39,7 +40,7 @@ def get_operation(request, book, page, operation):
 
     elif operation == 'symbols':
         from omr.symboldetection.pixelclassifier.predictor import PCPredictor
-        pred = PCPredictor([page.book.local_path('pc_paths')])
+        pred = PCPredictor([page.book.local_path(os.path.join('pc_paths', 'model'))])
         pcgts = PcGts.from_file(page.file('pcgts'))
         ps = list(pred.predict([pcgts]))
         music_lines = []

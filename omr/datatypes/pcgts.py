@@ -7,6 +7,8 @@ import numpy as np
 import main.book as book
 import os
 
+from PIL import Image
+
 
 class PcGts:
     def __init__(self, meta: Meta, page: Page):
@@ -44,11 +46,13 @@ class PcGts:
             raise Exception("Invalid file extension of file '{}'".format(filename))
 
     @staticmethod
-    def from_json(json: dict, location: Page):
-        return PcGts(
+    def from_json(json: dict, location: book.Page):
+        pcgts = PcGts(
             Meta.from_json(json.get('meta', {})),
             Page.from_json(json.get('page', {}), location=location),
         )
+        pcgts.page.image_width, pcgts.page.image_height = Image.open(location.file('color_deskewed').local_path()).size
+        return pcgts
 
     def to_json(self):
         return {
