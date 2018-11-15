@@ -42,9 +42,17 @@ class PCPredictor:
         symbols = []
         sorted_labels = sorted(range(n_labels), key=lambda i: (centroids[i, 0], -centroids[i, 1]))
         for i in sorted_labels:
+            w = stats[i, cv2.CC_STAT_WIDTH]
+            h = stats[i, cv2.CC_STAT_HEIGHT]
+            a = stats[i, cv2.CC_STAT_AREA]
+            y = stats[i, cv2.CC_STAT_TOP]
+            x = stats[i, cv2.CC_STAT_LEFT]
             c = Point(x=centroids[i, 0], y=centroids[i, 1]).astype(int)
             coord = self.dataset.line_and_mask_operations.local_to_global_pos(c, m.operation.params).astype(int)
-            label = SymbolLabel(int(p[c.y, c.x]))
+
+            # compute label this the label with the hightest frequency of the connected component
+            area = p[y:y+h, x:x+w] * (cc[y:y+h, x:x+w] == i)
+            label = SymbolLabel(int(np.argmax([np.sum(area == v + 1) for v in range(len(SymbolLabel) - 1)])) + 1)
             if label == SymbolLabel.NOTE_START:
                 symbols.append(Neume(notes=[NoteComponent(coord=coord)]))
             elif label == SymbolLabel.NOTE_GAPPED or label == SymbolLabel.NOTE_LOOPED:

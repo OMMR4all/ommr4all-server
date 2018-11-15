@@ -72,8 +72,8 @@ class Page:
         self.book = book
         self.page = page.strip("/")
 
-    def file(self, fileId):
-        return File(self, fileId)
+    def file(self, fileId, create_if_not_existing=False):
+        return File(self, fileId, create_if_not_existing)
 
     def local_file_path(self, f):
         return os.path.join(self.local_path(), f)
@@ -257,7 +257,7 @@ thumbnail_size = (200, 350)
 
 
 class File:
-    def __init__(self, page: Page, fileId: str):
+    def __init__(self, page: Page, fileId: str, create_if_not_existing=False):
         self.page = page
         self._fileId = fileId.strip('/')
         if self._fileId.endswith('_preview'):
@@ -266,6 +266,9 @@ class File:
         else:
             self.preview = False
             self.definition: FileDefinition = file_definitions[fileId.strip('/')]
+
+        if create_if_not_existing and not self.exists():
+            self.create()
 
     def local_path(self, file_id=-1):
         return os.path.join(self.page.local_path(), self.definition.output[file_id if file_id >= 0 else self.definition.default])

@@ -51,7 +51,7 @@ class PcGts:
             Meta.from_json(json.get('meta', {})),
             Page.from_json(json.get('page', {}), location=location),
         )
-        pcgts.page.image_width, pcgts.page.image_height = Image.open(location.file('color_deskewed').local_path()).size
+        pcgts.page.image_width, pcgts.page.image_height = Image.open(location.file('color_deskewed', True).local_path()).size
         return pcgts
 
     def to_json(self):
