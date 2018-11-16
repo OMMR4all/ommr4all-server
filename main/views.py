@@ -1,6 +1,8 @@
 from json import JSONDecodeError
 
 from django.http import HttpResponse, JsonResponse, HttpResponseNotModified, HttpResponseBadRequest, FileResponse
+
+from omr.datatypes.performance.pageprogress import PageProgress
 from .book import Book, Page, File, file_definitions
 from omr.stafflines.text_line import TextLine
 from omr.stafflines.json_util import json_to_line
@@ -50,6 +52,16 @@ def get_operation(request, book, page, operation):
                                 'id': line_prediction.line.operation.music_line.id})
         return JsonResponse({'musicLines': music_lines})
 
+    elif operation == 'save_page_progress':
+        obj = json.loads(request.body, encoding='utf-8')
+        pp = PageProgress.from_json(obj)
+        pp.to_json_file(page.file('page_progress').local_path())
+
+        # add to backup archive
+        with zipfile.ZipFile(page.file('page_progress_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('page_progress_{}.json'.format(datetime.datetime.now()), json.dumps(pp.to_json(), indent=2))
+
+        return HttpResponse()
     elif operation == 'save_statistics':
         obj = json.loads(request.body, encoding='utf-8')
         total_stats = Statistics.from_json(obj)
@@ -80,6 +92,22 @@ def get_operation(request, book, page, operation):
 
     else:
         return HttpResponseBadRequest()
+
+
+def get_page_progress(request, book, page):
+    page = Page(Book(book), page)
+    file = File(page, 'page_progress')
+
+    if not file.exists():
+        file.create()
+
+    try:
+        return JsonResponse(PageProgress.from_json_file(file.local_path()).to_json())
+    except JSONDecodeError as e:
+        logging.error(e)
+        file.delete()
+        file.create()
+        return JsonResponse(PageProgress.from_json_file(file.local_path()).to_json())
 
 
 def get_pcgts(request, book, page):

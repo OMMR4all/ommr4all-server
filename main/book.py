@@ -135,6 +135,14 @@ file_definitions = {
         'statistics_backup',
         ['statistics_backup.zip'],
     ),
+    'page_progress': FileDefinition(
+        'page_progress',
+        ['page_progress.json'],
+    ),
+    'page_progress_backup': FileDefinition(
+        'page_progress_backup',
+        ['page_progress_backup.zip'],
+    ),
     'meta': FileDefinition(
         'meta',
         ['meta.json'],
@@ -328,11 +336,13 @@ class File:
 
             # create local file
             logger.info('Creating local file {}'.format(self.local_path()))
-            if self.definition.id == 'statistics':
+            if self.definition.id == 'statistics' \
+                    or self.definition.id == 'page_progress':
                 import json
                 with open(self.local_path(), 'w') as f:
                     json.dump({}, f)
-            elif self.definition.id == 'statistics_backup':
+            elif self.definition.id == 'page_progress_backup' \
+                    or self.definition.id == 'statistics_backup':
                 import zipfile
                 zf = zipfile.ZipFile(self.local_path(), mode='w', compression=zipfile.ZIP_DEFLATED)
                 zf.close()
