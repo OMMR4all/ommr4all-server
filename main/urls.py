@@ -57,18 +57,6 @@ def page_annotation(request, book, page):
     return JsonResponse(data)
 
 
-@csrf_exempt
-def save_page(request, book, page):
-    if request.method == 'POST':
-        annotation_file = os.path.join(page_dir(book, page), 'annotation.json')
-        with open(annotation_file, 'w') as f:
-            f.write(request.body.decode('utf-8'))
-
-        return JsonResponse({'status': 'ok'})
-
-    return HttpResponseBadRequest()
-
-
 def get_content(request, book, page, content):
     page = Page(Book(book), page)
     file = File(page, content)
@@ -115,12 +103,11 @@ urlpatterns = [
     #   protected_serve, {'document_root': settings.PRIVATE_MEDIA_ROOT}),
     re_path(r'^listpages/(?P<book>\w+)$', list_pages),
     re_path(r'^annotation/(?P<book>\w+)/(?P<page>\w+)$', page_annotation),
-    re_path(r'^save_page/(?P<book>\w+)/(?P<page>\w+)$', save_page),
     re_path(r'^book/(?P<book>\w+)/upload/$', upload_to_book),
     re_path(r'^book/(?P<book>\w+)/list/$', views.list_book),
     re_path(r'^book/(?P<book>\w+)/download/(?P<type>[\w\.]+)$', views.book_download),
-    re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/save$', save_page),
     re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/pcgts$', views.get_pcgts),
+    re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/statistics$', views.get_statistics),
     re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
     re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/operation/(?P<operation>\w+)$', views.get_operation),
     path('books/list', views.list_all_books, name='list_all_books'),

@@ -6,6 +6,7 @@ from omr.stafflines.text_line import TextLine
 from omr.stafflines.json_util import json_to_line
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from omr.datatypes.pcgts import PcGts
+from omr.datatypes.performance.statistics import Statistics
 import json
 from omr.datatypes.pcgts import PcGts
 from PIL import Image
@@ -49,6 +50,16 @@ def get_operation(request, book, page, operation):
                                 'id': line_prediction.line.operation.music_line.id})
         return JsonResponse({'musicLines': music_lines})
 
+    elif operation == 'save_statistics':
+        obj = json.loads(request.body, encoding='utf-8')
+        total_stats = Statistics.from_json(obj)
+        total_stats.to_json_file(page.file('statistics').local_path())
+
+        # add to backup archive
+        with zipfile.ZipFile(page.file('statistics_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('statistics_{}.json'.format(datetime.datetime.now()), json.dumps(total_stats.to_json(), indent=2))
+
+        return HttpResponse()
     elif operation == 'save':
         obj = json.loads(request.body, encoding='utf-8')
         pcgts = PcGts.from_json(obj, page)
@@ -85,6 +96,22 @@ def get_pcgts(request, book, page):
         file.delete()
         file.create()
         return JsonResponse(PcGts.from_file(file).to_json())
+
+
+def get_statistics(request, book, page):
+    page = Page(Book(book), page)
+    file = File(page, 'statistics')
+
+    if not file.exists():
+        file.create()
+
+    try:
+        return JsonResponse(Statistics.from_json_file(file.local_path()).to_json())
+    except JSONDecodeError as e:
+        logging.error(e)
+        file.delete()
+        file.create()
+        return JsonResponse(Statistics.from_json_file(file.local_path()).to_json())
 
 
 def list_book(request, book):

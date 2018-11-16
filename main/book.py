@@ -127,6 +127,14 @@ class FileDefinition:
 
 
 file_definitions = {
+    'statistics': FileDefinition(
+        'statistics',
+        ['statistics.json'],
+    ),
+    'statistics_backup': FileDefinition(
+        'statistics_backup',
+        ['statistics_backup.zip'],
+    ),
     'meta': FileDefinition(
         'meta',
         ['meta.json'],
@@ -320,7 +328,15 @@ class File:
 
             # create local file
             logger.info('Creating local file {}'.format(self.local_path()))
-            if self.definition.id == 'annotation':
+            if self.definition.id == 'statistics':
+                import json
+                with open(self.local_path(), 'w') as f:
+                    json.dump({}, f)
+            elif self.definition.id == 'statistics_backup':
+                import zipfile
+                zf = zipfile.ZipFile(self.local_path(), mode='w', compression=zipfile.ZIP_DEFLATED)
+                zf.close()
+            elif self.definition.id == 'annotation':
                 import json
                 with open(self.local_path(), 'w') as f:
                     json.dump({}, f)
