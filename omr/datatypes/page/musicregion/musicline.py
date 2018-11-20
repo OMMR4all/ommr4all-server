@@ -13,6 +13,8 @@ class SymbolType(Enum):
     CLEF = 1
     ACCID = 2
 
+    NOTE_COMPONENT = 3
+
 
 class Symbol(ABC):
     def __init__(self, symbol_type: SymbolType):
@@ -118,19 +120,20 @@ class NoteName(Enum):
     G = 6
 
 
-class NoteComponent:
+class NoteComponent(Symbol):
     def __init__(self,
                  note_name=NoteName.UNDEFINED,
                  octave=-1,
                  note_type=NoteType.NORMAL,
-                 coord=Point(),
+                 coord: Point = None,
                  position_in_staff=MusicSymbolPositionInStaff.UNDEFINED,
                  graphical_connection=GraphicalConnectionType.GAPED,
                  ):
+        super().__init__(SymbolType.NOTE_COMPONENT)
         self.note_name = note_name
         self.octave = octave
         self.note_type = note_type
-        self.coord = coord
+        self.coord: Point = coord if coord else Point()
         self.position_in_staff = position_in_staff
         self.graphical_connection = graphical_connection
 
@@ -252,7 +255,7 @@ class StaffLine:
 class StaffLines(List[StaffLine]):
     @staticmethod
     def from_json(json):
-        return StaffLines([StaffLine.from_json(l) for l in json])
+        return StaffLines([StaffLine.from_json(l) for l in json]).sorted()
 
     def to_json(self):
         return [l.to_json() for l in self]
@@ -260,6 +263,12 @@ class StaffLines(List[StaffLine]):
     def draw(self, canvas, color=(0, 255, 0), thickness=5):
         for l in self:
             l.draw(canvas, color, thickness)
+
+    def sort(self):
+        super(StaffLines, self).sort(key=lambda s: s.center_y())
+
+    def sorted(self):
+        return StaffLines(sorted(self, key=lambda s: s.center_y()))
 
 
 class MusicLine:

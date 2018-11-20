@@ -10,6 +10,9 @@ class Point:
         self.x = x
         self.y = y
 
+    def distance_sqr(self, p: 'Point') -> float:
+        return (self.x - p.x) ** 2 + (self.y - p.y) ** 2
+
     def astype(self, type: Type):
         return Point(type(self.x), type(self.y))
 

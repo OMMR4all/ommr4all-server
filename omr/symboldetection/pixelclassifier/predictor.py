@@ -7,24 +7,19 @@ from omr.dataset.pcgtsdataset import PcGtsDataset, MusicLineAndMarkedSymbol
 import cv2
 import numpy as np
 from omr.imageoperations.music_line_operations import SymbolLabel
-
-class PredictionResult(NamedTuple):
-    symbols: List[Symbol]
-    line: MusicLineAndMarkedSymbol
+from omr.symboldetection.predictor import SymbolDetectionPredictor, PredictionResult, PredictionType, PredictorParameters
 
 
-class PCPredictor:
-    def __init__(self, checkpoints: List[str]):
-        self.height = 80
+class PCPredictor(SymbolDetectionPredictor):
+    def __init__(self, params: PredictorParameters):
+        super().__init__(params)
         settings = PredictSettings(
-            network=os.path.splitext(checkpoints[0])[0]
+            network=os.path.splitext(params.checkpoints[0])[0]
         )
         self.predictor = Predictor(settings)
-        self.dataset: PcGtsDataset = None
 
-    def predict(self, pcgts_files: List[PcGts]) -> Generator[PredictionResult, None, None]:
-        self.dataset = PcGtsDataset(pcgts_files, gt_required=False, height=self.height)
-        for p in self.predictor.predict(self.dataset.to_music_line_page_segmentation_dataset()):
+    def _predict(self, dataset: PcGtsDataset) -> PredictionType:
+        for p in self.predictor.predict(dataset.to_music_line_page_segmentation_dataset()):
             if False:
                 import matplotlib.pyplot as plt
                 f, ax = plt.subplots(5, 1, sharey='all', sharex='all')
@@ -79,7 +74,7 @@ if __name__ == '__main__':
     import main.book as book
     b = book.Book('demo')
     val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[0:1]]
-    pred = PCPredictor([b.local_path(os.path.join('pc_paths', 'model'))])
+    pred = PCPredictor(PredictorParameters([b.local_path(os.path.join('pc_paths', 'model'))]))
     ps = list(pred.predict(val_pcgts))
     import matplotlib.pyplot as plt
     orig = np.array(ps[0].line.operation.page_image)
