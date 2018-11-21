@@ -42,8 +42,11 @@ def get_operation(request, book, page, operation):
         return JsonResponse({'staffs': [l.to_json() for l in lines]})
 
     elif operation == 'symbols':
-        from omr.symboldetection.pixelclassifier.predictor import PCPredictor
-        pred = PCPredictor([page.book.local_path(os.path.join('pc_paths', 'model'))])
+        from omr.symboldetection.predictor import PredictorParameters, PredictorTypes, create_predictor
+        params = PredictorParameters(
+            checkpoints=[page.book.local_path(os.path.join('pc_paths', 'model'))],
+        )
+        pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER, params)
         pcgts = PcGts.from_file(page.file('pcgts'))
         ps = list(pred.predict([pcgts]))
         music_lines = []

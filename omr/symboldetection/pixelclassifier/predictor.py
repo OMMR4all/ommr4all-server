@@ -1,5 +1,5 @@
 from typing import List, NamedTuple, Generator
-from thirdparty.page_segmentation.lib.predictor import Predictor, PredictSettings
+from thirdparty.page_segmentation.pagesegmentation.lib.predictor import Predictor, PredictSettings
 import os
 from omr.datatypes import PcGts, Symbol, SymbolType, NoteComponent, Neume, Point, GraphicalConnectionType, \
     Clef, ClefType, AccidentalType, Accidental
