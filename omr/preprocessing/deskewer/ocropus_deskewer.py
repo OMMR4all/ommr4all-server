@@ -39,7 +39,7 @@ class OcropusDeskewer(Deskewer):
 
 if __name__ == '__main__':
     from omr.preprocessing.binarizer.ocropus_binarizer import OCRopusBin
-    from gregorian_annotator_server.settings import PRIVATE_MEDIA_ROOT
+    from ommr4all.settings import PRIVATE_MEDIA_ROOT
     import os
     binary = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'binary_original.png'))
     gray = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'gray_original.png'))

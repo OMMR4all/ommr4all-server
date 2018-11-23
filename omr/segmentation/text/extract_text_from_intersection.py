@@ -283,7 +283,7 @@ def extract_text(cc: ConnectedComponents, central_text_line: np.ndarray, debug=F
 
 
 if __name__ == '__main__':
-    from gregorian_annotator_server.settings import PRIVATE_MEDIA_ROOT
+    from ommr4all.settings import PRIVATE_MEDIA_ROOT
     import os
     import pickle
     with open(os.path.join(PRIVATE_MEDIA_ROOT, 'test', 'Graduel_de_leglise_de_Nevers_536', 'connected_components_deskewed.pkl'), 'rb') as f:

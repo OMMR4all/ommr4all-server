@@ -137,7 +137,7 @@ def extract_text(binary: np.ndarray, staffs: Staffs):
 
 
 if __name__ == '__main__':
-    from gregorian_annotator_server.settings import PRIVATE_MEDIA_ROOT
+    from ommr4all.settings import PRIVATE_MEDIA_ROOT
     import os
     from PIL import Image
     binary = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_binary.png'))

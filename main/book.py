@@ -5,7 +5,8 @@ from multiprocessing import Lock
 from locked_dict.locked_dict import LockedDict
 import numpy as np
 import logging
-from gregorian_annotator_server.settings import PRIVATE_MEDIA_ROOT, PRIVATE_MEDIA_URL
+from typing import NamedTuple, List, Tuple
+from ommr4all.settings import PRIVATE_MEDIA_ROOT, PRIVATE_MEDIA_URL
 
 
 logger = logging.getLogger(__name__)
@@ -95,7 +96,8 @@ class Page:
 
 
 class PageMeta:
-    def __init__(self, d={}):
+    def __init__(self, d: dict = None):
+        d = d if d else {}
         self.width = d.get('width', -1)
         self.height = d.get('height', -1)
 
@@ -117,13 +119,12 @@ class PageMeta:
             return PageMeta(json.load(f))
 
 
-class FileDefinition:
-    def __init__(self, id, output=[], requires=[], default=0, has_preview=False):
-        self.id = id
-        self.output = output
-        self.requires = requires
-        self.default = default
-        self.has_preview = has_preview
+class FileDefinition(NamedTuple):
+    id: str
+    output: List[str] = []
+    requires: List[str] = []
+    default: int = 0
+    has_preview: bool = False
 
 
 file_definitions = {
