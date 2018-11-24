@@ -35,10 +35,9 @@ def get_operation(request, book, page, operation):
         return JsonResponse(text_line.to_json())
 
     elif operation == 'staffs':
-        from omr.stafflines.detection.dummy_detector import detect
-        binary = Image.open(File(page, 'binary_deskewed').local_path())
-        gray = Image.open(File(page, 'gray_deskewed').local_path())
-        lines = detect(np.array(binary) // 255, np.array(gray) / 255)
+        from omr.stafflines.detection import create_staff_line_detector, StaffLineDetectorType
+        detector = create_staff_line_detector(StaffLineDetectorType.BASIC)
+        lines = detector.detect(File(page, 'binary_deskewed').local_path(), File(page, 'gray_deskewed').local_path())
         return JsonResponse({'staffs': [l.to_json() for l in lines]})
 
     elif operation == 'symbols':
