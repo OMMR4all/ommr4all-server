@@ -53,7 +53,7 @@ class PcGtsDataset:
         ])
 
     def to_music_line_page_segmentation_dataset(self):
-        from thirdparty.page_segmentation.pagesegmentation.lib.dataset import Dataset, SingleData
+        from pagesegmentation.lib.dataset import Dataset, SingleData
         return Dataset([SingleData(image=d.line_image, binary=None, mask=d.mask,
                                    user_data=d) for d in self.marked_symbols()])
 

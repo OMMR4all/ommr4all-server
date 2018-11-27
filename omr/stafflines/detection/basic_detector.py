@@ -21,7 +21,9 @@ class BasicStaffLineDetector(StaffLineDetector):
 
     def detect(self, binary_path: str, gray_path: str) -> MusicLines:
         r = list(self.line_detection.detectbasic([gray_path]))[0]
-        return MusicLines([MusicLine(staff_lines=StaffLines([StaffLine(Coords(np.asarray(pl)[:, ::-1])) for pl in l])) for l in r])
+        ml = MusicLines([MusicLine(staff_lines=StaffLines([StaffLine(Coords(np.asarray(pl)[:, ::-1])) for pl in l])) for l in r])
+        ml.approximate_staff_lines()
+        return ml
 
 
 if __name__ == '__main__':

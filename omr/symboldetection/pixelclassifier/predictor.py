@@ -1,5 +1,5 @@
 from typing import List, NamedTuple, Generator
-from thirdparty.page_segmentation.pagesegmentation.lib.predictor import Predictor, PredictSettings
+from pagesegmentation.lib.predictor import Predictor, PredictSettings
 import os
 from omr.datatypes import PcGts, Symbol, SymbolType, NoteComponent, Neume, Point, GraphicalConnectionType, \
     Clef, ClefType, AccidentalType, Accidental
@@ -64,7 +64,12 @@ class PCPredictor(SymbolDetectionPredictor):
                 symbols.append(Clef(clef_type=ClefType.CLEF_C, coord=coord))
             elif label == SymbolLabel.CLEF_F:
                 symbols.append(Clef(clef_type=ClefType.CLEF_F, coord=coord))
-
+            elif label == SymbolLabel.ACCID_FLAT:
+                symbols.append(Accidental(accidental=AccidentalType.FLAT, coord=coord))
+            elif label == SymbolLabel.ACCID_SHARP:
+                symbols.append(Accidental(accidental=AccidentalType.SHARP, coord=coord))
+            elif label == SymbolLabel.ACCID_NATURAL:
+                symbols.append(Accidental(accidental=AccidentalType.NATURAL, coord=coord))
 
 
         return symbols

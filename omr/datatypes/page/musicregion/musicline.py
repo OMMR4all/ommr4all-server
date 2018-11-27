@@ -304,7 +304,7 @@ class MusicLine:
             "symbols": [s.to_json() for s in self.symbols],
         }
 
-    def _avg_line_distance(self, default=-1):
+    def avg_line_distance(self, default=-1):
         if len(self.staff_lines) <= 1:
             return default
 
@@ -342,4 +342,10 @@ class MusicLines(List[MusicLine]):
         for ml in self:
             img, gt = ml.extract_image_and_gt(page)
             yield ml, img, gt
+
+    def approximate_staff_lines(self):
+        d = np.mean([ml.avg_line_distance(default=0) for ml in self]) / 10
+        for ml in self:
+            ml.approximate(d)
+
 

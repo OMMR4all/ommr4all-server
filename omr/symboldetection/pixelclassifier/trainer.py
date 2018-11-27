@@ -12,7 +12,7 @@ class PCTrainer:
         self.validation_pcgts_dataset = PcGtsDataset(validation_pcgts_files, gt_required=True, height=self.height)
 
     def run(self, model_for_book: book.Book):
-        from thirdparty.page_segmentation.pagesegmentation.lib.trainer import Trainer, TrainSettings
+        from pagesegmentation.lib.trainer import Trainer, TrainSettings
         a = self.train_pcgts_dataset.to_music_line_page_segmentation_dataset()
 
         settings = TrainSettings(

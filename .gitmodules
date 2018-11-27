@@ -1,6 +1,3 @@
-[submodule "thirdparty/page_segmentation"]
-	path = thirdparty/page_segmentation
-	url = https://gitlab2.informatik.uni-wuerzburg.de/chw71yx/page-segmentation.git
 [submodule "thirdparty/calamari"]
 	path = thirdparty/calamari
 	url = https://github.com/Calamari-OCR/calamari.git
