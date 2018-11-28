@@ -71,7 +71,7 @@ class Coords:
         self.points = approximate_polygon(self.points, distance)
 
     def draw(self, canvas, color=(0, 255, 0), thickness=5, fill=False):
-        pts = self.points.reshape((-1, 1, 2)).astype(np.int32)
+        pts = np.round(self.points.reshape((-1, 1, 2))).astype(np.int32)
         if thickness > 0:
             cv2.polylines(canvas, [pts], False, color, int(thickness))
         if fill:

@@ -36,7 +36,7 @@ def get_operation(request, book, page, operation):
 
     elif operation == 'staffs':
         from omr.stafflines.detection import create_staff_line_detector, StaffLineDetectorType
-        detector = create_staff_line_detector(StaffLineDetectorType.BASIC)
+        detector = create_staff_line_detector(StaffLineDetectorType.BASIC, page)
         lines = detector.detect(File(page, 'binary_deskewed').local_path(), File(page, 'gray_deskewed').local_path())
         return JsonResponse({'staffs': [l.to_json() for l in lines]})
 

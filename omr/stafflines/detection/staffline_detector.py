@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from omr.datatypes import MusicLines
 from enum import Enum
+import main.book as book
 
 
 class StaffLineDetectorType(Enum):
@@ -17,10 +18,10 @@ class StaffLineDetector(ABC):
         return MusicLines()
 
 
-def create_staff_line_detector(detector_type: StaffLineDetectorType) -> StaffLineDetector:
+def create_staff_line_detector(detector_type: StaffLineDetectorType, page: book.Page) -> StaffLineDetector:
     if detector_type == StaffLineDetectorType.BASIC:
         from .basic_detector import BasicStaffLineDetector
-        return BasicStaffLineDetector()
+        return BasicStaffLineDetector(page)
 
     else:
         raise Exception("Unknown staff line detector type: {}".format(detector_type))

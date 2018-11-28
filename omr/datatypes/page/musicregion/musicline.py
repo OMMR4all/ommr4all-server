@@ -251,6 +251,20 @@ class StaffLine:
     def draw(self, canvas, color=(0, 255, 0), thickness=5):
         self.coords.draw(canvas, color, thickness)
 
+    def fit_to_gray_image(self, gray: np.ndarray, offset=5):
+        left, top = tuple(list(map(int, self.coords.points.min(axis=0))))
+        right, bot = tuple(list(map(int, self.coords.points.max(axis=0))))
+        top -= offset
+        bot += offset
+        line = np.zeros(gray.shape)
+        self.draw(line, color=(255,), thickness=2)
+        target = gray[top-offset:bot+offset, left:right]
+        search = line[top:bot, left:right]
+
+        fit = [np.mean(target[i:i+bot-top, :] * search) for i in range(offset * 2)]
+        shift = np.argmin(fit) - offset
+        self.coords.points[:, 1] += shift
+
 
 class StaffLines(List[StaffLine]):
     @staticmethod
@@ -315,7 +329,11 @@ class MusicLine:
         for line in self.staff_lines:
             line.approximate(distance)
 
-    def draw(self, canvas, color=(0, 255, 0), thickness=5):
+    def fit_to_gray_image(self, gray: np.ndarray, offset=5):
+        for line in self.staff_lines:
+            line.fit_to_gray_image(gray, offset)
+
+    def draw(self, canvas, color=(0, 255, 0), thickness=1):
         self.staff_lines.draw(canvas, color, thickness)
 
     def extract_image_and_gt(self, page: np.ndarray) -> (np.ndarray, str):
@@ -347,5 +365,10 @@ class MusicLines(List[MusicLine]):
         d = np.mean([ml.avg_line_distance(default=0) for ml in self]) / 10
         for ml in self:
             ml.approximate(d)
+
+    def fit_staff_lines_to_gray_image(self, gray: np.ndarray, offset=5):
+        d = max(5, int(np.mean([ml.avg_line_distance(default=0) for ml in self]) / 5))
+        for line in self:
+            line.fit_to_gray_image(gray, d)
 
 
