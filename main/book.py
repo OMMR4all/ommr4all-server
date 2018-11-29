@@ -19,7 +19,7 @@ file_name_validator = re.compile('\w+')
 class Book:
     @staticmethod
     def list_available():
-        return [Book(name) for name in os.listdir(PRIVATE_MEDIA_ROOT)]
+        return [Book(name) for name in os.listdir(PRIVATE_MEDIA_ROOT) if Book(name).is_valid()]
 
     def __init__(self, book: str):
         self.book = book.strip('/')

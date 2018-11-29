@@ -11,11 +11,13 @@ from typing import NamedTuple
 from omr.imageoperations import ImageExtractDewarpedStaffLineImages, ImageOperationList, ImageLoadFromPageOperation, \
     ImageOperationData, ImageRescaleToHeightOperation, ImagePadToPowerOf2
 
+
 class Rect(NamedTuple):
     t: int
     b: int
     l: int
     r: int
+
 
 class LoadedImage(NamedTuple):
     music_line: MusicLine
@@ -23,6 +25,7 @@ class LoadedImage(NamedTuple):
     original_image: np.ndarray
     rect: Rect
     str_gt: List[str]
+
 
 class MusicLineAndMarkedSymbol:
     def __init__(self, op: ImageOperationData):

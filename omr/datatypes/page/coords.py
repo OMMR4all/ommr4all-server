@@ -72,9 +72,9 @@ class Coords:
 
     def draw(self, canvas, color=(0, 255, 0), thickness=5, fill=False):
         pts = np.round(self.points.reshape((-1, 1, 2))).astype(np.int32)
-        if thickness > 0:
+        if thickness > 0 and len(pts) >= 2:
             cv2.polylines(canvas, [pts], False, color, int(thickness))
-        if fill:
+        if fill and len(pts) >= 3:
             cv2.fillPoly(canvas, [pts], color)
 
     def aabb(self):

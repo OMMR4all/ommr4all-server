@@ -92,6 +92,9 @@ def get_operation(request, book, page, operation):
 
         return HttpResponse()
 
+    elif operation == 'train_symbol_detector':
+        return JsonResponse({'response': 'started', 'bookState': {'symbolDetectionIsTraining': True}})
+
     else:
         return HttpResponseBadRequest()
 
