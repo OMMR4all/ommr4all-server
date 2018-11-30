@@ -17,6 +17,7 @@ import logging
 import zipfile
 import datetime
 import os
+import re
 
 
 @csrf_exempt
@@ -153,20 +154,32 @@ def list_book(request, book):
     return JsonResponse({'pages': sorted([{'label': page.page} for page in pages if page.is_valid()], key=lambda v: v['label'])})
 
 
-def new_book(request, book):
-    book = Book(book)
-    if book.exists():
+@csrf_exempt
+def new_book(request):
+    if request.method != 'POST':
+        return HttpResponseBadRequest()
+
+    book = json.loads(request.body, encoding='utf-8')
+    if 'name' not in book:
+        return HttpResponseBadRequest()
+
+    book_id = re.sub('[^\w]', '_', book['name'])
+
+    from .book_meta import BookMeta
+    b = Book(book_id)
+    if b.exists():
         return HttpResponseNotModified()
 
-    if book.create():
-        return JsonResponse({'label': book.book})
+    if b.create(BookMeta(id=b.book, name=book['name'])):
+        return JsonResponse(b.get_meta().to_json())
 
     return HttpResponseBadRequest()
 
 
 def list_all_books(request):
-    books = Book.list_available()
-    return JsonResponse({'books': sorted([{'label': book.book} for book in books if book.is_valid()], key=lambda v: v['label'])})
+    # TODO: sort by in request
+    books = Book.list_available_book_metas()
+    return JsonResponse({'books': sorted([book.to_json() for book in books], key=lambda b: b['name'])})
 
 
 def book_download(request, book, type):

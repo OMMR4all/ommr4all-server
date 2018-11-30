@@ -21,6 +21,10 @@ class Book:
     def list_available():
         return [Book(name) for name in os.listdir(PRIVATE_MEDIA_ROOT) if Book(name).is_valid()]
 
+    @staticmethod
+    def list_available_book_metas():
+        return [b.get_meta() for b in Book.list_available()]
+
     def __init__(self, book: str):
         self.book = book.strip('/')
 
@@ -57,7 +61,7 @@ class Book:
     def exists(self):
         return os.path.exists(self.local_path()) and os.path.isdir(self.local_path())
 
-    def create(self):
+    def create(self, book_meta):
         if self.exists():
             return True
 
@@ -65,7 +69,22 @@ class Book:
             return False
 
         os.mkdir(self.local_path())
+        book_meta.to_file(self)
         return True
+
+    def get_meta(self):
+        from .book_meta import BookMeta
+        return BookMeta.load(self)
+
+    def save_json_to_meta(self, obj: dict):
+        meta = self.get_meta()
+        for key, value in obj.items():
+            setattr(meta, key, value)
+
+        meta.to_file(self)
+
+    def page_names(self) -> List[str]:
+        return [p.page for p in self.pages()]
 
 
 class Page:
