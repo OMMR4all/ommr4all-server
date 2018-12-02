@@ -16,17 +16,26 @@ import re
 file_name_validator = re.compile('\w+')
 
 
+class InvalidFileNameException(Exception):
+    STATUS = 460
+
+    def __init__(self, filename):
+        super().__init__("Invalid filename {}".format(filename))
+
+
 class Book:
     @staticmethod
     def list_available():
-        return [Book(name) for name in os.listdir(PRIVATE_MEDIA_ROOT) if Book(name).is_valid()]
+        return [Book(name) for name in os.listdir(PRIVATE_MEDIA_ROOT) if Book(name, skip_validation=True).is_valid()]
 
     @staticmethod
     def list_available_book_metas():
         return [b.get_meta() for b in Book.list_available()]
 
-    def __init__(self, book: str):
+    def __init__(self, book: str, skip_validation=False):
         self.book = book.strip('/')
+        if not skip_validation and not file_name_validator.fullmatch(self.book):
+            raise InvalidFileNameException(self.book)
 
     def pages(self):
         assert(self.is_valid())
@@ -71,6 +80,11 @@ class Book:
         os.mkdir(self.local_path())
         book_meta.to_file(self)
         return True
+
+    def delete(self):
+        import shutil
+        if os.path.exists(self.local_path()):
+            shutil.rmtree(self.local_path())
 
     def get_meta(self):
         from .book_meta import BookMeta

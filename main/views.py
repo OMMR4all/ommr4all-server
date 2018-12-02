@@ -3,7 +3,7 @@ from json import JSONDecodeError
 from django.http import HttpResponse, JsonResponse, HttpResponseNotModified, HttpResponseBadRequest, FileResponse
 
 from omr.datatypes.performance.pageprogress import PageProgress
-from .book import Book, Page, File, file_definitions
+from .book import Book, Page, File, file_definitions, InvalidFileNameException
 from omr.stafflines.text_line import TextLine
 from omr.stafflines.json_util import json_to_line
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
@@ -166,14 +166,35 @@ def new_book(request):
     book_id = re.sub('[^\w]', '_', book['name'])
 
     from .book_meta import BookMeta
-    b = Book(book_id)
-    if b.exists():
-        return HttpResponseNotModified()
+    try:
+        b = Book(book_id)
+        if b.exists():
+            return HttpResponseNotModified()
 
-    if b.create(BookMeta(id=b.book, name=book['name'])):
-        return JsonResponse(b.get_meta().to_json())
+        if b.create(BookMeta(id=b.book, name=book['name'])):
+            return JsonResponse(b.get_meta().to_json())
+    except InvalidFileNameException as e:
+        logging.error(e)
+        return HttpResponse(status=InvalidFileNameException.STATUS)
 
     return HttpResponseBadRequest()
+
+
+@csrf_exempt
+def delete_book(request):
+    if request.method != 'POST':
+        return HttpResponseBadRequest()
+
+    jdata = json.loads(request.body, encoding='utf-8')
+    if 'id' not in jdata:
+        return HttpResponseBadRequest()
+
+    book_id = jdata['id']
+    book = Book(book_id)
+    book.delete()
+
+    return HttpResponse()
+
 
 
 def list_all_books(request):

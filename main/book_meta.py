@@ -10,6 +10,7 @@ import os
 class BookMeta:
     id: str
     name: str
+    created: str = str(datetime.now())
     last_opened: str = ''
 
     @staticmethod
