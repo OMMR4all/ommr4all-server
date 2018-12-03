@@ -19,6 +19,8 @@ import datetime
 import os
 import re
 
+from main.operationworker import operation_worker, TaskDataStaffLineDetection, TaskStatusCodes
+
 
 @csrf_exempt
 def get_operation(request, book, page, operation):
@@ -36,10 +38,18 @@ def get_operation(request, book, page, operation):
         return JsonResponse(text_line.to_json())
 
     elif operation == 'staffs':
-        from omr.stafflines.detection import create_staff_line_detector, StaffLineDetectorType
-        detector = create_staff_line_detector(StaffLineDetectorType.BASIC, page)
-        lines = detector.detect(File(page, 'binary_deskewed').local_path(), File(page, 'gray_deskewed').local_path())
-        return JsonResponse({'staffs': [l.to_json() for l in lines]})
+        task_data = TaskDataStaffLineDetection(page)
+        if not operation_worker.put(task_data):
+            status = operation_worker.status(task_data)
+            if status.code == TaskStatusCodes.FINISHED:
+                lines = operation_worker.pop_result(task_data)
+                return JsonResponse({'status': status.to_json(), 'staffs': [l.to_json() for l in lines]})
+            else:
+                return JsonResponse({'status': status.to_json()})
+        else:
+            status = operation_worker.status(task_data)
+            return JsonResponse({'status': status.to_json()})
+
 
     elif operation == 'symbols':
         from omr.symboldetection.predictor import PredictorParameters, PredictorTypes, create_predictor

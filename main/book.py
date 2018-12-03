@@ -37,6 +37,9 @@ class Book:
         if not skip_validation and not file_name_validator.fullmatch(self.book):
             raise InvalidFileNameException(self.book)
 
+    def __eq__(self, other):
+        return isinstance(other, Book) and other.book == self.book
+
     def pages(self):
         assert(self.is_valid())
 
@@ -105,6 +108,9 @@ class Page:
     def __init__(self, book: Book, page: str):
         self.book = book
         self.page = page.strip("/")
+
+    def __eq__(self, other):
+        return isinstance(other, Page) and self.book == other.book and self.page == other.page
 
     def file(self, fileId, create_if_not_existing=False):
         return File(self, fileId, create_if_not_existing)
