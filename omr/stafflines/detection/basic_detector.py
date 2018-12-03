@@ -8,6 +8,9 @@ import os
 class BasicStaffLineDetector(StaffLineDetector):
     def __init__(self, page: book.Page):
         super().__init__()
+        model_path = page.book.local_path(os.path.join('staff_lines', 'model'))
+        if not os.path.exists(model_path + '.meta'):
+            model_path = None
 
         from linesegmentation.detection import LineDetectionSettings, LineDetection
         self.settings = LineDetectionSettings(
@@ -17,7 +20,7 @@ class BasicStaffLineDetector(StaffLineDetector):
             debug=False,
             lineSpaceHeight=0,
             targetLineSpaceHeight=10,
-            model=page.book.local_path(os.path.join('staff_lines', 'model')),
+            model=model_path
         )
         self.line_detection = LineDetection(self.settings)
 
@@ -35,7 +38,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from PIL import Image
     from main.book import Book
-    page = Book('demo').page('page00000003')
+    page = Book('Test').page('Graduel_de_leglise_de_Nevers_035')
     binary = page.file('binary_deskewed').local_path()
     gray = page.file('gray_deskewed').local_path()
 

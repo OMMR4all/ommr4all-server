@@ -1,6 +1,7 @@
 from json import JSONDecodeError
 
-from django.http import HttpResponse, JsonResponse, HttpResponseNotModified, HttpResponseBadRequest, FileResponse
+from django.http import HttpResponse, JsonResponse, HttpResponseNotModified, HttpResponseBadRequest,\
+    FileResponse
 
 from omr.datatypes.performance.pageprogress import PageProgress
 from .book import Book, Page, File, file_definitions, InvalidFileNameException
@@ -19,7 +20,9 @@ import datetime
 import os
 import re
 
-from main.operationworker import operation_worker, TaskDataStaffLineDetection, TaskStatusCodes
+logger = logging.getLogger(__name__)
+
+from main.operationworker import operation_worker, TaskDataStaffLineDetection, TaskStatusCodes, TaskNotFoundException
 
 
 @csrf_exempt
@@ -39,17 +42,40 @@ def get_operation(request, book, page, operation):
 
     elif operation == 'staffs':
         task_data = TaskDataStaffLineDetection(page)
-        if not operation_worker.put(task_data):
-            status = operation_worker.status(task_data)
-            if status.code == TaskStatusCodes.FINISHED:
-                lines = operation_worker.pop_result(task_data)
-                return JsonResponse({'status': status.to_json(), 'staffs': [l.to_json() for l in lines]})
-            else:
-                return JsonResponse({'status': status.to_json()})
+        if request.method == 'PUT':
+            try:
+                if not operation_worker.put(task_data):
+                    return HttpResponse(status=303)
+                else:
+                    return HttpResponse(status=202)
+            except Exception as e:
+                logger.error(e)
+                return HttpResponse(status=500, body=str(e))
+        elif request.method == 'GET':
+            try:
+                status = operation_worker.status(task_data)
+                if status.code == TaskStatusCodes.FINISHED:
+                    lines = operation_worker.pop_result(task_data)
+                    return JsonResponse({'status': status.to_json(), 'staffs': [l.to_json() for l in lines]})
+                elif status.code == TaskStatusCodes.ERROR:
+                    error = operation_worker.pop_result(task_data)
+                    raise error
+                else:
+                    return JsonResponse({'status': status.to_json()})
+            except TaskNotFoundException as e:
+                logger.error(e)
+                return HttpResponse(status=404)
+            except (FileNotFoundError, OSError) as e:
+                logger.error(e)
+                return JsonResponse({'error': 'no-model'}, status=500)
+            except Exception as e:
+                logging.error(e)
+                return JsonResponse({'error': 'unknown'}, status=500)
+        elif request.method == 'DELETE':
+            # TODO: delete task
+            return HttpResponse()
         else:
-            status = operation_worker.status(task_data)
-            return JsonResponse({'status': status.to_json()})
-
+            return HttpResponse(status=405)
 
     elif operation == 'symbols':
         from omr.symboldetection.predictor import PredictorParameters, PredictorTypes, create_predictor

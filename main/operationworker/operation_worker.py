@@ -22,6 +22,7 @@ class TaskStatusCodes(Enum):
     QUEUED = 0
     RUNNING = 1
     FINISHED = 2
+    ERROR = 3
 
 
 @dataclass
@@ -63,7 +64,7 @@ class TaskQueue:
         with self.mutex:
             for i, t in enumerate(self.tasks):
                 if t.task_data == task_data:
-                    if t.task_status.code != TaskStatusCodes.FINISHED:
+                    if t.task_status.code == TaskStatusCodes.QUEUED or t.task_status.code == TaskStatusCodes.RUNNING:
                         raise TaskNotFinishedException()
 
                     del self.tasks[i]
@@ -94,6 +95,11 @@ class TaskQueue:
             task.task_status.code = TaskStatusCodes.FINISHED
             task.task_result = result
 
+    def task_error(self, task, result):
+        with self.mutex:
+            task.task_status.code = TaskStatusCodes.ERROR
+            task.task_result = result
+
 
 class TaskDataStaffLineDetection(NamedTuple):
     page: Page
@@ -112,21 +118,28 @@ class OperationWorkerThread:
         while True:
             task = self.queue.next_unprocessed(self.sleep_interval)
             logging.info('Running new task of type {}'.format(type(task.task_data)))
-            start = time.time()
-            task_data = task.task_data
-            result = None
-            if isinstance(task_data, TaskDataStaffLineDetection):
-                data: TaskDataStaffLineDetection = task_data
-                staff_line_detector: StaffLineDetector = create_staff_line_detector(StaffLineDetectorType.BASIC, data.page)
-                result = staff_line_detector.detect(
-                    data.page.file('binary_deskewed').local_path(),
-                    data.page.file('gray_deskewed').local_path(),
-                )
-            else:
-                logger.exception("Unknown operation data {} of task {}".format(task_data, task))
+            try:
+                start = time.time()
+                task_data = task.task_data
+                result = None
+                if isinstance(task_data, TaskDataStaffLineDetection):
+                    data: TaskDataStaffLineDetection = task_data
+                    staff_line_detector: StaffLineDetector = create_staff_line_detector(StaffLineDetectorType.BASIC, data.page)
+                    result = staff_line_detector.detect(
+                        data.page.file('binary_deskewed').local_path(),
+                        data.page.file('gray_deskewed').local_path(),
+                    )
+                else:
+                    logger.exception("Unknown operation data {} of task {}".format(task_data, task))
 
-            logger.info("Task finished. It ran for {}s".format(time.time() - start))
-            self.queue.task_finished(task, result)
+                logger.info("Task finished. It ran for {}s".format(time.time() - start))
+                self.queue.task_finished(task, result)
+            except Exception as e:
+                import traceback
+                logger.error("Error in thread: {}".format(e))
+                self.queue.task_error(task, e)
+                # TODO: only reraise if debug to stop thread
+                raise e
 
 
 class OperationWorker:

@@ -248,22 +248,44 @@ class StaffLine:
     def dewarped_y(self):
         return self._dewarped_y
 
-    def draw(self, canvas, color=(0, 255, 0), thickness=5):
-        self.coords.draw(canvas, color, thickness)
+    def draw(self, canvas, color=(0, 255, 0), thickness=5, offset=(0, 0)):
+        self.coords.draw(canvas, color, thickness, offset=offset)
 
-    def fit_to_gray_image(self, gray: np.ndarray, offset=5):
+    def fit_to_gray_image(self, gray: np.ndarray, offset=5, debug=False):
+        # bounds
         left, top = tuple(list(map(int, self.coords.points.min(axis=0))))
         right, bot = tuple(list(map(int, self.coords.points.max(axis=0))))
+
+        # padding
+        gray = np.pad(gray, ((2 * offset, 2 * offset), (2 * offset, 2 * offset)), mode='constant', constant_values=0)
+        left += 2 * offset
+        top += 2 * offset
+        right += 2 * offset
+        bot += 2 * offset
+
+        # offset
         top -= offset
         bot += offset
+
+        # lines
         line = np.zeros(gray.shape)
-        self.draw(line, color=(255,), thickness=2)
+        self.draw(line, color=(255,), thickness=2, offset=(2 * offset, 2 * offset))
         target = gray[top-offset:bot+offset, left:right]
         search = line[top:bot, left:right]
 
         fit = [np.mean(target[i:i+bot-top, :] * search) for i in range(offset * 2)]
         shift = np.argmin(fit) - offset
         self.coords.points[:, 1] += shift
+
+        # debug output
+        if debug:
+            import matplotlib.pyplot as plt
+            sub_imgs = [target[i:i+bot-top, :] * search for i in range(offset * 2)]
+            f, ax = plt.subplots(len(sub_imgs), 1)
+            for a, si in zip(ax, sub_imgs):
+                a.imshow(si)
+            plt.show()
+            print(shift)
 
 
 class StaffLines(List[StaffLine]):
