@@ -6,6 +6,7 @@ from typing import NamedTuple, Any, List, Optional, Tuple
 from enum import Enum
 from dataclasses import dataclass, asdict
 from queue import Empty as QueueEmptyException
+import os
 
 from main.book import Page
 
@@ -28,24 +29,33 @@ class TaskStatusCodes(Enum):
     ERROR = 3
 
 
+class TaskProgressCodes(Enum):
+    INITIALIZING = 0
+    WORKING = 1
+    FINALIZING = 2
+
+
 @dataclass
 class TaskStatus:
     code: TaskStatusCodes = TaskStatusCodes.QUEUED
+    progress_code: TaskProgressCodes = TaskProgressCodes.INITIALIZING
     progress: float = 0
     accuracy: float = 0
 
     def to_json(self):
-        return {'code': self.code.value,
-                'progress': self.progress,
-                'accuracy': self.accuracy,
-                }
+        return {
+            'code': self.code.value,
+            'progress_code': self.progress_code.value,
+            'progress': self.progress,
+            'accuracy': self.accuracy,
+        }
 
 
 @dataclass
 class Task:
     task_data: Any
     task_status: TaskStatus
-    task_result: Any
+    task_result: dict
 
 
 class TaskQueue:
@@ -68,11 +78,11 @@ class TaskQueue:
                 if task.task_data == task_data:
                     return False
 
-            self.tasks.append(Task(task_data, TaskStatus(), None))
+            self.tasks.append(Task(task_data, TaskStatus(), {}))
 
             return True
 
-    def pop_result(self, task_data) -> Any:
+    def pop_result(self, task_data) -> dict:
         with self.mutex:
             for i, t in enumerate(self.tasks):
                 if t.task_data == task_data:
@@ -91,6 +101,15 @@ class TaskQueue:
                     return task.task_status
 
             return None
+
+    def update_status(self, task_data, status: TaskStatus):
+        with self.mutex:
+            for task in self.tasks:
+                if task.task_data == task_data:
+                    task.task_status = status
+                    return
+
+            raise TaskNotFoundException()
 
     def next_unprocessed(self, sleep_secs=1.0) -> Task:
         while True:
@@ -117,8 +136,13 @@ class TaskDataStaffLineDetection(NamedTuple):
     page: Page
 
 
+class TaskDataSymbolDetection(NamedTuple):
+    page: Page
+
+
 class OperationWorkerThread:
-    def __init__(self, thread_id, queue: TaskQueue):
+    def __init__(self, thread_id, queue: TaskQueue, com_queue: Queue):
+        self.com_queue = com_queue
         self.thread = threading.Thread(target=self.run, args=(), name=thread_id)
         self.thread.daemon = True       # daemon thread to stop automatically on shutdown
         self.sleep_interval = 1.0  # seconds
@@ -153,7 +177,7 @@ class OperationWorkerThread:
                     logging.info('THREAD {}: Running new task of type {}'.format(self.thread.name, type(self._current_task.task_data)))
 
                     queue = Queue()
-                    self.process = Process(target=OperationWorkerThread._run_task, args=(self.thread.name, self._current_task, queue, ))
+                    self.process = Process(target=OperationWorkerThread._run_task, args=(self.thread.name, self._current_task, queue, self.com_queue))
                     self.process.daemon = False     # must be stopped explicitly
                     self.process.start()
 
@@ -188,19 +212,40 @@ class OperationWorkerThread:
                     self._current_task = None
 
     @staticmethod
-    def _run_task(name: str, task: Task, queue: Queue):
+    def _run_task(name: str, task: Task, queue: Queue, com_queue: Queue):
         try:
             start = time.time()
             task_data = task.task_data
             result = None
+            com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.INITIALIZING)))
             if isinstance(task_data, TaskDataStaffLineDetection):
                 data: TaskDataStaffLineDetection = task_data
                 from omr.stafflines.detection.staffline_detector import create_staff_line_detector, StaffLineDetectorType, StaffLineDetector
                 staff_line_detector: StaffLineDetector = create_staff_line_detector(StaffLineDetectorType.BASIC, data.page)
-                result = staff_line_detector.detect(
+                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
+                staffs = staff_line_detector.detect(
                     data.page.file('binary_deskewed').local_path(),
                     data.page.file('gray_deskewed').local_path(),
                 )
+                result = {'staffs': [l.to_json() for l in staffs]}
+            elif isinstance(task_data, TaskDataSymbolDetection):
+                data: TaskDataSymbolDetection = task_data
+                from omr.symboldetection.predictor import PredictorParameters, PredictorTypes, create_predictor
+                from omr.datatypes import PcGts
+                params = PredictorParameters(
+                    checkpoints=[data.page.book.local_path(os.path.join('pc_paths', 'model'))],
+                )
+                pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER, params)
+                pcgts = PcGts.from_file(data.page.file('pcgts'))
+
+                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
+
+                music_lines = []
+                for i, line_prediction in enumerate(pred.predict([pcgts])):
+                    com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING, progress=i)))
+                    music_lines.append({'symbols': [s.to_json() for s in line_prediction.symbols],
+                                        'id': line_prediction.line.operation.music_line.id})
+                result = {'musicLines': music_lines}
             else:
                 logger.exception('THREAD {}: Unknown operation data {} of task {}'.format(name, task_data, task))
 
@@ -211,10 +256,36 @@ class OperationWorkerThread:
             queue.put(e)
 
 
+class TaskCommunicationData(NamedTuple):
+    task: Task
+    status: TaskStatus
+
+
+class TaskCommunicator:
+    def __init__(self, task_queue: TaskQueue):
+        self.task_queue: TaskQueue = task_queue
+        self.queue = Queue()
+        self.thread = threading.Thread(target=self.run, args=(), name='task_communicator')
+        self.thread.daemon = True       # daemon thread to stop automatically on shutdown
+        self.thread.start()
+
+    def run(self):
+        logger.info("THREAD task_communicator: Started")
+        while True:
+            try:
+                com: TaskCommunicationData = self.queue.get()
+                self.task_queue.update_status(com.task.task_data, com.status)
+            except TaskNotFoundException:
+                pass
+            except Exception as e:
+                raise e
+
+
 class OperationWorker:
     def __init__(self, num_threads=1):
         self.queue = TaskQueue()
-        self.threads = [OperationWorkerThread(i, self.queue) for i in range(num_threads)]
+        self.task_communicator = TaskCommunicator(self.queue)
+        self.threads = [OperationWorkerThread(i, self.queue, self.task_communicator.queue) for i in range(num_threads)]
 
     def stop(self, task_data):
         task = self.queue.remove(task_data)
@@ -226,7 +297,7 @@ class OperationWorker:
     def put(self, task_data) -> bool:
         return self.queue.put(task_data)
 
-    def pop_result(self, task_data) -> Any:
+    def pop_result(self, task_data) -> dict:
         return self.queue.pop_result(task_data)
 
     def status(self, task_data) -> Optional[TaskStatus]:

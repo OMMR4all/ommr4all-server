@@ -1,3 +1,6 @@
+from main.operationworker import operation_worker, TaskStatusCodes, TaskNotFoundException
+from main.operationworker import TaskDataSymbolDetection, TaskDataStaffLineDetection
+
 from json import JSONDecodeError
 
 from django.http import HttpResponse, JsonResponse, HttpResponseNotModified, HttpResponseBadRequest,\
@@ -5,15 +8,11 @@ from django.http import HttpResponse, JsonResponse, HttpResponseNotModified, Htt
 
 from omr.datatypes.performance.pageprogress import PageProgress
 from .book import Book, Page, File, file_definitions, InvalidFileNameException
-from omr.stafflines.text_line import TextLine
 from omr.stafflines.json_util import json_to_line
-from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
-from omr.datatypes.pcgts import PcGts
+from django.views.decorators.csrf import csrf_exempt
 from omr.datatypes.performance.statistics import Statistics
 import json
 from omr.datatypes.pcgts import PcGts
-from PIL import Image
-import numpy as np
 import logging
 import zipfile
 import datetime
@@ -22,26 +21,21 @@ import re
 
 logger = logging.getLogger(__name__)
 
-from main.operationworker import operation_worker, TaskDataStaffLineDetection, TaskStatusCodes, TaskNotFoundException
-
 
 @csrf_exempt
 def get_operation(request, book, page, operation):
     page = Page(Book(book), page)
-    if operation == 'text_polygones':
-        obj = json.loads(request.body, encoding='utf-8')
-        initial_line = json_to_line(obj['points'])
-        from omr.segmentation.text.extract_text_from_intersection import extract_text
-        import pickle
-        f = page.file('connected_components_deskewed')
-        f.create()
-        with open(f.local_path(), 'rb') as pkl:
-            text_line = extract_text(pickle.load(pkl), initial_line)
 
-        return JsonResponse(text_line.to_json())
-
-    elif operation == 'staffs':
+    # check if operation is linked to a task
+    if operation == 'staffs':
         task_data = TaskDataStaffLineDetection(page)
+    elif operation == 'symbols':
+        task_data = TaskDataSymbolDetection(page)
+    else:
+        task_data = None
+
+    if task_data is not None:
+        # handle tasks
         if request.method == 'PUT':
             try:
                 if not operation_worker.put(task_data):
@@ -65,8 +59,9 @@ def get_operation(request, book, page, operation):
             try:
                 status = operation_worker.status(task_data)
                 if status.code == TaskStatusCodes.FINISHED:
-                    lines = operation_worker.pop_result(task_data)
-                    return JsonResponse({'status': status.to_json(), 'staffs': [l.to_json() for l in lines]})
+                    result = operation_worker.pop_result(task_data)
+                    result['status'] = status.to_json()
+                    return JsonResponse(result)
                 elif status.code == TaskStatusCodes.ERROR:
                     error = operation_worker.pop_result(task_data)
                     raise error
@@ -87,19 +82,17 @@ def get_operation(request, book, page, operation):
         else:
             return HttpResponse(status=405)
 
-    elif operation == 'symbols':
-        from omr.symboldetection.predictor import PredictorParameters, PredictorTypes, create_predictor
-        params = PredictorParameters(
-            checkpoints=[page.book.local_path(os.path.join('pc_paths', 'model'))],
-        )
-        pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER, params)
-        pcgts = PcGts.from_file(page.file('pcgts'))
-        ps = list(pred.predict([pcgts]))
-        music_lines = []
-        for line_prediction in ps:
-            music_lines.append({'symbols': [s.to_json() for s in line_prediction.symbols],
-                                'id': line_prediction.line.operation.music_line.id})
-        return JsonResponse({'musicLines': music_lines})
+    elif operation == 'text_polygones':
+        obj = json.loads(request.body, encoding='utf-8')
+        initial_line = json_to_line(obj['points'])
+        from omr.segmentation.text.extract_text_from_intersection import extract_text
+        import pickle
+        f = page.file('connected_components_deskewed')
+        f.create()
+        with open(f.local_path(), 'rb') as pkl:
+            text_line = extract_text(pickle.load(pkl), initial_line)
+
+        return JsonResponse(text_line.to_json())
 
     elif operation == 'save_page_progress':
         obj = json.loads(request.body, encoding='utf-8')

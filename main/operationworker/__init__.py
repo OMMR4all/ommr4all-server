@@ -1,3 +1,3 @@
 from .operation_worker import operation_worker, TaskStatusCodes, TaskStatus, \
     TaskNotFoundException, TaskNotFinishedException, \
-    TaskDataStaffLineDetection
+    TaskDataStaffLineDetection, TaskDataSymbolDetection
