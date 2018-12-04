@@ -51,6 +51,16 @@ def get_operation(request, book, page, operation):
             except Exception as e:
                 logger.error(e)
                 return HttpResponse(status=500, body=str(e))
+        elif request.method == 'DELETE':
+            try:
+                operation_worker.stop(task_data)
+                return HttpResponse(status=204)
+            except TaskNotFoundException as e:
+                logger.warning(e)
+                return HttpResponse(status=204)
+            except Exception as e:
+                logging.error(e)
+                return JsonResponse({'error': 'unknown'}, status=500)
         elif request.method == 'GET':
             try:
                 status = operation_worker.status(task_data)
