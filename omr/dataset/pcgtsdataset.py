@@ -1,6 +1,5 @@
 from omr.datatypes.pcgts import PcGts, MusicLine, Page, MusicRegion
 from omr.datatypes.page.musicregion.musicline import Symbol, NoteComponent, Neume, Clef, Accidental, GraphicalConnectionType
-from thirdparty.calamari.calamari_ocr.ocr.data_processing.scale_to_height_processor import ScaleToHeightProcessor
 from typing import List, Generator, Tuple
 import main.book as book
 import numpy as np
@@ -210,6 +209,7 @@ class PcGtsDataset:
             return np.pad(img, pad, 'edge')
 
         def single(t: ScaleImage) -> np.ndarray:
+            from thirdparty.calamari.calamari_ocr.ocr.data_processing.scale_to_height_processor import ScaleToHeightProcessor
             intermediate = np.vstack((np.zeros((top_to_add, width)), t.img, np.zeros((bot_to_add, width))))
             return ScaleToHeightProcessor.scale_to_h(intermediate, self.height, order=t.order)
 

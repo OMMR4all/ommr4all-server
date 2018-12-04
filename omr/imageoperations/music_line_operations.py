@@ -1,6 +1,6 @@
 from .image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point, ImageOperationList
 from .image_crop import ImageCropToSmallestBoxOperation
-from typing import Tuple, List, NamedTuple, Any
+from typing import Tuple, List, NamedTuple, Any, Optional
 from omr.datatypes import Page, MusicLine, Neume, NoteComponent, Clef, ClefType, Accidental, AccidentalType, GraphicalConnectionType
 import numpy as np
 import PIL.ImageOps
@@ -27,7 +27,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         super().__init__()
         self.cropper = ImageCropToSmallestBoxOperation()
 
-    def apply_single(self, data: ImageOperationData) -> OperationOutput:
+    def apply_single(self, data: ImageOperationData, debug=False) -> OperationOutput:
         image = data.images[0].image
         labels = np.zeros(image.shape, dtype=np.uint8)
         marked_symbols = np.zeros(labels.shape, dtype=np.uint8)
@@ -42,6 +42,13 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
         dew_page, dew_labels, dew_symbols = tuple(map(np.array, dewarp([Image.fromarray(image), Image.fromarray(labels), Image.fromarray(marked_symbols)], s, None)))
 
+        if debug:
+            import matplotlib.pyplot as plt
+            f, ax = plt.subplots(1, 2)
+            ax[0].imshow(labels)
+            ax[1].imshow(dew_labels)
+            plt.show()
+
         i = 1
         out = []
         all_music_lines = []
@@ -51,22 +58,28 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         for mr in data.page.music_regions:
             for ml in mr.staffs:
                 mask = dew_labels == i
+                if np.sum(mask) != 0:  # empty mask, skip
+                    img_data = copy(data)
+                    img_data.page_image = image
+                    img_data.music_region = mr
+                    img_data.music_line = ml
+                    img_data.images = [ImageData(mask, True), ImageData(dew_page, False), ImageData(dew_symbols, True)]
+                    cropped = self.cropper.apply_single(img_data)[0]
+                    self._extract_image_op(img_data)
+                    r = self._resize_to_height(cropped.images, ml, rect=cropped.params)
+                    if r is not None:  # Invalid resize (probably no staff lines present)
+                        img_data.images, r_params = r
+                        img_data.params = (i, cropped.params, r_params, all_music_lines)
+                        out.append(img_data)
 
-                img_data = copy(data)
-                img_data.page_image = image
-                img_data.music_region = mr
-                img_data.music_line = ml
-                img_data.images = [ImageData(mask, True), ImageData(dew_page, False), ImageData(dew_symbols, True)]
-                cropped = self.cropper.apply_single(img_data)[0]
-                self._extract_image_op(img_data)
-                img_data.images, r_params = self._resize_to_height(cropped.images, ml, rect=cropped.params)
-                img_data.params = (i, cropped.params, r_params, all_music_lines)
-                out.append(img_data)
                 i += 1
 
         return out
 
-    def _resize_to_height(self, lines: List[ImageData], ml: MusicLine, rect, relative_staff_height=3) -> Tuple[List[ImageData], Any]:
+    def _resize_to_height(self, lines: List[ImageData], ml: MusicLine, rect, relative_staff_height=3) -> Optional[Tuple[List[ImageData], Any]]:
+        if len(ml.staff_lines) < 1:
+            return None
+
         t, b, l, r = rect
         for l in lines:
             assert(lines[0].image.shape == l.image.shape)
@@ -103,6 +116,9 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         data.images = [data.images[1], ImageData(data.images[0].image * data.images[1].image, False)] + data.images[2:]
 
     def _symbols_to_mask(self, ml: MusicLine, img: np.ndarray):
+        if len(ml.staff_lines) < 2:  # at least two staff lines required
+            return None
+
         radius = (ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 8
 
         def set(coord, label: SymbolLabel):
