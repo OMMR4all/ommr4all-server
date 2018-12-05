@@ -200,11 +200,9 @@ class OperationWorkerThread:
                 with self.mutex:
                     self.queue.task_error(self._current_task, e)
                     self._current_task = None
-                logger.error("THREAD {}: Error in thread: {}".format(self.thread.name, e))
-                if settings.DEBUG:  # only raise in debug mode to show stack-trace, as production server do not stop!
-                    raise e
+                logger.exception("THREAD {}: Error in thread: {}".format(self.thread.name, e))
             else:  # Successfully finished!
-                logging.debug('THREAD {}: Task finished successfully'.format(self.thread.name))
+                logger.debug('THREAD {}: Task finished successfully'.format(self.thread.name))
                 self.queue.task_finished(self._current_task, result)
             finally:  # Always clear current data
                 with self.mutex:
@@ -252,7 +250,7 @@ class OperationWorkerThread:
             logger.info("THREAD {}: Task finished. It ran for {}s".format(name, time.time() - start))
             queue.put(result)
         except Exception as e:
-            logger.error("THREAD {}: Error in thread: {}".format(name, e))
+            logger.exception("THREAD {}: Error in thread: {}".format(name, e))
             queue.put(e)
 
 
