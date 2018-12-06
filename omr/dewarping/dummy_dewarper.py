@@ -8,7 +8,15 @@ import logging
 from PIL import Image
 from typing import List
 
-logger = logging.Logger("dummy_dewarper")
+logger = logging.Logger(__name__)
+
+
+class NoStaffLinesAvailable(Exception):
+    pass
+
+
+class NoStaffsAvailable(Exception):
+    pass
 
 
 def shape_to_rect(shape):
@@ -54,6 +62,9 @@ def griddify(rect, w_div, h_div):
 
 
 def transform(point, staffs: List[MusicLine]):
+    if len(staffs) == 0:
+        raise NoStaffsAvailable
+
     x, y = point[0], point[1]
     top_staff_line_d = 10000000
     top_staff_line: StaffLine = None
@@ -69,6 +80,9 @@ def transform(point, staffs: List[MusicLine]):
             if o_y > y and o_y - y < bot_staff_line_d:
                 bot_staff_line = staff_line
                 bot_staff_line_d = o_y - y
+
+    if top_staff_line is None or bot_staff_line is None:
+        raise NoStaffLinesAvailable
 
     if top_staff_line_d > 1000000:
         top_staff_line_d = bot_staff_line_d
