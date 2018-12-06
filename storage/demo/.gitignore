@@ -1,0 +1,6 @@
+/*
+!/.gitignore
+!/pages
+pages/*/*
+!pages/*/color_original.*
+a

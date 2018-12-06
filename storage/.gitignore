@@ -1,6 +1,3 @@
-*
-!demo
-!color_original.*
-!pcgts.json
-
-
+/*
+!/.gitignore
+!/demo

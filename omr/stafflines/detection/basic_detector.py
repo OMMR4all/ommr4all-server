@@ -38,7 +38,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from PIL import Image
     from main.book import Book
-    page = Book('Test').page('Graduel_de_leglise_de_Nevers_035')
+    page = Book('demo').page('page00000001')
     binary = page.file('binary_deskewed').local_path()
     gray = page.file('gray_deskewed').local_path()
 
