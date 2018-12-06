@@ -4,6 +4,27 @@ import main.book as book
 from omr.dataset.pcgtsdataset import PcGtsDataset
 import os
 from omr.imageoperations.music_line_operations import SymbolLabel
+from pagesegmentation.lib.trainer import Trainer, TrainSettings, TrainProgressCallback
+from omr.symboldetection.trainer import SymbolDetectionTrainerCallback
+
+
+class PCTrainerCallback(TrainProgressCallback):
+    def __init__(self, callback: SymbolDetectionTrainerCallback):
+        super().__init__()
+        self.callback = callback
+
+    def init(self, total_iters, early_stopping_iters):
+        self.callback.init(total_iters, early_stopping_iters)
+
+    def next_iteration(self, iter: int, loss: float, acc: float, fgpa: float):
+        self.callback.next_iteration(iter, loss, acc)
+
+    def next_best_model(self, best_iter: int, best_acc: float, best_iters: int):
+        self.callback.next_best_model(best_iter, best_acc, best_iters)
+
+    def early_stopping(self):
+        self.callback.early_stopping()
+
 
 class PCTrainer:
     def __init__(self, train_pcgts_files: List[PcGts], validation_pcgts_files: List[PcGts]):
@@ -11,8 +32,8 @@ class PCTrainer:
         self.train_pcgts_dataset = PcGtsDataset(train_pcgts_files, gt_required=True, height=self.height)
         self.validation_pcgts_dataset = PcGtsDataset(validation_pcgts_files, gt_required=True, height=self.height)
 
-    def run(self, model_for_book: book.Book):
-        from pagesegmentation.lib.trainer import Trainer, TrainSettings
+    def run(self, model_for_book: book.Book, callback: SymbolDetectionTrainerCallback = None):
+        pc_callback = PCTrainerCallback(callback) if callback else None
         a = self.train_pcgts_dataset.to_music_line_page_segmentation_dataset()
 
         settings = TrainSettings(
@@ -31,7 +52,7 @@ class PCTrainer:
         )
 
         trainer = Trainer(settings)
-        trainer.train()
+        trainer.train(callback=pc_callback)
 
         pass
 

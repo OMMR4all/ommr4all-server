@@ -1,5 +1,5 @@
 from main.operationworker import operation_worker, TaskStatusCodes, TaskNotFoundException
-from main.operationworker import TaskDataSymbolDetection, TaskDataStaffLineDetection
+from main.operationworker import TaskDataSymbolDetection, TaskDataStaffLineDetection, TaskDataSymbolDetectionTrainer
 
 from json import JSONDecodeError
 
@@ -31,6 +31,8 @@ def get_operation(request, book, page, operation):
         task_data = TaskDataStaffLineDetection(page)
     elif operation == 'symbols':
         task_data = TaskDataSymbolDetection(page)
+    elif operation == 'train_symbols':
+        task_data = TaskDataSymbolDetectionTrainer(page.book)
     else:
         task_data = None
 
@@ -131,9 +133,6 @@ def get_operation(request, book, page, operation):
                 File(page, key).delete()
 
         return HttpResponse()
-
-    elif operation == 'train_symbol_detector':
-        return JsonResponse({'response': 'started', 'bookState': {'symbolDetectionIsTraining': True}})
 
     else:
         return HttpResponseBadRequest()

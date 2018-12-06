@@ -8,7 +8,7 @@ from dataclasses import dataclass, asdict
 from queue import Empty as QueueEmptyException
 import os
 
-from main.book import Page
+from main.book import Page, Book
 
 import logging
 logger = logging.getLogger(__name__)
@@ -140,6 +140,10 @@ class TaskDataSymbolDetection(NamedTuple):
     page: Page
 
 
+class TaskDataSymbolDetectionTrainer(NamedTuple):
+    book: Book
+
+
 class OperationWorkerThread:
     def __init__(self, thread_id, queue: TaskQueue, com_queue: Queue):
         self.com_queue = com_queue
@@ -244,6 +248,26 @@ class OperationWorkerThread:
                     music_lines.append({'symbols': [s.to_json() for s in line_prediction.symbols],
                                         'id': line_prediction.line.operation.music_line.id})
                 result = {'musicLines': music_lines}
+            elif isinstance(task_data, TaskDataSymbolDetectionTrainer):
+                data: TaskDataSymbolDetectionTrainer = task_data
+                from omr.symboldetection.trainer import SymbolDetectionTrainer, SymbolDetectionTrainerCallback
+
+                class Callback(SymbolDetectionTrainerCallback):
+                    def next_iteration(self, iter: int, loss: float, acc: float):
+                        com_queue.put(TaskCommunicationData(task, TaskStatus(
+                            TaskStatusCodes.RUNNING,
+                            TaskProgressCodes.WORKING,
+                            progress=iter / self.total_iters * 100,
+                            accuracy=acc,
+                        )))
+
+                    def next_best_model(self, best_iter: int, best_acc: float, best_iters: int):
+                        pass
+
+                    def early_stopping(self):
+                        pass
+
+                SymbolDetectionTrainer(data.book, callback=Callback())
             else:
                 logger.exception('THREAD {}: Unknown operation data {} of task {}'.format(name, task_data, task))
 

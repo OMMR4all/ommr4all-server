@@ -81,15 +81,15 @@ def transform(point, staffs: List[MusicLine]):
                 bot_staff_line = staff_line
                 bot_staff_line_d = o_y - y
 
-    if top_staff_line is None or bot_staff_line is None:
-        raise NoStaffLinesAvailable
-
     if top_staff_line_d > 1000000:
         top_staff_line_d = bot_staff_line_d
         top_staff_line = bot_staff_line
     elif bot_staff_line_d > 1000000:
         bot_staff_line_d = top_staff_line_d
         bot_staff_line = top_staff_line
+
+    if top_staff_line is None or bot_staff_line is None:
+        raise NoStaffLinesAvailable
 
     top_offset = top_staff_line.center_y() - top_staff_line.interpolate_y(x)
     bot_offset = bot_staff_line.center_y() - bot_staff_line.interpolate_y(x)

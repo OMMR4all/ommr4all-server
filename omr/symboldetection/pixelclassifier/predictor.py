@@ -71,14 +71,13 @@ class PCPredictor(SymbolDetectionPredictor):
             elif label == SymbolLabel.ACCID_NATURAL:
                 symbols.append(Accidental(accidental=AccidentalType.NATURAL, coord=coord))
 
-
         return symbols
 
 
 if __name__ == '__main__':
     import main.book as book
     b = book.Book('Graduel')
-    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[0:1]]
+    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[4:5]]
     pred = PCPredictor(PredictorParameters([b.local_path(os.path.join('pc_paths', 'model'))]))
     ps = list(pred.predict(val_pcgts))
     import matplotlib.pyplot as plt
