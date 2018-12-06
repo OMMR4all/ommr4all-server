@@ -39,8 +39,8 @@ class TaskProgressCodes(Enum):
 class TaskStatus:
     code: TaskStatusCodes = TaskStatusCodes.QUEUED
     progress_code: TaskProgressCodes = TaskProgressCodes.INITIALIZING
-    progress: float = 0
-    accuracy: float = 0
+    progress: float = -1
+    accuracy: float = -1
 
     def to_json(self):
         return {
@@ -215,12 +215,12 @@ class OperationWorkerThread:
             start = time.time()
             task_data = task.task_data
             result = None
-            com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.INITIALIZING)))
+            com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.INITIALIZING, progress=10)))
             if isinstance(task_data, TaskDataStaffLineDetection):
                 data: TaskDataStaffLineDetection = task_data
                 from omr.stafflines.detection.staffline_detector import create_staff_line_detector, StaffLineDetectorType, StaffLineDetector
                 staff_line_detector: StaffLineDetector = create_staff_line_detector(StaffLineDetectorType.BASIC, data.page)
-                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
+                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING, progress=50)))
                 staffs = staff_line_detector.detect(
                     data.page.file('binary_deskewed').local_path(),
                     data.page.file('gray_deskewed').local_path(),
@@ -236,11 +236,11 @@ class OperationWorkerThread:
                 pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER, params)
                 pcgts = PcGts.from_file(data.page.file('pcgts'))
 
-                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
+                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING, progress=50)))
 
                 music_lines = []
                 for i, line_prediction in enumerate(pred.predict([pcgts])):
-                    com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING, progress=i)))
+                    com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING, progress=50 + i)))
                     music_lines.append({'symbols': [s.to_json() for s in line_prediction.symbols],
                                         'id': line_prediction.line.operation.music_line.id})
                 result = {'musicLines': music_lines}
