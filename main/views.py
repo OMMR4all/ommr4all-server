@@ -69,9 +69,6 @@ def get_operation(request, book, page, operation):
                     raise error
                 else:
                     return JsonResponse({'status': status.to_json()})
-            except TaskNotFoundException as e:
-                logger.error(e)
-                return HttpResponse(status=404)
             except (FileNotFoundError, OSError) as e:
                 logger.error(e)
                 return JsonResponse({'error': 'no-model'}, status=500)

@@ -34,7 +34,6 @@ class PCTrainer:
 
     def run(self, model_for_book: book.Book, callback: SymbolDetectionTrainerCallback = None):
         pc_callback = PCTrainerCallback(callback) if callback else None
-        a = self.train_pcgts_dataset.to_music_line_page_segmentation_dataset()
 
         settings = TrainSettings(
             n_iter=20000,
@@ -45,7 +44,7 @@ class PCTrainer:
             load=None,
             display=100,
             output=model_for_book.local_path(os.path.join('pc_paths', 'model')),
-            early_stopping_test_interval=1000,
+            early_stopping_test_interval=500,
             early_stopping_max_keep=5,
             early_stopping_on_accuracy=True,
             threads=4,
@@ -54,7 +53,6 @@ class PCTrainer:
         trainer = Trainer(settings)
         trainer.train(callback=pc_callback)
 
-        pass
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt

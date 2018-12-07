@@ -96,7 +96,13 @@ def upload_to_book(request, book):
 
     return HttpResponseBadRequest()
 
+
+def ping(request):
+    return HttpResponse()       # Just to check if server is up
+
+
 urlpatterns = [
+    path('ping', ping),
     re_path(r'^content/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
     re_path(r'^storage/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
     # re_path(r'^{0}(?P<path>.*)$'.format(settings.PRIVATE_MEDIA_URL.lstrip('/')),

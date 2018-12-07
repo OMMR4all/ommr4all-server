@@ -27,6 +27,7 @@ class TaskStatusCodes(Enum):
     RUNNING = 1
     FINISHED = 2
     ERROR = 3
+    NOT_FOUND = 4
 
 
 class TaskProgressCodes(Enum):
@@ -37,10 +38,12 @@ class TaskProgressCodes(Enum):
 
 @dataclass
 class TaskStatus:
-    code: TaskStatusCodes = TaskStatusCodes.QUEUED
+    code: TaskStatusCodes = TaskStatusCodes.NOT_FOUND
     progress_code: TaskProgressCodes = TaskProgressCodes.INITIALIZING
     progress: float = -1
     accuracy: float = -1
+    early_stopping_progress: float = -1
+    loss: float = -1
 
     def to_json(self):
         return {
@@ -48,6 +51,8 @@ class TaskStatus:
             'progress_code': self.progress_code.value,
             'progress': self.progress,
             'accuracy': self.accuracy,
+            'early_stopping_progress': self.early_stopping_progress,
+            'loss': self.loss,
         }
 
 
@@ -78,7 +83,7 @@ class TaskQueue:
                 if task.task_data == task_data:
                     return False
 
-            self.tasks.append(Task(task_data, TaskStatus(), {}))
+            self.tasks.append(Task(task_data, TaskStatus(code=TaskStatusCodes.QUEUED), {}))
 
             return True
 
@@ -94,13 +99,13 @@ class TaskQueue:
 
             raise TaskNotFoundException()
 
-    def status(self, task_data) -> Optional[TaskStatus]:
+    def status(self, task_data) -> TaskStatus:
         with self.mutex:
             for task in self.tasks:
                 if task.task_data == task_data:
                     return task.task_status
 
-            return None
+            return TaskStatus(TaskStatusCodes.NOT_FOUND)
 
     def update_status(self, task_data, status: TaskStatus):
         with self.mutex:
@@ -163,22 +168,22 @@ class OperationWorkerThread:
 
         with self.mutex:
             if self._current_task == task and self.process:
-                logging.info('THREAD {}: Attempting to terminate thread'.format(self.thread.name))
+                logger.info('THREAD {}: Attempting to terminate thread'.format(self.thread.name))
                 self.process.terminate()
                 self.process.join()
-                logging.info('THREAD {}: Thread terminated'.format(self.thread.name))
+                logger.info('THREAD {}: Thread terminated'.format(self.thread.name))
                 return True
 
             return False
 
     def run(self):
-        logging.info('THREAD {}: Thread started'.format(self.thread.name))
+        logger.info('THREAD {}: Thread started'.format(self.thread.name))
         while True:
-            logging.debug('THREAD {}: Waiting for new Task'.format(self.thread.name))
+            logger.debug('THREAD {}: Waiting for new Task'.format(self.thread.name))
             try:
                 with self.mutex:
                     self._current_task = self.queue.next_unprocessed(self.sleep_interval)
-                    logging.info('THREAD {}: Running new task of type {}'.format(self.thread.name, type(self._current_task.task_data)))
+                    logger.info('THREAD {}: Running new task of type {}'.format(self.thread.name, type(self._current_task.task_data)))
 
                     queue = Queue()
                     self.process = Process(target=OperationWorkerThread._run_task, args=(self.thread.name, self._current_task, queue, self.com_queue))
@@ -218,13 +223,13 @@ class OperationWorkerThread:
         try:
             start = time.time()
             task_data = task.task_data
-            result = None
-            com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.INITIALIZING, progress=10)))
+            result = {}
+            com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.INITIALIZING)))
             if isinstance(task_data, TaskDataStaffLineDetection):
                 data: TaskDataStaffLineDetection = task_data
                 from omr.stafflines.detection.staffline_detector import create_staff_line_detector, StaffLineDetectorType, StaffLineDetector
                 staff_line_detector: StaffLineDetector = create_staff_line_detector(StaffLineDetectorType.BASIC, data.page)
-                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING, progress=50)))
+                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
                 staffs = staff_line_detector.detect(
                     data.page.file('binary_deskewed').local_path(),
                     data.page.file('gray_deskewed').local_path(),
@@ -240,11 +245,11 @@ class OperationWorkerThread:
                 pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER, params)
                 pcgts = PcGts.from_file(data.page.file('pcgts'))
 
-                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING, progress=50)))
+                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
 
                 music_lines = []
                 for i, line_prediction in enumerate(pred.predict([pcgts])):
-                    com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING, progress=50 + i)))
+                    com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
                     music_lines.append({'symbols': [s.to_json() for s in line_prediction.symbols],
                                         'id': line_prediction.line.operation.music_line.id})
                 result = {'musicLines': music_lines}
@@ -253,16 +258,27 @@ class OperationWorkerThread:
                 from omr.symboldetection.trainer import SymbolDetectionTrainer, SymbolDetectionTrainerCallback
 
                 class Callback(SymbolDetectionTrainerCallback):
-                    def next_iteration(self, iter: int, loss: float, acc: float):
+                    def __init__(self):
+                        super().__init__()
+                        self.iter, self.loss, self.acc, self.best_iter, self.best_acc, self.best_iters = -1, -1, -1, -1, -1, -1
+
+                    def put(self):
                         com_queue.put(TaskCommunicationData(task, TaskStatus(
                             TaskStatusCodes.RUNNING,
                             TaskProgressCodes.WORKING,
-                            progress=iter / self.total_iters * 100,
-                            accuracy=acc,
+                            progress=self.iter / self.total_iters,
+                            accuracy=self.best_acc if self.best_acc >= 0 else -1,
+                            early_stopping_progress=self.best_iters / self.early_stopping_iters if self.early_stopping_iters > 0 else -1,
+                            loss=self.loss,
                         )))
 
+                    def next_iteration(self, iter: int, loss: float, acc: float):
+                        self.iter, self.loss, self.acc = iter, loss, acc
+                        self.put()
+
                     def next_best_model(self, best_iter: int, best_acc: float, best_iters: int):
-                        pass
+                        self.best_iter, self.best_acc, self.best_iters = best_iter, best_acc, best_iters
+                        self.put()
 
                     def early_stopping(self):
                         pass
