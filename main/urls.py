@@ -117,6 +117,7 @@ urlpatterns = [
     re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/page_progress$', views.get_page_progress),
     re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
     re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/operation/(?P<operation>\w+)$', views.get_operation),
+    re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/operation_status/(?P<operation>\w+)$', views.get_operation_status),
     path('books/list', views.list_all_books, name='list_all_books'),
     path('books/new', views.new_book, name='new_book'),
     path('books/delete', views.delete_book, name='delete_book'),

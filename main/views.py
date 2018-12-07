@@ -5,6 +5,7 @@ from json import JSONDecodeError
 
 from django.http import HttpResponse, JsonResponse, HttpResponseNotModified, HttpResponseBadRequest,\
     FileResponse
+from django.views.decorators.http import require_http_methods
 
 from omr.datatypes.performance.pageprogress import PageProgress
 from .book import Book, Page, File, file_definitions, InvalidFileNameException
@@ -16,10 +17,30 @@ from omr.datatypes.pcgts import PcGts
 import logging
 import zipfile
 import datetime
-import os
 import re
 
 logger = logging.getLogger(__name__)
+
+
+@require_http_methods(["GET"])
+def get_operation_status(request, book, page, operation):
+    page = Page(Book(book), page)
+
+    # check if operation is linked to a task
+    if operation == 'staffs':
+        task_data = TaskDataStaffLineDetection(page)
+    elif operation == 'symbols':
+        task_data = TaskDataSymbolDetection(page)
+    elif operation == 'train_symbols':
+        task_data = TaskDataSymbolDetectionTrainer(page.book)
+    else:
+        task_data = None
+
+    if task_data is not None:
+        status = operation_worker.status(task_data)
+        return JsonResponse({'status': status.to_json()})
+
+    return HttpResponse(status=204)
 
 
 @csrf_exempt
