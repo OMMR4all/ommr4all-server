@@ -3,6 +3,7 @@ from main.operationworker import TaskDataSymbolDetection, TaskDataStaffLineDetec
 
 from json import JSONDecodeError
 
+from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse, HttpResponseNotModified, HttpResponseBadRequest,\
     FileResponse
 from django.views.decorators.http import require_http_methods
@@ -284,6 +285,5 @@ def book_download(request, book, type):
     return HttpResponseBadRequest()
 
 
-
-def index(request):
-    return HttpResponse("Hello, world. You're at the polls index.")
+def index(request, path=''):
+    return render(request, 'index.html')
