@@ -17,8 +17,6 @@ file_name_validator = re.compile('\w+')
 
 
 class InvalidFileNameException(Exception):
-    STATUS = 460
-
     def __init__(self, filename):
         super().__init__("Invalid filename {}".format(filename))
 
@@ -81,6 +79,7 @@ class Book:
             return False
 
         os.mkdir(self.local_path())
+        os.mkdir(self.local_path('pages'))
         book_meta.to_file(self)
         return True
 

@@ -1,60 +1,15 @@
 from django.urls import path, re_path
-from django.contrib.auth.decorators import login_required
 from django.views.static import serve
-from django.conf import settings
 from . import views
-from django.http import HttpResponse, JsonResponse, HttpResponseBadRequest
-import os
-import json
-from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
+from django.http import HttpResponse
 from .book import *
-from PIL import Image
+from main.api import OperationStatusView, OperationView, BookView, BooksView, \
+    PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView
 
 
 # @login_required
 def protected_serve(request, path, document_root=None, show_indexes=False):
     return serve(request, path, document_root, show_indexes)
-
-def page_dir(book, page, root=settings.PRIVATE_MEDIA_ROOT):
-    book = book.strip("/")
-    page = page.strip('/')
-    return os.path.join(root, book, page)
-
-def list_pages(request, book: str):
-    book = Book(book)
-    if os.path.exists(book.local_path()) and os.path.isdir(book.local_path()):
-        pages = os.listdir(book.local_path())
-    else:
-        pages = []
-
-    data = {
-        'pages': [
-            {
-                'id': page,
-                'preview': File(Page(book, page), 'preview').remote_path(),
-            } for page in pages]
-    }
-    return HttpResponse(json.dumps(data), content_type='application/json')
-
-
-def page_annotation(request, book, page):
-    annotation_file = File(Page(Book(book), page), 'annotation')
-    img = Image.open(File(annotation_file.page, 'deskewed_original').local_path())
-    files = {}
-    for label, definition in file_definitions.items():
-        files[label] = File(annotation_file.page, label).remote_path()
-
-    data = {
-        'files': files,
-        'width': img.size[0],
-        'height': img.size[1],
-        'annotation_data': {},
-    }
-    if annotation_file.exists():
-        with open(annotation_file.local_path(), 'r') as f:
-            data['annotation_data'] = json.load(f)
-
-    return JsonResponse(data)
 
 
 def get_content(request, book, page, content):
@@ -66,59 +21,34 @@ def get_content(request, book, page, content):
 
     return protected_serve(request, file.local_request_path(), "/", False)
 
-@csrf_exempt
-def upload_to_book(request, book):
-    if request.method == 'POST':
-        book = Book(book)
-        if not os.path.exists(book.local_path()):
-            os.mkdir(book.local_path())
-
-        for type, file in request.FILES.items():
-            name = os.path.splitext(os.path.basename(file.name))[0].replace(" ", "_").replace("-", "_").replace('.', '_')
-            page = Page(book, name)
-            if not os.path.exists(page.local_path()):
-                os.mkdir(page.local_path())
-
-            type = file.content_type
-            if not type.startswith('image/'):
-                return HttpResponseBadRequest()
-
-            try:
-                img = Image.open(file.file, 'r').convert('RGB')
-                original = File(page, 'color_original')
-                img.save(original.local_path())
-
-            except:
-                return HttpResponseBadRequest()
-
-
-        return HttpResponse()
-
-    return HttpResponseBadRequest()
-
 
 def ping(request):
     return HttpResponse()       # Just to check if server is up
 
 
 urlpatterns = [
+    # ping
     path('api/ping', ping),
+
+    # content
     re_path(r'^api/content/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
     re_path(r'^api/storage/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
-    re_path(r'^api/listpages/(?P<book>\w+)$', list_pages),
-    re_path(r'^api/annotation/(?P<book>\w+)/(?P<page>\w+)$', page_annotation),
-    re_path(r'^api/book/(?P<book>\w+)/upload/$', upload_to_book),
-    re_path(r'^api/book/(?P<book>\w+)/list/$', views.list_book),
-    re_path(r'^api/book/(?P<book>\w+)/download/(?P<type>[\w\.]+)$', views.book_download),
-    re_path(r'^api/book/(?P<book>\w+)/(?P<page>\w+)/content/pcgts$', views.get_pcgts),
-    re_path(r'^api/book/(?P<book>\w+)/(?P<page>\w+)/content/statistics$', views.get_statistics),
-    re_path(r'^api/book/(?P<book>\w+)/(?P<page>\w+)/content/page_progress$', views.get_page_progress),
+
+    # single book
+    re_path(r'^api/book/(?P<book>\w+)/upload/$', BookUploadView.as_view()),
+    re_path(r'^api/book/(?P<book>\w+)/download/(?P<type>[\w\.]+)$', BookDownloaderView.as_view()),
+    re_path(r'^api/book/(?P<book>\w+)/(?P<page>\w+)/content/pcgts$', PagePcGtsView.as_view()),
+    re_path(r'^api/book/(?P<book>\w+)/(?P<page>\w+)/content/statistics$', PageStatisticsView.as_view()),
+    re_path(r'^api/book/(?P<book>\w+)/(?P<page>\w+)/content/page_progress$', PageProgressView.as_view()),
     re_path(r'^api/book/(?P<book>\w+)/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
-    re_path(r'^api/book/(?P<book>\w+)/(?P<page>\w+)/operation/(?P<operation>\w+)$', views.get_operation),
-    re_path(r'^api/book/(?P<book>\w+)/(?P<page>\w+)/operation_status/(?P<operation>\w+)$', views.get_operation_status),
-    path('api/books/list', views.list_all_books, name='list_all_books'),
-    path('api/books/new', views.new_book, name='new_book'),
-    path('api/books/delete', views.delete_book, name='delete_book'),
+    re_path(r'^api/book/(?P<book>\w+)/(?P<page>\w+)/operation/(?P<operation>\w+)$', OperationView.as_view()),
+    re_path(r'^api/book/(?P<book>\w+)/(?P<page>\w+)/operation_status/(?P<operation>\w+)$', OperationStatusView.as_view()),
+    re_path(r'^api/book/(?P<book>\w+)$', BookView.as_view()),
+
+    # all books
+    path('api/books', BooksView.as_view(), name='books'),
+
+    # static pages/webapp
     path('', views.index),
     re_path(r'^(?P<path>.*)/$', views.index, name='index'),
 ]
