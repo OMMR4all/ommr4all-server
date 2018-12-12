@@ -12,3 +12,4 @@ xlsxwriter
 lxml
 protobuf
 djangorestframework
+djangorestframework-jwt
