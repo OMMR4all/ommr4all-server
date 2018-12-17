@@ -2,12 +2,20 @@
 {% load staticfiles %}
 
 {% block body %}
-  <app-root>Loading the app...</app-root>
+    <app-root>
+        <div class="screen-center">
+            <h1>ommr4all</h1>
+            <div class="loader">
+                <div class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+            </div>
+            <h4>Loading ...</h4>
+        </div>
+    </app-root>
 
-  <script type="text/javascript" src="{% static 'ommr4all-client/runtime.js' %}"></script>
-  <script type="text/javascript" src="{% static 'ommr4all-client/polyfills.js' %}"></script>
-  <script type="text/javascript" src="{% static 'ommr4all-client/styles.js' %}"></script>
-  <script type="text/javascript" src="{% static 'ommr4all-client/vendor.js' %}"></script>
-  <script type="text/javascript" src="{% static 'ommr4all-client/main.js' %}"></script>
+    <script type="text/javascript" src="{% static 'ommr4all-client/runtime.js' %}"></script>
+    <script type="text/javascript" src="{% static 'ommr4all-client/polyfills.js' %}"></script>
+    <script type="text/javascript" src="{% static 'ommr4all-client/styles.js' %}"></script>
+    <script type="text/javascript" src="{% static 'ommr4all-client/vendor.js' %}"></script>
+    <script type="text/javascript" src="{% static 'ommr4all-client/main.js' %}"></script>
 
 {% endblock %}
