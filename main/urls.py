@@ -5,13 +5,18 @@ from django.http import HttpResponse
 from .book import *
 from main.api import OperationStatusView, OperationView, BookView, BooksView, \
     PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 
 
-# @login_required
+@api_view(['GET'])
+@permission_classes((IsAuthenticated, ))
 def protected_serve(request, path, document_root=None, show_indexes=False):
-    return serve(request, path, document_root, show_indexes)
+    return serve(request._request, path, document_root, show_indexes)
 
 
+@api_view(['GET'])
+@permission_classes((IsAuthenticated, ))
 def get_content(request, book, page, content):
     page = Page(Book(book), page)
     file = File(page, content)
@@ -19,7 +24,7 @@ def get_content(request, book, page, content):
     if not file.exists():
         file.create()
 
-    return protected_serve(request, file.local_request_path(), "/", False)
+    return protected_serve(request._request, file.local_request_path(), "/", False)
 
 
 def ping(request):
