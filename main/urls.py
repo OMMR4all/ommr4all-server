@@ -4,7 +4,7 @@ from . import views
 from django.http import HttpResponse
 from .book import *
 from main.api import OperationStatusView, OperationView, BookView, BooksView, \
-    PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView
+    PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView, BookMetaView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
@@ -40,6 +40,7 @@ urlpatterns = [
     re_path(r'^api/storage/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
 
     # single book
+    re_path(r'^api/book/(?P<book>\w+)/meta$', BookMetaView.as_view()),
     re_path(r'^api/book/(?P<book>\w+)/upload/$', BookUploadView.as_view()),
     re_path(r'^api/book/(?P<book>\w+)/download/(?P<type>[\w\.]+)$', BookDownloaderView.as_view()),
     re_path(r'^api/book/(?P<book>\w+)/(?P<page>\w+)/content/pcgts$', PagePcGtsView.as_view()),

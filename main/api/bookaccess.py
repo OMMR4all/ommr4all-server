@@ -1,9 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework import authentication, permissions
 from django.http import FileResponse
-from main.book import Page, Book, File, file_definitions, InvalidFileNameException
+from main.book import Page, Book, File, InvalidFileNameException
 import json
 import logging
 import re
@@ -11,10 +10,13 @@ import os
 logger = logging.getLogger(__name__)
 
 
-class BookView(APIView):
-    # authentication_classes = (authentication.TokenAuthentication,)
-    # permission_classes = (permissions.IsAdminUser,)
+class BookMetaView(APIView):
+    def get(self, request, book, format=None):
+        book = Book(book)
+        return Response(book.get_meta().to_json())
 
+
+class BookView(APIView):
     def get(self, request, book, format=None):
         book = Book(book)
         pages = book.pages()
