@@ -8,7 +8,10 @@ import os
 class BasicStaffLineDetector(StaffLineDetector):
     def __init__(self, page: book.Page):
         super().__init__()
+        # used specific model or use default as fallback if existing
         model_path = page.book.local_path(os.path.join('staff_lines', 'model'))
+        if not os.path.exists(model_path + '.meta'):
+            model_path = os.path.join(page.book.local_default_models_path(os.path.join('staff_lines', 'model')))
         if not os.path.exists(model_path + '.meta'):
             model_path = None
 

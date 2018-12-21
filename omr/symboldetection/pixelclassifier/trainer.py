@@ -6,7 +6,7 @@ import os
 from omr.imageoperations.music_line_operations import SymbolLabel
 from pagesegmentation.lib.trainer import Trainer, TrainSettings, TrainProgressCallback
 from omr.symboldetection.trainer import SymbolDetectionTrainerCallback
-
+import omr.symboldetection.pixelclassifier.settings as pc_settings
 
 class PCTrainerCallback(TrainProgressCallback):
     def __init__(self, callback: SymbolDetectionTrainerCallback):
@@ -43,7 +43,7 @@ class PCTrainer:
             validation_data=self.validation_pcgts_dataset.to_music_line_page_segmentation_dataset(),
             load=None,
             display=100,
-            output=model_for_book.local_path(os.path.join('pc_paths', 'model')),
+            output=model_for_book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name)),
             early_stopping_test_interval=500,
             early_stopping_max_keep=5,
             early_stopping_on_accuracy=True,

@@ -76,9 +76,10 @@ class PCPredictor(SymbolDetectionPredictor):
 
 if __name__ == '__main__':
     import main.book as book
+    import omr.symboldetection.pixelclassifier.settings as pc_settings
     b = book.Book('Graduel')
     val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[4:5]]
-    pred = PCPredictor(PredictorParameters([b.local_path(os.path.join('pc_paths', 'model'))]))
+    pred = PCPredictor(PredictorParameters([b.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))]))
     ps = list(pred.predict(val_pcgts))
     import matplotlib.pyplot as plt
     orig = np.array(ps[0].line.operation.page_image)

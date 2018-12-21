@@ -238,9 +238,16 @@ class OperationWorkerThread:
             elif isinstance(task_data, TaskDataSymbolDetection):
                 data: TaskDataSymbolDetection = task_data
                 from omr.symboldetection.predictor import PredictorParameters, PredictorTypes, create_predictor
+                import omr.symboldetection.pixelclassifier.settings as pc_settings
                 from omr.datatypes import PcGts
+
+                # load book specific model or default model as fallback
+                model = data.page.book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))
+                if not os.path.exists(model + '.meta'):
+                    model = os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', 'french14', pc_settings.model_dir, pc_settings.model_name)
+
                 params = PredictorParameters(
-                    checkpoints=[data.page.book.local_path(os.path.join('pc_paths', 'model'))],
+                    checkpoints=[model],
                 )
                 pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER, params)
                 pcgts = PcGts.from_file(data.page.file('pcgts'))

@@ -47,6 +47,9 @@ class Book:
     def page(self, page):
         return Page(self, page)
 
+    def local_default_models_path(self, sub=''):
+        return os.path.join(settings.BASE_DIR, 'default_models', 'french14')
+
     def local_path(self, sub=''):
         return os.path.join(PRIVATE_MEDIA_ROOT, self.book, sub)
 
