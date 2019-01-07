@@ -36,6 +36,7 @@ class BookUploadView(APIView):
             os.mkdir(book.local_path())
 
         for type, file in request.FILES.items():
+            logger.debug('Received new image of content type {}'.format(file.content_type))
             name = os.path.splitext(os.path.basename(file.name))[0].replace(" ", "_").replace("-", "_").replace('.', '_')
             page = Page(book, name)
             if not os.path.exists(page.local_path()):
@@ -49,9 +50,10 @@ class BookUploadView(APIView):
                 img = Image.open(file.file, 'r').convert('RGB')
                 original = File(page, 'color_original')
                 img.save(original.local_path())
+                logger.debug('Created page at {}'.format(page.local_path()))
 
             except Exception as e:
-                logging.exception(e)
+                logger.exception(e)
                 return Response(status=status.HTTP_400_BAD_REQUEST)
 
         return Response()

@@ -3,6 +3,9 @@ import main.book as book
 from omr.datatypes import MusicLines, MusicLine, StaffLine, StaffLines, Coords
 import numpy as np
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class BasicStaffLineDetector(StaffLineDetector):
@@ -11,9 +14,20 @@ class BasicStaffLineDetector(StaffLineDetector):
         # used specific model or use default as fallback if existing
         model_path = page.book.local_path(os.path.join('staff_lines', 'model'))
         if not os.path.exists(model_path + '.meta'):
-            model_path = os.path.join(page.book.local_default_models_path(os.path.join('staff_lines', 'model')))
+            model_path_new = os.path.join(page.book.local_default_models_path(os.path.join('staff_lines', 'model')))
+            logger.debug('Book specific model not found at {}. Trying general model at {}'.format(
+                model_path, model_path_new
+            ))
+            model_path = model_path_new
+        else:
+            logger.info('Running line detection with model {}.'.format(model_path))
+
         if not os.path.exists(model_path + '.meta'):
+            logger.debug('Global model not found at {}. Using staff line detection without a model.'.format(model_path))
             model_path = None
+            logger.info('Running line detection without a model.')
+        else:
+            logger.info('Running line detection with model {}.'.format(model_path))
 
         from linesegmentation.detection import LineDetectionSettings, LineDetection
         self.settings = LineDetectionSettings(
