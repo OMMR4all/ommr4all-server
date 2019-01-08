@@ -47,11 +47,12 @@ class PcGts:
 
     @staticmethod
     def from_json(json: dict, location: book.Page):
+        image_shape = Image.open(location.file('color_deskewed', True).local_path()).size
         pcgts = PcGts(
             Meta.from_json(json.get('meta', {})),
             Page.from_json(json.get('page', {}), location=location),
         )
-        pcgts.page.image_width, pcgts.page.image_height = Image.open(location.file('color_deskewed', True).local_path()).size
+        pcgts.page.image_width, pcgts.page.image_height = image_shape
         return pcgts
 
     def to_json(self):

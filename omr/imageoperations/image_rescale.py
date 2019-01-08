@@ -2,6 +2,23 @@ from .image_operation import ImageOperation, ImageOperationData, OperationOutput
 from typing import Tuple, List, NamedTuple, Any
 import numpy as np
 from scipy.ndimage import interpolation
+from scipy.misc import imresize
+
+
+class ImageScaleOperation(ImageOperation):
+    def __init__(self, factor: float):
+        super().__init__()
+        self.factor = factor
+
+    def apply_single(self, data: ImageOperationData) -> OperationOutput:
+        s = [imresize(d.image, self.factor, interp='nearest' if d.nearest_neighbour_rescale else 'bilinear') for d in data]
+        scale = s[0].shape[1] / data.images[0].image.shape[1]
+        data.images = [ImageData(i, d.nearest_neighbour_rescale) for d, i in zip(data, s)]
+        data.params = (scale, )
+        return [data]
+
+    def local_to_global_pos(self, p: Point, params: Any) -> Point:
+        return Point(p.x / self.factor, p.y / self.factor)
 
 
 class ImageRescaleToHeightOperation(ImageOperation):

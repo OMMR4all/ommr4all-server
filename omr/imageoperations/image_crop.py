@@ -39,6 +39,8 @@ class ImagePadToPowerOf2(ImageOperation):
 
     def apply_single(self, data: ImageOperationData) -> OperationOutput:
         x, y = data.images[0].image.shape
+        for d in data:
+            assert(d.image.shape == (x, y))
 
         f = 2 ** 3
         tx = (((x // 2) // 2) // 2) * 8

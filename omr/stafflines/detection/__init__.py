@@ -1,1 +1,2 @@
-from .staffline_detector import StaffLineDetectorType, StaffLineDetector, create_staff_line_detector
+from .predictor import StaffLinesPredictor, StaffLinesModelType, create_staff_line_predictor
+from .trainer import StaffLinesTrainer, create_staff_line_trainer

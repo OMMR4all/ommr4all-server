@@ -6,7 +6,7 @@ from locked_dict.locked_dict import LockedDict
 import numpy as np
 import logging
 from typing import NamedTuple, List, Tuple
-from ommr4all.settings import PRIVATE_MEDIA_ROOT, PRIVATE_MEDIA_URL
+from ommr4all.settings import PRIVATE_MEDIA_ROOT, PRIVATE_MEDIA_URL, BASE_DIR
 
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,14 @@ class Book:
     def list_available_book_metas():
         return [b.get_meta() for b in Book.list_available()]
 
+    @staticmethod
+    def list_all_pages_with_lock(lock_name, lock_state=True):
+        out = []
+        for b in Book.list_available():
+            out += b.pages_with_lock(lock_name, lock_state)
+
+        return out
+
     def __init__(self, book: str, skip_validation=False):
         self.book = book.strip('/')
         if not skip_validation and not file_name_validator.fullmatch(self.book):
@@ -44,11 +52,22 @@ class Book:
         pages = [Page(self, p) for p in sorted(os.listdir(self.local_path('pages')))]
         return [p for p in pages if p.is_valid()]
 
+    def pages_with_lock(self, lock_name, lock_state=True):
+        from omr.datatypes.pcgts import PcGts
+        from omr.datatypes.performance.pageprogress import PageProgress
+        out = []
+        for p in self.pages():
+            pp = PageProgress.from_json_file(p.file('page_progress', create_if_not_existing=True).local_path())
+            if pp.locked.get(lock_name, False) == lock_state:
+                out.append(p)
+
+        return out
+
     def page(self, page):
         return Page(self, page)
 
     def local_default_models_path(self, sub=''):
-        return os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', 'french14', sub)
+        return os.path.join(BASE_DIR, 'internal_storage', 'default_models', 'french14', sub)
 
     def local_path(self, sub=''):
         return os.path.join(PRIVATE_MEDIA_ROOT, self.book, sub)

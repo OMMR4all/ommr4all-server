@@ -2,6 +2,7 @@ import numpy as np
 from skimage.io import imread, imsave
 from skimage.filters import threshold_adaptive, threshold_yen, threshold_local
 from scipy.ndimage import filters,interpolation,morphology,measurements,binary_erosion,binary_fill_holes
+from scipy.misc import imresize
 import scipy.stats as stats
 from PIL import Image
 from omr.image_util import normalize_raw_image
@@ -19,6 +20,9 @@ def estimate_local_whitelevel(image, zoom=0.5, perc=80, range=20, debug=0):
     m = filters.percentile_filter(m,perc,size=(range,2))
     m = filters.percentile_filter(m,perc,size=(2,range))
     m = interpolation.zoom(m,1.0/zoom)
+    if m.shape != image.shape:
+        m = imresize((m * 255).astype(np.uint8), image.shape) / 255
+
     if debug>0:
         plt.clf()
         plt.imshow(m,vmin=0,vmax=1)
@@ -29,6 +33,10 @@ def estimate_local_whitelevel(image, zoom=0.5, perc=80, range=20, debug=0):
         plt.clf()
         plt.imshow(flat,vmin=0,vmax=1)
         plt.ginput(1,debug)
+
+    if np.isnan(flat).any():
+        raise ValueError()
+
     return flat
 
 
@@ -69,6 +77,7 @@ def binarize(image):
     flat /= (hi-lo)
     flat = np.clip(flat, 0, 1)
 
+    assert(image.shape == flat.shape)
     return flat > 0.5
 
 

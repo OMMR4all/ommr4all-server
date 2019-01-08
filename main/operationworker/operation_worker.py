@@ -227,8 +227,8 @@ class OperationWorkerThread:
             com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.INITIALIZING)))
             if isinstance(task_data, TaskDataStaffLineDetection):
                 data: TaskDataStaffLineDetection = task_data
-                from omr.stafflines.detection.staffline_detector import create_staff_line_detector, StaffLineDetectorType, StaffLineDetector
-                staff_line_detector: StaffLineDetector = create_staff_line_detector(StaffLineDetectorType.BASIC, data.page)
+                from omr.stafflines.detection.predictor import create_staff_line_predictor, StaffLinesModelType, StaffLinesPredictor
+                staff_line_detector: StaffLinesPredictor = create_staff_line_predictor(StaffLinesModelType.PIXEL_CLASSIFIER, data.page)
                 com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
                 staffs = staff_line_detector.detect(
                     data.page.file('binary_deskewed').local_path(),
