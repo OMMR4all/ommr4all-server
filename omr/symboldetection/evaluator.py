@@ -131,7 +131,7 @@ if __name__ == '__main__':
     b = book.Book('Graduel')
     eval_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[:1] + b.pages()[4:5]]
     pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER,
-                            PredictorParameters([b.local_path(os.path.join('pc_paths', 'model'))]))
+                            PredictorParameters([b.local_path(os.path.join('pc_symbol_detection', 'model'))]))
     evaluator = SymbolDetectionEvaluator(pred)
     metrics, counts, single_counts = evaluator.evaluate(eval_pcgts)
 
