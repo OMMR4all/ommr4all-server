@@ -144,6 +144,8 @@ class TaskDataStaffLineDetection(NamedTuple):
 class TaskDataSymbolDetection(NamedTuple):
     page: Page
 
+class TaskDataLayoutAnalysis(NamedTuple):
+    page: Page
 
 class TaskDataSymbolDetectionTrainer(NamedTuple):
     book: Book
@@ -235,6 +237,17 @@ class OperationWorkerThread:
                     data.page.file('gray_deskewed').local_path(),
                 )
                 result = {'staffs': [l.to_json() for l in staffs]}
+            elif isinstance(task_data, TaskDataLayoutAnalysis):
+                data: TaskDataLayoutAnalysis = task_data
+                from omr.layout.predictor import PredictorParameters, create_predictor, PredictorTypes
+                from omr.datatypes import PcGts
+
+                params = PredictorParameters(checkpoints=[])
+                pred = create_predictor(PredictorTypes.STANDARD, params)
+                pcgts = PcGts.from_file(data.page.file('pcgts'))
+
+                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
+                result = list(pred.predict([pcgts]))[0].to_dict()
             elif isinstance(task_data, TaskDataSymbolDetection):
                 data: TaskDataSymbolDetection = task_data
                 from omr.symboldetection.predictor import PredictorParameters, PredictorTypes, create_predictor

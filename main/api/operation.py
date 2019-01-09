@@ -13,7 +13,8 @@ from omr.datatypes.performance.pageprogress import PageProgress
 from omr.datatypes.performance.statistics import Statistics
 from omr.stafflines.json_util import json_to_line
 from main.operationworker import \
-    TaskDataStaffLineDetection, TaskDataSymbolDetectionTrainer, TaskDataSymbolDetection \
+    TaskDataStaffLineDetection, TaskDataSymbolDetectionTrainer, TaskDataSymbolDetection, \
+    TaskDataLayoutAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +27,7 @@ class OperationStatusView(APIView):
         page = Page(Book(book), page)
 
         # check if operation is linked to a task
-        if operation == 'staffs':
-            task_data = TaskDataStaffLineDetection(page)
-        elif operation == 'symbols':
-            task_data = TaskDataSymbolDetection(page)
-        elif operation == 'train_symbols':
-            task_data = TaskDataSymbolDetectionTrainer(page.book)
-        else:
-            task_data = None
+        task_data = OperationView.op_to_task_data(operation, page)
 
         if task_data is not None:
             op_status = operation_worker.status(task_data)
@@ -52,6 +46,8 @@ class OperationView(APIView):
             return TaskDataSymbolDetection(page)
         elif operation == 'train_symbols':
             return TaskDataSymbolDetectionTrainer(page.book)
+        elif operation == 'layout':
+            return TaskDataLayoutAnalysis(page)
         else:
             return None
 
@@ -89,7 +85,7 @@ class OperationView(APIView):
 
             return Response()
 
-        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
 
     def get(self, request, book, page, operation, format=None):
         page = Page(Book(book), page)
@@ -167,4 +163,4 @@ class OperationView(APIView):
                 logging.error(e)
                 return Response({'error': 'unknown'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return Response(status=status.HTTP_204_NO_CONTENT)

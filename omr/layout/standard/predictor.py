@@ -1,6 +1,7 @@
-from omr.layout.predictor import LayoutAnalysisPredictor, PredictorParameters, PredictionType
+from omr.layout.predictor import LayoutAnalysisPredictor, PredictorParameters, PredictionType, PredictionResult
 from typing import List
-from omr.datatypes import PcGts
+from omr.datatypes import PcGts, TextRegionType, Coords
+import numpy as np
 
 
 class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
@@ -11,7 +12,7 @@ class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
         settings = SegmentationSettings()
         self.segmentator = Segmentator(settings)
 
-    def predict(self, pcgts_files: List[PcGts]) -> PredictionType:
+    def _predict(self, pcgts_files: List[PcGts]) -> PredictionType:
         def extract_staffs(pcgts: PcGts):
             staffs = []
             for mr in pcgts.page.music_regions:
@@ -19,11 +20,20 @@ class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
                     staffs.append([list(sl.coords.points[:, ::-1].astype(int)) for sl in s.staff_lines])
             return staffs
 
+        def p_to_np(polys):
+            return [Coords(np.array(p.exterior.coords)) for p in polys]
+
         for p in self.segmentator.segmentate(
                 map(extract_staffs, pcgts_files),
                 [p.page.location.file('gray_deskewed').local_path() for p in pcgts_files]):
 
-            yield p
+            yield PredictionResult(
+                text_regions={
+                    TextRegionType.LYRICS: p_to_np(p.get('text')),
+                    TextRegionType.DROP_CAPITAL: p_to_np(p.get('initials')),
+                },
+                music_regions=p_to_np(p.get('system')),
+            )
 
 
 if __name__ == "__main__":
@@ -31,11 +41,12 @@ if __name__ == "__main__":
     import main.book as book
     from PIL import Image
     import matplotlib.pyplot as plt
-    from layoutanalysis.segmentation.segmentation import draw_polygons
+    import cv2
 
     b = book.Book('Graduel')
     p = b.page('Graduel_de_leglise_de_Nevers_022')
-    img = np.array(Image.open(p.file('gray_deskewed').local_path()))
+    img = np.array(Image.open(p.file('color_deskewed').local_path()))
+    mask = np.zeros(img.shape, np.float) + 255
     val_pcgts = [PcGts.from_file(p.file('pcgts'))]
 
     params = PredictorParameters(
@@ -43,11 +54,23 @@ if __name__ == "__main__":
     )
     pred = StandardLayoutAnalysisPredictor(params)
     for p in pred.predict(val_pcgts):
-        p: dict = p
-        for i, k in enumerate(p.keys()):
-            draw_polygons(p[k], img)
+        for i, mr_c in enumerate(p.music_regions):
+            mr_c.coords.draw(mask, (255, 0, 0), fill=True)
 
-    plt.imshow(img)
+        for i, mr_c in enumerate(p.text_regions.get(TextRegionType.LYRICS, [])):
+            mr_c.coords.draw(mask, (0, 255, 0), fill=True)
+
+        for i, mr_c in enumerate(p.text_regions.get(TextRegionType.DROP_CAPITAL, [])):
+            mr_c.coords.draw(mask, (0, 0, 255), fill=True)
+
+    import json
+    print(p.to_dict())
+    print(json.dumps(p.to_dict()))
+
+    f, ax = plt.subplots(1, 3)
+    ax[0].imshow(img)
+    ax[1].imshow(mask)
+    ax[2].imshow(img.mean(axis=-1, keepdims=True).astype(float) * mask.astype(float) / 255 / 255)
     plt.show()
 
 
