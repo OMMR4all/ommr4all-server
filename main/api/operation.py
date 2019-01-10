@@ -8,7 +8,7 @@ import logging
 import datetime
 import json
 import zipfile
-from omr.datatypes import PcGts
+from omr.datatypes import PcGts, Coords
 from omr.datatypes.performance.pageprogress import PageProgress
 from omr.datatypes.performance.statistics import Statistics
 from omr.stafflines.json_util import json_to_line
@@ -54,7 +54,21 @@ class OperationView(APIView):
     def post(self, request, book, page, operation, format=None):
         page = Page(Book(book), page)
 
-        if operation == 'save_page_progress':
+        if operation == 'layout_extract_cc_by_line':
+            obj = json.loads(request.body, encoding='utf-8')
+            initial_line = Coords.from_json(obj['points'])
+            from omr.layout.correction_tools.connected_component_selector import extract_components
+            import pickle
+            staff_lines = []
+            for mr in PcGts.from_file(page.file('pcgts')).page.music_regions:
+                for ml in mr.staffs:
+                    staff_lines += ml.staff_lines
+
+            with open(page.file('connected_components_deskewed', create_if_not_existing=True).local_path(), 'rb') as pkl:
+                polys = extract_components(pickle.load(pkl), initial_line, staff_lines)
+
+            return Response({'polys': [p.to_json() for p in polys]})
+        elif operation == 'save_page_progress':
             obj = json.loads(request.body, encoding='utf-8')
             pp = PageProgress.from_json(obj)
             pp.to_json_file(page.file('page_progress').local_path())
@@ -91,6 +105,7 @@ class OperationView(APIView):
         page = Page(Book(book), page)
 
         if operation == 'text_polygones':
+            # TODO: currently unused
             obj = json.loads(request.body, encoding='utf-8')
             initial_line = json_to_line(obj['points'])
             from omr.segmentation.text.extract_text_from_intersection import extract_text

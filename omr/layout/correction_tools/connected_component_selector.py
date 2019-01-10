@@ -1,12 +1,13 @@
-from omr.datatypes import StaffLines, StaffLine, MusicLine
-from omr.preprocessing.util.connected_compontents import ConnectedComponents
+from omr.datatypes import StaffLines, StaffLine, MusicLine, Coords
+from omr.preprocessing.util.connected_compontents import ConnectedComponents, connected_compontents_with_stats
 import numpy as np
 import json
+from typing import List
 import cv2
 import matplotlib.pyplot as plt
 from scipy import signal, spatial
 from skimage.measure import approximate_polygon
-from omr.stafflines.text_line import TextBoundaries, TextLine
+from scipy.ndimage.filters import gaussian_filter
 
 import itertools as IT
 def scale_polygon(path,offset):
@@ -148,21 +149,17 @@ def polygons(edges):
     return shapes
 
 
-def extract_text(cc: ConnectedComponents, central_text_line: np.ndarray, debug=False) -> TextLine:
+def reduceImageCC(cc: ConnectedComponents, central_text_line: np.ndarray, filter_sigma=5):
+    if len(central_text_line) == 0:
+        return None
+
     central_text_line = np.int32(central_text_line[np.lexsort((central_text_line[:, 0],))])
     num_labels, labels, stats, centroids = cc
-    no_text = labels > 0
 
-
-    canvas = no_text.astype(np.uint8) * 255
-    print(canvas.shape, central_text_line)
 
     intersections = set()
 
-    text = np.zeros(labels.shape, dtype=float)
-    cv2.polylines(canvas, [central_text_line], False, 128, thickness=1)
-
-    x_s = np.arange(central_text_line[0][0], central_text_line[-1][0])
+    x_s = np.arange(max(0, central_text_line[0][0]), min(cc.labels.shape[1], central_text_line[-1][0]))
     y_s = np.interp(x_s, central_text_line[:,0], central_text_line[:, 1])
     for x, y in zip(x_s, y_s):
         x, y = int(x), int(y)
@@ -170,13 +167,9 @@ def extract_text(cc: ConnectedComponents, central_text_line: np.ndarray, debug=F
             intersections.add(labels[y, x])
 
     if len(intersections) == 0:
-        return TextLine()
+        return None
 
-    print(intersections)
-
-    heights = []
-    to_remove = []
-    center = []
+    min_x, min_y, max_x, max_y = 10000, 10000, 0, 0
     for cp in intersections:
         w = stats[cp, cv2.CC_STAT_WIDTH]
         h = stats[cp, cv2.CC_STAT_HEIGHT]
@@ -184,112 +177,95 @@ def extract_text(cc: ConnectedComponents, central_text_line: np.ndarray, debug=F
         y = stats[cp, cv2.CC_STAT_TOP]
         l = stats[cp, cv2.CC_STAT_LEFT]
 
-        if h / w > 10 or h == 0 or w == 0:
-            to_remove.append(cp)
-            continue
+        min_x = min(min_x, l)
+        min_y = min(min_y, y)
+        max_x = max(max_x, l + w)
+        max_y = max(max_y, y + h)
 
-        sub = labels[y:y+h, l:l+w] == cp
-        for x in range(w):
-            ssub = np.nonzero(sub[:, x])[0]
-            heights.append(ssub[-1] - ssub[0])
-            center.append((int(x + l), int(y + (ssub[0] + ssub[-1]) / 2)))
+    min_x = max(0, min_x - 2)
+    max_x = min(labels.shape[1], max_x + 2)
+    min_y = max(0, min_y - 2)
+    max_y = min(labels.shape[0], max_y + 2)
 
-        text += (labels == cp)
-        no_text = no_text ^ (labels == cp)
-
-    for r in to_remove:
-        intersections.remove(r)
-
-    center = np.array(sorted(center, key=lambda p: p[0]))
-    print(center, len(center), center.shape)
-    center_x = np.arange(center[0, 0], center[-1, 0])
-    center = np.interp(center_x, center[:, 0], center[:, 1])
-    center = center.astype(np.int32)
-
-    avg_text_height = int(np.median(heights))
-    print("Medium Height: {}".format(avg_text_height))
-    avg = 2
-    indices_x = np.arange(0, len(center) + 0.1, avg_text_height * avg).astype(int)
-    center_line = np.array([np.median(center[max(0, int(x - avg_text_height * avg)): min(len(center), int(x + avg_text_height * avg))]) for x in indices_x], dtype=np.int32)
-    center_x = np.linspace(center_x[0], center_x[-1], len(center_line)).astype(int)
-
-    heights = [h for h in heights if h > avg_text_height * 1.2 and h <= 3 * avg_text_height]
-    avg_cap_text_height = np.median(heights)
-    print("Medium 2nd Height: {}".format(np.median(heights)))
-
-    top_line = center_line - avg_text_height / 2
-    bot_line = center_line + avg_text_height / 2
-    cap_top_line = bot_line - avg_cap_text_height
-    cap_bot_line = top_line + avg_cap_text_height
-
-    all_points = np.zeros((0, 2))
+    cc_image = labels[min_y:max_y, min_x:max_x]
+    intersection_image = np.zeros(cc_image.shape, dtype=bool)
 
     for cp in intersections:
-        w = stats[cp, cv2.CC_STAT_WIDTH]
-        h = stats[cp, cv2.CC_STAT_HEIGHT]
-        a = stats[cp, cv2.CC_STAT_AREA]
-        y = stats[cp, cv2.CC_STAT_TOP]
-        l = stats[cp, cv2.CC_STAT_LEFT]
+        intersection_image |= cc_image == cp
 
-        img = np.array(labels[y:y+h, l:l+w] == cp)
-        top = (np.interp(np.arange(l, l+w + 0.1), center_x, top_line) - y).astype(int)
-        bot = top + 2 * (avg_cap_text_height - avg_text_height) + avg_text_height
-        bot = np.minimum(bot, h).astype(int)
-        top = np.maximum(top, 0).astype(int)
-        for i, x in enumerate(range(w)):
-            img[top[i]:bot[i],x] = 0
+    non_intersection_image = (cc_image > 0) ^ intersection_image
+    if filter_sigma > 0:
+        intersection_image = gaussian_filter(intersection_image.astype(float), sigma=filter_sigma) > 0.1
+    intersection_image = intersection_image.astype(bool) ^ (intersection_image.astype(bool) & non_intersection_image)
 
-        n, cl, s, c = cv2.connectedComponentsWithStats(img.astype(np.uint8))
-        to_rem = np.full(img.shape, False)
-        for sub_c in range(1, n):
-            s_w = s[sub_c, cv2.CC_STAT_WIDTH]
-            s_h = s[sub_c, cv2.CC_STAT_HEIGHT]
-            s_a = s[sub_c, cv2.CC_STAT_AREA]
+    return intersection_image, (min_x, min_y)
 
-            if s_w < avg_text_height * 2 and s_h < avg_text_height:
-                pass
-            else:
-                to_rem = to_rem | (cl == sub_c)
 
-        out = ((labels[y:y+h, l:l+w] == cp) & (1 - to_rem))
-        filter = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
-        conv = signal.convolve2d(out, filter, mode='same')
-        edges = out & (1 - (conv == 5))
-        points = np.column_stack(np.where(edges))
+def extract_components(cc: ConnectedComponents, central_text_line: Coords, staff_lines: List[StaffLine] = None, debug=False) -> List[Coords]:
+    if staff_lines is None:
+        staff_lines = []
 
-        points[:, 0] += y
-        points[:, 1] += l
+    central_text_line = central_text_line.points
+    canvas = (cc.labels > 0) * 255
 
-        all_points = np.append(all_points, points, axis=0)
+    result = reduceImageCC(cc, central_text_line, filter_sigma=0 if len(staff_lines) > 0 else 2)
+    offset = np.array((0, 0))
+    if result is None:
+        return []
+    else:
+        intersection_image, off = result
+        offset += off
 
-    edges = alpha_shape(all_points, avg_text_height / 2)
+    if len(staff_lines) > 0:
+        intersection_image = intersection_image.astype(np.uint8)
+        for sl in staff_lines:
+            Coords(sl.coords.points - offset).draw(intersection_image, (0, ), 2)
+
+        cc = ConnectedComponents(*cv2.connectedComponentsWithStats(intersection_image, 4, cv2.CV_32S))
+        result = reduceImageCC(cc, central_text_line - offset, filter_sigma=2)
+
+        if result is None:
+            return []
+        else:
+            intersection_image, off = result
+            offset += off
+
+    im2, contours, hierarchy = cv2.findContours(intersection_image.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours = [c.reshape((-1, 2)) + offset for c in contours]
+
+    point_list = np.concatenate(tuple(contours), axis=0)
+    edges = alpha_shape(point_list, 20)
     polys = polygons(edges)
 
-    polys = [np.flip(all_points[poly], axis=1) for poly in polys]
-    polys = [scale_polygon(approximate_polygon(p, avg_text_height / 5), avg_text_height / 5) for p in polys]
-
-    text_line = TextLine(polys, TextBoundaries(np.column_stack((center_x, cap_top_line)),
-                                               np.column_stack((center_x, top_line)),
-                                               np.column_stack((center_x, bot_line)),
-                                               np.column_stack((center_x, cap_bot_line))))
+    approx_fac = 2
+    polys = [point_list[poly] for poly in polys]
+    polys = [approximate_polygon(p, approx_fac).astype(np.int32) for p in polys]
 
     if debug:
         canvas = np.stack(((canvas).astype(np.uint8),) * 3, -1)
-        text_line.draw(canvas)
+        cv2.polylines(canvas, [central_text_line.astype(np.int32)], False, [255, 0, 0], thickness=4)
+        cv2.polylines(canvas, polys, True, [0, 255, 0])
+        cv2.polylines(canvas, contours, True, [0, 0, 255])
         plt.imshow(canvas)
         plt.show()
 
-    return text_line
+    return [Coords(p) for p in polys]
 
 
 if __name__ == '__main__':
     from ommr4all.settings import PRIVATE_MEDIA_ROOT
     from main.book import Book, Page
+    from omr.datatypes import PcGts
     import os
     import pickle
     book = Book('test')
     page = book.page('Graduel_de_leglise_de_Nevers_536')
     with open(page.file('connected_components_deskewed', create_if_not_existing=True).local_path(), 'rb') as f:
         cc = pickle.load(f)
-    line = np.array([[100, 383], [900, 380]])
-    extract_text(cc, line, debug=True)
+    line = Coords(np.array([[100, 740], [900, 738]]))
+    staff_lines = []
+    for mr in PcGts.from_file(page.file('pcgts')).page.music_regions:
+        for ml in mr.staffs:
+            staff_lines += ml.staff_lines
+
+    extract_components(cc, line, staff_lines, debug=True)
