@@ -163,7 +163,7 @@ def reduceImageCC(cc: ConnectedComponents, central_text_line: np.ndarray, filter
     y_s = np.interp(x_s, central_text_line[:,0], central_text_line[:, 1])
     for x, y in zip(x_s, y_s):
         x, y = int(x), int(y)
-        if labels[y, x] > 0:
+        if 0 <= x < labels.shape[1] and 0 <= y < labels.shape[0] and labels[y, x] > 0:
             intersections.add(labels[y, x])
 
     if len(intersections) == 0:
