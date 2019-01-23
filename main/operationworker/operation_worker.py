@@ -192,17 +192,28 @@ class OperationWorkerThread:
                     self.process.daemon = False     # must be stopped explicitly
                     self.process.start()
 
-                self.process.join()                 # wait for the task to finish
-                result = queue.get(timeout=0)       # get data NOW, or throw a QueueEmptyException (if process canceled)
+                result = None
 
-                if self.process is None:
+                # Try to fetch result
+                while self.process.is_alive():
+                    try:
+                        result = queue.get(timeout=1)   # get data every second
+                    except QueueEmptyException:
+                        # no data written yet
+                        continue
+
+                    break
+
+                self.process.join()                     # wait for the task to finish
+
+                if result is None:
                     # process canceled
                     raise TaskNotFinishedException()
 
                 if isinstance(result, Exception):
                     logger.info("THREAD {}: Exception during Task-Execution: {}".format(self.thread.name, result))
                     raise result
-            except (QueueEmptyException, BrokenPipeError, TaskNotFinishedException) as e:
+            except (BrokenPipeError, TaskNotFinishedException) as e:
                 with self.mutex:
                     self.queue.task_error(self._current_task, e)
                     self._current_task = None
@@ -312,6 +323,8 @@ class OperationWorkerThread:
         except Exception as e:
             logger.exception("THREAD {}: Error in thread: {}".format(name, e))
             queue.put(e)
+
+        logger.debug("THREAD {}: Task exit.".format(name))
 
 
 class TaskCommunicationData(NamedTuple):

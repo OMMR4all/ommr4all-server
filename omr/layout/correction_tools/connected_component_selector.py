@@ -193,6 +193,9 @@ def reduceImageCC(cc: ConnectedComponents, central_text_line: np.ndarray, filter
     for cp in intersections:
         intersection_image |= cc_image == cp
 
+    intersection_image = intersection_image.astype(np.uint8)
+    cv2.polylines(intersection_image, [(central_text_line - (min_x, min_y)).astype(np.int32)], False, (1, ), 8)
+
     non_intersection_image = (cc_image > 0) ^ intersection_image
     if filter_sigma > 0:
         intersection_image = gaussian_filter(intersection_image.astype(float), sigma=filter_sigma) > 0.1
