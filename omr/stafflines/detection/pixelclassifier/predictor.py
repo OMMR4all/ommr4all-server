@@ -38,8 +38,8 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
             targetLineSpaceHeight=10,
             model=model_path,
             post_process=True,
-            smooth_lines=True,
-            smooth_value=5,
+            smooth_lines=2,
+            keep_start_and_end=False,
         )
         self.line_detection = LineDetection(self.settings)
 
@@ -50,10 +50,10 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
             return MusicLines()
 
         ml = MusicLines([MusicLine(staff_lines=StaffLines([StaffLine(Coords((np.asarray(list(pl))[:, ::-1]))) for pl in l])) for l in r])
-        ml.approximate_staff_lines()
-        from PIL import Image
-        g = np.array(Image.open(gray_path)) / 255
-        ml.fit_staff_lines_to_gray_image(g)
+        # ml.approximate_staff_lines()
+        # from PIL import Image
+        # g = np.array(Image.open(gray_path)) / 255
+        # ml.fit_staff_lines_to_gray_image(g)
         return ml
 
 
