@@ -365,6 +365,12 @@ class MusicLine:
 
         return image, None
 
+    def center_y(self):
+        if len(self.staff_lines) == 0:
+            return None
+
+        return (self.staff_lines[0].center_y() + self.staff_lines[-1].center_y()) / 2
+
 
 class MusicLines(List[MusicLine]):
     @staticmethod

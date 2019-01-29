@@ -55,6 +55,9 @@ class LayoutAnalysisPredictor(ABC):
             for mr in pcgts.page.music_regions:
                 music_lines += mr.staffs
 
+            # music lines must be sorted
+            music_lines.sort(key=lambda ml: ml.center_y())
+
             for ml, coords in zip(music_lines, r.music_regions):
                 ml.coords = coords
 

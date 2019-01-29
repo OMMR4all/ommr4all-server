@@ -94,6 +94,9 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         height, width = lines[0].image.shape
         top = int(ml.staff_lines[0].center_y()) - t
         bot = int(ml.staff_lines[-1].center_y()) - t
+        if top > height or bot > height:
+            logger.error('Invalid line. Staff lines out of region.')
+            return None
         staff_height = int(bot - top)
         pre_out_height = int(staff_height * relative_staff_height)
         pre_center = pre_out_height // 2
@@ -114,7 +117,8 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
             elif bot_to_add > 0:
                 out.image = np.vstack((out.image, np.zeros((bot_to_add, width))))
 
-            assert(out.image.shape[0] == pre_out_height)
+            if out.image.shape[0] != pre_out_height:
+                raise Exception('Shape mismatch: {} != {}'.format(out.image.shape[0], pre_out_height))
             return out
 
         return [single(t) for t in lines], (top_to_add, )
