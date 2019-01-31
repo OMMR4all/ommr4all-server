@@ -1,4 +1,5 @@
 from omr.datatypes.pcgts import PcGts, MusicLine, Page, MusicRegion
+from omr.datatypes.page.textregion import TextRegionType
 from omr.datatypes.page.musicregion.musicline import Symbol, NoteComponent, Neume, Clef, Accidental, GraphicalConnectionType
 from typing import List, Generator, Tuple
 import main.book as book
@@ -8,7 +9,7 @@ import PIL.ImageOps
 from typing import NamedTuple
 
 from omr.imageoperations import ImageExtractDewarpedStaffLineImages, ImageOperationList, ImageLoadFromPageOperation, \
-    ImageOperationData, ImageRescaleToHeightOperation, ImagePadToPowerOf2
+    ImageOperationData, ImageRescaleToHeightOperation, ImagePadToPowerOf2, ImageDrawRegions
 
 
 class Rect(NamedTuple):
@@ -49,6 +50,7 @@ class PcGtsDataset:
 
         self.line_and_mask_operations = ImageOperationList([
             ImageLoadFromPageOperation(invert=True),
+            ImageDrawRegions(text_region_types=[TextRegionType.DROP_CAPITAL], color=0),
             ImageExtractDewarpedStaffLineImages(),
             ImageRescaleToHeightOperation(height=self.height),
             ImagePadToPowerOf2(),
