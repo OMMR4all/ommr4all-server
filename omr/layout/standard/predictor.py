@@ -29,8 +29,9 @@ class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
 
             yield PredictionResult(
                 text_regions={
-                    TextRegionType.LYRICS: p_to_np(p.get('text')),
+                    TextRegionType.LYRICS: p_to_np(p.get('lyrics')),
                     TextRegionType.DROP_CAPITAL: p_to_np(p.get('initials')),
+                    TextRegionType.PARAGRAPH: p_to_np(p.get('text')),
                 },
                 music_regions=p_to_np(p.get('system')),
             )

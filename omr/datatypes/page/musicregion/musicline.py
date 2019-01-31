@@ -6,6 +6,9 @@ import cv2
 import numpy as np
 from abc import ABC, abstractmethod
 from uuid import uuid4
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SymbolType(Enum):
@@ -139,14 +142,19 @@ class NoteComponent(Symbol):
 
     @staticmethod
     def from_json(json: dict):
-        return NoteComponent(
-            NoteName(json.get('pname', NoteName.UNDEFINED)),
-            json.get('oct', -1),
-            NoteType(json.get('type', NoteType.NORMAL)),
-            Point.from_json(json.get('coord', [])),
-            MusicSymbolPositionInStaff(json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED)),
-            GraphicalConnectionType(json.get('graphicalConnection', GraphicalConnectionType.GAPED)),
-        )
+        try:
+            return NoteComponent(
+                NoteName(json.get('pname', NoteName.UNDEFINED)),
+                json.get('oct', -1),
+                NoteType(json.get('type', NoteType.NORMAL)),
+                Point.from_json(json.get('coord', [])),
+                MusicSymbolPositionInStaff(json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED)),
+                GraphicalConnectionType(json.get('graphicalConnection', GraphicalConnectionType.GAPED)),
+            )
+        except Exception as e:
+            logger.exception(e)
+            logger.error("Got faulty dict {}".format(json))
+            return None
 
     def to_json(self):
         return {
@@ -172,7 +180,7 @@ class Neume(Symbol):
     def from_json(json: dict):
         return Neume(
             json.get('id', str(uuid4())),
-            [NoteComponent.from_json(nc) for nc in json.get('nc', [])]
+            [nc for nc in [NoteComponent.from_json(nc) for nc in json.get('nc', [])] if nc]
         )
 
     def to_json(self):
