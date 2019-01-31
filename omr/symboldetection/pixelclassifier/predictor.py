@@ -35,7 +35,7 @@ class PCPredictor(SymbolDetectionPredictor):
     def exract_symbols(self, p: np.ndarray, m: MusicLineAndMarkedSymbol) -> List[Symbol]:
         n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
         symbols = []
-        sorted_labels = sorted(range(n_labels), key=lambda i: (centroids[i, 0], -centroids[i, 1]))
+        sorted_labels = sorted(range(1, n_labels), key=lambda i: (centroids[i, 0], -centroids[i, 1]))
         for i in sorted_labels:
             w = stats[i, cv2.CC_STAT_WIDTH]
             h = stats[i, cv2.CC_STAT_HEIGHT]
