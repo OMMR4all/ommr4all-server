@@ -77,6 +77,8 @@ class OperationView(APIView):
             with zipfile.ZipFile(page.file('page_progress_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
                 zf.writestr('page_progress_{}.json'.format(datetime.datetime.now()), json.dumps(pp.to_json(), indent=2))
 
+            logger.info('Successfully saved page progress file to {}'.format(page.file('page_progress').local_path()))
+
             return Response()
         elif operation == 'save_statistics':
             obj = json.loads(request.body, encoding='utf-8')
@@ -87,6 +89,8 @@ class OperationView(APIView):
             with zipfile.ZipFile(page.file('statistics_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
                 zf.writestr('statistics_{}.json'.format(datetime.datetime.now()), json.dumps(total_stats.to_json(), indent=2))
 
+            logger.info('Successfully saved statistics file to {}'.format(page.file('statistics').local_path()))
+
             return Response()
         elif operation == 'save':
             obj = json.loads(request.body, encoding='utf-8')
@@ -96,6 +100,8 @@ class OperationView(APIView):
             # add to backup archive
             with zipfile.ZipFile(page.file('pcgts_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
                 zf.writestr('pcgts_{}.json'.format(datetime.datetime.now()), json.dumps(pcgts.to_json(), indent=2))
+
+            logger.info('Successfully saved pcgts file to {}'.format(page.file('pcgts').local_path()))
 
             return Response()
 
