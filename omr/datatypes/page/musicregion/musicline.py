@@ -1,6 +1,6 @@
-from . import Coords, Point, Syllable, EquivIndex
+from omr.datatypes.page.musicregion import Coords, Point, Syllable, EquivIndex
 from typing import List, Tuple
-from enum import Enum
+from enum import Enum, IntEnum
 from skimage.measure import approximate_polygon
 import cv2
 import numpy as np
@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class SymbolType(Enum):
+class SymbolType(IntEnum):
     NEUME = 0
     CLEF = 1
     ACCID = 2
@@ -38,13 +38,13 @@ class Symbol(ABC):
         }[SymbolType(json.get('symbol'))](json)
 
 
-class AccidentalType(Enum):
+class AccidentalType(IntEnum):
     NATURAL = 0
     SHARP = 1
     FLAT = -1
 
 
-class MusicSymbolPositionInStaff(Enum):
+class MusicSymbolPositionInStaff(IntEnum):
     UNDEFINED = -1000
 
     # usual notation
@@ -103,16 +103,16 @@ class Accidental(Symbol):
         })
 
 
-class NoteType(Enum):
+class NoteType(IntEnum):
     NORMAL = 0
 
 
-class GraphicalConnectionType(Enum):
+class GraphicalConnectionType(IntEnum):
     GAPED = 0
     LOOPED = 1
 
 
-class NoteName(Enum):
+class NoteName(IntEnum):
     UNDEFINED = -1
     A = 0
     B = 1
@@ -121,6 +121,9 @@ class NoteName(Enum):
     E = 4
     F = 5
     G = 6
+
+    def __str__(self):
+        return 'ABCDEFG '[self.value]
 
 
 class NoteComponent(Symbol):
@@ -139,6 +142,9 @@ class NoteComponent(Symbol):
         self.coord: Point = coord if coord else Point()
         self.position_in_staff = position_in_staff
         self.graphical_connection = graphical_connection
+
+    def update_note_name(self, clef):
+        self.note_name, self.octave = clef.note_name_octave(self.position_in_staff)
 
     @staticmethod
     def from_json(json: dict):
@@ -190,9 +196,12 @@ class Neume(Symbol):
         })
 
 
-class ClefType(Enum):
+class ClefType(IntEnum):
     CLEF_F = 0
     CLEF_C = 1
+
+    def offset(self):
+        return [0, -3][self.value]
 
 
 class Clef(Symbol):
@@ -219,6 +228,12 @@ class Clef(Symbol):
             "coord": self.coord.to_json(),
             "positionInStaff": self.position_in_staff.value,
         })
+
+    def note_name_octave(self, position_in_staff: MusicSymbolPositionInStaff):
+        clef_type_offset = self.clef_type.offset()
+        note_name = NoteName((clef_type_offset + 49 - self.position_in_staff + MusicSymbolPositionInStaff.LINE_2 + position_in_staff) % 7)
+        octave = 4 + (clef_type_offset - self.position_in_staff + MusicSymbolPositionInStaff.LINE_1 + position_in_staff) // 7
+        return note_name, octave
 
 
 class StaffLine:
@@ -379,11 +394,31 @@ class MusicLine:
 
         return (self.staff_lines[0].center_y() + self.staff_lines[-1].center_y()) / 2
 
+    def update_note_names(self, initial_clef: Clef = None):
+        current_clef = initial_clef if initial_clef else Clef()
+
+        for s in self.symbols:
+            if isinstance(s, Clef):
+                current_clef = s
+            elif isinstance(s, Accidental):
+                pass
+            elif isinstance(s, Neume):
+                for n in s.notes:
+                    n.update_note_name(current_clef)
+            else:
+                raise TypeError(s)
+
+        return current_clef
+
 
 class MusicLines(List[MusicLine]):
     @staticmethod
     def from_json(json):
-        return MusicLines([MusicLine.from_json(l) for l in json])
+        mls = MusicLines([MusicLine.from_json(l) for l in json])
+        current_clef = None
+        for ml in mls:
+            current_clef = ml.update_note_names(current_clef)
+        return mls
 
     def to_json(self):
         return [l.to_json() for l in self]

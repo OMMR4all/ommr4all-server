@@ -108,6 +108,21 @@ class BookDownloaderView(APIView):
             zf.close()
             s.seek(0)
             return FileResponse(s, as_attachment=True, filename=book.book + '.zip')
+        elif type == 'monodi2.zip':
+            import zipfile, io, os
+            import json
+            from omr.datatypes.monodi2_exporter import pcgts_to_monodi, PcGts
+            pages = book.pages()
+            pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
+            obj = pcgts_to_monodi(pcgts).to_json()
+
+            s = io.BytesIO()
+            with zipfile.ZipFile(s, 'w') as zf:
+                with zf.open(book.book + '.json', 'w') as f:
+                    f.write(json.dumps(obj).encode('utf-8'))
+
+            s.seek(0)
+            return FileResponse(s, as_attachment=True, filename=book.book + '.monodi2.zip')
 
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
