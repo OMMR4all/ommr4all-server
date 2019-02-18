@@ -47,7 +47,7 @@ class Syllable:
             json.get('id', None),
             json.get('text', ""),
             SyllableConnection(json.get('connection', SyllableConnection.NEW)),
-            json.get('drop_capital_length', 0),
+            json.get('dropCapitalLength', 0),
         )
 
     def to_json(self):
@@ -55,6 +55,6 @@ class Syllable:
             'id': self.id,
             'text': self.text,
             'connection': self.connection.value,
-            'drop_capital_length': self.drop_capital_length
+            'dropCapitalLength': self.drop_capital_length
         }
 
