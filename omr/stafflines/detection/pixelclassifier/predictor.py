@@ -39,7 +39,7 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
             model=model_path,
             post_process=True,
             smooth_lines=2,
-            keep_start_and_end=False,
+            line_fit_distance=1,
         )
         self.line_detection = LineDetection(self.settings)
 
