@@ -1,7 +1,7 @@
-django
+django>2
 channels
 locked_dict
-opencv-python
+opencv-python>=4
 Pillow
 scikit-image
 tqdm

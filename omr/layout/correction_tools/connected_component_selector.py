@@ -233,7 +233,7 @@ def extract_components(cc: ConnectedComponents, central_text_line: Coords, staff
             intersection_image, off = result
             offset += off
 
-    im2, contours, hierarchy = cv2.findContours(intersection_image.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv2.findContours(intersection_image.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contours = [c.reshape((-1, 2)) + offset for c in contours]
 
     point_list = np.concatenate(tuple(contours), axis=0)
