@@ -43,11 +43,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                 self._symbols_to_mask(ml, marked_symbols)
                 i += 1
 
-        try:
-            dew_page, dew_labels, dew_symbols = tuple(map(np.array, dewarp([Image.fromarray(image), Image.fromarray(labels), Image.fromarray(marked_symbols)], s, None)))
-        except Exception as e:
-            logger.exception("Exception during processing of page: {}".format(data.page.location.local_path()))
-            raise e
+        dew_page, dew_labels, dew_symbols = tuple(map(np.array, dewarp([Image.fromarray(image), Image.fromarray(labels), Image.fromarray(marked_symbols)], s, None)))
 
         if debug:
             import matplotlib.pyplot as plt

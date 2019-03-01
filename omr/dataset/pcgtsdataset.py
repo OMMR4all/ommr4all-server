@@ -13,6 +13,9 @@ from omr.imageoperations import ImageExtractDewarpedStaffLineImages, ImageOperat
 
 from omr.dewarping.dummy_dewarper import NoStaffLinesAvailable, NoStaffsAvailable
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 class Rect(NamedTuple):
     t: int
@@ -69,6 +72,9 @@ class PcGtsDataset:
                 self.marked_symbol_data = list(self._create_marked_symbols())
             except (NoStaffsAvailable, NoStaffLinesAvailable):
                 self.marked_symbol_data = []
+            except Exception as e:
+                logger.exception("Exception during processing of page: {}".format(data.page.location.local_path()))
+                raise e
 
         return self.marked_symbol_data
 
