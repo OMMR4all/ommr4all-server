@@ -25,6 +25,14 @@ class BookMeta:
 
         return BookMeta(**d)
 
+    @staticmethod
+    def from_json(book: Book, json: dict):
+        meta = BookMeta.load(book)
+        for key, value in json.items():
+            setattr(meta, key, value)
+
+        return meta
+
     def to_json(self):
         return asdict(self)
 

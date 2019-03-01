@@ -171,6 +171,9 @@ class OperationView(APIView):
                     File(page, key).delete()
 
             return Response()
+        elif operation == 'delete':
+            page.delete()
+            return Response()
 
         task_data = OperationView.op_to_task_data(operation, page)
         if task_data:

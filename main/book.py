@@ -7,6 +7,7 @@ import numpy as np
 import logging
 from typing import NamedTuple, List, Tuple
 from ommr4all.settings import PRIVATE_MEDIA_ROOT, PRIVATE_MEDIA_URL, BASE_DIR
+import shutil
 
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,6 @@ class Book:
         return True
 
     def delete(self):
-        import shutil
         if os.path.exists(self.local_path()):
             shutil.rmtree(self.local_path())
 
@@ -132,6 +132,10 @@ class Page:
 
     def __eq__(self, other):
         return isinstance(other, Page) and self.book == other.book and self.page == other.page
+
+    def delete(self):
+        if os.path.exists(self.local_path()):
+            shutil.rmtree(self.local_path())
 
     def file(self, fileId, create_if_not_existing=False):
         return File(self, fileId, create_if_not_existing)

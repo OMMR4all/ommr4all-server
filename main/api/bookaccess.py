@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.http import FileResponse
 from main.book import Page, Book, File, InvalidFileNameException
+from main.book_meta import BookMeta
 import json
 import logging
 import re
@@ -14,6 +15,12 @@ class BookMetaView(APIView):
     def get(self, request, book, format=None):
         book = Book(book)
         return Response(book.get_meta().to_json())
+
+    def put(self, request, book, format=None):
+        book = Book(book)
+        meta = BookMeta.from_json(book, json.loads(request.body, encoding='utf-8'))
+        book.save_json_to_meta(meta.to_json())
+        return Response()
 
 
 class BookView(APIView):
