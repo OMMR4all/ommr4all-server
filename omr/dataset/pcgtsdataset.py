@@ -11,6 +11,8 @@ from typing import NamedTuple
 from omr.imageoperations import ImageExtractDewarpedStaffLineImages, ImageOperationList, ImageLoadFromPageOperation, \
     ImageOperationData, ImageRescaleToHeightOperation, ImagePadToPowerOf2, ImageDrawRegions
 
+from omr.dewarping.dummy_dewarper import NoStaffLinesAvailable, NoStaffsAvailable
+
 
 class Rect(NamedTuple):
     t: int
@@ -63,7 +65,10 @@ class PcGtsDataset:
 
     def marked_symbols(self) -> List[MusicLineAndMarkedSymbol]:
         if self.marked_symbol_data is None:
-            self.marked_symbol_data = list(self._create_marked_symbols())
+            try:
+                self.marked_symbol_data = list(self._create_marked_symbols())
+            except (NoStaffsAvailable, NoStaffLinesAvailable):
+                self.marked_symbol_data = []
 
         return self.marked_symbol_data
 
