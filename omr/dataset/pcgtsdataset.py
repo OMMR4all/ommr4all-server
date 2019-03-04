@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image
 import PIL.ImageOps
 from typing import NamedTuple
+from tqdm import tqdm
 
 from omr.imageoperations import ImageExtractDewarpedStaffLineImages, ImageOperationList, ImageLoadFromPageOperation, \
     ImageOperationData, ImageRescaleToHeightOperation, ImagePadToPowerOf2, ImageDrawRegions
@@ -68,27 +69,21 @@ class PcGtsDataset:
 
     def marked_symbols(self) -> List[MusicLineAndMarkedSymbol]:
         if self.marked_symbol_data is None:
-            try:
                 self.marked_symbol_data = list(self._create_marked_symbols())
-            except (NoStaffsAvailable, NoStaffLinesAvailable):
-                self.marked_symbol_data = []
-            except Exception as e:
-                logger.exception("Exception during processing of page: {}".format(data.page.location.local_path()))
-                raise e
 
         return self.marked_symbol_data
 
     def _create_marked_symbols(self) -> Generator[MusicLineAndMarkedSymbol, None, None]:
-        for f in self.files:
-            input = ImageOperationData([], page=f.page)
-            for outputs in self.line_and_mask_operations.apply_single(input):
-
-                # img, mask = self._resize_to_height([ScaleImage(loaded_image.images[0], 3), ScaleImage(mask, 0)], ml, loaded_image.rect)
-
-                # mask = mask.astype(np.uint8)
-
-                yield MusicLineAndMarkedSymbol(outputs)
-
+        for f in tqdm(self.files, total=len(self.files), desc="Loading music lines"):
+            try:
+                input = ImageOperationData([], page=f.page)
+                for outputs in self.line_and_mask_operations.apply_single(input):
+                    yield MusicLineAndMarkedSymbol(outputs)
+            except (NoStaffsAvailable, NoStaffLinesAvailable):
+                pass
+            except Exception as e:
+                logger.exception("Exception during processing of page: {}".format(f.page.location.local_path()))
+                raise e
 
     def music_lines(self) -> List[Tuple[MusicLine, np.ndarray, str]]:
         if self.loaded is None:

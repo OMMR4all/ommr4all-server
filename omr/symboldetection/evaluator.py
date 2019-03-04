@@ -38,15 +38,26 @@ class Counts(IntEnum):
     def __int__(self):
         return self.value
 
+class AccCounts(IntEnum):
+    TRUE = 0
+    FALSE = 1
+    TOTAL = 2
+
+    COUNT = 3
+
+    def __int__(self):
+        return self.value
+
+
+def precision_recall_f1(tp, fp, fn) -> Tuple[float, float, float]:
+    return tp / (tp + fp), tp / (tp + fn), 2 * tp / (2 * tp + fp + fn)
+
 
 class SymbolDetectionEvaluator:
     def __init__(self, predictor: SymbolDetectionPredictor):
         self.predictor = predictor
 
     def evaluate(self, pcgts_files: List[PcGts], min_distance=5):
-        def precision_recall_f1(tp, fp, fn) -> Tuple[float, float, float]:
-            return tp / (tp + fp), tp / (tp + fn), 2 * tp / (2 * tp + fp + fn)
-
         min_distance_sqr = min_distance ** 2
         def extract_symbol_coord(s: Symbol) -> List[Tuple[Point, Symbol]]:
             if s.symbol_type == SymbolType.NEUME:
@@ -78,7 +89,9 @@ class SymbolDetectionEvaluator:
 
         f_metrics = np.zeros((0, PRF2Metrics.COUNT, PRF2Metrics.COUNT), dtype=float)
         acc_metrics = np.zeros((0, 4), dtype=float)
-        counts = np.zeros((0, 9, Counts.COUNT), dtype=int)
+        counts = np.zeros((0, 5, Counts.COUNT), dtype=int)
+
+        acc_counts = np.zeros((0, 5, AccCounts.COUNT), dtype=int)
 
         for p in self.predictor.predict(pcgts_files):
             pairs = []
@@ -109,7 +122,11 @@ class SymbolDetectionEvaluator:
             n_tp = len(pairs)
             n_fp = len(p_symbols)
             n_fn = len(gt_symbols)
-            precision, recall, f1 = precision_recall_f1(n_tp, n_fp, n_fn)
+
+            if n_tp == 0 and n_fp == 0 and n_fn == 0:
+                # empty
+                print("Empty. Skipping!")
+                continue
 
             def sub_group(symbol_types: List[SymbolType]):
                 l_tp = [(p, gt) for (_, p), (_, gt) in pairs if gt.symbol_type in symbol_types and p.symbol_type in symbol_types]
@@ -129,7 +146,7 @@ class SymbolDetectionEvaluator:
                     return (tp, fp, fn), None, (l_tp, l_fp, l_fn)
 
             def note_sub_group(lists, prf2metric: PRF2Metrics):
-                l_tp, l_fp, l_fn = lists
+                l_tp, _, _ = lists
                 if prf2metric == PRF2Metrics.NOTE_ALL:
                     l_true = [(p, gt) for p, gt in l_tp if p.graphical_connection == gt.graphical_connection and p.neume_start == gt.neume_start]
                     l_false = [(p, gt) for p, gt in l_tp if p.neume_start != gt.neume_start or gt.graphical_connection != p.graphical_connection]
@@ -139,26 +156,37 @@ class SymbolDetectionEvaluator:
                 elif prf2metric == PRF2Metrics.NOTE_NS:
                     l_true = [(p, gt) for p, gt in l_tp if p.neume_start == gt.neume_start]
                     l_false = [(p, gt) for p, gt in l_tp if p.neume_start != gt.neume_start]
+
+                true, false = tuple(list(map(len, (l_true, l_false))))
                 try:
-                    true, false = tuple(list(map(len, (l_true, l_false))))
-                    return (true, false, 0), true / (true + false), (l_true, l_false, [])
+                    return (true, false, true + false), true / (true + false), (l_true, l_false, [])
                 except ZeroDivisionError:
-                    return (true, false, 0), None, (l_true, l_false, [])
+                    return (true, false, true + false), None, (l_true, l_false, [])
 
             def clef_sub_group(lists, prf2metric: PRF2Metrics):
-                l_tp, l_fp, l_fn = lists
+                l_tp, _, _ = lists
                 l_true = [(p, gt) for p, gt in l_tp if gt.clef_type == p.clef_type]
                 l_false = [(p, gt) for p, gt in l_tp if gt.clef_type != p.clef_type]
+                true, false = tuple(list(map(len, (l_true, l_false))))
                 try:
-                    true, false = tuple(list(map(len, (l_true, l_false))))
-                    return (true, false, 0), true / (false + true), (l_true, l_false, [])
+                    return (true, false, true + false), true / (false + true), (l_true, l_false, [])
                 except ZeroDivisionError:
-                    return (true, false, 0), None, (l_true, l_false, [])
+                    return (true, false, true + false), None, (l_true, l_false, [])
+
+            def accid_sub_group(lists, prf2metric: PRF2Metrics):
+                l_tp, _, _ = lists
+                l_true = [(p, gt) for p, gt in l_tp if gt.accidental == p.accidental]
+                l_false = [(p, gt) for p, gt in l_tp if gt.accidental != p.accidental]
+                true, false = tuple(list(map(len, (l_true, l_false))))
+                try:
+                    return (true, false, true + false), true / (false + true), (l_true, l_false, [])
+                except ZeroDivisionError:
+                    return (true, false, true + false), None, (l_true, l_false, [])
 
             all_counts, all_metrics, all_ = sub_group([SymbolType.NOTE_COMPONENT, SymbolType.ACCID, SymbolType.CLEF])
             note_counts, note_metrics, notes = sub_group([SymbolType.NOTE_COMPONENT])
             clef_counts, clef_metrics, clefs = sub_group([SymbolType.CLEF])
-            accis_counts, accid_metrics, accids = sub_group([SymbolType.ACCID])
+            accid_counts, accid_metrics, accids = sub_group([SymbolType.ACCID])
 
             note_all_counts, note_all_metrics, note_all = note_sub_group(notes, PRF2Metrics.NOTE_ALL)
             note_gc_counts, note_gc_metrics, note_gc = note_sub_group(notes, PRF2Metrics.NOTE_GC)
@@ -166,15 +194,22 @@ class SymbolDetectionEvaluator:
 
             clef_all_counts, clef_all_metrics, clefs_all = clef_sub_group(clefs, PRF2Metrics.CLEF_ALL)
 
+            accid_all_counts, accid_all_metrics, accid_all = accid_sub_group(accids, PRF2Metrics.ACCID)
+
             counts = np.concatenate((counts, [[[n_tp, n_fp, n_fn],
                                                all_counts,
                                                note_counts,
-                                               note_all_counts,
-                                               note_gc_counts,
-                                               note_ns_counts,
                                                clef_counts,
-                                               clef_all_counts,
-                                               accis_counts]]), axis=0)
+                                               accid_counts,
+                                               ]]), axis=0)
+
+            acc_counts = np.concatenate((acc_counts, [[
+                note_all_counts,
+                note_gc_counts,
+                note_ns_counts,
+                clef_all_counts,
+                accid_all_counts,
+            ]]), axis=0)
 
             acc_metrics = np.concatenate((acc_metrics, [[
                 note_all_metrics,
@@ -183,25 +218,45 @@ class SymbolDetectionEvaluator:
                 clef_all_metrics,
             ]]), axis=0)
 
-        total_counts = counts.sum(axis=0)
-        out_counts = np.array([total_counts[3], total_counts[4], total_counts[5], total_counts[7]])
-        return f_metrics.mean(axis=0), counts.sum(axis=0), out_counts[:, 0] / out_counts.sum(axis=1)
+        acc_counts = acc_counts.sum(axis=0)
+        acc_acc = (acc_counts[:, AccCounts.TRUE] / acc_counts[:, AccCounts.TOTAL]).reshape((-1, 1))
+        return f_metrics.mean(axis=0), counts.sum(axis=0), acc_counts, acc_acc
 
 
 if __name__ == '__main__':
+    from prettytable import PrettyTable
     import main.book as book
     b = book.Book('Graduel')
-    eval_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[:1] + b.pages()[4:10]]
+    eval_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[:]]
     pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER,
                             PredictorParameters([b.local_path(os.path.join('pc_symbol_detection', 'model'))]))
     evaluator = SymbolDetectionEvaluator(pred)
-    metrics, counts, acc_metrics = evaluator.evaluate(eval_pcgts)
+    metrics, counts, acc_counts, acc_acc = evaluator.evaluate(eval_pcgts)
 
     print(metrics)
     print(counts)
-    print(acc_metrics)
-    # print("{} symbol true positives composed of {} nc, clef, accid".format(np.sum(single_counts[0]), single_counts[0]))
-    # print("{} symbol false positives composed of {} nc, clef, accid".format(np.sum(single_counts[1]), single_counts[1]))
-    # print("{} symbol false negatives composed of {} nc, clef, accid".format(np.sum(single_counts[2]), single_counts[2]))
-    # print("{} gt symbols composed of {} nc, clef, accid".format(np.sum(single_counts[3]), single_counts[3]))
+    print(acc_counts)
+
+    at = PrettyTable()
+
+    at.add_column("Type", ["All", "All", "Notes", "Clefs", "Accids"])
+    at.add_column("TP", counts[:, Counts.TP])
+    at.add_column("FP", counts[:, Counts.FP])
+    at.add_column("FN", counts[:, Counts.FN])
+
+    prec_rec_f1 = np.array([precision_recall_f1(c[Counts.TP], c[Counts.FP], c[Counts.FN]) for c in counts])
+    at.add_column("Precision", prec_rec_f1[:, 0])
+    at.add_column("Recall", prec_rec_f1[:, 1])
+    at.add_column("F1", prec_rec_f1[:, 2])
+    print(at.get_string())
+
+
+    at = PrettyTable()
+    at.add_column("Type", ["Note all", "Note GC", "Note NS", "Clef type", "Accid type"])
+    at.add_column("True", acc_counts[:, AccCounts.TRUE])
+    at.add_column("False", acc_counts[:, AccCounts.FALSE])
+    at.add_column("Total", acc_counts[:, AccCounts.TOTAL])
+    at.add_column("Accuracy [%]", acc_acc[:, 0] * 100)
+
+    print(at.get_string())
 

@@ -13,3 +13,4 @@ lxml
 protobuf
 djangorestframework
 djangorestframework-jwt
+prettytable

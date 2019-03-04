@@ -1,19 +1,19 @@
-from .image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point, ImageOperationList
-from .image_crop import ImageCropToSmallestBoxOperation
+from omr.imageoperations.image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point, ImageOperationList
+from omr.imageoperations.image_crop import ImageCropToSmallestBoxOperation
 from typing import Tuple, List, NamedTuple, Any, Optional
 from omr.datatypes import Page, MusicLine, Neume, NoteComponent, Clef, ClefType, Accidental, AccidentalType, GraphicalConnectionType
 import numpy as np
 import PIL.ImageOps
 from PIL import Image
 from copy import copy
-from enum import Enum
+from enum import IntEnum
 from omr.dewarping.dummy_dewarper import dewarp, transform
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class SymbolLabel(Enum):
+class SymbolLabel(IntEnum):
     BACKGROUND = 0
     NOTE_START = 1
     NOTE_LOOPED = 2
@@ -167,3 +167,5 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         return Point(*transform(p.xy(), mls))
 
 
+if __name__=="__main__":
+    print(len(SymbolLabel))
