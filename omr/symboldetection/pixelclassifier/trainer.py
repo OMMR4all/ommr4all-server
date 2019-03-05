@@ -58,9 +58,9 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from omr.dewarping.dummy_dewarper import dewarp
     b = book.Book('Graduel')
-    pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[1:4]]
+    pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[12:13]]
     val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[:1]]
-    page = book.Book('Graduel').page('Graduel_de_leglise_de_Nevers_023')
+    page = book.Book('Graduel').page('Graduel_de_leglise_de_Nevers_033')
     # pcgts = PcGts.from_file(page.file('pcgts'))
     trainer = PCTrainer(pcgts, val_pcgts)
     trainer.run(b)

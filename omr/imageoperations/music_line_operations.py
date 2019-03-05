@@ -150,9 +150,9 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                     set(c.coord, SymbolLabel.CLEF_C)
             elif isinstance(s, Accidental):
                 a: Accidental = s
-                if a.symbol_type == AccidentalType.NATURAL:
+                if a.accidental == AccidentalType.NATURAL:
                     set(a.coord, SymbolLabel.ACCID_NATURAL)
-                elif a.symbol_type == AccidentalType.FLAT:
+                elif a.accidental == AccidentalType.FLAT:
                     set(a.coord, SymbolLabel.ACCID_FLAT)
                 else:
                     set(a.coord, SymbolLabel.ACCID_SHARP)
@@ -167,5 +167,5 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         return Point(*transform(p.xy(), mls))
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     print(len(SymbolLabel))

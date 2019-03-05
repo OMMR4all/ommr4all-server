@@ -16,6 +16,9 @@ class Point:
     def astype(self, type: Type):
         return Point(type(self.x), type(self.y))
 
+    def round(self):
+        return Point(np.round(self.x), np.round(self.y))
+
     def xy(self):
         return self.x, self.y
 

@@ -96,7 +96,8 @@ def transform(point, staffs: List[MusicLine]):
 
     interp_y = np.interp(y, [top_staff_line.interpolate_y(x), bot_staff_line.interpolate_y(x)], [top_offset, bot_offset])
 
-    return x, np.rint(y - interp_y)
+    #return x, np.rint(y - interp_y)
+    return x, y - interp_y
 
 
 def transform_grid(dst_grid, staffs: List[MusicLine], shape):

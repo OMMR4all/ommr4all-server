@@ -189,6 +189,10 @@ LOGGING = {
             'handlers': ['console'],
             'level': 'DEBUG',
         },
+        '__main__': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
         'django': {
             'handlers': ['console'],
             'level': 'WARNING',
