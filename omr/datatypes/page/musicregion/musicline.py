@@ -237,21 +237,24 @@ class Clef(Symbol):
 
 
 class StaffLine:
-    def __init__(self, coords=Coords()):
+    def __init__(self, coords=Coords(), highlighted=False):
         self.coords = coords
         self._center_y = 0
         self._dewarped_y = 0
+        self.highlighted = highlighted
         self.update()
 
     @staticmethod
     def from_json(json):
         return StaffLine(
-            Coords.from_json(json.get('coords', []))
+            Coords.from_json(json.get('coords', [])),
+            json.get('highlighted', False),
         )
 
     def to_json(self):
         return {
-            'coords': self.coords.to_json()
+            'coords': self.coords.to_json(),
+            'highlighted': self.highlighted,
         }
 
     def update(self):
