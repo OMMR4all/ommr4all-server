@@ -9,6 +9,7 @@ class TextRegionType(Enum):
     HEADING = 1
     LYRICS = 2
     DROP_CAPITAL = 3
+    FOLIO_NUMBER = 4
 
 
 class TextRegion:
