@@ -126,9 +126,11 @@ class Book:
 
 
 class Page:
-    def __init__(self, book: Book, page: str):
+    def __init__(self, book: Book, page: str, skip_validation=False):
         self.book = book
         self.page = page.strip("/")
+        if not skip_validation and not file_name_validator.fullmatch(self.page):
+            raise InvalidFileNameException(self.page)
 
     def __eq__(self, other):
         return isinstance(other, Page) and self.book == other.book and self.page == other.page
@@ -136,6 +138,16 @@ class Page:
     def delete(self):
         if os.path.exists(self.local_path()):
             shutil.rmtree(self.local_path())
+
+    def rename(self, new_name):
+        if not file_name_validator.fullmatch(new_name):
+            raise InvalidFileNameException(new_name)
+
+        old_path = self.local_path()
+        self.page = new_name
+        new_path = self.local_path()
+
+        shutil.move(old_path, new_path)
 
     def file(self, fileId, create_if_not_existing=False):
         return File(self, fileId, create_if_not_existing)

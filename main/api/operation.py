@@ -8,6 +8,7 @@ import logging
 import datetime
 import json
 import zipfile
+import re
 from omr.datatypes import PcGts, Coords
 from omr.datatypes.performance.pageprogress import PageProgress
 from omr.datatypes.performance.statistics import Statistics
@@ -103,6 +104,16 @@ class OperationView(APIView):
 
             logger.info('Successfully saved pcgts file to {}'.format(page.file('pcgts').local_path()))
 
+            return Response()
+        elif operation == 'rename':
+            obj = json.loads(request.body, encoding='utf-8')
+            name = obj['name']
+            name = re.sub('[^\w]', '_', name)
+
+            if name != obj['name']:
+                return Response(status=status.HTTP_406_NOT_ACCEPTABLE)
+
+            page.rename(name)
             return Response()
 
         return Response(status=status.HTTP_400_BAD_REQUEST)
