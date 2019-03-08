@@ -20,13 +20,18 @@ class SymbolType(IntEnum):
 
 
 class Symbol(ABC):
-    def __init__(self, symbol_type: SymbolType):
+    def __init__(self,
+                 symbol_type: SymbolType,
+                 fixed_sorting: bool = False,
+                 ):
         self.symbol_type = symbol_type
+        self.fixed_sorting = fixed_sorting
 
     @abstractmethod
     def to_json(self):
         return {
             'symbol': self.symbol_type.value,
+            'fixedSorting': self.fixed_sorting,
         }
 
     @staticmethod
@@ -82,8 +87,10 @@ class MusicSymbolPositionInStaff(IntEnum):
 class Accidental(Symbol):
     def __init__(self,
                  accidental=AccidentalType.NATURAL,
-                 coord=Point()):
-        super().__init__(SymbolType.ACCID)
+                 coord=Point(),
+                 fixed_sorting: bool = False,
+                 ):
+        super().__init__(SymbolType.ACCID, fixed_sorting)
         self.accidental = accidental
         self.coord = coord
 
@@ -94,6 +101,7 @@ class Accidental(Symbol):
         return Accidental(
             AccidentalType(json.get('type', AccidentalType.NATURAL)),
             Point.from_json(json.get('coord', Point().to_json())),
+            json.get('fixedSorting', False),
         )
 
     def to_json(self):
@@ -134,8 +142,9 @@ class NoteComponent(Symbol):
                  coord: Point = None,
                  position_in_staff=MusicSymbolPositionInStaff.UNDEFINED,
                  graphical_connection=GraphicalConnectionType.GAPED,
+                 fixed_sorting: bool = False,
                  ):
-        super().__init__(SymbolType.NOTE_COMPONENT)
+        super().__init__(SymbolType.NOTE_COMPONENT, fixed_sorting)
         self.note_name = note_name
         self.octave = octave
         self.note_type = note_type
@@ -156,6 +165,7 @@ class NoteComponent(Symbol):
                 Point.from_json(json.get('coord', [])),
                 MusicSymbolPositionInStaff(json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED)),
                 GraphicalConnectionType(json.get('graphicalConnection', GraphicalConnectionType.GAPED)),
+                json.get('fixedSorting', False),
             )
         except Exception as e:
             logger.exception(e)
@@ -170,6 +180,7 @@ class NoteComponent(Symbol):
             'coord': self.coord.to_json(),
             'positionInStaff': self.position_in_staff.value,
             'graphicalConnection': self.graphical_connection.value,
+            'fixedSorting': self.fixed_sorting,
         }
 
 
@@ -208,8 +219,10 @@ class Clef(Symbol):
     def __init__(self,
                  clef_type=ClefType.CLEF_F,
                  coord=Point(),
-                 position_in_staff=MusicSymbolPositionInStaff.UNDEFINED):
-        super().__init__(SymbolType.CLEF)
+                 position_in_staff=MusicSymbolPositionInStaff.UNDEFINED,
+                 fixed_sorting: bool = False,
+                 ):
+        super().__init__(SymbolType.CLEF, fixed_sorting)
         self.clef_type = clef_type
         self.coord = coord
         self.position_in_staff = position_in_staff
@@ -220,6 +233,7 @@ class Clef(Symbol):
             ClefType(json.get("type", ClefType.CLEF_F)),
             Point.from_json(json.get("coord", "0,0")),
             MusicSymbolPositionInStaff(json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED)),
+            json.get('fixedSorting', False),
         )
 
     def to_json(self):
