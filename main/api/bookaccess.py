@@ -44,7 +44,8 @@ class BookUploadView(APIView):
 
         for type, file in request.FILES.items():
             logger.debug('Received new image of content type {}'.format(file.content_type))
-            name = os.path.splitext(os.path.basename(file.name))[0].replace(" ", "_").replace("-", "_").replace('.', '_')
+            name = os.path.splitext(os.path.basename(file.name))[0]
+            name = re.sub('[^\w]', '_', name)
             page = Page(book, name)
             if not os.path.exists(page.local_path()):
                 os.mkdir(page.local_path())
