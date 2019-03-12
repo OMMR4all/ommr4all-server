@@ -1,8 +1,6 @@
-from omr.datatypes.page.musicregion import Coords, Point, Syllable, EquivIndex
+from omr.datatypes.page.musicregion import Coords, Point
 from typing import List, Tuple
-from enum import Enum, IntEnum
-from skimage.measure import approximate_polygon
-import cv2
+from enum import IntEnum
 import numpy as np
 from abc import ABC, abstractmethod
 from uuid import uuid4
@@ -197,7 +195,7 @@ class Neume(Symbol):
     def from_json(json: dict):
         return Neume(
             json.get('id', str(uuid4())),
-            [nc for nc in [NoteComponent.from_json(nc) for nc in json.get('nc', [])] if nc]
+            [nc for nc in [NoteComponent.from_json(nc) for nc in json.get('nc', [])] if nc],
         )
 
     def to_json(self):
@@ -251,11 +249,13 @@ class Clef(Symbol):
 
 
 class StaffLine:
-    def __init__(self, coords=Coords(), highlighted=False):
+    def __init__(self, coords=Coords(), highlighted=False, space=False, sl_id=''):
+        self.id = sl_id
         self.coords = coords
         self._center_y = 0
         self._dewarped_y = 0
         self.highlighted = highlighted
+        self.space = space
         self.update()
 
     @staticmethod
@@ -263,12 +263,16 @@ class StaffLine:
         return StaffLine(
             Coords.from_json(json.get('coords', [])),
             json.get('highlighted', False),
+            json.get('space', False),
+            json.get('id', ''),
         )
 
     def to_json(self):
         return {
+            'id': self.id,
             'coords': self.coords.to_json(),
             'highlighted': self.highlighted,
+            'space': self.space,
         }
 
     def update(self):

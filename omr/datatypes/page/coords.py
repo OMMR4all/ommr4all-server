@@ -43,6 +43,41 @@ class Point:
         return self.to_string()
 
 
+class Size:
+    def __init__(self, w=0, h=0):
+        self.w = w
+        self.h = h
+
+    def astype(self, type: Type):
+        return Size(type(self.w), type(self.h))
+
+    def round(self):
+        return Size(np.round(self.w), np.round(self.h))
+
+    def wh(self):
+        return self.w, self.h
+
+    def hw(self):
+        return self.h, self.w
+
+    def __str__(self):
+        return self.to_string()
+
+    @staticmethod
+    def from_string(s):
+        return Size(*tuple(map(float, s.split(","))))
+
+    def to_string(self):
+        return ",".join(map(str, [self.w, self.h]))
+
+    @staticmethod
+    def from_json(json):
+        return Size.from_string(json)
+
+    def to_json(self):
+        return self.to_string()
+
+
 class Coords:
     def __init__(self, points: np.ndarray = np.zeros((0, 2), dtype=float)):
         self.points = np.array(points, dtype=float)
@@ -96,6 +131,28 @@ class Coords:
         aabb = self.aabb()
         sub_image = image[int(aabb.tl[1]):int(aabb.br[1]), int(aabb.tl[0]):int(aabb.br[0])]
         return sub_image
+
+
+class Rect:
+    def __init__(self, origin: Point = None, size: Size = None):
+        self.origin = origin if origin else Point()
+        self.size = size if size else Size()
+
+    @staticmethod
+    def from_json(json: dict):
+        if json is None:
+            return Rect()
+
+        return Rect(
+            Point.from_json(json.get("origin", "0,0")),
+            Size.from_json(json.get("size", "0,0")),
+        )
+
+    def to_json(self):
+        return {
+            "origin": self.origin.to_json(),
+            "size": self.size.to_json(),
+        }
 
 
 if __name__ == '__main__':

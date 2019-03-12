@@ -1,6 +1,7 @@
 from . import *
 from omr.datatypes.page import TextRegion, MusicRegion
 from omr.datatypes.page import annotations as annotations
+from omr.datatypes.page.usercomment import UserComments
 from typing import List
 import numpy as np
 from PIL import Image
@@ -20,6 +21,7 @@ class Page:
         self.image_height = image_height
         self.image_width = image_width
         self.annotations = annotations.Annotations(self)
+        self.comments = UserComments(self)
         self.location = location
         if not os.path.exists(location.local_file_path(self.image_filename)):
             raise Exception("Image not found at {}".format(location.local_file_path(self.image_filename)))
@@ -48,6 +50,10 @@ class Page:
         )
         if 'annotations' in json:
             page.annotations = annotations.Annotations.from_json(json['annotations'], page)
+
+        if 'comments' in json:
+            page.comments = UserComments.from_json(json['comments'], page)
+
         page._resolve_cross_refs()
         return page
 
@@ -59,6 +65,7 @@ class Page:
             "imageWidth": self.image_width,
             "imageHeight": self.image_height,
             'annotations': self.annotations.to_json(),
+            'comments': self.comments.to_json(),
         }
 
     def music_region_by_id(self, id: str):
