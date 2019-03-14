@@ -96,13 +96,14 @@ class BooksView(APIView):
 
 
 class BookDownloaderView(APIView):
-    def get(self, request, book, type, format=None):
+    def post(self, request, book, type, format=None):
+        import json, zipfile, io, os
+        pages = json.loads(request.body, encoding='utf-8').get('pages', [])
         book = Book(book)
+        pages = book.pages() if len(pages) == 0 else [book.page(p) for p in pages]
         if type == 'annotations.zip':
-            import zipfile, io, os
             s = io.BytesIO()
             zf = zipfile.ZipFile(s, 'w')
-            pages = book.pages()
             for page in pages:
                 file_names = ['color_deskewed', 'binary_deskewed', 'pcgts', ]
                 files = [page.file(f) for f in file_names]
@@ -117,10 +118,7 @@ class BookDownloaderView(APIView):
             s.seek(0)
             return FileResponse(s, as_attachment=True, filename=book.book + '.zip')
         elif type == 'monodi2.zip':
-            import zipfile, io, os
-            import json
             from omr.datatypes.monodi2_exporter import pcgts_to_monodi, PcGts
-            pages = book.pages()
             pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
             obj = pcgts_to_monodi(pcgts).to_json()
 
