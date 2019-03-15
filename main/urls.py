@@ -2,7 +2,7 @@ from django.urls import path, re_path
 from django.views.static import serve
 from . import views
 from django.http import HttpResponse
-from .book import *
+from database import *
 from main.api import OperationStatusView, OperationView, BookView, BooksView, \
     PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView, BookMetaView
 from rest_framework.decorators import api_view, permission_classes
@@ -18,8 +18,8 @@ def protected_serve(request, path, document_root=None, show_indexes=False):
 @api_view(['GET'])
 @permission_classes((IsAuthenticated, ))
 def get_content(request, book, page, content):
-    page = Page(Book(book), page)
-    file = File(page, content)
+    page = DatabasePage(DatabaseBook(book), page)
+    file = DatabaseFile(page, content)
 
     if not file.exists():
         file.create()

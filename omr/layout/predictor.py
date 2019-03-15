@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Generator, NamedTuple, Dict
-from omr.datatypes import PcGts, TextRegion, TextRegionType, TextLine, MusicRegion, MusicLine, Coords
+from database.file_formats.pcgts import *
 from omr.dataset.pcgtsdataset import PcGtsDataset
 from enum import Enum
 

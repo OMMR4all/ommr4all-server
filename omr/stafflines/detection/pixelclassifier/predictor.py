@@ -1,6 +1,6 @@
 from omr.stafflines.detection.predictor import StaffLinesPredictor
-import main.book as book
-from omr.datatypes import MusicLines, MusicLine, StaffLine, StaffLines, Coords
+from database import DatabasePage, DatabaseBook
+from database.file_formats.pcgts import *
 import numpy as np
 import os
 import logging
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class BasicStaffLinePredictor(StaffLinesPredictor):
-    def __init__(self, page: book.Page):
+    def __init__(self, page: DatabasePage):
         super().__init__()
         # used specific model or use default as fallback if existing
         model_path = page.book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))
@@ -60,9 +60,8 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from PIL import Image
-    from main.book import Book
     # page = Book('demo').page('page00000001')
-    page = Book('Graduel').pages()[0]
+    page = DatabaseBook('Graduel').pages()[0]
     binary = page.file('binary_deskewed').local_path()
     gray = page.file('gray_deskewed').local_path()
 

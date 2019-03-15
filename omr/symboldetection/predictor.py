@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Generator, NamedTuple
-from omr.datatypes import PcGts, Symbol
+from database.file_formats.pcgts import *
 from omr.dataset.pcgtsdataset import MusicLineAndMarkedSymbol, PcGtsDataset
 from enum import Enum
 

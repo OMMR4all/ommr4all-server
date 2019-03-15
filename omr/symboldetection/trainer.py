@@ -1,9 +1,6 @@
-import main.book as book
-from omr.datatypes import PcGts
-from omr.datatypes.performance.pageprogress import PageProgress
+from database import DatabaseBook
 from omr.dataset.datafiles import dataset_by_locked_pages
 import logging
-from random import shuffle
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +27,7 @@ class SymbolDetectionTrainerCallback:
 
 
 class SymbolDetectionTrainer:
-    def __init__(self, target_book: book.Book, n_train=0.8, callback: SymbolDetectionTrainerCallback = None):
+    def __init__(self, target_book: DatabaseBook, n_train=0.8, callback: SymbolDetectionTrainerCallback = None):
         super().__init__()
 
         from omr.symboldetection.pixelclassifier.trainer import PCTrainer
@@ -46,5 +43,5 @@ class SymbolDetectionTrainer:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    b = book.Book('demo')
+    b = DatabaseBook('demo')
     SymbolDetectionTrainer(b)

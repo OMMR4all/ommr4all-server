@@ -1,7 +1,7 @@
-from typing import List
 from . import *
 
-from omr.datatypes.page import page as dt_page
+from database.file_formats.pcgts.page import page as dt_page
+
 
 class NeumeConnector:
     def __init__(self,

@@ -1,15 +1,12 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
-from rest_framework import authentication, permissions
-from main.book import Page, Book, File, file_definitions, InvalidFileNameException
-from omr.datatypes.performance.pageprogress import PageProgress
-from omr.datatypes.performance.statistics import Statistics
-from omr.datatypes.pcgts import PcGts
-import json
+from database import *
+from database.file_formats.performance.pageprogress import PageProgress
+from database.file_formats.performance.statistics import Statistics
+from database.file_formats.pcgts import PcGts
 from json import JSONDecodeError
 import logging
-import re
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,8 +15,8 @@ class PageProgressView(APIView):
     # permission_classes = (permissions.IsAdminUser,)
 
     def get(self, request, book, page, format=None):
-        page = Page(Book(book), page)
-        file = File(page, 'page_progress')
+        page = DatabasePage(DatabaseBook(book), page)
+        file = DatabaseFile(page, 'page_progress')
 
         if not file.exists():
             file.create()
@@ -35,8 +32,8 @@ class PageProgressView(APIView):
 
 class PagePcGtsView(APIView):
     def get(self, request, book, page, format=None):
-        page = Page(Book(book), page)
-        file = File(page, 'pcgts')
+        page = DatabasePage(DatabaseBook(book), page)
+        file = DatabaseFile(page, 'pcgts')
 
         if not file.exists():
             file.create()
@@ -52,8 +49,8 @@ class PagePcGtsView(APIView):
 
 class PageStatisticsView(APIView):
     def get(self, request, book, page, format=None):
-        page = Page(Book(book), page)
-        file = File(page, 'statistics')
+        page = DatabasePage(DatabaseBook(book), page)
+        file = DatabaseFile(page, 'statistics')
 
         if not file.exists():
             file.create()

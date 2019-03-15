@@ -1,17 +1,16 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework import authentication, permissions
-from main.book import Page, Book, File, file_definitions
+from database import DatabasePage, DatabaseBook, DatabaseFile
 from main.operationworker import operation_worker, TaskStatusCodes, TaskNotFoundException
 import logging
 import datetime
 import json
 import zipfile
 import re
-from omr.datatypes import PcGts, Coords
-from omr.datatypes.performance.pageprogress import PageProgress
-from omr.datatypes.performance.statistics import Statistics
+from database.file_formats.pcgts import PcGts, Coords
+from database.file_formats.performance.pageprogress import PageProgress
+from database.file_formats.performance.statistics import Statistics
 from omr.stafflines.json_util import json_to_line
 from main.operationworker import \
     TaskDataStaffLineDetection, TaskDataSymbolDetectionTrainer, TaskDataSymbolDetection, \
@@ -25,7 +24,7 @@ class OperationStatusView(APIView):
     # permission_classes = (permissions.IsAdminUser,)
 
     def get(self, request, book, page, operation, format=None):
-        page = Page(Book(book), page)
+        page = DatabaseBook(book).page(page)
 
         # check if operation is linked to a task
         task_data = OperationView.op_to_task_data(operation, page)
@@ -39,7 +38,7 @@ class OperationStatusView(APIView):
 
 class OperationView(APIView):
     @staticmethod
-    def op_to_task_data(operation, page: Page):
+    def op_to_task_data(operation, page: DatabasePage):
         # check if operation is linked to a task
         if operation == 'staffs':
             return TaskDataStaffLineDetection(page)
@@ -53,7 +52,7 @@ class OperationView(APIView):
             return None
 
     def post(self, request, book, page, operation, format=None):
-        page = Page(Book(book), page)
+        page = DatabasePage(DatabaseBook(book), page)
 
         if operation == 'layout_extract_cc_by_line':
             obj = json.loads(request.body, encoding='utf-8')
@@ -119,7 +118,7 @@ class OperationView(APIView):
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
     def get(self, request, book, page, operation, format=None):
-        page = Page(Book(book), page)
+        page = DatabasePage(DatabaseBook(book), page)
 
         if operation == 'text_polygones':
             # TODO: currently unused
@@ -159,7 +158,7 @@ class OperationView(APIView):
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def put(self, request, book, page, operation, format=None):
-        page = Page(Book(book), page)
+        page = DatabasePage(DatabaseBook(book), page)
         task_data = OperationView.op_to_task_data(operation, page)
         if task_data:
             try:
@@ -174,12 +173,12 @@ class OperationView(APIView):
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def delete(self, request, book, page, operation, format=None):
-        page = Page(Book(book), page)
+        page = DatabasePage(DatabaseBook(book), page)
 
         if operation == 'clean':
-            for key, _ in file_definitions.items():
+            for key, _ in DatabaseFile.file_definitions().items():
                 if key != 'color_original':
-                    File(page, key).delete()
+                    DatabaseFile(page, key).delete()
 
             return Response()
         elif operation == 'delete':

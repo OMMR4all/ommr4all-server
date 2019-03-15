@@ -1,7 +1,7 @@
 from typing import List
-from omr.datatypes import PcGts
-import main.book as book
+from database.file_formats import PcGts
 from omr.dataset.pcgtsdataset import PcGtsDataset
+from database import DatabaseBook
 import os
 from omr.imageoperations.music_line_operations import SymbolLabel
 from pagesegmentation.lib.trainer import Trainer, TrainSettings, TrainProgressCallback
@@ -32,7 +32,7 @@ class PCTrainer:
         self.train_pcgts_dataset = PcGtsDataset(train_pcgts_files, gt_required=True, height=self.height)
         self.validation_pcgts_dataset = PcGtsDataset(validation_pcgts_files, gt_required=True, height=self.height)
 
-    def run(self, model_for_book: book.Book, callback: SymbolDetectionTrainerCallback = None):
+    def run(self, model_for_book: DatabaseBook, callback: SymbolDetectionTrainerCallback = None):
         pc_callback = PCTrainerCallback(callback) if callback else None
 
         settings = TrainSettings(
@@ -55,12 +55,10 @@ class PCTrainer:
 
 
 if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    from omr.dewarping.dummy_dewarper import dewarp
-    b = book.Book('Graduel')
+    b = DatabaseBook('Graduel')
     pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[12:13]]
     val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[:1]]
-    page = book.Book('Graduel').page('Graduel_de_leglise_de_Nevers_033')
+    page = DatabaseBook('Graduel').page('Graduel_de_leglise_de_Nevers_033')
     # pcgts = PcGts.from_file(page.file('pcgts'))
     trainer = PCTrainer(pcgts, val_pcgts)
     trainer.run(b)

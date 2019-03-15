@@ -1,5 +1,5 @@
 from omr.symboldetection.predictor import SymbolDetectionPredictor, create_predictor, PredictorTypes, PredictorParameters
-from omr.datatypes import PcGts, Symbol, Clef, Neume, NoteComponent, Accidental, Coords, Point, SymbolType, GraphicalConnectionType, ClefType
+from database.file_formats.pcgts import *
 from typing import List, Tuple
 import os
 import numpy as np
@@ -225,8 +225,8 @@ class SymbolDetectionEvaluator:
 
 if __name__ == '__main__':
     from prettytable import PrettyTable
-    import main.book as book
-    b = book.Book('Graduel')
+    from database import DatabaseBook
+    b = DatabaseBook('Graduel')
     eval_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[:]]
     pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER,
                             PredictorParameters([b.local_path(os.path.join('pc_symbol_detection', 'model'))]))

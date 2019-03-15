@@ -1,8 +1,8 @@
-from omr.datatypes.pcgts import PcGts, MusicLine, Page, MusicRegion
-from omr.datatypes.page.textregion import TextRegionType
-from omr.datatypes.page.musicregion.musicline import Symbol, NoteComponent, Neume, Clef, Accidental, GraphicalConnectionType
+from database.file_formats.pcgts import PcGts, MusicLine, Page
+from database.file_formats.pcgts.page.textregion import TextRegionType
+from database.file_formats.pcgts.page.musicregion import Symbol, Neume, Clef, Accidental, GraphicalConnectionType
 from typing import List, Generator, Tuple
-import main.book as book
+from database import DatabaseBook
 import numpy as np
 from PIL import Image
 import PIL.ImageOps
@@ -227,7 +227,7 @@ class PcGtsDataset:
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from omr.dewarping.dummy_dewarper import dewarp
-    page = book.Book('demo').pages()[0]
+    page = DatabaseBook('demo').pages()[0]
     pcgts = PcGts.from_file(page.file('pcgts'))
     dataset = PcGtsDataset([pcgts], True)
     images = dataset.marked_symbols()

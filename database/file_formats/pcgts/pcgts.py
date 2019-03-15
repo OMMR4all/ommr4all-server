@@ -1,10 +1,6 @@
-from json import JSONDecodeError
-from typing import Generator, Tuple
-
-from omr.datatypes import Meta, Page, MusicLine, MusicRegion
-
-import numpy as np
-import main.book as book
+from database.file_formats.pcgts.meta import Meta
+from database.file_formats.pcgts.page import Page
+from database import DatabaseFile, DatabasePage
 import os
 
 from PIL import Image
@@ -16,7 +12,7 @@ class PcGts:
         self.page: Page = page
 
     @staticmethod
-    def from_file(file: book.File):
+    def from_file(file: DatabaseFile):
         filename = file.local_path()
         if filename.endswith(".json"):
             import json
@@ -26,8 +22,7 @@ class PcGts:
             raise Exception("Invalid file extension of file '{}'".format(filename))
 
         if len(pcgts.page.image_filename) == 0:
-            from main.book import file_definitions
-            pcgts.page.image_filename = file_definitions['color_deskewed'].output[0]
+            pcgts.page.image_filename = DatabaseFile.file_definitions()['color_deskewed'].output[0]
 
         img_path = os.path.join(os.path.split(filename)[0], pcgts.page.image_filename)
         if not os.path.exists(img_path):
@@ -46,7 +41,7 @@ class PcGts:
             raise Exception("Invalid file extension of file '{}'".format(filename))
 
     @staticmethod
-    def from_json(json: dict, location: book.Page):
+    def from_json(json: dict, location: DatabasePage):
         image_shape = Image.open(location.file('color_deskewed', True).local_path()).size
         pcgts = PcGts(
             Meta.from_json(json.get('meta', {})),
@@ -63,7 +58,7 @@ class PcGts:
 
 
 if __name__ == '__main__':
-    from omr.datatypes import *
+    from database.file_formats.pcgts import TextRegion, TextRegionType, Page, Meta
     pcgts = PcGts(Meta(), Page(
         [
             TextRegion(

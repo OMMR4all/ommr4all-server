@@ -1,10 +1,9 @@
 from omr.symboldetection.thirdparty.calamari.calamari_ocr.ocr.trainer import Trainer
 from omr.symboldetection.thirdparty.calamari.calamari_ocr.proto import CheckpointParams, DataPreprocessorParams, TextProcessorParams, network_params_from_definition_string
-from omr.symboldetection.thirdparty.calamari.calamari_ocr.ocr.datasets import create_dataset, DataSetMode, DataSetType
 from typing import List
-from omr.datatypes import PcGts
+from database.file_formats import PcGts
 from omr.dataset.pcgtsdataset import PcGtsDataset
-import main.book as book
+from database import DatabaseBook
 
 
 class OMRTrainer:
@@ -13,7 +12,7 @@ class OMRTrainer:
         self.train_pcgts_dataset = PcGtsDataset(train_pcgts_files, gt_required=True, height=self.height)
         self.validation_pcgts_dataset = PcGtsDataset(validation_pcgts_files, gt_required=True, height=self.height)
 
-    def run(self, model_for_book: book.Book):
+    def run(self, model_for_book: DatabaseBook):
         train_dataset = self.train_pcgts_dataset.to_calamari_dataset()
         val_dataset = self.validation_pcgts_dataset.to_calamari_dataset()
 
@@ -55,10 +54,10 @@ class OMRTrainer:
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from omr.dewarping.dummy_dewarper import dewarp
-    b = book.Book('Graduel')
+    b = DatabaseBook('Graduel')
     pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[:3]]
     val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[3:4]]
-    page = book.Book('Graduel').page('Graduel_de_leglise_de_Nevers_023')
+    page = DatabaseBook('Graduel').page('Graduel_de_leglise_de_Nevers_023')
     # pcgts = PcGts.from_file(page.file('pcgts'))
     trainer = OMRTrainer(pcgts, val_pcgts)
     trainer.run(b)

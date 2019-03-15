@@ -1,201 +1,17 @@
-from django.conf import settings
-import os
+from typing import NamedTuple, List
 from PIL import Image
 from multiprocessing import Lock
 from locked_dict.locked_dict import LockedDict
 import numpy as np
+import os
+from database.database_page import DatabasePage, DatabasePageMeta
 import logging
-from typing import NamedTuple, List, Tuple
-from ommr4all.settings import PRIVATE_MEDIA_ROOT, PRIVATE_MEDIA_URL, BASE_DIR
-import shutil
 
 
 logger = logging.getLogger(__name__)
-import re
 
 
-file_name_validator = re.compile('\w+')
-
-
-class InvalidFileNameException(Exception):
-    def __init__(self, filename):
-        super().__init__("Invalid filename {}".format(filename))
-
-
-class Book:
-    @staticmethod
-    def list_available():
-        return [Book(name) for name in os.listdir(PRIVATE_MEDIA_ROOT) if Book(name, skip_validation=True).is_valid()]
-
-    @staticmethod
-    def list_available_book_metas():
-        return [b.get_meta() for b in Book.list_available()]
-
-    @staticmethod
-    def list_all_pages_with_lock(lock_name, lock_state=True):
-        out = []
-        for b in Book.list_available():
-            out += b.pages_with_lock(lock_name, lock_state)
-
-        return out
-
-    def __init__(self, book: str, skip_validation=False):
-        self.book = book.strip('/')
-        if not skip_validation and not file_name_validator.fullmatch(self.book):
-            raise InvalidFileNameException(self.book)
-
-    def __eq__(self, other):
-        return isinstance(other, Book) and other.book == self.book
-
-    def pages(self):
-        assert(self.is_valid())
-
-        pages = [Page(self, p) for p in sorted(os.listdir(self.local_path('pages')))]
-        return [p for p in pages if p.is_valid()]
-
-    def pages_with_lock(self, lock_name, lock_state=True):
-        from omr.datatypes.pcgts import PcGts
-        from omr.datatypes.performance.pageprogress import PageProgress
-        out = []
-        for p in self.pages():
-            pp = PageProgress.from_json_file(p.file('page_progress', create_if_not_existing=True).local_path())
-            if pp.locked.get(lock_name, False) == lock_state:
-                out.append(p)
-
-        return out
-
-    def page(self, page):
-        return Page(self, page)
-
-    def local_default_models_path(self, sub=''):
-        return os.path.join(BASE_DIR, 'internal_storage', 'default_models', 'french14', sub)
-
-    def local_path(self, sub=''):
-        return os.path.join(PRIVATE_MEDIA_ROOT, self.book, sub)
-
-    def remote_path(self):
-        return os.path.join(PRIVATE_MEDIA_URL, self.book)
-
-    def is_valid_name(self):
-        return file_name_validator.fullmatch(self.book)
-
-    def is_valid(self):
-        if not self.is_valid_name():
-            return False
-
-        if not os.path.exists(self.local_path()):
-            return True
-
-        if not os.path.isdir(self.local_path()):
-            return False
-
-        return True
-
-    def exists(self):
-        return os.path.exists(self.local_path()) and os.path.isdir(self.local_path())
-
-    def create(self, book_meta):
-        if self.exists():
-            return True
-
-        if not self.is_valid():
-            return False
-
-        os.mkdir(self.local_path())
-        os.mkdir(self.local_path('pages'))
-        book_meta.to_file(self)
-        return True
-
-    def delete(self):
-        if os.path.exists(self.local_path()):
-            shutil.rmtree(self.local_path())
-
-    def get_meta(self):
-        from .book_meta import BookMeta
-        return BookMeta.load(self)
-
-    def save_json_to_meta(self, obj: dict):
-        meta = self.get_meta()
-        for key, value in obj.items():
-            setattr(meta, key, value)
-
-        meta.to_file(self)
-
-    def page_names(self) -> List[str]:
-        return [p.page for p in self.pages()]
-
-
-class Page:
-    def __init__(self, book: Book, page: str, skip_validation=False):
-        self.book = book
-        self.page = page.strip("/")
-        if not skip_validation and not file_name_validator.fullmatch(self.page):
-            raise InvalidFileNameException(self.page)
-
-    def __eq__(self, other):
-        return isinstance(other, Page) and self.book == other.book and self.page == other.page
-
-    def delete(self):
-        if os.path.exists(self.local_path()):
-            shutil.rmtree(self.local_path())
-
-    def rename(self, new_name):
-        if not file_name_validator.fullmatch(new_name):
-            raise InvalidFileNameException(new_name)
-
-        old_path = self.local_path()
-        self.page = new_name
-        new_path = self.local_path()
-
-        shutil.move(old_path, new_path)
-
-    def file(self, fileId, create_if_not_existing=False):
-        return File(self, fileId, create_if_not_existing)
-
-    def local_file_path(self, f):
-        return os.path.join(self.local_path(), f)
-
-    def local_path(self):
-        return os.path.join(self.book.local_path('pages'), self.page)
-
-    def remote_path(self):
-        return os.path.join(self.book.remote_path(), self.page)
-
-    def is_valid(self):
-        if not os.path.exists(self.local_path()):
-            return True
-
-        if not os.path.isdir(self.local_path()):
-            return False
-
-        return True
-
-
-class PageMeta:
-    def __init__(self, d: dict = None):
-        d = d if d else {}
-        self.width = d.get('width', -1)
-        self.height = d.get('height', -1)
-
-    def json(self):
-        return {
-            'width': self.width,
-            'height': self.height,
-        }
-
-    def dumpfn(self, filename):
-        import json
-        with open(filename, 'w') as f:
-            json.dump(self.json(), f)
-
-    @staticmethod
-    def loadfn(filename):
-        import json
-        with open(filename, 'r') as f:
-            return PageMeta(json.load(f))
-
-
-class FileDefinition(NamedTuple):
+class DatabaseFileDefinition(NamedTuple):
     id: str
     output: List[str] = []
     requires: List[str] = []
@@ -204,138 +20,137 @@ class FileDefinition(NamedTuple):
 
 
 file_definitions = {
-    'statistics': FileDefinition(
+    'statistics': DatabaseFileDefinition(
         'statistics',
         ['statistics.json'],
     ),
-    'statistics_backup': FileDefinition(
+    'statistics_backup': DatabaseFileDefinition(
         'statistics_backup',
         ['statistics_backup.zip'],
     ),
-    'page_progress': FileDefinition(
+    'page_progress': DatabaseFileDefinition(
         'page_progress',
         ['page_progress.json'],
     ),
-    'page_progress_backup': FileDefinition(
+    'page_progress_backup': DatabaseFileDefinition(
         'page_progress_backup',
         ['page_progress_backup.zip'],
     ),
-    'meta': FileDefinition(
+    'meta': DatabaseFileDefinition(
         'meta',
         ['meta.json'],
         requires=['color_original'],
     ),
-    'color_original': FileDefinition(
+    'color_original': DatabaseFileDefinition(
         'color_original',
         ['color_original.jpg'],
         has_preview=True,
     ),
-    'binary_original': FileDefinition(
+    'binary_original': DatabaseFileDefinition(
         'binary_original',
         ['binary_original.png'],
         requires=['gray_original'],
         has_preview=True,
     ),
-    'gray_original': FileDefinition(
+    'gray_original': DatabaseFileDefinition(
         'gray_original',
         ['gray_original.png'],
         requires=['color_original'],
         has_preview=True,
     ),
-    'annotation': FileDefinition(
+    'annotation': DatabaseFileDefinition(
         'annotation',
         ['annotation.json'],
         requires=['color_original'],
     ),
-    'pcgts': FileDefinition(
+    'pcgts': DatabaseFileDefinition(
         'pcgts',
         ['pcgts.json'],
         requires=['color_original'],
     ),
-    'pcgts_backup': FileDefinition(
+    'pcgts_backup': DatabaseFileDefinition(
         'pcgts_backup',
         ['pcgts_backup.zip'],
     ),
-    'color_deskewed': FileDefinition(
+    'color_deskewed': DatabaseFileDefinition(
         'color_deskewed',
         ['color_deskewed.jpg', 'gray_deskewed.jpg', 'binary_deskewed.png'],
         requires=['binary_original', 'gray_original', 'color_original'],
         has_preview=True,
     ),
-    'gray_deskewed': FileDefinition(
+    'gray_deskewed': DatabaseFileDefinition(
         'gray_deskewed',
         ['gray_deskewed.jpg'],
         requires=['color_deskewed'],
         has_preview=True,
     ),
-    'binary_deskewed': FileDefinition(
+    'binary_deskewed': DatabaseFileDefinition(
         'binary_deskewed',
         ['binary_deskewed.png'],
         requires=['color_deskewed'],
         has_preview=True,
     ),
-    'connected_components_deskewed': FileDefinition(
+    'connected_components_deskewed': DatabaseFileDefinition(
         'connected_components_deskewed',
         ['connected_components_deskewed.pkl'],
         requires=['binary_deskewed'],
     ),
-    'color_cropped': FileDefinition(
+    'color_cropped': DatabaseFileDefinition(
         'color_cropped',
         ['color_cropped.jpg', 'gray_cropped.jpg', 'binary_cropped.png'],
         requires=['color_deskewed', 'gray_deskewed', 'binary_deskewed', 'annotation'],
         has_preview=True,
-
     ),
-    'gray_cropped': FileDefinition(
+    'gray_cropped': DatabaseFileDefinition(
         'gray_cropped',
         ['color_cropped.jpg', 'gray_cropped.jpg', 'binary_cropped.png'],
         default=1,
         requires=['color_cropped'],
         has_preview=True,
     ),
-    'binary_cropped': FileDefinition(
+    'binary_cropped': DatabaseFileDefinition(
         'binary_cropped',
         ['color_cropped.jpg', 'gray_cropped.jpg', 'binary_cropped.png'],
         default=2,
         requires=['color_cropped'],
         has_preview=True,
     ),
-    'detected_staffs': FileDefinition(
+    'detected_staffs': DatabaseFileDefinition(
         'detected_staffs',
         ['detected_staffs.json'],
         requires=['binary_deskewed', 'gray_deskewed'],
     ),
-    'color_detected_staffs': FileDefinition(
+    'color_detected_staffs': DatabaseFileDefinition(
         'color_detected_staffs',
         ['color_detected_staffs.jpg'],
         requires=['detected_staffs', 'color_cropped'],
         has_preview=True,
     ),
-    'gray_detected_staffs': FileDefinition(
+    'gray_detected_staffs': DatabaseFileDefinition(
         'gray_detected_staffs',
         ['gray_detected_staffs.jpg'],
         requires=['detected_staffs', 'gray_cropped'],
         has_preview=True,
     ),
-    'binary_detected_staffs': FileDefinition(
+    'binary_detected_staffs': DatabaseFileDefinition(
         'binary_detected_staffs',
         ['binary_detected_staffs.jpg'],
         requires=['detected_staffs', 'binary_cropped'],
         has_preview=True,
     ),
-    'dewarped_original': FileDefinition(
+    'dewarped_original': DatabaseFileDefinition(
         'dewarped_original',
         ['dewarped_original.jpg', 'dewarped_gray.jpg', 'dewarped_binary.png'],
         requires=['cropped_binary', 'cropped_gray', 'cropped_original', 'annotation'],
         has_preview=True,
     ),
-    'dewarped_gray': FileDefinition(
+    'dewarped_gray': DatabaseFileDefinition(
         'dewarped_gray',
         ['dewarped_gray.jpg'],
         requires=['dewarped_original'],
         has_preview=True,
     ),
-    'dewarped_binary': FileDefinition(
+    'dewarped_binary': DatabaseFileDefinition(
         'deskewed_binary',
         ['dewarped_binary.png'],
         requires=['dewarped_original'],
@@ -349,16 +164,20 @@ mutex_dict = LockedDict()
 thumbnail_size = (200, 350)
 
 
-class File:
-    def __init__(self, page: Page, fileId: str, create_if_not_existing=False):
+class DatabaseFile:
+    @staticmethod
+    def file_definitions():
+        return file_definitions
+
+    def __init__(self, page: DatabasePage, fileId: str, create_if_not_existing=False):
         self.page = page
         self._fileId = fileId.strip('/')
         if self._fileId.endswith('_preview'):
             self.preview = True
-            self.definition: FileDefinition = file_definitions[self._fileId[:-len('_preview')]]
+            self.definition: DatabaseFileDefinition = file_definitions[self._fileId[:-len('_preview')]]
         else:
             self.preview = False
-            self.definition: FileDefinition = file_definitions[fileId.strip('/')]
+            self.definition: DatabaseFileDefinition = file_definitions[fileId.strip('/')]
 
         if create_if_not_existing and not self.exists():
             self.create()
@@ -396,7 +215,7 @@ class File:
                 os.remove(self.local_thumbnail_path(file_id=i))
 
     def create(self):
-        from omr.datatypes import MusicLines
+        from database.file_formats.pcgts import MusicLines
 
         with mutex_dict.get(self.local_path(), Lock()):
             if self.exists():
@@ -405,7 +224,7 @@ class File:
 
             # check if requirement files exist
             for file in self.definition.requires:
-                File(self.page, file).create()
+                DatabaseFile(self.page, file).create()
 
             # check again if exists since the requirements might have created that file!
             if self.exists():
@@ -428,8 +247,8 @@ class File:
                 with open(self.local_path(), 'w') as f:
                     json.dump({}, f)
             elif self.definition.id == 'pcgts':
-                from omr.datatypes.pcgts import PcGts, Page, Meta
-                img = Image.open(File(self.page, 'color_original').local_path())
+                from database.file_formats.pcgts import PcGts, Page, Meta
+                img = Image.open(DatabaseFile(self.page, 'color_original').local_path())
                 pcgts = PcGts(
                     meta=Meta(),
                     page=Page(location=self.page),
@@ -441,9 +260,9 @@ class File:
                 zf = zipfile.ZipFile(self.local_path(), mode='w', compression=zipfile.ZIP_DEFLATED)
                 zf.close()
             elif self.definition.id == 'meta':
-                img = Image.open(File(self.page, 'color_original').local_path())
+                img = Image.open(DatabaseFile(self.page, 'color_original').local_path())
                 width, height = img.size
-                meta = PageMeta({
+                meta = DatabasePageMeta({
                     'width': width,
                     'height': height,
                 })
@@ -456,14 +275,14 @@ class File:
             elif self.definition.id == 'binary_original':
                 from omr.preprocessing.binarizer.ocropus_binarizer import OCRopusBin
                 b = OCRopusBin()
-                gray_image = File(self.page, 'gray_original').local_path()
+                gray_image = DatabaseFile(self.page, 'gray_original').local_path()
                 binary = b.binarize(Image.open(gray_image))
                 binary.save(self.local_path())
                 binary.thumbnail(thumbnail_size)
                 binary.save(self.local_thumbnail_path())
             elif self.definition.id == 'gray_original':
                 from omr.preprocessing.gray.img2gray import im2gray
-                gray = im2gray(Image.open(File(self.page, 'color_original').local_path()))
+                gray = im2gray(Image.open(DatabaseFile(self.page, 'color_original').local_path()))
                 gray.save(self.local_path())
                 gray.thumbnail(thumbnail_size)
                 gray.save(self.local_thumbnail_path())
@@ -471,9 +290,9 @@ class File:
                 from omr.preprocessing.deskewer import default_deskewer
                 deskewer = default_deskewer()
                 orig, gray, binary = deskewer.deskew(
-                    Image.open(File(self.page, 'color_original').local_path()),
-                    Image.open(File(self.page, 'gray_original').local_path()),
-                    Image.open(File(self.page, 'binary_original').local_path()),
+                    Image.open(DatabaseFile(self.page, 'color_original').local_path()),
+                    Image.open(DatabaseFile(self.page, 'gray_original').local_path()),
+                    Image.open(DatabaseFile(self.page, 'binary_original').local_path()),
                 )
                 orig.save(self.local_path(0))
                 gray.save(self.local_path(1))
@@ -487,14 +306,14 @@ class File:
             elif self.definition.id == 'connected_components_deskewed':
                 import pickle
                 from omr.preprocessing.util.connected_compontents import connected_compontents_with_stats
-                binary = np.array(Image.open(File(self.page, 'binary_deskewed').local_path()))
+                binary = np.array(Image.open(DatabaseFile(self.page, 'binary_deskewed').local_path()))
                 with open(self.local_path(), 'wb') as f:
                     pickle.dump(connected_compontents_with_stats(binary), f)
             elif self.definition.id == 'detected_staffs':
                 from omr.stafflines.detection.dummy_detector import detect
                 import json
-                binary = Image.open(File(self.page, 'binary_deskewed').local_path())
-                gray = Image.open(File(self.page, 'gray_deskewed').local_path())
+                binary = Image.open(DatabaseFile(self.page, 'binary_deskewed').local_path())
+                gray = Image.open(DatabaseFile(self.page, 'gray_deskewed').local_path())
                 lines = detect(np.array(binary) // 255, np.array(gray) / 255)
                 s = lines.to_json()
                 with open(self.local_path(), 'w') as f:
@@ -503,9 +322,9 @@ class File:
                 from omr.preprocessing.cropper import default_cropper
                 import json
                 images = (
-                    Image.open(File(self.page, 'color_deskewed').local_path()),
-                    Image.open(File(self.page, 'gray_deskewed').local_path()),
-                    Image.open(File(self.page, 'binary_deskewed').local_path()),
+                    Image.open(DatabaseFile(self.page, 'color_deskewed').local_path()),
+                    Image.open(DatabaseFile(self.page, 'gray_deskewed').local_path()),
+                    Image.open(DatabaseFile(self.page, 'binary_deskewed').local_path()),
                 )
                 cropper = default_cropper()
                 (orig, gray, binary) = cropper.crop(images[0], images[1], images[2])
@@ -526,8 +345,8 @@ class File:
                 #    json.dump(s.to_json(), f, indent=2)
             elif self.definition.id == 'color_detected_staffs':
                 import json
-                img = Image.open(File(self.page, 'color_deskewed').local_path())
-                with open(File(self.page, 'detected_staffs').local_path(), 'r') as f:
+                img = Image.open(DatabaseFile(self.page, 'color_deskewed').local_path())
+                with open(DatabaseFile(self.page, 'detected_staffs').local_path(), 'r') as f:
                     staffs = MusicLines.from_json(json.load(f))
                     img = np.array(img)
                     staffs.draw(img)
@@ -537,8 +356,8 @@ class File:
                     img.save(self.local_thumbnail_path())
             elif self.definition.id == 'gray_detected_staffs':
                 import json
-                img = Image.open(File(self.page, 'gray_deskewed').local_path())
-                with open(File(self.page, 'detected_staffs').local_path(), 'r') as f:
+                img = Image.open(DatabaseFile(self.page, 'gray_deskewed').local_path())
+                with open(DatabaseFile(self.page, 'detected_staffs').local_path(), 'r') as f:
                     staffs = MusicLines.from_json(json.load(f))
                     img = np.array(img)
                     staffs.draw(img, color=(0, ))
@@ -548,8 +367,8 @@ class File:
                     img.save(self.local_thumbnail_path())
             elif self.definition.id == 'binary_detected_staffs':
                 import json
-                img = Image.open(File(self.page, 'binary_deskewed').local_path())
-                with open(File(self.page, 'detected_staffs').local_path(), 'r') as f:
+                img = Image.open(DatabaseFile(self.page, 'binary_deskewed').local_path())
+                with open(DatabaseFile(self.page, 'detected_staffs').local_path(), 'r') as f:
                     staffs = MusicLines.from_json(json.load(f))
                     img = np.array(img)
                     staffs.draw(img, color=(0, ))
@@ -562,10 +381,10 @@ class File:
                 from omr.dewarping.dummy_dewarper import dewarp
                 import json
                 orig, gray, binary = dewarp(
-                    (Image.open(File(self.page, 'cropped_original').local_path()),
-                     Image.open(File(self.page, 'cropped_gray').local_path()),
-                     Image.open(File(self.page, 'cropped_binary').local_path())),
-                    MusicLines.from_json(json.load(open(File(self.page, 'annotation').local_path(), 'r')))
+                    (Image.open(DatabaseFile(self.page, 'cropped_original').local_path()),
+                     Image.open(DatabaseFile(self.page, 'cropped_gray').local_path()),
+                     Image.open(DatabaseFile(self.page, 'cropped_binary').local_path())),
+                    MusicLines.from_json(json.load(open(DatabaseFile(self.page, 'annotation').local_path(), 'r')))
                 )
                 orig.save(self.local_path(0))
                 gray.save(self.local_path(1))

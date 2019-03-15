@@ -2,9 +2,9 @@ from thirdparty.calamari.calamari_ocr.ocr.predictor import Predictor, MultiPredi
 from thirdparty.calamari.calamari_ocr.ocr.voting import voter_from_proto
 from thirdparty.calamari.calamari_ocr.proto import VoterParams, Predictions
 from typing import List
-from omr.datatypes import PcGts
+from database.file_formats import PcGts
 from omr.dataset.pcgtsdataset import PcGtsDataset
-import main.book as book
+from database import DatabaseBook
 
 
 class OMRPredictor:
@@ -27,10 +27,10 @@ class OMRPredictor:
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from omr.dewarping.dummy_dewarper import dewarp
-    b = book.Book('Graduel')
+    b = DatabaseBook('Graduel')
     pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[:3]]
     val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[3:4]]
-    page = book.Book('Graduel').page('Graduel_de_leglise_de_Nevers_023')
+    page = DatabaseBook('Graduel').page('Graduel_de_leglise_de_Nevers_023')
     # pcgts = PcGts.from_file(page.file('pcgts'))
     pred = OMRPredictor([b.local_path('omr_models/omr_best_.ckpt')])
     ps = list(pred.predict(val_pcgts))

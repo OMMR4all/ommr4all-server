@@ -1,4 +1,4 @@
-from omr.datatypes.page.musicregion import Coords, Point
+from database.file_formats.pcgts.page.musicregion import Coords, Point
 from typing import List, Tuple
 from enum import IntEnum
 import numpy as np

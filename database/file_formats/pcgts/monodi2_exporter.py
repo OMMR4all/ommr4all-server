@@ -1,5 +1,5 @@
-from omr.datatypes import PcGts, TextRegionType, ClefType, Clef, Accidental, AccidentalType, NoteComponent, Neume, MusicSymbolPositionInStaff, GraphicalConnectionType
-from typing import List, NamedTuple, Dict
+from database.file_formats.pcgts import PcGts, Clef, Accidental, Neume, GraphicalConnectionType
+from typing import List, NamedTuple
 import json
 
 
@@ -144,7 +144,7 @@ def pcgts_to_monodi(pcgts: List[PcGts]) -> RootContainer:
 
 
 if __name__=="__main__":
-    import main.book as book
-    b = book.Book('test')
+    from database import DatabaseBook
+    b = DatabaseBook('test')
     pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[:1]]
     print(json.dumps(pcgts_to_monodi(pcgts).to_json(), indent=2))

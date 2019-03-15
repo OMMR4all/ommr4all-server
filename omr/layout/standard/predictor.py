@@ -1,6 +1,6 @@
 from omr.layout.predictor import LayoutAnalysisPredictor, PredictorParameters, PredictionType, PredictionResult
 from typing import List
-from omr.datatypes import PcGts, TextRegionType, Coords
+from database.file_formats.pcgts import PcGts, TextRegionType, Coords
 import numpy as np
 
 
@@ -38,13 +38,11 @@ class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
 
 
 if __name__ == "__main__":
-    import numpy as np
-    import main.book as book
+    from database import DatabaseBook
     from PIL import Image
     import matplotlib.pyplot as plt
-    import cv2
 
-    b = book.Book('Graduel')
+    b = DatabaseBook('Graduel')
     p = b.page('Graduel_de_leglise_de_Nevers_022')
     img = np.array(Image.open(p.file('color_deskewed').local_path()))
     mask = np.zeros(img.shape, np.float) + 255

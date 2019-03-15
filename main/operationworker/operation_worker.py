@@ -2,13 +2,13 @@ from django.conf import settings
 import threading
 from multiprocessing import Process, Lock, Queue
 import time
-from typing import NamedTuple, Any, List, Optional, Tuple
+from typing import NamedTuple, Any, List, Optional
 from enum import Enum
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from queue import Empty as QueueEmptyException
 import os
 
-from main.book import Page, Book
+from database import DatabasePage, DatabaseBook
 
 import logging
 logger = logging.getLogger(__name__)
@@ -138,17 +138,19 @@ class TaskQueue:
 
 
 class TaskDataStaffLineDetection(NamedTuple):
-    page: Page
+    page: DatabasePage
 
 
 class TaskDataSymbolDetection(NamedTuple):
-    page: Page
+    page: DatabasePage
+
 
 class TaskDataLayoutAnalysis(NamedTuple):
-    page: Page
+    page: DatabasePage
+
 
 class TaskDataSymbolDetectionTrainer(NamedTuple):
-    book: Book
+    book: DatabaseBook
 
 
 class OperationWorkerThread:
@@ -251,7 +253,7 @@ class OperationWorkerThread:
             elif isinstance(task_data, TaskDataLayoutAnalysis):
                 data: TaskDataLayoutAnalysis = task_data
                 from omr.layout.predictor import PredictorParameters, create_predictor, PredictorTypes
-                from omr.datatypes import PcGts
+                from database.file_formats import PcGts
 
                 params = PredictorParameters(checkpoints=[])
                 pred = create_predictor(PredictorTypes.STANDARD, params)
@@ -263,7 +265,7 @@ class OperationWorkerThread:
                 data: TaskDataSymbolDetection = task_data
                 from omr.symboldetection.predictor import PredictorParameters, PredictorTypes, create_predictor
                 import omr.symboldetection.pixelclassifier.settings as pc_settings
-                from omr.datatypes import PcGts
+                from database.file_formats import PcGts
 
                 # load book specific model or default model as fallback
                 model = data.page.book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))

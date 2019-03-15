@@ -1,6 +1,6 @@
-from omr.datatypes.pcgts import PcGts
+from database.file_formats.pcgts import PcGts
 import random
-import main.book as book
+from database import DatabaseBook
 import logging
 from typing import Tuple, List
 
@@ -13,7 +13,7 @@ class EmptyDataSetException(BaseException):
 
 def dataset_by_locked_pages(n_train, lock_type, shuffle=True) -> Tuple[List[PcGts], List[PcGts]]:
     logger.info("Finding PcGts files with valid ground truth")
-    pcgts = [PcGts.from_file(p.file('pcgts')) for p  in book.Book.list_all_pages_with_lock(lock_type)]
+    pcgts = [PcGts.from_file(p.file('pcgts')) for p in DatabaseBook.list_all_pages_with_lock(lock_type)]
 
     if len(pcgts) == 0:
         raise EmptyDataSetException()

@@ -1,9 +1,6 @@
-from . import ImageOperation, ImageOperationData, OperationOutput, ImageData
+from . import ImageOperation, ImageOperationData, OperationOutput
 from copy import copy
-from PIL import Image
-from omr.datatypes.page.textregion import TextRegionType
-import numpy as np
-import PIL.ImageOps
+from database.file_formats.pcgts.page.textregion import TextRegionType
 from typing import List
 
 

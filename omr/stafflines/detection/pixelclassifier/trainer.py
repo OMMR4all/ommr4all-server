@@ -1,12 +1,12 @@
 from omr.stafflines.detection.trainer import StaffLinesTrainer
 from omr.dataset.datafiles import dataset_by_locked_pages, EmptyDataSetException
-import main.book as book
-from omr.datatypes import MusicLines, MusicLine, StaffLine, StaffLines, Coords, PcGts
+from database import DatabaseBook
+from database.file_formats import PcGts
 import numpy as np
 import os
 import logging
 from typing import List
-from pagesegmentation.lib.dataset import DatasetLoader, SingleData, Dataset
+from pagesegmentation.lib.dataset import SingleData, Dataset
 from pagesegmentation.lib.data_augmenter import DefaultAugmenter
 from PIL import Image
 import omr.stafflines.detection.pixelclassifier.settings as pc_settings
@@ -66,7 +66,7 @@ def pcgts_files_to_dataset(files: List[PcGts]) -> Dataset:
 
 
 class BasicStaffLinesTrainer(StaffLinesTrainer):
-    def __init__(self, b: book.Book):
+    def __init__(self, b: DatabaseBook):
         super().__init__(b)
 
     def train(self):
@@ -96,5 +96,5 @@ class BasicStaffLinesTrainer(StaffLinesTrainer):
 
 
 if __name__=="__main__":
-    trainer = BasicStaffLinesTrainer(book.Book('Graduel'))
+    trainer = BasicStaffLinesTrainer(DatabaseBook('Graduel'))
     trainer.train()

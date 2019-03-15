@@ -1,12 +1,10 @@
-from . import *
-from omr.datatypes.page import TextRegion, MusicRegion
-from omr.datatypes.page import annotations as annotations
-from omr.datatypes.page.usercomment import UserComments
+from database.file_formats.pcgts.page import TextRegion, MusicRegion
+from database.file_formats.pcgts.page import annotations as annotations
+from database.file_formats.pcgts.page.usercomment import UserComments
 from typing import List
 import numpy as np
-from PIL import Image
 import os
-import main.book as book
+from database import DatabasePage
 
 
 class Page:
@@ -14,7 +12,7 @@ class Page:
                  text_regions: List[TextRegion]=None,
                  music_regions: List[MusicRegion]=None,
                  image_filename="", image_height=0, image_width=0,
-                 location: book.Page = None):
+                 location: DatabasePage = None):
         self.text_regions = text_regions if text_regions else []
         self.music_regions = music_regions if music_regions else []
         self.image_filename = image_filename
@@ -39,7 +37,7 @@ class Page:
             t._resolve_cross_refs(self)
 
     @staticmethod
-    def from_json(json: dict, location: book.Page):
+    def from_json(json: dict, location: DatabasePage):
         page = Page(
             [TextRegion.from_json(t) for t in json.get('textRegions', [])],
             [MusicRegion.from_json(m) for m in json.get('musicRegions', [])],

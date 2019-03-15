@@ -1,8 +1,5 @@
-from enum import Enum
-import re
-from typing import List
 from uuid import uuid4
-from omr.datatypes.page.definitions import EquivIndex
+from database.file_formats.pcgts.page import EquivIndex
 
 
 class TextEquiv:

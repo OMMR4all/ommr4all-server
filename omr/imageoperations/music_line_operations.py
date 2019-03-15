@@ -1,9 +1,8 @@
 from omr.imageoperations.image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point, ImageOperationList
 from omr.imageoperations.image_crop import ImageCropToSmallestBoxOperation
 from typing import Tuple, List, NamedTuple, Any, Optional
-from omr.datatypes import Page, MusicLine, Neume, NoteComponent, Clef, ClefType, Accidental, AccidentalType, GraphicalConnectionType
+from database.file_formats.pcgts import Page, MusicLine, Neume, NoteComponent, ClefType, Clef, AccidentalType, Accidental, GraphicalConnectionType
 import numpy as np
-import PIL.ImageOps
 from PIL import Image
 from copy import copy
 from enum import IntEnum

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from omr.datatypes import MusicLines
+from database.file_formats.pcgts import MusicLines
 from enum import Enum
-import main.book as book
+from database import DatabasePage
 
 
 class StaffLinesModelType(Enum):
@@ -17,8 +17,7 @@ class StaffLinesPredictor(ABC):
         return MusicLines()
 
 
-
-def create_staff_line_predictor(detector_type: StaffLinesModelType, page: book.Page) -> StaffLinesPredictor:
+def create_staff_line_predictor(detector_type: StaffLinesModelType, page: DatabasePage) -> StaffLinesPredictor:
     if detector_type == StaffLinesModelType.PIXEL_CLASSIFIER:
         from .pixelclassifier.predictor import BasicStaffLinePredictor
         return BasicStaffLinePredictor(page)

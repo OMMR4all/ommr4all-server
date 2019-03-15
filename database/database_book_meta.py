@@ -1,20 +1,18 @@
 from dataclasses import dataclass, asdict
-from main.book import Book
+from database.database_book import DatabaseBook
 import json
-from typing import List
 from datetime import datetime
-import os
 
 
 @dataclass
-class BookMeta:
+class DatabaseBookMeta:
     id: str
     name: str
     created: str = str(datetime.now())
     last_opened: str = ''
 
     @staticmethod
-    def load(book: Book):
+    def load(book: DatabaseBook):
         path = book.local_path('book_meta.json')
         try:
             d = json.load(open(path))
@@ -23,11 +21,11 @@ class BookMeta:
 
         d['id'] = book.book
 
-        return BookMeta(**d)
+        return DatabaseBookMeta(**d)
 
     @staticmethod
-    def from_json(book: Book, json: dict):
-        meta = BookMeta.load(book)
+    def from_json(book: DatabaseBook, json: dict):
+        meta = DatabaseBookMeta.load(book)
         for key, value in json.items():
             setattr(meta, key, value)
 
@@ -36,12 +34,12 @@ class BookMeta:
     def to_json(self):
         return asdict(self)
 
-    def to_file(self, book: Book):
+    def to_file(self, book: DatabaseBook):
         s = json.dumps(self.to_json(), indent=2)
         with open(book.local_path('book_meta.json'), 'w') as f:
             f.write(s)
 
 
 if __name__ == '__main__':
-    b = BookMeta.load(Book('Graduel'))
+    b = DatabaseBookMeta.load(DatabaseBook('Graduel'))
     print(b.to_json())

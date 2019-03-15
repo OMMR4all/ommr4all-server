@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, NamedTuple, Tuple, Any, Optional, Generator
 import numpy as np
-from omr.datatypes import Point, MusicLine, Page, MusicRegion
+from database.file_formats.pcgts import Point, MusicLines, Page, MusicRegion, MusicLine
 from dataclasses import dataclass
 from copy import copy
 

@@ -1,8 +1,6 @@
-from omr.datatypes.page.musicregion.musicline import MusicLine, MusicLines, StaffLine
-from omr.datatypes import PcGts
+from database.file_formats.pcgts.page.musicregion import MusicLine, StaffLine
+from database.file_formats import PcGts
 import numpy as np
-import json
-import cv2
 import matplotlib.pyplot as plt
 import logging
 from PIL import Image
@@ -148,8 +146,8 @@ def dewarp(images, staffs: List[MusicLine], resamples: List[int] = None):
 
 
 if __name__ == '__main__':
-    from main.book import Book
-    page = Book('Graduel').page('Graduel_de_leglise_de_Nevers_023')
+    from database import DatabaseBook
+    page = DatabaseBook('Graduel').page('Graduel_de_leglise_de_Nevers_023')
     binary = Image.open(page.file('binary_deskewed').local_path())
     gray = Image.open(page.file('gray_deskewed').local_path())
     pcgts = PcGts.from_file(page.file('pcgts').local_path())

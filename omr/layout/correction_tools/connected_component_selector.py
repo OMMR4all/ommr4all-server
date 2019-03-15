@@ -1,11 +1,10 @@
-from omr.datatypes import StaffLines, StaffLine, MusicLine, Coords
-from omr.preprocessing.util.connected_compontents import ConnectedComponents, connected_compontents_with_stats
+from database.file_formats.pcgts import *
+from omr.preprocessing.util.connected_compontents import ConnectedComponents
 import numpy as np
-import json
 from typing import List
 import cv2
 import matplotlib.pyplot as plt
-from scipy import signal, spatial
+from scipy import spatial
 from skimage.measure import approximate_polygon
 from scipy.ndimage.filters import gaussian_filter
 
@@ -256,12 +255,9 @@ def extract_components(cc: ConnectedComponents, central_text_line: Coords, staff
 
 
 if __name__ == '__main__':
-    from ommr4all.settings import PRIVATE_MEDIA_ROOT
-    from main.book import Book, Page
-    from omr.datatypes import PcGts
-    import os
+    from database import DatabaseBook
     import pickle
-    book = Book('test')
+    book = DatabaseBook('test')
     page = book.page('Graduel_de_leglise_de_Nevers_536')
     with open(page.file('connected_components_deskewed', create_if_not_existing=True).local_path(), 'rb') as f:
         cc = pickle.load(f)

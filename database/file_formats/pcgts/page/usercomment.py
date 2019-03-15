@@ -1,4 +1,4 @@
-from omr.datatypes.page.coords import Rect
+from database.file_formats.pcgts.page.coords import Rect
 from typing import List
 
 

@@ -1,8 +1,7 @@
-from typing import List, NamedTuple, Generator
+from typing import List
 from pagesegmentation.lib.predictor import Predictor, PredictSettings
 import os
-from omr.datatypes import PcGts, Symbol, SymbolType, NoteComponent, Neume, Point, GraphicalConnectionType, \
-    Clef, ClefType, AccidentalType, Accidental
+from database.file_formats.pcgts import *
 from omr.dataset.pcgtsdataset import PcGtsDataset, MusicLineAndMarkedSymbol
 import cv2
 import numpy as np
@@ -111,9 +110,9 @@ class PCPredictor(SymbolDetectionPredictor):
 
 
 if __name__ == '__main__':
-    import main.book as book
+    from database import DatabaseBook
     import omr.symboldetection.pixelclassifier.settings as pc_settings
-    b = book.Book('Graduel')
+    b = DatabaseBook('Graduel')
     val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[12:13]]
     pred = PCPredictor(PredictorParameters([b.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))]))
     ps = list(pred.predict(val_pcgts))

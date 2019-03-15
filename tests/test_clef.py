@@ -1,5 +1,5 @@
 import unittest
-from omr.datatypes.page.musicregion.musicline import Clef, ClefType, MusicSymbolPositionInStaff, NoteName
+from database.file_formats.pcgts.page.musicregion import Clef, ClefType, MusicSymbolPositionInStaff, NoteName
 
 class TestClef(unittest.TestCase):
 

@@ -1,23 +1,34 @@
 import numpy as np
 from skimage.measure import approximate_polygon
 import cv2
-from typing import Type
-from omr.datatypes.page.definitions import AABB
+from typing import Type, Union
 
 
 class Point:
-    def __init__(self, x=0, y=0):
-        self.x = x
-        self.y = y
+    def __init__(self, x: Union[int, float, np.ndarray, 'Size', 'Point'] = 0, y=0):
+        if isinstance(x, np.ndarray):
+            self.p = x
+        elif isinstance(x, Size) or isinstance(x, Point):
+            self.p = x.p
+        else:
+            self.p = np.array([x, y])
+
+    @property
+    def x(self):
+        return self.p[0]
+
+    @property
+    def y(self):
+        return self.p[1]
 
     def distance_sqr(self, p: 'Point') -> float:
         return (self.x - p.x) ** 2 + (self.y - p.y) ** 2
 
-    def astype(self, type: Type):
-        return Point(type(self.x), type(self.y))
+    def astype(self, dtype):
+        return Point(self.p.astype(dtype))
 
-    def round(self):
-        return Point(np.round(self.x), np.round(self.y))
+    def round(self, decimals=0, out=None):
+        return Point(np.round(self, decimals, out))
 
     def xy(self):
         return self.x, self.y
@@ -27,6 +38,22 @@ class Point:
 
     def __str__(self):
         return self.to_string()
+
+    def __add__(self, p):
+        if isinstance(p, Point):
+            return Size(self.p + p.p)
+        elif isinstance(p, Size):
+            return Point(self.p + p.p)
+        else:
+            return Point(self.p + p)
+
+    def __sub__(self, p):
+        if isinstance(p, Point):
+            return Size(self.p - p.p)
+        elif isinstance(p, Size):
+            return Point(self.p - p.p)
+        else:
+            return Point(self.p - p)
 
     @staticmethod
     def from_string(s):
@@ -44,15 +71,27 @@ class Point:
 
 
 class Size:
-    def __init__(self, w=0, h=0):
-        self.w = w
-        self.h = h
+    def __init__(self, w: Union[int, float, np.ndarray, 'Size', 'Point'] = 0, h=0):
+        if isinstance(w, np.ndarray):
+            self.p = w
+        elif isinstance(w, Size) or isinstance(w, Point):
+            self.p = w.p
+        else:
+            self.p = np.array([w, h])
 
-    def astype(self, type: Type):
-        return Size(type(self.w), type(self.h))
+    @property
+    def w(self):
+        return self.p[0]
 
-    def round(self):
-        return Size(np.round(self.w), np.round(self.h))
+    @property
+    def h(self):
+        return self.p[1]
+
+    def astype(self, dtype):
+        return Size(self.p.astype(dtype))
+
+    def round(self, decimals=0, out=None):
+        return Size(np.round(self, decimals, out))
 
     def wh(self):
         return self.w, self.h
@@ -117,7 +156,7 @@ class Coords:
 
     def aabb(self):
         if len(self.points) == 0:
-            return AABB(np.zeros((2, )), np.zeros((2, )))
+            return Rect()
 
         tl = self.points[0]
         br = self.points[0]
@@ -125,7 +164,9 @@ class Coords:
             tl = np.min([tl, p], axis=0)
             br = np.max([br, p], axis=0)
 
-        return AABB(tl, br)
+        Point(tl)
+
+        return Rect(Point(tl), Point(br))
 
     def extract_from_image(self, image: np.ndarray):
         aabb = self.aabb()
@@ -134,9 +175,20 @@ class Coords:
 
 
 class Rect:
-    def __init__(self, origin: Point = None, size: Size = None):
+    def __init__(self, origin: Point = None, size: Union[Point, Size] = None):
         self.origin = origin if origin else Point()
-        self.size = size if size else Size()
+        if size and isinstance(size, Point):
+            self.size = Size(size - origin)
+        else:
+            self.size = size if size else Size()
+
+    @property
+    def tl(self):
+        return self.origin
+
+    @property
+    def br(self):
+        return self.origin + self.size
 
     @staticmethod
     def from_json(json: dict):
@@ -161,6 +213,6 @@ if __name__ == '__main__':
     print(Coords.from_json(c.to_json()).to_json() == c.to_json())
     print(c.aabb())
 
-    p = Point(-20, 100)
+    p = Point(-20, 100).astype(float)
     print(p.to_json())
     print(Point.from_json(p.to_json()).to_json() == p.to_json())

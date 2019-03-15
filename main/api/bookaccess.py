@@ -2,8 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.http import FileResponse
-from main.book import Page, Book, File, InvalidFileNameException
-from main.book_meta import BookMeta
+from database import *
 import json
 import logging
 import re
@@ -13,24 +12,24 @@ logger = logging.getLogger(__name__)
 
 class BookMetaView(APIView):
     def get(self, request, book, format=None):
-        book = Book(book)
+        book = DatabaseBook(book)
         return Response(book.get_meta().to_json())
 
     def put(self, request, book, format=None):
-        book = Book(book)
-        meta = BookMeta.from_json(book, json.loads(request.body, encoding='utf-8'))
+        book = DatabaseBook(book)
+        meta = DatabaseBookMeta.from_json(book, json.loads(request.body, encoding='utf-8'))
         book.save_json_to_meta(meta.to_json())
         return Response()
 
 
 class BookView(APIView):
     def get(self, request, book, format=None):
-        book = Book(book)
+        book = DatabaseBook(book)
         pages = book.pages()
         return Response({'pages': sorted([{'label': page.page} for page in pages if page.is_valid()], key=lambda v: v['label'])})
 
     def delete(self, request, book, format=None):
-        book = Book(book)
+        book = DatabaseBook(book)
         book.delete()
         return Response()
 
@@ -38,7 +37,7 @@ class BookView(APIView):
 class BookUploadView(APIView):
     def post(self, request, book, format=None):
         from PIL import Image
-        book = Book(book)
+        book = DatabaseBook(book)
         if not os.path.exists(book.local_path()):
             os.mkdir(book.local_path())
 
@@ -46,7 +45,7 @@ class BookUploadView(APIView):
             logger.debug('Received new image of content type {}'.format(file.content_type))
             name = os.path.splitext(os.path.basename(file.name))[0]
             name = re.sub('[^\w]', '_', name)
-            page = Page(book, name)
+            page = DatabasePage(book, name)
             if not os.path.exists(page.local_path()):
                 os.mkdir(page.local_path())
 
@@ -69,19 +68,19 @@ class BookUploadView(APIView):
 
 class BooksView(APIView):
     def put(self, request, format=None):
+        from database import DatabaseBookMeta
         book = json.loads(request.body, encoding='utf-8')
         if 'name' not in book:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         book_id = re.sub('[^\w]', '_', book['name'])
 
-        from main.book_meta import BookMeta
         try:
-            b = Book(book_id)
+            b = DatabaseBook(book_id)
             if b.exists():
                 return Response(status=status.HTTP_304_NOT_MODIFIED)
 
-            if b.create(BookMeta(id=b.book, name=book['name'])):
+            if b.create(DatabaseBookMeta(id=b.book, name=book['name'])):
                 return Response(b.get_meta().to_json())
         except InvalidFileNameException as e:
             logging.error(e)
@@ -91,7 +90,7 @@ class BooksView(APIView):
 
     def get(self, request, format=None):
         # TODO: sort by in request
-        books = Book.list_available_book_metas()
+        books = DatabaseBook.list_available_book_metas()
         return Response({'books': sorted([book.to_json() for book in books], key=lambda b: b['name'])})
 
 
@@ -99,7 +98,7 @@ class BookDownloaderView(APIView):
     def post(self, request, book, type, format=None):
         import json, zipfile, io, os
         pages = json.loads(request.body, encoding='utf-8').get('pages', [])
-        book = Book(book)
+        book = DatabaseBook(book)
         pages = book.pages() if len(pages) == 0 else [book.page(p) for p in pages]
         if type == 'annotations.zip':
             s = io.BytesIO()
@@ -118,7 +117,7 @@ class BookDownloaderView(APIView):
             s.seek(0)
             return FileResponse(s, as_attachment=True, filename=book.book + '.zip')
         elif type == 'monodi2.zip':
-            from omr.datatypes.monodi2_exporter import pcgts_to_monodi, PcGts
+            from database.file_formats.pcgts.monodi2_exporter import pcgts_to_monodi, PcGts
             pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
             obj = pcgts_to_monodi(pcgts).to_json()
 
