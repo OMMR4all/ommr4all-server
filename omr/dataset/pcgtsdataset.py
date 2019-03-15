@@ -33,7 +33,7 @@ class LoadedImage(NamedTuple):
     str_gt: List[str]
 
 
-class MusicLineAndMarkedSymbol:
+class RegionLineMaskData:
     def __init__(self, op: ImageOperationData):
         self.operation = op
         self.line_image = op.images[1].image
@@ -67,18 +67,18 @@ class PcGtsDataset:
         return Dataset([SingleData(image=d.line_image, binary=None, mask=d.mask,
                                    user_data=d) for d in self.marked_symbols()])
 
-    def marked_symbols(self) -> List[MusicLineAndMarkedSymbol]:
+    def marked_symbols(self) -> List[RegionLineMaskData]:
         if self.marked_symbol_data is None:
                 self.marked_symbol_data = list(self._create_marked_symbols())
 
         return self.marked_symbol_data
 
-    def _create_marked_symbols(self) -> Generator[MusicLineAndMarkedSymbol, None, None]:
+    def _create_marked_symbols(self) -> Generator[RegionLineMaskData, None, None]:
         for f in tqdm(self.files, total=len(self.files), desc="Loading music lines"):
             try:
                 input = ImageOperationData([], page=f.page)
                 for outputs in self.line_and_mask_operations.apply_single(input):
-                    yield MusicLineAndMarkedSymbol(outputs)
+                    yield RegionLineMaskData(outputs)
             except (NoStaffsAvailable, NoStaffLinesAvailable):
                 pass
             except Exception as e:

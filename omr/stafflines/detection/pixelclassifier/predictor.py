@@ -1,74 +1,106 @@
-from omr.stafflines.detection.predictor import StaffLinesPredictor
+from omr.stafflines.detection.predictor import StaffLinesPredictor, PredictorParameters, PredictionType, PredictionResult, RegionLineMaskData
 from database import DatabasePage, DatabaseBook
 from database.file_formats.pcgts import *
 import numpy as np
 import os
 import logging
+from typing import List
 import omr.stafflines.detection.pixelclassifier.settings as pc_settings
+from omr.stafflines.detection.pixelclassifier.dataset import PCDataset
 
 logger = logging.getLogger(__name__)
 
 
 class BasicStaffLinePredictor(StaffLinesPredictor):
-    def __init__(self, page: DatabasePage):
+    def __init__(self, params: PredictorParameters):
         super().__init__()
-        # used specific model or use default as fallback if existing
-        model_path = page.book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))
-        if not os.path.exists(model_path + '.meta'):
-            model_path_new = os.path.join(page.book.local_default_models_path(os.path.join(pc_settings.model_dir, pc_settings.model_name)))
-            logger.debug('Book specific model not found at {}. Trying general model at {}'.format(
-                model_path, model_path_new
-            ))
-            model_path = model_path_new
+        self.params = params
+        model_path = None
 
-        if not os.path.exists(model_path + '.meta'):
-            logger.debug('Global model not found at {}. Using staff line detection without a model.'.format(model_path))
-            model_path = None
+        if params.checkpoints is not None and len(params.checkpoints) > 0:
+            if len(params.checkpoints) > 1:
+                logger.warning("Only one or no model is allowed for the basic staff line predictor, but got {}: {}".format(
+                    len(params.checkpoints), params.checkpoints))
+
+            model_path = params.checkpoints[0]
+            if not os.path.exists(model_path + '.meta'):
+                logger.debug('Model not found at {}. Using staff line detection without a model.'.format(model_path))
+                model_path = None
+            else:
+                logger.info('Running line detection with model {}.'.format(model_path))
+
+        if not model_path:
             logger.info('Running line detection without a model.')
-        else:
-            logger.info('Running line detection with model {}.'.format(model_path))
 
         from linesegmentation.detection import LineDetectionSettings, LineDetection
         self.settings = LineDetectionSettings(
             numLine=4,
             minLength=6,
             lineExtension=True,
-            debug=False,
-            lineSpaceHeight=20,
-            targetLineSpaceHeight=10,
+            lineSpaceHeight=0,
+            targetLineSpaceHeight=params.target_line_space_height,
             model=model_path,
             post_process=True,
             smooth_lines=2,
             line_fit_distance=1,
+            # debug=True, smooth_lines_advdebug=True,
         )
         self.line_detection = LineDetection(self.settings)
 
-    def detect(self, binary_path: str, gray_path: str) -> MusicLines:
-        r = list(self.line_detection.detect([gray_path]))[0]
-        if len(r) == 0:
-            logger.warning('No staff lines detected.')
-            return MusicLines()
+    def predict(self, pcgts_files: List[PcGts]) -> PredictionType:
+        pc_dataset = PCDataset(pcgts_files,
+                               gt_required=False,
+                               full_page=self.params.full_page,
+                               gray=self.params.gray,
+                               pad=self.params.pad,
+                               extract_region_only=self.params.extract_region_only,
+                               )
+        dataset = pc_dataset.to_line_detection_dataset()
+        gray_images = [(255 - data.line_image).astype(float) for data in dataset]
+        predictions = self.line_detection.detect(gray_images)
+        for i, (data, r) in enumerate(zip(dataset, predictions)):
+            rlmd: RegionLineMaskData = data
+            logger.debug("Predicted {}/{}. File {}".format(i + 1, len(dataset), rlmd.operation.page.location.local_path()))
+            if len(r) == 0:
+                logger.warning('No staff lines detected.')
+                yield PredictionResult(MusicLines(), MusicLines(), rlmd)
+            else:
+                def transform_points(yx_points):
+                    return Coords(np.array([pc_dataset.line_and_mask_operations.local_to_global_pos(Point(p[1], p[0]), rlmd.operation.params).p for p in yx_points]))
 
-        ml = MusicLines([MusicLine(staff_lines=StaffLines([StaffLine(Coords((np.asarray(list(pl))[:, ::-1]))) for pl in l])) for l in r])
-        # ml.approximate_staff_lines()
-        # from PIL import Image
-        # g = np.array(Image.open(gray_path)) / 255
-        # ml.fit_staff_lines_to_gray_image(g)
-        return ml
+                ml_global = MusicLines([MusicLine(staff_lines=StaffLines([StaffLine(transform_points(list(pl))) for pl in l])) for l in r])
+                ml_local = MusicLines([MusicLine(staff_lines=StaffLines([StaffLine(Coords(np.array(pl)[:, ::-1])) for pl in l])) for l in r])
+                yield PredictionResult(ml_global, ml_local, rlmd)
 
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from PIL import Image
     # page = Book('demo').page('page00000001')
-    page = DatabaseBook('Graduel').pages()[0]
-    binary = page.file('binary_deskewed').local_path()
-    gray = page.file('gray_deskewed').local_path()
+    book = DatabaseBook('Graduel')
+    # page = book.page('Graduel_de_leglise_de_Nevers_032_rot')  # zacken in linie
+    # page = book.page('Graduel_de_leglise_de_Nevers_531')
+    page = book.page('Graduel_de_leglise_de_Nevers_538')
 
-    detector = BasicStaffLinePredictor(page)
-    staffs = detector.detect(binary, gray)
-    img = np.array(Image.open(page.file('color_deskewed').local_path()), dtype=np.uint8)
-    staffs.draw(img)
-    plt.imshow(img)
-    plt.show()
+    pcgts = [PcGts.from_file(page.file('pcgts'))]
+
+    params = PredictorParameters(
+        # None if False else [book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))],
+        # ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/internal_storage/default_models/french14/pc_staff_lines/model"],
+        ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/models_out/line_detection_4/best"],
+        # ["/home/wick/Downloads/line_detection_0/best"],
+        full_page=False,
+        gray=True,
+        pad=5,
+        target_line_space_height=10,
+        extract_region_only=False,
+    )
+    detector = BasicStaffLinePredictor(params)
+    for prediction in detector.predict(pcgts):
+        staffs = prediction.music_lines_local
+        data = prediction.line
+        img = np.array(data.line_image, dtype=np.uint8)
+        staffs.draw(img, color=255)
+        plt.imshow(img)
+        plt.show()
 

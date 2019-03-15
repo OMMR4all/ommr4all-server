@@ -1,7 +1,7 @@
 from omr.imageoperations.image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point, ImageOperationList
 from omr.imageoperations.image_crop import ImageCropToSmallestBoxOperation
 from typing import Tuple, List, NamedTuple, Any, Optional
-from database.file_formats.pcgts import Page, MusicLine, Neume, NoteComponent, ClefType, Clef, AccidentalType, Accidental, GraphicalConnectionType
+from database.file_formats.pcgts import Page, MusicLine, Neume, NoteComponent, ClefType, Clef, AccidentalType, Accidental, GraphicalConnectionType, MusicLines
 import numpy as np
 from PIL import Image
 from copy import copy
@@ -22,6 +22,77 @@ class SymbolLabel(IntEnum):
     ACCID_NATURAL = 6
     ACCID_SHARP = 7
     ACCID_FLAT = 8
+
+
+# extract image of a staff line, and as mask, the highlighted staff lines
+class ImageExtractStaffLineImages(ImageOperation):
+    def __init__(self, full_page=True, pad=0, extract_region_only=True, gt_line_thickness=3):
+        super().__init__()
+        self.pad = pad
+        self.gt_line_thickness = gt_line_thickness
+        self.extract_region_only = extract_region_only
+        self.cropper = ImageCropToSmallestBoxOperation(pad=pad)
+        self.full_page = full_page
+
+    def apply_single(self, data: ImageOperationData):
+        image = data.images[0].image
+        marked_regions = np.zeros(image.shape, dtype=np.uint8)
+        marked_staff_lines = np.zeros(image.shape, dtype=np.uint8)
+        i = 1
+        s = []
+        for mr in data.page.music_regions:
+            for ml in mr.staffs:
+                s.append(ml)
+                ml.coords.draw(marked_regions, i, 0, fill=True)
+                ml.staff_lines.draw(marked_staff_lines, color=1, thickness=self.gt_line_thickness)
+                i += 1
+
+        out = []
+        if self.full_page:
+            image_data = copy(data)
+            image_data.images = [ImageData(marked_regions, True), ImageData(image, False), ImageData(marked_staff_lines, True)]
+            image_data.params = None
+            image_data.page_image = image
+            image_data.music_lines = MusicLines(s)
+            out.append(image_data)
+        else:
+            i = 1
+
+            for mr in data.page.music_regions:
+                for ml in mr.staffs:
+                    mask = marked_regions == i
+                    if np.sum(mask) == 0:  # empty mask, skip
+                        continue
+                    else:
+                        img_data = copy(data)
+                        img_data.page_image = image
+                        img_data.music_region = mr
+                        img_data.music_line = ml
+                        img_data.music_lines = MusicLines([ml])
+                        img_data.images = [ImageData(mask, True), ImageData(image, False), ImageData(marked_staff_lines, True)]
+                        cropped = self.cropper.apply_single(img_data)[0]
+                        self._extract_image_op(img_data)
+
+                        img_data.params = (i, cropped.params)
+                        out.append(img_data)
+
+                    i += 1
+
+        return out
+
+    def _extract_image_op(self, data: ImageOperationData):
+        data.images = [
+                          data.images[1],
+                          ImageData(data.images[0].image * data.images[1].image, False) if self.extract_region_only else data.images[1]
+                      ] + data.images[2:]
+
+    def local_to_global_pos(self, p: Point, params: Any):
+        if self.full_page:
+            return p
+        else:
+            i, (t, b, l, r) = params
+            # default operations
+            return Point(p.x + l, t + p.y)
 
 
 class ImageExtractDewarpedStaffLineImages(ImageOperation):

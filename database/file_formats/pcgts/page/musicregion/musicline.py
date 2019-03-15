@@ -388,7 +388,8 @@ class MusicLine:
         if len(self.staff_lines) <= 1:
             return default
 
-        d = self.staff_lines[-1].center_y() - self.staff_lines[0].center_y()
+        ys = [sl.center_y() for sl in self.staff_lines]
+        d = max(ys) - min(ys)
         return d / (len(self.staff_lines) - 1)
 
     def approximate(self, distance):
@@ -444,9 +445,9 @@ class MusicLines(List[MusicLine]):
     def to_json(self):
         return [l.to_json() for l in self]
 
-    def draw(self, canvas):
+    def draw(self, canvas, color=(0, 255, 0)):
         for ml in self:
-            ml.draw(canvas)
+            ml.draw(canvas, color=color)
 
     def extract_images_and_gt(self, page: np.ndarray) -> List[Tuple[MusicLine, np.ndarray, str]]:
         for ml in self:
@@ -462,5 +463,8 @@ class MusicLines(List[MusicLine]):
         d = max(5, int(np.mean([ml.avg_line_distance(default=0) for ml in self]) / 5))
         for line in self:
             line.fit_to_gray_image(gray, d)
+
+    def all_staff_lines(self) -> List[StaffLine]:
+        return [staff_line for ml in self for staff_line in ml.staff_lines]
 
 

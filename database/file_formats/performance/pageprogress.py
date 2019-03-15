@@ -1,5 +1,10 @@
-from typing import DefaultDict
+from typing import DefaultDict, NamedTuple
 import json
+
+
+class LockState(NamedTuple):
+    label: str
+    lock: bool
 
 
 class LockedStates(DefaultDict[str, bool]):

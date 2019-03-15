@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Generator, NamedTuple
 from database.file_formats.pcgts import *
-from omr.dataset.pcgtsdataset import MusicLineAndMarkedSymbol, PcGtsDataset
+from omr.dataset.pcgtsdataset import RegionLineMaskData, PcGtsDataset
 from enum import Enum
 
 
@@ -12,7 +12,7 @@ class PredictorParameters(NamedTuple):
 
 class PredictionResult(NamedTuple):
     symbols: List[Symbol]
-    line: MusicLineAndMarkedSymbol
+    line: RegionLineMaskData
 
 
 PredictionType = Generator[PredictionResult, None, None]

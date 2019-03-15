@@ -2,7 +2,7 @@ from typing import List
 from pagesegmentation.lib.predictor import Predictor, PredictSettings
 import os
 from database.file_formats.pcgts import *
-from omr.dataset.pcgtsdataset import PcGtsDataset, MusicLineAndMarkedSymbol
+from omr.dataset.pcgtsdataset import PcGtsDataset, RegionLineMaskData
 import cv2
 import numpy as np
 from omr.imageoperations.music_line_operations import SymbolLabel
@@ -44,7 +44,7 @@ class PCPredictor(SymbolDetectionPredictor):
 
     def _predict(self, dataset: PcGtsDataset) -> PredictionType:
         for p in self.predictor.predict(dataset.to_music_line_page_segmentation_dataset()):
-            m: MusicLineAndMarkedSymbol = p.data.user_data
+            m: RegionLineMaskData = p.data.user_data
             symbols = PredictionResult(self.exract_symbols(p.labels, m), p.data.user_data)
             if False:
                 import matplotlib.pyplot as plt
@@ -57,7 +57,7 @@ class PCPredictor(SymbolDetectionPredictor):
                 plt.show()
             yield symbols
 
-    def exract_symbols(self, p: np.ndarray, m: MusicLineAndMarkedSymbol) -> List[Symbol]:
+    def exract_symbols(self, p: np.ndarray, m: RegionLineMaskData) -> List[Symbol]:
         n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
         symbols = []
         sorted_labels = sorted(range(1, n_labels), key=lambda i: (centroids[i, 0], -centroids[i, 1]))

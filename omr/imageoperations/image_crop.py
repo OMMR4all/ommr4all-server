@@ -11,8 +11,9 @@ class Rect(NamedTuple):
 
 
 class ImageCropToSmallestBoxOperation(ImageOperation):
-    def __init__(self):
+    def __init__(self, pad=0):
         super().__init__()
+        self.pad = pad
 
     def apply_single(self, data: ImageOperationData) -> OperationOutput:
         def smallestbox(a, datas) -> Tuple[List[np.ndarray], Rect]:
@@ -20,6 +21,10 @@ class ImageCropToSmallestBoxOperation(ImageOperation):
             m, n = a.shape
             c = a.any(0)
             q, w, e, r = (r.argmax(), m - r[::-1].argmax(), c.argmax(), n - c[::-1].argmax())
+            q = max(0, q - self.pad)
+            w = min(m, w + self.pad)
+            e = max(0, e - self.pad)
+            r = min(n, r + self.pad)
             return [d[q:w, e:r] for d in datas], Rect(q, w, e, r)
 
         imgs, r = smallestbox(data.images[0].image, [d.image for d in data])

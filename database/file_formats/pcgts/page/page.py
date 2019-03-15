@@ -1,10 +1,12 @@
 from database.file_formats.pcgts.page import TextRegion, MusicRegion
 from database.file_formats.pcgts.page import annotations as annotations
 from database.file_formats.pcgts.page.usercomment import UserComments
-from typing import List
+from typing import List, TYPE_CHECKING
 import numpy as np
 import os
-from database import DatabasePage
+
+if TYPE_CHECKING:
+    from database import DatabasePage
 
 
 class Page:
@@ -12,7 +14,7 @@ class Page:
                  text_regions: List[TextRegion]=None,
                  music_regions: List[MusicRegion]=None,
                  image_filename="", image_height=0, image_width=0,
-                 location: DatabasePage = None):
+                 location: 'DatabasePage' = None):
         self.text_regions = text_regions if text_regions else []
         self.music_regions = music_regions if music_regions else []
         self.image_filename = image_filename
@@ -37,7 +39,7 @@ class Page:
             t._resolve_cross_refs(self)
 
     @staticmethod
-    def from_json(json: dict, location: DatabasePage):
+    def from_json(json: dict, location: 'DatabasePage'):
         page = Page(
             [TextRegion.from_json(t) for t in json.get('textRegions', [])],
             [MusicRegion.from_json(m) for m in json.get('musicRegions', [])],
@@ -78,8 +80,8 @@ class Page:
                 return tr
         return None
 
-    def staff_equivs(self, index):
-        return [m.staff_equiv_by_index(index) for m in self.music_regions if m.has_staff_equiv_by_index(index)]
+    def all_music_lines(self):
+        return [ml for mr in self.music_regions for ml in mr.staffs]
 
     def avg_staff_distance(self, index):
         staffs = self.staff_equivs(index)
@@ -91,18 +93,18 @@ class Page:
 
         return np.mean(d)
 
-    def avg_staff_line_distance(self, index):
-        staffs = self.staff_equivs(index)
-        avg = np.mean([v for v in [d.avg_staff_line_distance for d in staffs] if v > 0])
+    def avg_staff_line_distance(self):
+        staffs = self.all_music_lines()
+        avg = np.mean([v for v in [d.avg_line_distance(default=-1) for d in staffs] if v > 0])
         return max([5, avg])
 
-    def draw(self, index, canvas, color=(0, 255, 0), thickness=-1):
-        avg = self.avg_staff_line_distance(index)
+    def draw(self, canvas, color=(0, 255, 0), thickness=-1):
+        avg = self.avg_staff_line_distance()
 
         if thickness < 0:
             thickness = avg / 10 if avg > 0 else 5
 
-        for staff in self.staff_equivs(index):
+        for staff in self.all_music_lines():
             staff.draw(canvas, color, thickness)
 
     def extract_music_line_images_and_gt(self, dewarped=True):

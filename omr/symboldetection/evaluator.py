@@ -50,6 +50,8 @@ class AccCounts(IntEnum):
 
 
 def precision_recall_f1(tp, fp, fn) -> Tuple[float, float, float]:
+    if tp == 0:
+        return 0.0, 0.0, 0.0
     return tp / (tp + fp), tp / (tp + fn), 2 * tp / (2 * tp + fp + fn)
 
 

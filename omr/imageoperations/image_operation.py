@@ -21,6 +21,7 @@ class ImageOperationData:
     page_image: np.ndarray = None
     music_region: Optional[MusicRegion] = None
     music_line: Optional[MusicLine] = None
+    music_lines: Optional[MusicLines] = None
 
     def __iter__(self):
         return self.images.__iter__()

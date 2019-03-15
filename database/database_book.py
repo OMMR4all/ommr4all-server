@@ -1,9 +1,12 @@
 import os
 import logging
-from typing import List
+from typing import List, TYPE_CHECKING
 from ommr4all.settings import PRIVATE_MEDIA_ROOT, PRIVATE_MEDIA_URL, BASE_DIR
 import shutil
 import re
+
+if TYPE_CHECKING:
+    from database.file_formats.performance import LockState
 
 
 logger = logging.getLogger(__name__)
@@ -25,10 +28,10 @@ class DatabaseBook:
         return [b.get_meta() for b in DatabaseBook.list_available()]
 
     @staticmethod
-    def list_all_pages_with_lock(lock_name, lock_state=True):
+    def list_all_pages_with_lock(locks: List['LockState'], lock_state=True):
         out = []
         for b in DatabaseBook.list_available():
-            out += b.pages_with_lock(lock_name, lock_state)
+            out += b.pages_with_lock(locks)
 
         return out
 
@@ -47,12 +50,12 @@ class DatabaseBook:
         pages = [DatabasePage(self, p) for p in sorted(os.listdir(self.local_path('pages')))]
         return [p for p in pages if p.is_valid()]
 
-    def pages_with_lock(self, lock_name, lock_state=True):
+    def pages_with_lock(self, locks: List['LockState']):
         from database.file_formats.performance.pageprogress import PageProgress
         out = []
         for p in self.pages():
             pp = PageProgress.from_json_file(p.file('page_progress', create_if_not_existing=True).local_path())
-            if pp.locked.get(lock_name, False) == lock_state:
+            if all([pp.locked.get(lock.label, False) == lock.lock for lock in locks]):
                 out.append(p)
 
         return out

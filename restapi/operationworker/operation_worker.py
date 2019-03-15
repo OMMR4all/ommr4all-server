@@ -242,13 +242,22 @@ class OperationWorkerThread:
             com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.INITIALIZING)))
             if isinstance(task_data, TaskDataStaffLineDetection):
                 data: TaskDataStaffLineDetection = task_data
-                from omr.stafflines.detection.predictor import create_staff_line_predictor, StaffLinesModelType, StaffLinesPredictor
-                staff_line_detector: StaffLinesPredictor = create_staff_line_predictor(StaffLinesModelType.PIXEL_CLASSIFIER, data.page)
-                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
-                staffs = staff_line_detector.detect(
-                    data.page.file('binary_deskewed').local_path(),
-                    data.page.file('gray_deskewed').local_path(),
+                from omr.stafflines.detection.predictor import create_staff_line_predictor, StaffLinesModelType, StaffLinesPredictor, PredictorParameters
+                import omr.stafflines.detection.pixelclassifier.settings as pc_settings
+                from database.file_formats import PcGts
+                # load book specific model or default model as fallback
+                model = data.page.book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))
+                if not os.path.exists(model + '.meta'):
+                    model = os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', 'french14', pc_settings.model_dir, pc_settings.model_name)
+
+                params = PredictorParameters(
+                    checkpoints=[model],
+                    full_page=True,
+                    gray=True,
                 )
+                staff_line_detector: StaffLinesPredictor = create_staff_line_predictor(StaffLinesModelType.PIXEL_CLASSIFIER, params)
+                com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
+                staffs = list(staff_line_detector.predict([PcGts.from_file(data.page.file('pcgts'))]))[0].music_lines
                 result = {'staffs': [l.to_json() for l in staffs]}
             elif isinstance(task_data, TaskDataLayoutAnalysis):
                 data: TaskDataLayoutAnalysis = task_data
