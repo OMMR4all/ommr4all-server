@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from database import DatabasePage, DatabaseBook, DatabaseFile
-from main.operationworker import operation_worker, TaskStatusCodes, TaskNotFoundException
+from restapi.operationworker import operation_worker, TaskStatusCodes, TaskNotFoundException
 import logging
 import datetime
 import json
@@ -12,7 +12,7 @@ from database.file_formats.pcgts import PcGts, Coords
 from database.file_formats.performance.pageprogress import PageProgress
 from database.file_formats.performance.statistics import Statistics
 from omr.stafflines.json_util import json_to_line
-from main.operationworker import \
+from restapi.operationworker import \
     TaskDataStaffLineDetection, TaskDataSymbolDetectionTrainer, TaskDataSymbolDetection, \
     TaskDataLayoutAnalysis
 

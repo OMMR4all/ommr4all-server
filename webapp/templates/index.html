@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load staticfiles %}
+{% load i18n %}
+
+{% block body %}
+    <app-root>
+        <div class="screen-center">
+            <h1>ommr4all</h1>
+            <div class="loader">
+                <div class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+            </div>
+            <h4>{% trans "Loading ..." %}</h4>
+        </div>
+    </app-root>
+
+    <script type="text/javascript" src="{% static ommr4all_client|add:'/runtime.js' %}"></script>
+    <script type="text/javascript" src="{% static ommr4all_client|add:'/polyfills.js' %}"></script>
+    <script type="text/javascript" src="{% static ommr4all_client|add:'/styles.js' %}"></script>
+    <script type="text/javascript" src="{% static ommr4all_client|add:'/vendor.js' %}"></script>
+    <script type="text/javascript" src="{% static ommr4all_client|add:'/main.js' %}"></script>
+
+{% endblock %}
