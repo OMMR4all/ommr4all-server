@@ -55,7 +55,7 @@ class BookUploadView(APIView):
 
             try:
                 img = Image.open(file.file, 'r').convert('RGB')
-                original = File(page, 'color_original')
+                original = DatabaseFile(page, 'color_original')
                 img.save(original.local_path())
                 logger.debug('Created page at {}'.format(page.local_path()))
 

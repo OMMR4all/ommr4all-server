@@ -64,6 +64,9 @@ class DatabaseBook:
     def local_default_models_path(self, sub=''):
         return os.path.join(BASE_DIR, 'internal_storage', 'default_models', 'french14', sub)
 
+    def local_default_virtual_keyboards_path(self, sub=''):
+        return os.path.join(BASE_DIR, 'internal_storage', 'default_virtual_keyboards', sub)
+
     def local_path(self, sub=''):
         return os.path.join(PRIVATE_MEDIA_ROOT, self.book, sub)
 
