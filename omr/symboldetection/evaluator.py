@@ -1,9 +1,9 @@
-from omr.symboldetection.predictor import SymbolDetectionPredictor, create_predictor, PredictorTypes, PredictorParameters
 from database.file_formats.pcgts import *
 from typing import List, Tuple
 import os
 import numpy as np
 from enum import IntEnum
+from edit_distance import edit_distance
 
 class PRF2Metrics(IntEnum):
     SYMBOL = 0
@@ -11,11 +11,13 @@ class PRF2Metrics(IntEnum):
     NOTE_ALL = 2
     NOTE_GC = 3
     NOTE_NS = 5
-    CLEF = 6
-    CLEF_ALL = 7
-    ACCID = 9
+    NOTE_PIS = 6
+    CLEF = 7
+    CLEF_ALL = 8
+    CLEF_PIS = 9
+    ACCID = 10
 
-    COUNT = 10
+    COUNT = 11
 
 
 class PRF2Index(IntEnum):
@@ -55,11 +57,43 @@ def precision_recall_f1(tp, fp, fn) -> Tuple[float, float, float]:
     return tp / (tp + fp), tp / (tp + fn), 2 * tp / (2 * tp + fp + fn)
 
 
-class SymbolDetectionEvaluator:
-    def __init__(self, predictor: SymbolDetectionPredictor):
-        self.predictor = predictor
+class Codec:
+    def __init__(self):
+        self.codec = []
 
-    def evaluate(self, pcgts_files: List[PcGts], min_distance=5):
+    def get(self, v):
+        if v in self.codec:
+            return self.codec.index(v)
+        self.codec.append(v)
+        return len(self.codec) - 1
+
+    def symbols_to_label_sequence(self, symbols: List[Symbol], note_connection_type: bool):
+        sequence = []
+        for symbol in symbols:
+            if symbol.symbol_type == SymbolType.ACCID:
+                a: Accidental = symbol
+                sequence.append((a.symbol_type, a.accidental))
+            elif symbol.symbol_type == SymbolType.CLEF:
+                c: Clef = symbol
+                sequence.append((c.symbol_type, c.clef_type, c.position_in_staff))
+            elif symbol.symbol_type == SymbolType.NEUME:
+                n: Neume = symbol
+                for nc in n.notes:
+                    if not note_connection_type:
+                        sequence.append((n.symbol_type, nc.note_type, nc.position_in_staff))
+                    else:
+                        sequence.append((n.symbol_type, nc.note_type, nc.position_in_staff, nc.graphical_connection))
+            else:
+                raise Exception('Unknown symbol type')
+
+        return list(map(self.get, sequence))
+
+
+class SymbolDetectionEvaluator:
+    def __init__(self):
+        self.codec = Codec()
+
+    def evaluate(self, gt_symbols: List[List[Symbol]], pred_symbols: List[List[Symbol]], min_distance=5):
         min_distance_sqr = min_distance ** 2
         def extract_symbol_coord(s: Symbol) -> List[Tuple[Point, Symbol]]:
             if s.symbol_type == SymbolType.NEUME:
@@ -90,15 +124,21 @@ class SymbolDetectionEvaluator:
             return l
 
         f_metrics = np.zeros((0, PRF2Metrics.COUNT, PRF2Metrics.COUNT), dtype=float)
-        acc_metrics = np.zeros((0, 4), dtype=float)
+        acc_metrics = np.zeros((0, 6), dtype=float)
         counts = np.zeros((0, 5, Counts.COUNT), dtype=int)
 
-        acc_counts = np.zeros((0, 5, AccCounts.COUNT), dtype=int)
+        acc_counts = np.zeros((0, 9, AccCounts.COUNT), dtype=int)
 
-        for p in self.predictor.predict(pcgts_files):
+        for gt, pred in zip(gt_symbols, pred_symbols):
+            gt_sequence = self.codec.symbols_to_label_sequence(gt, False)
+            pred_sequence = self.codec.symbols_to_label_sequence(pred, False)
+            gt_sequence_nc = self.codec.symbols_to_label_sequence(gt, True)
+            pred_sequence_nc = self.codec.symbols_to_label_sequence(pred, True)
+            sequence_ed = edit_distance(gt_sequence, pred_sequence)
+            sequence_ed_nc = edit_distance(gt_sequence_nc, pred_sequence_nc)
             pairs = []
-            p_symbols = extract_coords_of_symbols(p.symbols)
-            gt_symbols_orig = extract_coords_of_symbols(p.line.operation.music_line.symbols)
+            p_symbols = extract_coords_of_symbols(pred)
+            gt_symbols_orig = extract_coords_of_symbols(gt)
             gt_symbols = gt_symbols_orig[:]
 
             for p_i, (p_c, p_s) in reversed(list(enumerate(p_symbols))):
@@ -158,6 +198,9 @@ class SymbolDetectionEvaluator:
                 elif prf2metric == PRF2Metrics.NOTE_NS:
                     l_true = [(p, gt) for p, gt in l_tp if p.neume_start == gt.neume_start]
                     l_false = [(p, gt) for p, gt in l_tp if p.neume_start != gt.neume_start]
+                elif prf2metric == PRF2Metrics.NOTE_PIS:
+                    l_true = [(p, gt) for p, gt in l_tp if p.position_in_staff == gt.position_in_staff]
+                    l_false = [(p, gt) for p, gt in l_tp if p.position_in_staff != gt.position_in_staff]
 
                 true, false = tuple(list(map(len, (l_true, l_false))))
                 try:
@@ -167,8 +210,13 @@ class SymbolDetectionEvaluator:
 
             def clef_sub_group(lists, prf2metric: PRF2Metrics):
                 l_tp, _, _ = lists
-                l_true = [(p, gt) for p, gt in l_tp if gt.clef_type == p.clef_type]
-                l_false = [(p, gt) for p, gt in l_tp if gt.clef_type != p.clef_type]
+                if prf2metric == PRF2Metrics.CLEF_ALL:
+                    l_true = [(p, gt) for p, gt in l_tp if gt.clef_type == p.clef_type]
+                    l_false = [(p, gt) for p, gt in l_tp if gt.clef_type != p.clef_type]
+                elif prf2metric == PRF2Metrics.CLEF_PIS:
+                    l_true = [(p, gt) for p, gt in l_tp if p.position_in_staff == gt.position_in_staff]
+                    l_false = [(p, gt) for p, gt in l_tp if p.position_in_staff != gt.position_in_staff]
+
                 true, false = tuple(list(map(len, (l_true, l_false))))
                 try:
                     return (true, false, true + false), true / (false + true), (l_true, l_false, [])
@@ -193,8 +241,10 @@ class SymbolDetectionEvaluator:
             note_all_counts, note_all_metrics, note_all = note_sub_group(notes, PRF2Metrics.NOTE_ALL)
             note_gc_counts, note_gc_metrics, note_gc = note_sub_group(notes, PRF2Metrics.NOTE_GC)
             note_ns_counts, note_ns_metrics, note_ns = note_sub_group(notes, PRF2Metrics.NOTE_NS)
+            note_pis_counts, note_pis_metrics, note_pis = note_sub_group(notes, PRF2Metrics.NOTE_PIS)
 
             clef_all_counts, clef_all_metrics, clefs_all = clef_sub_group(clefs, PRF2Metrics.CLEF_ALL)
+            clef_pis_counts, clef_pis_metrics, clefs_pis = clef_sub_group(clefs, PRF2Metrics.CLEF_PIS)
 
             accid_all_counts, accid_all_metrics, accid_all = accid_sub_group(accids, PRF2Metrics.ACCID)
 
@@ -209,15 +259,21 @@ class SymbolDetectionEvaluator:
                 note_all_counts,
                 note_gc_counts,
                 note_ns_counts,
+                note_pis_counts,
                 clef_all_counts,
+                clef_pis_counts,
                 accid_all_counts,
+                (sequence_ed[1], sequence_ed[0], sum(sequence_ed)),
+                (sequence_ed_nc[1], sequence_ed_nc[0], sum(sequence_ed_nc)),
             ]]), axis=0)
 
             acc_metrics = np.concatenate((acc_metrics, [[
                 note_all_metrics,
                 note_gc_metrics,
                 note_ns_metrics,
+                note_pis_metrics,
                 clef_all_metrics,
+                clef_pis_metrics,
             ]]), axis=0)
 
         acc_counts = acc_counts.sum(axis=0)
@@ -226,18 +282,22 @@ class SymbolDetectionEvaluator:
 
 
 if __name__ == '__main__':
+    from omr.symboldetection.predictor import SymbolDetectionPredictor, create_predictor, PredictorTypes, SymbolDetectionPredictorParameters
     from prettytable import PrettyTable
     from database import DatabaseBook
     b = DatabaseBook('Graduel')
-    eval_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[:]]
-    pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER,
-                            PredictorParameters([b.local_path(os.path.join('pc_symbol_detection', 'model'))]))
-    evaluator = SymbolDetectionEvaluator(pred)
-    metrics, counts, acc_counts, acc_acc = evaluator.evaluate(eval_pcgts)
+    eval_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[12:13]]
+    print([e.page.location.local_path() for e in eval_pcgts])
+    predictor = create_predictor(
+        PredictorTypes.PIXEL_CLASSIFIER,
+        SymbolDetectionPredictorParameters([b.local_path(os.path.join('pc_symbol_detection', 'model'))]))
+    gt_symbols, pred_symbols = [], []
+    for p in predictor.predict(eval_pcgts):
+        pred_symbols.append(p.symbols)
+        gt_symbols.append(p.line.operation.music_line.symbols)
 
-    print(metrics)
-    print(counts)
-    print(acc_counts)
+    evaluator = SymbolDetectionEvaluator()
+    metrics, counts, acc_counts, acc_acc = evaluator.evaluate(gt_symbols, pred_symbols)
 
     at = PrettyTable()
 
@@ -254,7 +314,7 @@ if __name__ == '__main__':
 
 
     at = PrettyTable()
-    at.add_column("Type", ["Note all", "Note GC", "Note NS", "Clef type", "Accid type"])
+    at.add_column("Type", ["Note all", "Note GC", "Note NS", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence", "Sequence NC"])
     at.add_column("True", acc_counts[:, AccCounts.TRUE])
     at.add_column("False", acc_counts[:, AccCounts.FALSE])
     at.add_column("Total", acc_counts[:, AccCounts.TOTAL])

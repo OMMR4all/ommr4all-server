@@ -5,6 +5,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from uuid import uuid4
 import logging
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -350,6 +351,100 @@ class StaffLines(List[StaffLine]):
     def sorted(self):
         return StaffLines(sorted(self, key=lambda s: s.center_y()))
 
+    def compute_position_in_staff(self, coord: Point) -> MusicSymbolPositionInStaff:
+        return self.position_in_staff(coord)
+
+    # Following code taken from ommr4all-client
+    # ==================================================================
+    @staticmethod
+    def _round_to_staff_pos(x: float):
+        rounded = np.round(x)
+        even = (rounded + 2000) % 2 == 0
+        if not even:
+            if abs(x - rounded) < 0.4:
+                return rounded
+            else:
+                return rounded + 1 if x - rounded > 0 else rounded - 1
+        else:
+            return rounded
+
+    @staticmethod
+    def _interp_staff_pos(y: float, top: float, bot: float, top_space: bool, bot_space: bool,
+                          top_pos: MusicSymbolPositionInStaff, bot_pos: MusicSymbolPositionInStaff,
+                          offset: int) -> Tuple[float, MusicSymbolPositionInStaff]:
+        ld = bot - top
+        if top_space and not bot_space:
+            top -= ld
+            top_pos += 1
+        elif not top_space and bot_space:
+            bot += ld
+            bot_pos -= 1
+        elif top_space and bot_space:
+            center = (top + bot) / 1
+            if center > y:
+                top -= ld / 2
+                bot = center
+                top_pos += 1
+                bot_pos = top_pos - 2
+            else:
+                top = center
+                bot += ld / 2
+                top_pos -= 1
+                top_pos = bot_pos + 2
+
+        d = y -top
+        rel = d / (bot - top)
+        snapped = -offset + StaffLines._round_to_staff_pos(2 * rel)
+        return top + snapped * (bot - top) / 2, MusicSymbolPositionInStaff(int(top_pos - snapped))
+
+    def _staff_pos(self, p: Point, offset: int = 0) -> Tuple[float, MusicSymbolPositionInStaff]:
+        @dataclass
+        class StaffPos:
+            line: StaffLine
+            y: float
+            pos: MusicSymbolPositionInStaff
+
+        if len(self) <= 1:
+            return p.y, MusicSymbolPositionInStaff.UNDEFINED
+
+        y_on_staff: List[StaffPos] = []
+        for staffLine in self.sorted():
+            y_on_staff.append(StaffPos(staffLine, staffLine.coords.interpolate_y(p.x), MusicSymbolPositionInStaff.UNDEFINED))
+
+        y_on_staff[-1].pos = MusicSymbolPositionInStaff.SPACE_1 if y_on_staff[-1].line.space else MusicSymbolPositionInStaff.LINE_1
+        for i in reversed(range(0, len(y_on_staff) - 1)):
+            if y_on_staff[i + 1].line.space == y_on_staff[i].line.space:
+                y_on_staff[i].pos = y_on_staff[i + 1].pos + 2
+            else:
+                y_on_staff[i].pos = y_on_staff[i + 1].pos + 1
+
+        pre_line_idx = -1
+        l = [i for i, l in enumerate(y_on_staff) if l.y > p.y]
+        if len(l) > 0:
+            pre_line_idx = l[0]
+
+        if pre_line_idx == -1:
+            # bot
+            last = y_on_staff[-1]
+            prev = y_on_staff[-2]
+        elif pre_line_idx == 0:
+            last = y_on_staff[pre_line_idx + 1]
+            prev = y_on_staff[pre_line_idx]
+        else:
+            last = y_on_staff[pre_line_idx]
+            prev = y_on_staff[pre_line_idx - 1]
+
+        return StaffLines._interp_staff_pos(p.y, prev.y, last.y, prev.line.space, last.line.space, prev.pos, last.pos, offset)
+
+    def position_in_staff(self, p: Point) -> MusicSymbolPositionInStaff:
+        return self._staff_pos(p)[1]
+
+    def snap_to_pos(self, p: Point, offset: int = 0) -> float:
+        return self._staff_pos(p, offset)[0]
+
+    # ==================================================================
+
+
 
 class MusicLine:
     def __init__(self,
@@ -415,6 +510,9 @@ class MusicLine:
             return None
 
         return (self.staff_lines[0].center_y() + self.staff_lines[-1].center_y()) / 2
+
+    def compute_position_in_staff(self, coord: Point) -> MusicSymbolPositionInStaff:
+        return self.staff_lines.compute_position_in_staff(coord)
 
     def update_note_names(self, initial_clef: Clef = None):
         current_clef = initial_clef if initial_clef else Clef()

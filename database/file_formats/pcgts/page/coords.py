@@ -28,7 +28,7 @@ class Point:
         return Point(self.p.astype(dtype))
 
     def round(self, decimals=0, out=None):
-        return Point(np.round(self, decimals, out))
+        return Point(np.round(self.p, decimals, out))
 
     def xy(self):
         return self.x, self.y

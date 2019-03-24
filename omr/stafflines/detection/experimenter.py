@@ -1,21 +1,17 @@
 import logging
 from database.file_formats import PcGts
-from database.file_formats.pcgts import MusicLines
 from database.file_formats.performance import LockState
-from database import DatabaseBook
 from pagesegmentation.lib.trainer import TrainSettings, Trainer
 from pagesegmentation.lib.data_augmenter import DefaultAugmenter
 from omr.dataset.datafiles import dataset_by_locked_pages
-from omr.stafflines.detection.pixelclassifier.dataset import PCDataset
-from omr.stafflines.detection.predictor import create_staff_line_predictor, StaffLinesModelType, PredictorParameters
+from omr.stafflines.detection.dataset import PCDataset, StaffLineDetectionDatasetParams
+from omr.stafflines.detection.predictor import create_staff_line_predictor, StaffLinesModelType, StaffLinePredictorParameters
 from omr.stafflines.detection.evaluator import StaffLineDetectionEvaluator, EvaluationData
 from typing import NamedTuple, List, Optional
-import tempfile
 import os
 import shutil
 from prettytable import PrettyTable
 import numpy as np
-from omr.symboldetection.evaluator import precision_recall_f1
 import json
 
 logger = logging.getLogger(__name__)
@@ -25,20 +21,22 @@ class GlobalArgs(NamedTuple):
     model_dir: str
     cross_folds: int
     single_folds: Optional[List[int]]
+    n_train: int
 
-    gray: bool
-    pad: int
-    extract_region_only: bool
-    gt_line_thickness: int
     target_line_space: int
     origin_line_space: Optional[int]
-    full_page: bool
     do_not_use_model: bool
+    post_processing: bool
+    data_augmentation: bool
+    smooth_staff_lines: int
+    line_fit_distance: float
 
     skip_train: bool
     skip_prediction: bool
     skip_eval: bool
     skip_cleanup: bool
+
+    dataset_params: StaffLineDetectionDatasetParams
 
 
 class SingleDataArgs(NamedTuple):
@@ -53,20 +51,10 @@ class SingleDataArgs(NamedTuple):
 
 def run_single(args: SingleDataArgs):
     fold_log = logger.getChild("fold_{}".format(args.id))
-    train_pcgts_dataset = PCDataset(args.train_pcgts_files, gt_required=True,
-                                    gray=args.global_args.gray,
-                                    full_page=args.global_args.full_page,
-                                    pad=args.global_args.pad,
-                                    extract_region_only=args.global_args.extract_region_only,
-                                    gt_line_thickness=args.global_args.gt_line_thickness,
-                                    )
-    validation_pcgts_dataset = PCDataset(args.validation_pcgts_files, gt_required=True,
-                                         gray=args.global_args.gray,
-                                         full_page=args.global_args.full_page,
-                                         pad=args.global_args.pad,
-                                         extract_region_only=args.global_args.extract_region_only,
-                                         gt_line_thickness=args.global_args.gt_line_thickness,
-                                         )
+    train_pcgts_dataset = PCDataset(
+        args.train_pcgts_files if args.global_args.n_train < 0 else args.train_pcgts_files[:args.global_args.n_train],
+        args.global_args.dataset_params)
+    validation_pcgts_dataset = PCDataset(args.validation_pcgts_files, args.global_args.dataset_params)
 
     def print_dataset_content(files: List[PcGts], label: str):
         fold_log.debug("Got {} {} files: {}".format(len(files), label, [f.page.location.local_path() for f in files]))
@@ -80,7 +68,6 @@ def run_single(args: SingleDataArgs):
 
     prediction_path = os.path.join(args.output, 'pred.json')
     model_path = os.path.join(args.output, 'best')
-
 
     if not args.global_args.skip_train and not args.global_args.do_not_use_model:
         fold_log.info("Starting training")
@@ -98,7 +85,7 @@ def run_single(args: SingleDataArgs):
             early_stopping_max_keep=5,
             early_stopping_on_accuracy=True,
             threads=8,
-            data_augmentation=DefaultAugmenter(angle=(-2, 2), flip=(0.5, 0.5), contrast=0.8, brightness=20, scale=(-0.1, 0.1, -0.1, 0.1)),
+            data_augmentation=DefaultAugmenter(angle=(-2, 2), flip=(0.5, 0.5), contrast=0.8, brightness=20, scale=(-0.1, 0.1, -0.1, 0.1)) if args.global_args.data_augmentation else None,
             checkpoint_iter_delta=None,
             compute_baseline=True,
         )
@@ -109,14 +96,13 @@ def run_single(args: SingleDataArgs):
         fold_log.info("Starting evaluation")
         pred = create_staff_line_predictor(
             StaffLinesModelType.PIXEL_CLASSIFIER,
-            PredictorParameters(
+            StaffLinePredictorParameters(
                 [model_path] if not args.global_args.do_not_use_model else None,
                 # ["/home/cwick/Documents/Projects/ommr4all/modules/ommr4all-server/storage/Graduel/pc_staff_lines/model"],
-                target_line_space_height=args.global_args.target_line_space,
-                full_page=args.global_args.full_page,
-                gray=args.global_args.gray,
-                pad=args.global_args.pad,
-                extract_region_only=args.global_args.extract_region_only,
+                args.global_args.dataset_params,
+                post_processing=args.global_args.post_processing,
+                smooth_staff_lines=args.global_args.smooth_staff_lines,
+                line_fit_distance=args.global_args.line_fit_distance,
             )
         )
         predictions = []
@@ -242,19 +228,25 @@ if __name__ == "__main__":
     parser.add_argument("--model_dir", default="models_out/")
     parser.add_argument("--cross_folds", default=5, type=int)
     parser.add_argument("--single_folds", nargs="*", type=int, default=[])
-    parser.add_argument("--gray", action="store_true", default=False)
-    parser.add_argument("--pad", type=int, default=0)
-    parser.add_argument("--extract_region_only", action="store_true", default=False)
-    parser.add_argument("--gt_line_thickness", default=3, type=int)
     parser.add_argument("--target_line_space", default=10, type=int)
     parser.add_argument("--origin_line_space", default=None, type=int)
-    parser.add_argument("--full_page", action="store_true", default=False)
     parser.add_argument("--do_not_use_model", action="store_true", default=False)
     parser.add_argument("--skip_train", action="store_true", default=False)
     parser.add_argument("--skip_prediction", action="store_true", default=False)
     parser.add_argument("--skip_eval", action="store_true", default=False)
     parser.add_argument("--cleanup", action="store_true", default=False)
     parser.add_argument("--seed", default=None, type=int)
+    parser.add_argument("--data_augmentation", action="store_true")
+    parser.add_argument("--post_processing", action="store_true")
+    parser.add_argument("--smooth_staff_lines", type=int, default=0)
+    parser.add_argument("--line_fit_distance", type=float, default=0)
+    parser.add_argument("--n_train", default=-1, type=int)
+
+    parser.add_argument("--gray", action="store_true")
+    parser.add_argument("--pad", default=[0], type=int, nargs="+")
+    parser.add_argument("--full_page", action="store_true")
+    parser.add_argument("--extract_region_only", action="store_true")
+    parser.add_argument("--gt_line_thickness", default=3, type=int)
 
     args = parser.parse_args()
 
@@ -263,21 +255,29 @@ if __name__ == "__main__":
         np.random.seed(args.seed)
 
     args = GlobalArgs(
-        args.model_dir,
-        args.cross_folds,
-        args.single_folds,
-        args.gray,
-        args.pad,
-        args.extract_region_only,
-        args.gt_line_thickness,
-        args.target_line_space,
-        args.origin_line_space,
-        args.full_page,
-        args.do_not_use_model,
-        args.skip_train,
-        args.skip_prediction,
-        args.skip_eval,
-        not args.cleanup,
+        model_dir=args.model_dir,
+        cross_folds=args.cross_folds,
+        single_folds=args.single_folds,
+        target_line_space=args.target_line_space,
+        origin_line_space=args.origin_line_space,
+        do_not_use_model=args.do_not_use_model,
+        skip_train=args.skip_train,
+        skip_prediction=args.skip_prediction,
+        skip_eval=args.skip_eval,
+        skip_cleanup=not args.cleanup,
+        data_augmentation=args.data_augmentation,
+        post_processing=args.post_processing,
+        smooth_staff_lines=args.smooth_staff_lines,
+        line_fit_distance=args.line_fit_distance,
+        n_train=args.n_train,
+        dataset_params=StaffLineDetectionDatasetParams(
+            gt_required=True,
+            full_page=args.full_page,
+            gray=args.gray,
+            pad=tuple(args.pad),
+            extract_region_only=args.extract_region_only,
+            gt_line_thickness=args.gt_line_thickness,
+        ),
     )
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', stream=sys.stdout)
     experimenter = Experimenter()

@@ -96,9 +96,13 @@ class ImageExtractStaffLineImages(ImageOperation):
 
 
 class ImageExtractDewarpedStaffLineImages(ImageOperation):
-    def __init__(self):
+    def __init__(self, dewarp, cut_region, pad, center, staff_lines_only):
         super().__init__()
-        self.cropper = ImageCropToSmallestBoxOperation()
+        self.dewarp = dewarp
+        self.cut_region = cut_region
+        self.center = center
+        self.staff_lines_only = staff_lines_only
+        self.cropper = ImageCropToSmallestBoxOperation(pad)
 
     def apply_single(self, data: ImageOperationData, debug=False) -> OperationOutput:
         image = data.images[0].image
@@ -109,11 +113,24 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         for mr in data.page.music_regions:
             for ml in mr.staffs:
                 s.append(ml)
-                ml.coords.draw(labels, i, 0, fill=True)
+                if self.staff_lines_only:
+                    # draw staff lines instead of full area, however add an average line distance to top and bottom
+                    lines = ml.staff_lines.sorted()
+                    avg_d = ml.avg_line_distance()
+                    top = int(lines[0].coords.points[:,1].min() - avg_d)
+                    bot = int(lines[-1].coords.points[:, 1].max() + avg_d)
+                    left = int(lines[0].coords.points[:, 0].min())
+                    right = int(lines[0].coords.points[:, 0].max())
+                    labels[top:bot, left:right] = i
+                else:
+                    ml.coords.draw(labels, i, 0, fill=True)
                 self._symbols_to_mask(ml, marked_symbols)
                 i += 1
 
-        dew_page, dew_labels, dew_symbols = tuple(map(np.array, dewarp([Image.fromarray(image), Image.fromarray(labels), Image.fromarray(marked_symbols)], s, None)))
+        if self.dewarp:
+            dew_page, dew_labels, dew_symbols = tuple(map(np.array, dewarp([Image.fromarray(image), Image.fromarray(labels), Image.fromarray(marked_symbols)], s, None)))
+        else:
+            dew_page, dew_labels, dew_symbols = image, labels, marked_symbols
 
         if debug:
             import matplotlib.pyplot as plt
@@ -139,13 +156,27 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                     img_data.images = [ImageData(mask, True), ImageData(dew_page, False), ImageData(dew_symbols, True)]
                     cropped = self.cropper.apply_single(img_data)[0]
                     self._extract_image_op(img_data)
-                    r = self._resize_to_height(cropped.images, ml, rect=cropped.params)
-                    if r is not None:  # Invalid resize (probably no staff lines present)
-                        img_data.images, r_params = r
-                        img_data.params = (i, cropped.params, r_params, all_music_lines)
+                    if self.center:
+                        r = self._resize_to_height(cropped.images, ml, rect=cropped.params)
+                        if r is not None:  # Invalid resize (probably no staff lines present)
+                            img_data.images, r_params = r
+                            img_data.params = (i, cropped.params, r_params, all_music_lines)
+                            out.append(img_data)
+                    else:
+                        img_data.params = (i, cropped.params, (0, ), all_music_lines)
                         out.append(img_data)
 
                 i += 1
+
+        if debug:
+            import matplotlib.pyplot as plt
+            f, ax = plt.subplots(len(out), 3)
+            for i, o in enumerate(out):
+                ax[i, 0].imshow(o.images[0].image)
+                ax[i, 1].imshow(o.images[1].image)
+                ax[i, 2].imshow(o.images[2].image)
+
+            plt.show()
 
         return out
 
@@ -234,7 +265,10 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         # default operations
         p = Point(p.x + l, t + p.y - top)
         # dewarp
-        return Point(*transform(p.xy(), mls))
+        if self.dewarp:
+            return Point(*transform(p.xy(), mls))
+        else:
+            return p
 
 
 if __name__ == "__main__":

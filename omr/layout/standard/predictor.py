@@ -1,11 +1,11 @@
-from omr.layout.predictor import LayoutAnalysisPredictor, PredictorParameters, PredictionType, PredictionResult
+from omr.layout.predictor import LayoutAnalysisPredictor, LayoutPredictorParameters, PredictionType, PredictionResult
 from typing import List
 from database.file_formats.pcgts import PcGts, TextRegionType, Coords
 import numpy as np
 
 
 class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
-    def __init__(self, params: PredictorParameters):
+    def __init__(self, params: LayoutPredictorParameters):
         super().__init__(params)
 
         from layoutanalysis.segmentation.segmentation import Segmentator, SegmentationSettings
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     mask = np.zeros(img.shape, np.float) + 255
     val_pcgts = [PcGts.from_file(p.file('pcgts'))]
 
-    params = PredictorParameters(
+    params = LayoutPredictorParameters(
         checkpoints=[],
     )
     pred = StandardLayoutAnalysisPredictor(params)

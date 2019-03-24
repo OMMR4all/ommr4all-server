@@ -1,7 +1,7 @@
 from database.file_formats.pcgts import PcGts, TextRegionType, MusicLine
 import numpy as np
-from typing import List, Tuple, Generator
-from omr.dataset.pcgtsdataset import RegionLineMaskData
+from typing import List, Tuple, Generator, NamedTuple, Union
+from omr.dataset import RegionLineMaskData
 from tqdm import tqdm
 import logging
 
@@ -11,21 +11,27 @@ from omr.imageoperations import ImageLoadFromPageOperation, ImageOperationList, 
 logger = logging.getLogger(__name__)
 
 
+class StaffLineDetectionDatasetParams(NamedTuple):
+    gt_required: bool = False
+    full_page: bool = True
+    gray: bool = True
+    pad: Union[int, Tuple[int], Tuple[int, int], Tuple[int, int, int, int]] = 0
+    extract_region_only: bool = True
+    gt_line_thickness: int = 3
+
+
 class PCDataset:
-    def __init__(self, pcgts: List[PcGts], gt_required: bool,
-                 full_page=True, gray=True,
-                 extract_region_only=True, pad=0, gt_line_thickness=3,
+    def __init__(self, pcgts: List[PcGts],
+                 params: StaffLineDetectionDatasetParams,
                  ):
-        self.gray = gray
-        self.extract_region_only = extract_region_only
+        self.params = params
         self.files = pcgts
-        self.gt_required = gt_required
         self.loaded: List[Tuple[MusicLine, np.ndarray, str]] = None
         self.marked_symbol_data: List[Tuple[MusicLine, np.ndarray]] = None
 
         self.line_and_mask_operations = ImageOperationList([
-            ImageLoadFromPageOperation(invert=True, files=['gray_deskewed' if gray else 'binary_deskewed']),
-            ImageExtractStaffLineImages(full_page=full_page, pad=pad, extract_region_only=extract_region_only, gt_line_thickness=gt_line_thickness),
+            ImageLoadFromPageOperation(invert=True, files=['gray_deskewed' if params.gray else 'binary_deskewed']),
+            ImageExtractStaffLineImages(full_page=params.full_page, pad=params.pad, extract_region_only=params.extract_region_only, gt_line_thickness=params.gt_line_thickness),
             # ImageScaleOperation(0.5),  // Do not scale here, the line detector needs full resolution images
             # ImagePadToPowerOf2(),      // Padding also done in line detector
         ])
@@ -68,7 +74,12 @@ if __name__ == '__main__':
     from database import DatabaseBook
     page = DatabaseBook('Graduel').pages()[0]
     pcgts = PcGts.from_file(page.file('pcgts'))
-    dataset = PCDataset([pcgts], True, full_page=False, gray=True, pad=5)
+    params = StaffLineDetectionDatasetParams(
+        full_page=False,
+        gray=True,
+        pad=(5, 5),
+    )
+    dataset = PCDataset([pcgts], params)
     images = dataset.marked_lines()
 
     f, ax = plt.subplots(len(images), 3, sharex='all')

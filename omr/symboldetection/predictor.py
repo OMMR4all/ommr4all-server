@@ -1,13 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import List, Generator, NamedTuple
 from database.file_formats.pcgts import *
-from omr.dataset.pcgtsdataset import RegionLineMaskData, PcGtsDataset
+from omr.symboldetection.dataset import SymbolDetectionDataset, RegionLineMaskData, SymbolDetectionDatasetParams
 from enum import Enum
 
 
-class PredictorParameters(NamedTuple):
+class SymbolDetectionPredictorParameters(NamedTuple):
     checkpoints: List[str]
-    height: int = 80
+    symbol_detection_params: SymbolDetectionDatasetParams = SymbolDetectionDatasetParams()
 
 
 class PredictionResult(NamedTuple):
@@ -19,16 +19,16 @@ PredictionType = Generator[PredictionResult, None, None]
 
 
 class SymbolDetectionPredictor(ABC):
-    def __init__(self, params: PredictorParameters):
+    def __init__(self, params: SymbolDetectionPredictorParameters):
         self.params = params
-        self.dataset: PcGtsDataset = None
+        self.dataset: SymbolDetectionDataset = None
 
     def predict(self, pcgts_files: List[PcGts]) -> PredictionType:
-        self.dataset = PcGtsDataset(pcgts_files, gt_required=False, height=self.params.height)
+        self.dataset = SymbolDetectionDataset(pcgts_files, self.params.symbol_detection_params)
         return self._predict(self.dataset)
 
     @abstractmethod
-    def _predict(self, dataset: PcGtsDataset) -> PredictionType:
+    def _predict(self, dataset: SymbolDetectionDataset) -> PredictionType:
         pass
 
 
@@ -36,7 +36,7 @@ class PredictorTypes(Enum):
     PIXEL_CLASSIFIER = 0
 
 
-def create_predictor(t: PredictorTypes, params: PredictorParameters) -> SymbolDetectionPredictor:
+def create_predictor(t: PredictorTypes, params: SymbolDetectionPredictorParameters) -> SymbolDetectionPredictor:
     if t == PredictorTypes.PIXEL_CLASSIFIER:
         from omr.symboldetection.pixelclassifier.predictor import PCPredictor
         return PCPredictor(params)

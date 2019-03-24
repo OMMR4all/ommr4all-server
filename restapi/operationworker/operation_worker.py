@@ -242,7 +242,9 @@ class OperationWorkerThread:
             com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.INITIALIZING)))
             if isinstance(task_data, TaskDataStaffLineDetection):
                 data: TaskDataStaffLineDetection = task_data
-                from omr.stafflines.detection.predictor import create_staff_line_predictor, StaffLinesModelType, StaffLinesPredictor, PredictorParameters
+                from omr.stafflines.detection.predictor import \
+                    create_staff_line_predictor, StaffLinesModelType, StaffLinesPredictor, \
+                    StaffLinePredictorParameters, StaffLineDetectionDatasetParams
                 import omr.stafflines.detection.pixelclassifier.settings as pc_settings
                 from database.file_formats import PcGts
                 # load book specific model or default model as fallback
@@ -250,10 +252,8 @@ class OperationWorkerThread:
                 if not os.path.exists(model + '.meta'):
                     model = os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', 'french14', pc_settings.model_dir, pc_settings.model_name)
 
-                params = PredictorParameters(
+                params = StaffLinePredictorParameters(
                     checkpoints=[model],
-                    full_page=True,
-                    gray=True,
                 )
                 staff_line_detector: StaffLinesPredictor = create_staff_line_predictor(StaffLinesModelType.PIXEL_CLASSIFIER, params)
                 com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
@@ -261,10 +261,10 @@ class OperationWorkerThread:
                 result = {'staffs': [l.to_json() for l in staffs]}
             elif isinstance(task_data, TaskDataLayoutAnalysis):
                 data: TaskDataLayoutAnalysis = task_data
-                from omr.layout.predictor import PredictorParameters, create_predictor, PredictorTypes
+                from omr.layout.predictor import LayoutPredictorParameters, create_predictor, PredictorTypes
                 from database.file_formats import PcGts
 
-                params = PredictorParameters(checkpoints=[])
+                params = LayoutPredictorParameters(checkpoints=[])
                 pred = create_predictor(PredictorTypes.STANDARD, params)
                 pcgts = PcGts.from_file(data.page.file('pcgts'))
 
@@ -272,7 +272,8 @@ class OperationWorkerThread:
                 result = list(pred.predict([pcgts]))[0].to_dict()
             elif isinstance(task_data, TaskDataSymbolDetection):
                 data: TaskDataSymbolDetection = task_data
-                from omr.symboldetection.predictor import PredictorParameters, PredictorTypes, create_predictor
+                from omr.symboldetection.predictor import \
+                    SymbolDetectionPredictorParameters, PredictorTypes, create_predictor, SymbolDetectionDatasetParams
                 import omr.symboldetection.pixelclassifier.settings as pc_settings
                 from database.file_formats import PcGts
 
@@ -281,7 +282,7 @@ class OperationWorkerThread:
                 if not os.path.exists(model + '.meta'):
                     model = os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', 'french14', pc_settings.model_dir, pc_settings.model_name)
 
-                params = PredictorParameters(
+                params = SymbolDetectionPredictorParameters(
                     checkpoints=[model],
                 )
                 pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER, params)

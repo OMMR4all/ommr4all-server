@@ -1,12 +1,13 @@
 from typing import List
 from database.file_formats import PcGts
-from omr.dataset.pcgtsdataset import PcGtsDataset
+from omr.symboldetection.dataset import SymbolDetectionDataset, SymbolDetectionDatasetParams
 from database import DatabaseBook
 import os
 from omr.imageoperations.music_line_operations import SymbolLabel
 from pagesegmentation.lib.trainer import Trainer, TrainSettings, TrainProgressCallback
 from omr.symboldetection.trainer import SymbolDetectionTrainerCallback
 import omr.symboldetection.pixelclassifier.settings as pc_settings
+
 
 class PCTrainerCallback(TrainProgressCallback):
     def __init__(self, callback: SymbolDetectionTrainerCallback):
@@ -27,10 +28,10 @@ class PCTrainerCallback(TrainProgressCallback):
 
 
 class PCTrainer:
-    def __init__(self, train_pcgts_files: List[PcGts], validation_pcgts_files: List[PcGts]):
-        self.height = 80
-        self.train_pcgts_dataset = PcGtsDataset(train_pcgts_files, gt_required=True, height=self.height)
-        self.validation_pcgts_dataset = PcGtsDataset(validation_pcgts_files, gt_required=True, height=self.height)
+    def __init__(self, train_pcgts_files: List[PcGts], validation_pcgts_files: List[PcGts], symbol_detection_params: SymbolDetectionDatasetParams):
+        self.params = symbol_detection_params
+        self.train_pcgts_dataset = SymbolDetectionDataset(train_pcgts_files, symbol_detection_params)
+        self.validation_pcgts_dataset = SymbolDetectionDataset(validation_pcgts_files, symbol_detection_params)
 
     def run(self, model_for_book: DatabaseBook, callback: SymbolDetectionTrainerCallback = None):
         pc_callback = PCTrainerCallback(callback) if callback else None
@@ -48,6 +49,8 @@ class PCTrainer:
             early_stopping_max_keep=5,
             early_stopping_on_accuracy=True,
             threads=4,
+            checkpoint_iter_delta=None,
+            compute_baseline=True,
         )
 
         trainer = Trainer(settings)

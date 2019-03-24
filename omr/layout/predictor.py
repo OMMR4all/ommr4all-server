@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import List, Generator, NamedTuple, Dict
 from database.file_formats.pcgts import *
-from omr.dataset.pcgtsdataset import PcGtsDataset
+from omr.symboldetection.dataset import SymbolDetectionDataset
 from enum import Enum
 
 
-class PredictorParameters(NamedTuple):
+class LayoutPredictorParameters(NamedTuple):
     checkpoints: List[str]
 
 
@@ -45,9 +45,9 @@ FinalPrediction = Generator[FinalPredictionResult, None, None]
 
 
 class LayoutAnalysisPredictor(ABC):
-    def __init__(self, params: PredictorParameters):
+    def __init__(self, params: LayoutPredictorParameters):
         self.params = params
-        self.dataset: PcGtsDataset = None
+        self.dataset: SymbolDetectionDataset = None
 
     def predict(self, pcgts_files: List[PcGts]) -> FinalPrediction:
         for r, pcgts in zip(self._predict(pcgts_files), pcgts_files):
@@ -75,7 +75,7 @@ class PredictorTypes(Enum):
     STANDARD = 0
 
 
-def create_predictor(t: PredictorTypes, params: PredictorParameters) -> LayoutAnalysisPredictor:
+def create_predictor(t: PredictorTypes, params: LayoutPredictorParameters) -> LayoutAnalysisPredictor:
     if t == PredictorTypes.STANDARD:
         from omr.layout.standard.predictor import StandardLayoutAnalysisPredictor
         return StandardLayoutAnalysisPredictor(params)

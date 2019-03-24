@@ -1,4 +1,4 @@
-from omr.stafflines.detection.predictor import StaffLinesPredictor, PredictorParameters, PredictionType, PredictionResult, RegionLineMaskData
+from omr.stafflines.detection.predictor import StaffLinesPredictor, StaffLinePredictorParameters, PredictionType, PredictionResult, RegionLineMaskData
 from database import DatabasePage, DatabaseBook
 from database.file_formats.pcgts import *
 import numpy as np
@@ -6,13 +6,13 @@ import os
 import logging
 from typing import List
 import omr.stafflines.detection.pixelclassifier.settings as pc_settings
-from omr.stafflines.detection.pixelclassifier.dataset import PCDataset
+from omr.stafflines.detection.dataset import PCDataset
 
 logger = logging.getLogger(__name__)
 
 
 class BasicStaffLinePredictor(StaffLinesPredictor):
-    def __init__(self, params: PredictorParameters):
+    def __init__(self, params: StaffLinePredictorParameters):
         super().__init__()
         self.params = params
         model_path = None
@@ -40,21 +40,15 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
             lineSpaceHeight=0,
             targetLineSpaceHeight=params.target_line_space_height,
             model=model_path,
-            post_process=True,
-            smooth_lines=2,
-            line_fit_distance=1,
+            post_process=params.post_processing,
+            smooth_lines=params.smooth_staff_lines,
+            line_fit_distance=params.line_fit_distance,
             # debug=True, smooth_lines_advdebug=True,
         )
         self.line_detection = LineDetection(self.settings)
 
     def predict(self, pcgts_files: List[PcGts]) -> PredictionType:
-        pc_dataset = PCDataset(pcgts_files,
-                               gt_required=False,
-                               full_page=self.params.full_page,
-                               gray=self.params.gray,
-                               pad=self.params.pad,
-                               extract_region_only=self.params.extract_region_only,
-                               )
+        pc_dataset = PCDataset(pcgts_files, self.params.dataset_params)
         dataset = pc_dataset.to_line_detection_dataset()
         gray_images = [(255 - data.line_image).astype(float) for data in dataset]
         predictions = self.line_detection.detect(gray_images)
@@ -84,7 +78,7 @@ if __name__ == '__main__':
 
     pcgts = [PcGts.from_file(page.file('pcgts'))]
 
-    params = PredictorParameters(
+    params = StaffLinePredictorParameters(
         # None if False else [book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))],
         # ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/internal_storage/default_models/french14/pc_staff_lines/model"],
         ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/models_out/line_detection_4/best"],

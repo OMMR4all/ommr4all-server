@@ -2,11 +2,11 @@ from typing import List
 from pagesegmentation.lib.predictor import Predictor, PredictSettings
 import os
 from database.file_formats.pcgts import *
-from omr.dataset.pcgtsdataset import PcGtsDataset, RegionLineMaskData
+from omr.symboldetection.dataset import RegionLineMaskData, SymbolDetectionDataset, SymbolDetectionDatasetParams
 import cv2
 import numpy as np
 from omr.imageoperations.music_line_operations import SymbolLabel
-from omr.symboldetection.predictor import SymbolDetectionPredictor, PredictionResult, PredictionType, PredictorParameters
+from omr.symboldetection.predictor import SymbolDetectionPredictor, PredictionResult, PredictionType, SymbolDetectionPredictorParameters
 
 
 def render_prediction_labels(labels, img=None):
@@ -35,14 +35,14 @@ def render_prediction_labels(labels, img=None):
 
 
 class PCPredictor(SymbolDetectionPredictor):
-    def __init__(self, params: PredictorParameters):
+    def __init__(self, params: SymbolDetectionPredictorParameters):
         super().__init__(params)
         settings = PredictSettings(
             network=os.path.splitext(params.checkpoints[0])[0]
         )
         self.predictor = Predictor(settings)
 
-    def _predict(self, dataset: PcGtsDataset) -> PredictionType:
+    def _predict(self, dataset: SymbolDetectionDataset) -> PredictionType:
         for p in self.predictor.predict(dataset.to_music_line_page_segmentation_dataset()):
             m: RegionLineMaskData = p.data.user_data
             symbols = PredictionResult(self.exract_symbols(p.labels, m), p.data.user_data)
@@ -76,22 +76,23 @@ class PCPredictor(SymbolDetectionPredictor):
             area = p[y:y+h, x:x+w] * (cc[y:y+h, x:x+w] == i)
             label = SymbolLabel(int(np.argmax([np.sum(area == v + 1) for v in range(len(SymbolLabel) - 1)])) + 1)
             centroids_canvas[int(np.round(c.y)), int(np.round(c.x))] = label
+            position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
             if label == SymbolLabel.NOTE_START:
-                symbols.append(Neume(notes=[NoteComponent(coord=coord)]))
+                symbols.append(Neume(notes=[NoteComponent(coord=coord, position_in_staff=position_in_staff)]))
             elif label == SymbolLabel.NOTE_GAPPED or label == SymbolLabel.NOTE_LOOPED:
                 if len(symbols) > 0 and isinstance(symbols[-1], Neume):
                     n: Neume = symbols[-1]
                     if label == SymbolLabel.NOTE_GAPPED:
-                        n.notes.append(NoteComponent(coord=coord, graphical_connection=GraphicalConnectionType.GAPED))
+                        n.notes.append(NoteComponent(coord=coord, graphical_connection=GraphicalConnectionType.GAPED, position_in_staff=position_in_staff))
                     else:
-                        n.notes.append(NoteComponent(coord=coord, graphical_connection=GraphicalConnectionType.LOOPED))
+                        n.notes.append(NoteComponent(coord=coord, graphical_connection=GraphicalConnectionType.LOOPED, position_in_staff=position_in_staff))
                 else:
-                    symbols.append(Neume(notes=[NoteComponent(coord=coord)]))
+                    symbols.append(Neume(notes=[NoteComponent(coord=coord, position_in_staff=position_in_staff)]))
 
             elif label == SymbolLabel.CLEF_C:
-                symbols.append(Clef(clef_type=ClefType.CLEF_C, coord=coord))
+                symbols.append(Clef(clef_type=ClefType.CLEF_C, coord=coord, position_in_staff=position_in_staff))
             elif label == SymbolLabel.CLEF_F:
-                symbols.append(Clef(clef_type=ClefType.CLEF_F, coord=coord))
+                symbols.append(Clef(clef_type=ClefType.CLEF_F, coord=coord, position_in_staff=position_in_staff))
             elif label == SymbolLabel.ACCID_FLAT:
                 symbols.append(Accidental(accidental=AccidentalType.FLAT, coord=coord))
             elif label == SymbolLabel.ACCID_SHARP:
@@ -114,7 +115,7 @@ if __name__ == '__main__':
     import omr.symboldetection.pixelclassifier.settings as pc_settings
     b = DatabaseBook('Graduel')
     val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[12:13]]
-    pred = PCPredictor(PredictorParameters([b.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))]))
+    pred = PCPredictor(SymbolDetectionPredictorParameters([b.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))]))
     ps = list(pred.predict(val_pcgts))
     import matplotlib.pyplot as plt
     orig = np.array(ps[0].line.operation.page_image)

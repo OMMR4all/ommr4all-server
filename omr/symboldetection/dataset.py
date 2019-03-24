@@ -1,7 +1,8 @@
 from database.file_formats.pcgts import PcGts, MusicLine, Page
 from database.file_formats.pcgts.page.textregion import TextRegionType
 from database.file_formats.pcgts.page.musicregion import Symbol, Neume, Clef, Accidental, GraphicalConnectionType
-from typing import List, Generator, Tuple
+from omr.dataset import RegionLineMaskData
+from typing import List, Generator, Tuple, Union
 from database import DatabaseBook
 import numpy as np
 from PIL import Image
@@ -33,38 +34,39 @@ class LoadedImage(NamedTuple):
     str_gt: List[str]
 
 
-class RegionLineMaskData:
-    def __init__(self, op: ImageOperationData):
-        self.operation = op
-        self.line_image = op.images[1].image
-        self.region = op.images[0].image
-        self.mask = op.images[2].image
-
-
 class ScaleImage(NamedTuple):
     img: np.ndarray
     order: int = 3
 
 
-class PcGtsDataset:
-    def __init__(self, pcgts: List[PcGts], gt_required: bool, height=80):
+class SymbolDetectionDatasetParams(NamedTuple):
+    gt_required: bool = False
+    height: int = 80
+    dewarp: bool = True
+    cut_region: bool = True
+    pad: Union[int, Tuple[int], Tuple[int, int], Tuple[int, int, int, int]] = 0
+    center: bool = True
+    staff_lines_only: bool = False          # Determine the staff line AABB based on staff lines only (this is used for evaluation only)
+
+
+class SymbolDetectionDataset:
+    def __init__(self, pcgts: List[PcGts], params: SymbolDetectionDatasetParams):
         self.files = pcgts
-        self.gt_required = gt_required
+        self.params = params
         self.loaded: List[Tuple[MusicLine, np.ndarray, str]] = None
-        self.height = height
         self.marked_symbol_data: List[Tuple[MusicLine, np.ndarray]] = None
 
         self.line_and_mask_operations = ImageOperationList([
             ImageLoadFromPageOperation(invert=True),
-            ImageDrawRegions(text_region_types=[TextRegionType.DROP_CAPITAL], color=0),
-            ImageExtractDewarpedStaffLineImages(),
-            ImageRescaleToHeightOperation(height=self.height),
+            ImageDrawRegions(text_region_types=[TextRegionType.DROP_CAPITAL] if params.cut_region else [], color=0),
+            ImageExtractDewarpedStaffLineImages(params.dewarp, params.cut_region, params.pad, params.center, params.staff_lines_only),
+            ImageRescaleToHeightOperation(height=params.height),
             ImagePadToPowerOf2(),
         ])
 
     def to_music_line_page_segmentation_dataset(self):
         from pagesegmentation.lib.dataset import Dataset, SingleData
-        return Dataset([SingleData(image=d.line_image, binary=None, mask=d.mask,
+        return Dataset([SingleData(image=d.line_image if self.params.cut_region else d.region, binary=None, mask=d.mask,
                                    user_data=d) for d in self.marked_symbols()])
 
     def marked_symbols(self) -> List[RegionLineMaskData]:
@@ -227,9 +229,17 @@ class PcGtsDataset:
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from omr.dewarping.dummy_dewarper import dewarp
-    page = DatabaseBook('demo').pages()[0]
+    page = DatabaseBook('Graduel').pages()[0]
     pcgts = PcGts.from_file(page.file('pcgts'))
-    dataset = PcGtsDataset([pcgts], True)
+    params = SymbolDetectionDatasetParams(
+        gt_required=True,
+        dewarp=True,
+        cut_region=False,
+        center=False,
+        pad=10,
+        staff_lines_only=True,
+    )
+    dataset = SymbolDetectionDataset([pcgts], params)
     images = dataset.marked_symbols()
 
     f, ax = plt.subplots(len(images), 3, sharex='all')

@@ -1,4 +1,4 @@
-from omr.stafflines.detection.predictor import StaffLinesPredictor, PredictorParameters
+from omr.stafflines.detection.predictor import StaffLinesPredictor, StaffLinePredictorParameters, StaffLineDetectionDatasetParams
 from database.file_formats.pcgts import PcGts, StaffLines, StaffLine, MusicLines
 from typing import List, NamedTuple, Tuple
 import numpy as np
@@ -127,16 +127,31 @@ class StaffLineDetectionEvaluator:
 if __name__ == "__main__":
     from omr.stafflines.detection.pixelclassifier.predictor import BasicStaffLinePredictor
     from database import DatabaseBook
+    import sys
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', stream=sys.stdout)
 
     book = DatabaseBook('Graduel')
     pcgts = PcGts.from_file(book.page('Graduel_de_leglise_de_Nevers_521').file('pcgts'))
 
     pred = BasicStaffLinePredictor(
-        PredictorParameters(
+        StaffLinePredictorParameters(
             None,
-            full_page=False,
-            gray=False,
+            StaffLineDetectionDatasetParams(
+                full_page=False,
+                gray=False,
+            )
         )
     )
-    evaluator = StaffLineDetectionEvaluator(pred)
-    evaluator.evaluate([pcgts])
+    predictions = []
+    for p in pred.predict([pcgts]):
+        predictions.append(
+            EvaluationData(
+                p.line.operation.page.location.local_path(),
+                p.line.operation.music_lines,
+                p.music_lines,
+                p.line.operation.page_image.shape,
+            )
+        )
+
+    evaluator = StaffLineDetectionEvaluator()
+    evaluator.evaluate(predictions)

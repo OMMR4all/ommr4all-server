@@ -13,7 +13,21 @@ class Rect(NamedTuple):
 class ImageCropToSmallestBoxOperation(ImageOperation):
     def __init__(self, pad=0):
         super().__init__()
-        self.pad = pad
+        if isinstance(pad, tuple) or isinstance(pad, list):
+            if len(pad) == 0:
+                self.pad = (0, 0, 0, 0)
+            elif len(pad) == 1:
+                self.pad = pad * 4
+            elif len(pad) == 2:
+                self.pad = (pad[0], pad[1], pad[0], pad[1])
+            elif len(pad) == 4:
+                self.pad = pad
+            else:
+                raise ValueError("Invalid shape of padding {}".format(pad))
+        elif isinstance(pad, int):
+            self.pad = (pad, pad, pad, pad)
+        else:
+            raise TypeError("Invalid type of pad: {}. Only int or tuple is supported".format(type(pad)))
 
     def apply_single(self, data: ImageOperationData) -> OperationOutput:
         def smallestbox(a, datas) -> Tuple[List[np.ndarray], Rect]:
@@ -21,10 +35,10 @@ class ImageCropToSmallestBoxOperation(ImageOperation):
             m, n = a.shape
             c = a.any(0)
             q, w, e, r = (r.argmax(), m - r[::-1].argmax(), c.argmax(), n - c[::-1].argmax())
-            q = max(0, q - self.pad)
-            w = min(m, w + self.pad)
-            e = max(0, e - self.pad)
-            r = min(n, r + self.pad)
+            q = max(0, q - self.pad[0])
+            w = min(m, w + self.pad[2])
+            e = max(0, e - self.pad[3])
+            r = min(n, r + self.pad[1])
             return [d[q:w, e:r] for d in datas], Rect(q, w, e, r)
 
         imgs, r = smallestbox(data.images[0].image, [d.image for d in data])

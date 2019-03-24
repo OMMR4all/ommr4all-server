@@ -1,5 +1,5 @@
 from database import DatabaseBook
-from omr.dataset.datafiles import dataset_by_locked_pages
+from omr.dataset.datafiles import dataset_by_locked_pages, LockState
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,18 +25,18 @@ class SymbolDetectionTrainerCallback:
         pass
 
 
-
 class SymbolDetectionTrainer:
     def __init__(self, target_book: DatabaseBook, n_train=0.8, callback: SymbolDetectionTrainerCallback = None):
         super().__init__()
 
-        from omr.symboldetection.pixelclassifier.trainer import PCTrainer
+        from omr.symboldetection.pixelclassifier.trainer import PCTrainer, SymbolDetectionDatasetParams
         logger.info("Finding PcGts files with valid ground truth")
-        train_pcgts, val_pcgts = dataset_by_locked_pages(n_train, 'Symbol')
+        train_pcgts, val_pcgts = dataset_by_locked_pages(n_train, [LockState('Symbols', True)])
         logger.info("Starting training with {} training and {} validation files".format(len(train_pcgts), len(val_pcgts)))
         logger.debug("Training files: {}".format([p.page.location.local_path() for p in train_pcgts]))
         logger.debug("Validation files: {}".format([p.page.location.local_path() for p in val_pcgts]))
-        trainer = PCTrainer(train_pcgts, val_pcgts)
+        params = SymbolDetectionDatasetParams()
+        trainer = PCTrainer(train_pcgts, val_pcgts, params)
         trainer.run(target_book, callback=callback)
         logger.info("Training finished for book {}".format(target_book.local_path()))
 

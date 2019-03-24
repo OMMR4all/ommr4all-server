@@ -2,16 +2,17 @@ from abc import ABC, abstractmethod
 from database.file_formats.pcgts import MusicLines, PcGts
 from enum import Enum
 from typing import NamedTuple, List, Generator, Optional
-from omr.dataset.pcgtsdataset import RegionLineMaskData
+from omr.symboldetection.dataset import RegionLineMaskData
+from omr.stafflines.detection.dataset import StaffLineDetectionDatasetParams
 
 
-class PredictorParameters(NamedTuple):
+class StaffLinePredictorParameters(NamedTuple):
     checkpoints: Optional[List[str]]
-    full_page: bool
-    gray: bool
-    pad: int = 0
-    extract_region_only: bool = False
+    dataset_params: StaffLineDetectionDatasetParams = StaffLineDetectionDatasetParams()
     target_line_space_height: int = 10
+    post_processing: bool = True
+    smooth_staff_lines: int = 2
+    line_fit_distance: float = 0.5
 
 
 class StaffLinesModelType(Enum):
@@ -36,7 +37,7 @@ class StaffLinesPredictor(ABC):
         pass
 
 
-def create_staff_line_predictor(detector_type: StaffLinesModelType, params: PredictorParameters) -> StaffLinesPredictor:
+def create_staff_line_predictor(detector_type: StaffLinesModelType, params: StaffLinePredictorParameters) -> StaffLinesPredictor:
     if detector_type == StaffLinesModelType.PIXEL_CLASSIFIER:
         from .pixelclassifier.predictor import BasicStaffLinePredictor
         return BasicStaffLinePredictor(params)
