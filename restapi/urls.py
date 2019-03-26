@@ -6,6 +6,7 @@ from database import *
 from restapi.api import OperationStatusView, OperationView, BookView, BooksView, \
     PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView, BookMetaView, \
     BookVirtualKeyboardView
+from restapi.api.bookcomments import BookCommentsView, BookCommentsCountView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token, verify_jwt_token
@@ -48,6 +49,8 @@ urlpatterns = \
         re_path(r'^storage/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
 
         # single book
+        re_path(r'^book/(?P<book>\w+)/comments/count', BookCommentsCountView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/comments', BookCommentsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/meta$', BookMetaView.as_view()),
         re_path(r'^book/(?P<book>\w+)/upload/$', BookUploadView.as_view()),
         re_path(r'^book/(?P<book>\w+)/virtual_keyboard/$', BookVirtualKeyboardView.as_view()),
