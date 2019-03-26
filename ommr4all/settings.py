@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'restapi.apps.RestApiConfig',
     'webapp.apps.WebappConfig',
+    'database.apps.DatabaseConfig',
 ]
 
 MIDDLEWARE = [
