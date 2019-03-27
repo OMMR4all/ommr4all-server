@@ -1,5 +1,5 @@
 from database.file_formats.pcgts.page.musicregion import Coords, Point
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from enum import IntEnum
 import numpy as np
 from abc import ABC, abstractmethod
@@ -20,15 +20,18 @@ class SymbolType(IntEnum):
 
 class Symbol(ABC):
     def __init__(self,
+                 s_id: Optional[str],
                  symbol_type: SymbolType,
                  fixed_sorting: bool = False,
                  ):
+        self.id = s_id if s_id else str(uuid4())
         self.symbol_type = symbol_type
         self.fixed_sorting = fixed_sorting
 
     @abstractmethod
     def to_json(self):
         return {
+            'id': self.id,
             'symbol': self.symbol_type.value,
             'fixedSorting': self.fixed_sorting,
         }
@@ -88,8 +91,9 @@ class Accidental(Symbol):
                  accidental=AccidentalType.NATURAL,
                  coord=Point(),
                  fixed_sorting: bool = False,
+                 s_id: str = None
                  ):
-        super().__init__(SymbolType.ACCID, fixed_sorting)
+        super().__init__(s_id, SymbolType.ACCID, fixed_sorting)
         self.accidental = accidental
         self.coord = coord
 
@@ -101,6 +105,7 @@ class Accidental(Symbol):
             AccidentalType(json.get('type', AccidentalType.NATURAL)),
             Point.from_json(json.get('coord', Point().to_json())),
             json.get('fixedSorting', False),
+            json.get('id', None),
         )
 
     def to_json(self):
@@ -142,8 +147,9 @@ class NoteComponent(Symbol):
                  position_in_staff=MusicSymbolPositionInStaff.UNDEFINED,
                  graphical_connection=GraphicalConnectionType.GAPED,
                  fixed_sorting: bool = False,
+                 s_id: str = None
                  ):
-        super().__init__(SymbolType.NOTE_COMPONENT, fixed_sorting)
+        super().__init__(s_id, SymbolType.NOTE_COMPONENT, fixed_sorting)
         self.note_name = note_name
         self.octave = octave
         self.note_type = note_type
@@ -165,6 +171,7 @@ class NoteComponent(Symbol):
                 MusicSymbolPositionInStaff(json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED)),
                 GraphicalConnectionType(json.get('graphicalConnection', GraphicalConnectionType.GAPED)),
                 json.get('fixedSorting', False),
+                json.get('id', None),
             )
         except Exception as e:
             logger.exception(e)
@@ -173,6 +180,7 @@ class NoteComponent(Symbol):
 
     def to_json(self):
         return {
+            'id': self.id,
             'pname': self.note_name.value,
             'oct': self.octave,
             'type': self.note_type.value,
@@ -185,11 +193,10 @@ class NoteComponent(Symbol):
 
 class Neume(Symbol):
     def __init__(self,
-                 n_id = str(uuid4()),
+                 n_id=None,
                  notes: List[NoteComponent] = None,
                  ):
-        super().__init__(SymbolType.NEUME)
-        self.id = n_id
+        super().__init__(n_id, SymbolType.NEUME)
         self.notes: List[NoteComponent] = notes if notes else []
 
     @staticmethod
@@ -201,7 +208,6 @@ class Neume(Symbol):
 
     def to_json(self):
         return dict(super().to_json(), **{
-            'id': self.id,
             'nc': [nc.to_json() for nc in self.notes]
         })
 
@@ -220,8 +226,9 @@ class Clef(Symbol):
                  coord=Point(),
                  position_in_staff=MusicSymbolPositionInStaff.UNDEFINED,
                  fixed_sorting: bool = False,
+                 s_id: str = None
                  ):
-        super().__init__(SymbolType.CLEF, fixed_sorting)
+        super().__init__(s_id, SymbolType.CLEF, fixed_sorting)
         self.clef_type = clef_type
         self.coord = coord
         self.position_in_staff = position_in_staff
@@ -233,6 +240,7 @@ class Clef(Symbol):
             Point.from_json(json.get("coord", "0,0")),
             MusicSymbolPositionInStaff(json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED)),
             json.get('fixedSorting', False),
+            json.get('id', None)
         )
 
     def to_json(self):
