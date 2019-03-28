@@ -25,6 +25,7 @@ class GlobalArgs(NamedTuple):
     n_train: int
     n_iter: int
     val_amount: float
+    pretrained_model: Optional[str]
 
     target_line_space: int
     origin_line_space: Optional[int]
@@ -88,7 +89,7 @@ def run_single(args: SingleDataArgs):
             train_data=train_data,
             validation_data=validation_data,
             display=10,
-            load=None,
+            load=args.global_args.pretrained_model,
             output=model_path,
             early_stopping_test_interval=100,
             early_stopping_max_keep=5,
@@ -181,10 +182,38 @@ class Experimenter:
     def __init__(self):
         pass
 
-    def run(self, global_args: GlobalArgs, train_books: Optional[List[str]], test_books: Optional[List[str]]):
+    def run(self, global_args: GlobalArgs, train_books: Optional[List[str]], test_books: Optional[List[str]], train_books_extend: Optional[List[str]]):
         lock_states = [LockState('StaffLines', True), LockState('Layout', True)]
 
-        if all([train_books, test_books]):
+        if train_books_extend:
+            train_pcgts_extend, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books_extend])
+            train_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books])
+
+            if any([train_books, test_books]):
+                if any([test_books]):
+                    logger.warning("You should only provide data to train books if you want to specify the books to use. Ignoring {}".format(test_books))
+
+                all_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books])
+            else:
+                all_pcgts, _ = dataset_by_locked_pages(1, lock_states)
+
+            logger.info("Starting experiment with {} files and {} extension files".format(len(all_pcgts), len(train_pcgts_extend)))
+
+            def prepare_single_fold(fold, train_val_files, test_files, ext_files):
+                if global_args.n_train > 0:
+                    ext_files = ext_files[:global_args.n_train]
+
+                if global_args.val_amount == 0:
+                    val, train = None, train_val_files
+                else:
+                    _, val, train = cross_fold(train_val_files, int(1 / global_args.val_amount))[fold]
+                return SingleDataArgs(fold, os.path.join(global_args.model_dir, "line_detection_{}".format(fold)), train + ext_files, val, test_files, global_args)
+
+            fold_train_pcgts_extend = cross_fold(train_pcgts_extend, global_args.cross_folds)
+            train_args = [
+                prepare_single_fold(fold, all_pcgts, test_files, extend) for fold, test_files, extend in fold_train_pcgts_extend
+            ]
+        elif all([train_books, test_books]):
             train_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books])
             test_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in test_books])
             if global_args.val_amount == 0:
@@ -271,6 +300,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", default=None, nargs="+")
     parser.add_argument("--test", default=None, nargs="+")
+    parser.add_argument("--train_extend", default=None, nargs="+")
     parser.add_argument("--model_dir", default="models_out/")
     parser.add_argument("--cross_folds", default=5, type=int)
     parser.add_argument("--single_folds", nargs="*", type=int, default=[])
@@ -289,6 +319,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_train", default=-1, type=int)
     parser.add_argument("--n_iter", default=10000, type=int)
     parser.add_argument("--val_amount", default=0.2, type=float)
+    parser.add_argument("--pretrained_model", default=None, type=str)
 
     parser.add_argument("--gray", action="store_true")
     parser.add_argument("--pad", default=[0], type=int, nargs="+")
@@ -320,6 +351,7 @@ if __name__ == "__main__":
         n_train=args.n_train,
         n_iter=args.n_iter,
         val_amount=args.val_amount,
+        pretrained_model=args.pretrained_model,
         dataset_params=StaffLineDetectionDatasetParams(
             gt_required=True,
             full_page=args.full_page,
@@ -331,5 +363,5 @@ if __name__ == "__main__":
     )
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', stream=sys.stdout)
     experimenter = Experimenter()
-    experimenter.run(global_args, args.train, args.test)
+    experimenter.run(global_args, args.train, args.test, args.train_extend)
 
