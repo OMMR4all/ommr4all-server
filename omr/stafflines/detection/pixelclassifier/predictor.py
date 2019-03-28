@@ -74,7 +74,7 @@ if __name__ == '__main__':
     book = DatabaseBook('Graduel')
     # page = book.page('Graduel_de_leglise_de_Nevers_032_rot')  # zacken in linie
     # page = book.page('Graduel_de_leglise_de_Nevers_531')
-    page = book.page('Graduel_de_leglise_de_Nevers_538')
+    page = book.page('Graduel_de_leglise_de_Nevers_513')
 
     pcgts = [PcGts.from_file(page.file('pcgts'))]
 
@@ -83,11 +83,7 @@ if __name__ == '__main__':
         # ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/internal_storage/default_models/french14/pc_staff_lines/model"],
         ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/models_out/line_detection_4/best"],
         # ["/home/wick/Downloads/line_detection_0/best"],
-        full_page=False,
-        gray=True,
-        pad=5,
         target_line_space_height=10,
-        extract_region_only=False,
     )
     detector = BasicStaffLinePredictor(params)
     for prediction in detector.predict(pcgts):

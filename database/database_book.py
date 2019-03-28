@@ -7,6 +7,7 @@ import re
 
 if TYPE_CHECKING:
     from database.file_formats.performance import LockState
+    from database.database_page import DatabasePage
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ class DatabaseBook:
         return [b.get_meta() for b in DatabaseBook.list_available()]
 
     @staticmethod
-    def list_all_pages_with_lock(locks: List['LockState'], lock_state=True):
+    def list_all_pages_with_lock(locks: List['LockState']) -> List['DatabasePage']:
         out = []
         for b in DatabaseBook.list_available():
             out += b.pages_with_lock(locks)
@@ -50,14 +51,14 @@ class DatabaseBook:
     def __eq__(self, other):
         return isinstance(other, DatabaseBook) and other.book == self.book
 
-    def pages(self):
+    def pages(self) -> List['DatabasePage']:
         assert(self.is_valid())
         from database.database_page import DatabasePage
 
         pages = [DatabasePage(self, p) for p in sorted(os.listdir(self.local_path('pages')))]
         return [p for p in pages if p.is_valid()]
 
-    def pages_with_lock(self, locks: List['LockState']):
+    def pages_with_lock(self, locks: List['LockState']) -> List['DatabasePage']:
         from database.file_formats.performance.pageprogress import PageProgress
         out = []
         for p in self.pages():

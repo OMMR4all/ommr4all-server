@@ -1,4 +1,5 @@
 import logging
+from database import DatabaseBook
 from database.file_formats import PcGts
 from database.file_formats.performance import LockState
 from pagesegmentation.lib.trainer import TrainSettings, Trainer
@@ -22,6 +23,8 @@ class GlobalArgs(NamedTuple):
     cross_folds: int
     single_folds: Optional[List[int]]
     n_train: int
+    n_iter: int
+    val_amount: float
 
     target_line_space: int
     origin_line_space: Optional[int]
@@ -43,7 +46,7 @@ class SingleDataArgs(NamedTuple):
     id: int
     output: str
     train_pcgts_files: List[PcGts]
-    validation_pcgts_files: List[PcGts]
+    validation_pcgts_files: Optional[List[PcGts]]
     test_pcgts_files: List[PcGts]
 
     global_args: GlobalArgs
@@ -52,15 +55,19 @@ class SingleDataArgs(NamedTuple):
 def run_single(args: SingleDataArgs):
     fold_log = logger.getChild("fold_{}".format(args.id))
     train_pcgts_dataset = PCDataset(
-        args.train_pcgts_files if args.global_args.n_train < 0 else args.train_pcgts_files[:args.global_args.n_train],
+        args.train_pcgts_files,
         args.global_args.dataset_params)
-    validation_pcgts_dataset = PCDataset(args.validation_pcgts_files, args.global_args.dataset_params)
+    validation_pcgts_dataset = PCDataset(args.validation_pcgts_files, args.global_args.dataset_params) if args.validation_pcgts_files else None
 
     def print_dataset_content(files: List[PcGts], label: str):
         fold_log.debug("Got {} {} files: {}".format(len(files), label, [f.page.location.local_path() for f in files]))
 
     print_dataset_content(args.train_pcgts_files, 'training')
-    print_dataset_content(args.validation_pcgts_files, 'validation')
+    if args.validation_pcgts_files:
+        print_dataset_content(args.validation_pcgts_files, 'validation')
+    else:
+        fold_log.debug("No validation data. Using training data instead")
+
     print_dataset_content(args.test_pcgts_files, 'testing')
 
     if not os.path.exists(args.output):
@@ -71,13 +78,15 @@ def run_single(args: SingleDataArgs):
 
     if not args.global_args.skip_train and not args.global_args.do_not_use_model:
         fold_log.info("Starting training")
+        train_data = train_pcgts_dataset.to_page_segmentation_dataset(args.global_args.target_line_space, args.global_args.origin_line_space)
+        validation_data = validation_pcgts_dataset.to_page_segmentation_dataset(args.global_args.target_line_space, args.global_args.origin_line_space) if validation_pcgts_dataset else train_data
 
         settings = TrainSettings(
-            n_iter=10000,
+            n_iter=args.global_args.n_iter,
             n_classes=2,
             l_rate=1e-3,
-            train_data=train_pcgts_dataset.to_page_segmentation_dataset(args.global_args.target_line_space, args.global_args.origin_line_space),
-            validation_data=validation_pcgts_dataset.to_page_segmentation_dataset(args.global_args.target_line_space, args.global_args.origin_line_space),
+            train_data=train_data,
+            validation_data=validation_data,
             display=10,
             load=None,
             output=model_path,
@@ -172,20 +181,55 @@ class Experimenter:
     def __init__(self):
         pass
 
-    def run(self, global_args: GlobalArgs):
-        logger.info("Finding PcGts files with valid ground truth")
-        all_pcgts, _ = dataset_by_locked_pages(1, [LockState('CreateStaffLines', True), LockState('Layout', True)])
-        logger.info("Starting experiment with {} files".format(len(all_pcgts)))
+    def run(self, global_args: GlobalArgs, train_books: Optional[List[str]], test_books: Optional[List[str]]):
+        lock_states = [LockState('StaffLines', True), LockState('Layout', True)]
 
-        def prepare_single_fold(fold, train_val_files, test_files):
-            _, val, train = cross_fold(train_val_files, 5)[0]
-            return SingleDataArgs(fold, os.path.join(global_args.model_dir, "line_detection_{}".format(fold)), train, val, test_files, global_args)
+        if all([train_books, test_books]):
+            train_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books])
+            test_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in test_books])
+            if global_args.val_amount == 0:
+                train_args = [
+                    SingleDataArgs(fold,
+                                   os.path.join(global_args.model_dir, "line_detection_{}".format(fold)),
+                                   train if global_args.n_train < 0 else train[:global_args.n_train], None, test_pcgts,
+                                   global_args)
+                    for fold, train, _ in cross_fold(train_pcgts, global_args.cross_folds)
+                ]
+            else:
+                train_args = [
+                    SingleDataArgs(fold,
+                                   os.path.join(global_args.model_dir, "line_detection_{}".format(fold)),
+                                   train, val, test_pcgts,
+                                   global_args)
+                    for fold, val, train in cross_fold(train_pcgts, global_args.cross_folds)
+                ]
+        else:
+            logger.info("Finding PcGts files with valid ground truth")
+            if any([train_books, test_books]):
+                if any([test_books]):
+                    logger.warning("You should only provide data to train books if you want to specify the books to use. Ignoring {}".format(test_books))
 
-        train_args = [
-            prepare_single_fold(fold, train_val_files, test_files) for fold, test_files, train_val_files in cross_fold(all_pcgts, global_args.cross_folds)
-        ]
+                all_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books])
+            else:
+                all_pcgts, _ = dataset_by_locked_pages(1, lock_states)
+
+            logger.info("Starting experiment with {} files".format(len(all_pcgts)))
+
+            def prepare_single_fold(fold, train_val_files, test_files):
+                if global_args.n_train > 0:
+                    train_val_files = train_val_files[:global_args.n_train]
+
+                if global_args.val_amount == 0:
+                    val, train = None, train_val_files
+                else:
+                    _, val, train = cross_fold(train_val_files, int(1 / global_args.val_amount))[0]
+                return SingleDataArgs(fold, os.path.join(global_args.model_dir, "line_detection_{}".format(fold)), train, val, test_files, global_args)
+
+            train_args = [
+                prepare_single_fold(fold, train_val_files, test_files) for fold, test_files, train_val_files in cross_fold(all_pcgts, global_args.cross_folds)
+            ]
+
         train_args = [train_args[fold] for fold in (global_args.single_folds if global_args.single_folds and len(global_args.single_folds) > 0 else range(global_args.cross_folds))]
-
         counts, metrics = zip(*map(run_single, train_args))
 
         logger.info("Total Result:")
@@ -225,6 +269,8 @@ if __name__ == "__main__":
     import argparse
     import random
     parser = argparse.ArgumentParser()
+    parser.add_argument("--train", default=None, nargs="+")
+    parser.add_argument("--test", default=None, nargs="+")
     parser.add_argument("--model_dir", default="models_out/")
     parser.add_argument("--cross_folds", default=5, type=int)
     parser.add_argument("--single_folds", nargs="*", type=int, default=[])
@@ -241,6 +287,8 @@ if __name__ == "__main__":
     parser.add_argument("--smooth_staff_lines", type=int, default=0)
     parser.add_argument("--line_fit_distance", type=float, default=0)
     parser.add_argument("--n_train", default=-1, type=int)
+    parser.add_argument("--n_iter", default=10000, type=int)
+    parser.add_argument("--val_amount", default=0.2, type=float)
 
     parser.add_argument("--gray", action="store_true")
     parser.add_argument("--pad", default=[0], type=int, nargs="+")
@@ -254,7 +302,7 @@ if __name__ == "__main__":
         random.seed(args.seed)
         np.random.seed(args.seed)
 
-    args = GlobalArgs(
+    global_args = GlobalArgs(
         model_dir=args.model_dir,
         cross_folds=args.cross_folds,
         single_folds=args.single_folds,
@@ -270,6 +318,8 @@ if __name__ == "__main__":
         smooth_staff_lines=args.smooth_staff_lines,
         line_fit_distance=args.line_fit_distance,
         n_train=args.n_train,
+        n_iter=args.n_iter,
+        val_amount=args.val_amount,
         dataset_params=StaffLineDetectionDatasetParams(
             gt_required=True,
             full_page=args.full_page,
@@ -281,5 +331,5 @@ if __name__ == "__main__":
     )
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', stream=sys.stdout)
     experimenter = Experimenter()
-    experimenter.run(args)
+    experimenter.run(global_args, args.train, args.test)
 

@@ -31,7 +31,7 @@ class EvaluationData(NamedTuple):
 
 class StaffLineDetectionEvaluator:
     def __init__(self):
-        self.line_hit_overlap_threshold = 0.1
+        self.line_hit_overlap_threshold = 0.5
         self.debug = False
 
     def evaluate(self, data: List[EvaluationData], staff_line_found_distance=5):

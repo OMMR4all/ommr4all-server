@@ -12,7 +12,7 @@ class StaffLinePredictorParameters(NamedTuple):
     target_line_space_height: int = 10
     post_processing: bool = True
     smooth_staff_lines: int = 2
-    line_fit_distance: float = 0.5
+    line_fit_distance: float = 1
 
 
 class StaffLinesModelType(Enum):
