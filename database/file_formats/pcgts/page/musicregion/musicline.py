@@ -413,7 +413,9 @@ class StaffLines(List[StaffLine]):
         d = y -top
         rel = d / (bot - top)
         snapped = -offset + StaffLines._round_to_staff_pos(2 * rel)
-        return top + snapped * (bot - top) / 2, MusicSymbolPositionInStaff(int(top_pos - snapped))
+        return top + snapped * (bot - top) / 2, \
+               MusicSymbolPositionInStaff(max(MusicSymbolPositionInStaff.SPACE_0,
+                                              min(MusicSymbolPositionInStaff.SPACE_7, int(top_pos - snapped))))
 
     def _staff_pos(self, p: Point, offset: int = 0) -> Tuple[float, MusicSymbolPositionInStaff]:
         @dataclass
@@ -581,5 +583,3 @@ class MusicLines(List[MusicLine]):
 
     def all_staff_lines(self) -> List[StaffLine]:
         return [staff_line for ml in self for staff_line in ml.staff_lines]
-
-

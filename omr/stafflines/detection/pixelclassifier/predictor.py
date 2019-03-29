@@ -1,4 +1,4 @@
-from omr.stafflines.detection.predictor import StaffLinesPredictor, StaffLinePredictorParameters, PredictionType, PredictionResult, RegionLineMaskData
+from omr.stafflines.detection.predictor import StaffLinesPredictor, StaffLinePredictorParameters, PredictionType, PredictionResult, RegionLineMaskData, StaffLineDetectionDatasetParams
 from database import DatabasePage, DatabaseBook
 from database.file_formats.pcgts import *
 import numpy as np
@@ -71,9 +71,10 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from PIL import Image
     # page = Book('demo').page('page00000001')
-    book = DatabaseBook('Graduel')
+    book = DatabaseBook('Graduel_Part_2')
     # page = book.page('Graduel_de_leglise_de_Nevers_032_rot')  # zacken in linie
     # page = book.page('Graduel_de_leglise_de_Nevers_531')
+    #page = book.page('Graduel_de_leglise_de_Nevers_520')
     page = book.page('Graduel_de_leglise_de_Nevers_513')
 
     pcgts = [PcGts.from_file(page.file('pcgts'))]
@@ -81,9 +82,21 @@ if __name__ == '__main__':
     params = StaffLinePredictorParameters(
         # None if False else [book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))],
         # ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/internal_storage/default_models/french14/pc_staff_lines/model"],
-        ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/models_out/line_detection_4/best"],
+        ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/models_out/all/line_detection_2/best"],
         # ["/home/wick/Downloads/line_detection_0/best"],
         target_line_space_height=10,
+        post_processing=False,
+        smooth_staff_lines=0,
+        line_fit_distance=0,
+        dataset_params=StaffLineDetectionDatasetParams(
+            gt_required=True,
+            full_page=True,
+            gray=True,
+            pad=0,
+            extract_region_only=False,
+            gt_line_thickness=3,
+        )
+
     )
     detector = BasicStaffLinePredictor(params)
     for prediction in detector.predict(pcgts):

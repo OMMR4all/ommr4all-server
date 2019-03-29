@@ -4,7 +4,7 @@ from database.file_formats import PcGts
 from database.file_formats.performance import LockState
 from pagesegmentation.lib.trainer import TrainSettings, Trainer
 from pagesegmentation.lib.data_augmenter import DefaultAugmenter
-from omr.dataset.datafiles import dataset_by_locked_pages
+from omr.dataset.datafiles import dataset_by_locked_pages, generate_dataset, GeneratedData
 from omr.stafflines.detection.dataset import PCDataset, StaffLineDetectionDatasetParams
 from omr.stafflines.detection.predictor import create_staff_line_predictor, StaffLinesModelType, StaffLinePredictorParameters
 from omr.stafflines.detection.evaluator import StaffLineDetectionEvaluator, EvaluationData
@@ -139,7 +139,7 @@ def run_single(args: SingleDataArgs):
             at = PrettyTable()
             print(counts.shape)
 
-            at.add_column("Type", ["Staff lines found", "Staff lines hit"])
+            at.add_column("Type", ["Staff lines found", "Staff lines hit", "Staves found", "Staff lines hit"])
             at.add_column("TP", counts[:, 0])
             at.add_column("FP", counts[:, 1])
             at.add_column("FN", counts[:, 2])
@@ -165,100 +165,28 @@ def run_single(args: SingleDataArgs):
     return counts, metrics
 
 
-def flatten(data):
-    out = []
-    for d in data:
-        out += d
-
-    return out
-
-
-def cross_fold(data, amount):
-    folds = [data[i::amount] for i in range(amount)]
-    return [(i, folds[i], flatten(folds[:i] + folds[i+1:])) for i in range(amount)]
-
-
 class Experimenter:
     def __init__(self):
         pass
 
     def run(self, global_args: GlobalArgs, train_books: Optional[List[str]], test_books: Optional[List[str]], train_books_extend: Optional[List[str]]):
-        lock_states = [LockState('StaffLines', True), LockState('Layout', True)]
+        train_args = generate_dataset(
+            lock_states=[LockState('StaffLines', True), LockState('Layout', True)],
+            n_train=global_args.n_train,
+            val_amount=global_args.val_amount,
+            cross_folds=global_args.cross_folds,
+            single_folds=global_args.single_folds,
+            train_books=train_books,
+            test_books=test_books,
+            train_books_extend=train_books_extend,
+        )
 
-        if train_books_extend:
-            train_pcgts_extend, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books_extend])
-            train_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books])
+        train_args = [SingleDataArgs(gd.fold,
+                                     os.path.join(global_args.model_dir, 'line_detection_{}'.format(gd.fold)),
+                                     gd.train_pcgts_files, gd.validation_pcgts_files,
+                                     gd.test_pcgts_files,
+                                     global_args) for gd in train_args]
 
-            if any([train_books, test_books]):
-                if any([test_books]):
-                    logger.warning("You should only provide data to train books if you want to specify the books to use. Ignoring {}".format(test_books))
-
-                all_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books])
-            else:
-                all_pcgts, _ = dataset_by_locked_pages(1, lock_states)
-
-            logger.info("Starting experiment with {} files and {} extension files".format(len(all_pcgts), len(train_pcgts_extend)))
-
-            def prepare_single_fold(fold, train_val_files, test_files, ext_files):
-                if global_args.n_train > 0:
-                    ext_files = ext_files[:global_args.n_train]
-
-                if global_args.val_amount == 0:
-                    val, train = None, train_val_files
-                else:
-                    _, val, train = cross_fold(train_val_files, int(1 / global_args.val_amount))[fold]
-                return SingleDataArgs(fold, os.path.join(global_args.model_dir, "line_detection_{}".format(fold)), train + ext_files, val, test_files, global_args)
-
-            fold_train_pcgts_extend = cross_fold(train_pcgts_extend, global_args.cross_folds)
-            train_args = [
-                prepare_single_fold(fold, all_pcgts, test_files, extend) for fold, test_files, extend in fold_train_pcgts_extend
-            ]
-        elif all([train_books, test_books]):
-            train_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books])
-            test_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in test_books])
-            if global_args.val_amount == 0:
-                train_args = [
-                    SingleDataArgs(fold,
-                                   os.path.join(global_args.model_dir, "line_detection_{}".format(fold)),
-                                   train if global_args.n_train < 0 else train[:global_args.n_train], None, test_pcgts,
-                                   global_args)
-                    for fold, train, _ in cross_fold(train_pcgts, global_args.cross_folds)
-                ]
-            else:
-                train_args = [
-                    SingleDataArgs(fold,
-                                   os.path.join(global_args.model_dir, "line_detection_{}".format(fold)),
-                                   train, val, test_pcgts,
-                                   global_args)
-                    for fold, val, train in cross_fold(train_pcgts, global_args.cross_folds)
-                ]
-        else:
-            logger.info("Finding PcGts files with valid ground truth")
-            if any([train_books, test_books]):
-                if any([test_books]):
-                    logger.warning("You should only provide data to train books if you want to specify the books to use. Ignoring {}".format(test_books))
-
-                all_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books])
-            else:
-                all_pcgts, _ = dataset_by_locked_pages(1, lock_states)
-
-            logger.info("Starting experiment with {} files".format(len(all_pcgts)))
-
-            def prepare_single_fold(fold, train_val_files, test_files):
-                if global_args.n_train > 0:
-                    train_val_files = train_val_files[:global_args.n_train]
-
-                if global_args.val_amount == 0:
-                    val, train = None, train_val_files
-                else:
-                    _, val, train = cross_fold(train_val_files, int(1 / global_args.val_amount))[0]
-                return SingleDataArgs(fold, os.path.join(global_args.model_dir, "line_detection_{}".format(fold)), train, val, test_files, global_args)
-
-            train_args = [
-                prepare_single_fold(fold, train_val_files, test_files) for fold, test_files, train_val_files in cross_fold(all_pcgts, global_args.cross_folds)
-            ]
-
-        train_args = [train_args[fold] for fold in (global_args.single_folds if global_args.single_folds and len(global_args.single_folds) > 0 else range(global_args.cross_folds))]
         counts, metrics = zip(*map(run_single, train_args))
 
         logger.info("Total Result:")
@@ -282,7 +210,7 @@ class Experimenter:
 
         at = PrettyTable()
 
-        at.add_column("Type", ["Staff Lines Detected", "Staff lines hit"])
+        at.add_column("Type", ["Staff Lines Detected", "Staff lines hit", "Staves found", "Staff lines hit"])
 
         at.add_column("Precision", prf1_mean[:, 0])
         at.add_column("+-", prf1_std[:, 0])

@@ -1,5 +1,5 @@
 from omr.stafflines.detection.predictor import StaffLinesPredictor, StaffLinePredictorParameters, StaffLineDetectionDatasetParams
-from database.file_formats.pcgts import PcGts, StaffLines, StaffLine, MusicLines
+from database.file_formats.pcgts import PcGts, StaffLines, StaffLine, MusicLines, MusicLine
 from typing import List, NamedTuple, Tuple
 import numpy as np
 from omr.symboldetection.evaluator import precision_recall_f1
@@ -32,11 +32,13 @@ class EvaluationData(NamedTuple):
 class StaffLineDetectionEvaluator:
     def __init__(self):
         self.line_hit_overlap_threshold = 0.5
+        self.staff_n_lines_threshold = 2
         self.debug = False
 
     def evaluate(self, data: List[EvaluationData], staff_line_found_distance=5):
-        all_counts = np.zeros([0, 2, 4])
-        all_prf1 = np.zeros([0, 2, 3])
+        all_counts = np.zeros([0, 4, 4])
+        all_prf1 = np.zeros([0, 4, 3])
+        all_staff_prf1 = np.zeros([0, 3])
         for single_data in data:
             pred_lines: StaffLines = StaffLines(single_data.pred.all_staff_lines())
             gt_lines: StaffLines = StaffLines(single_data.gt.all_staff_lines())
@@ -104,6 +106,7 @@ class StaffLineDetectionEvaluator:
                     del tp_line_pairs[i]
                     fp_lines.append(p_line)
 
+            tp_pred_lines = [pred_line for pred_line, _, _ in tp_line_pairs]
             tp_lines = [gt_line for _, gt_line, _ in tp_line_pairs]
 
             logger.debug("TP: {}, FP: {}, FN: {} in file {}".format(len(tp_lines), len(fp_lines), len(fn_lines), single_data.label))
@@ -112,14 +115,60 @@ class StaffLineDetectionEvaluator:
             line_found_counts = [len(tp_lines), len(fp_lines), len(fn_lines)]
             line_found_counts.append(np.sum(line_found_counts))
 
-            all_counts = np.concatenate((all_counts, [[line_found_counts, (0, 0, 0, 0)]]), axis=0)
+            # staves detection
+            pred_staves: List[MusicLine] = single_data.pred[:]
+            gt_staves: List[MusicLine] = single_data.gt[:]
+
+            tp_staves = []
+            fp_staves = []
+
+            for pred_staff in pred_staves:
+                pred_staff_lines = [l for l in pred_staff.staff_lines if l in tp_pred_lines]
+                if len(pred_staff_lines) < self.staff_n_lines_threshold:
+                    # not hit
+                    fp_staves.append(pred_staff)
+                    continue
+
+                gt_staff_lines = [tp_lines[tp_pred_lines.index(l)] for l in pred_staff_lines]
+
+                # test if all staff lines belong to the same gt staff
+                r = list(set([gt_staff for gt_staff in gt_staves if any([gt_l in gt_staff.staff_lines for gt_l in gt_staff_lines])]))
+                if len(r) == 1:
+                    # hit
+                    n_pred = len(pred_staff.staff_lines)
+                    n_true = len(r[0].staff_lines)
+                    n_share = len(pred_staff_lines)
+
+                    tp = n_share
+                    fp = n_pred - n_share
+                    fn = n_true - n_share
+
+                    tp_staves.append((pred_staff, r[0], precision_recall_f1(tp, fp, fn)))
+                    gt_staves.remove(r[0])
+                else:
+                    # different staves
+                    fp_staves.append(pred_staff)
+
+            fn_staves = gt_staves
+            staff_found_counts = [len(tp_staves), len(fp_staves), len(fn_staves)]
+            staff_found_counts.append(np.sum(staff_found_counts))
+
+
+            all_counts = np.concatenate((all_counts, [[line_found_counts, (0, 0, 0, 0), staff_found_counts, (0, 0, 0, 0)]]), axis=0)
             if len(tp_line_pairs) > 0:
                 for _, _, prf1 in tp_line_pairs:
-                    all_prf1 = np.concatenate((all_prf1, [[(0, 0, 0), prf1]]), axis=0)
+                    all_prf1 = np.concatenate((all_prf1, [[(0, 0, 0), prf1, (0, 0, 0), (0, 0, 0)]]), axis=0)
+
+            if len(tp_staves) > 0:
+                for _, _, prf1 in tp_staves:
+                    all_staff_prf1 = np.concatenate((all_staff_prf1, [prf1]), axis=0)
 
         sum_counts = all_counts.sum(axis=0)
         mean_prf1 = all_prf1.mean(axis=0)
-        mean_prf1[0] = precision_recall_f1(*tuple(sum_counts[0,:3]))
+        mean_staff_prf1 = all_staff_prf1.mean(axis=0)
+        mean_prf1[0] = precision_recall_f1(*tuple(sum_counts[0, :3]))
+        mean_prf1[2] = precision_recall_f1(*tuple(sum_counts[2, :3]))
+        mean_prf1[3] = mean_staff_prf1
 
         return sum_counts, mean_prf1
 

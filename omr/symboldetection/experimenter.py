@@ -1,10 +1,11 @@
 import logging
 from omr.symboldetection.pixelclassifier.trainer import PCTrainer
-from omr.dataset.datafiles import dataset_by_locked_pages, LockState
+from omr.dataset.datafiles import dataset_by_locked_pages, LockState, generate_dataset, GeneratedData
 from omr.symboldetection.dataset import SymbolDetectionDatasetParams, SymbolDetectionDataset, PcGts
 from omr.symboldetection.evaluator import SymbolDetectionEvaluator, Counts, precision_recall_f1, AccCounts
 from omr.symboldetection.predictor import create_predictor, SymbolDetectionPredictorParameters, PredictionType, PredictorTypes, PredictionResult
 from pagesegmentation.lib.trainer import Trainer, TrainSettings, TrainProgressCallback
+from pagesegmentation.lib.data_augmenter import DefaultAugmenter
 from omr.imageoperations.music_line_operations import SymbolLabel
 from typing import NamedTuple, List, Optional
 import tempfile
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class GlobalDataArgs(NamedTuple):
-    output: str
+    model_dir: str
     cross_folds: int
     single_folds: Optional[List[int]]
     skip_train: bool
@@ -26,10 +27,14 @@ class GlobalDataArgs(NamedTuple):
     skip_eval: bool
     skip_cleanup: bool
     symbol_detection_params: SymbolDetectionDatasetParams
+    n_iter: int
+    pretrained_model: Optional[str]
+    data_augmentation: bool
 
 
 class SingleDataArgs(NamedTuple):
     id: int
+    model_dir: str
     train_pcgts_files: List[PcGts]
     validation_pcgts_files: List[PcGts]
     test_pcgts_files: List[PcGts]
@@ -39,39 +44,45 @@ class SingleDataArgs(NamedTuple):
 
 def run_single(args: SingleDataArgs):
     global_args = args.global_args
-    model_out_dir = os.path.join(global_args.output, "symbol_detection", "fold_{}".format(args.id))
-
-    if not os.path.exists(model_out_dir):
-        os.makedirs(model_out_dir)
-
-    model_out = os.path.join(model_out_dir, 'best')
 
     fold_log = logger.getChild("fold_{}".format(args.id))
     train_pcgts_dataset = SymbolDetectionDataset(args.train_pcgts_files, args.global_args.symbol_detection_params)
-    validation_pcgts_dataset = SymbolDetectionDataset(args.validation_pcgts_files, args.global_args.symbol_detection_params)
+    validation_pcgts_dataset = SymbolDetectionDataset(args.validation_pcgts_files, args.global_args.symbol_detection_params) if args.validation_pcgts_files else None
 
     def print_dataset_content(files: List[PcGts], label: str):
         fold_log.debug("Got {} {} files: {}".format(len(files), label, [f.page.location.local_path() for f in files]))
 
     print_dataset_content(args.train_pcgts_files, 'training')
-    print_dataset_content(args.validation_pcgts_files, 'validation')
+    if args.validation_pcgts_files:
+        print_dataset_content(args.validation_pcgts_files, 'validation')
+    else:
+        fold_log.debug("No validation data. Using training data instead")
     print_dataset_content(args.test_pcgts_files, 'testing')
+
+    if not os.path.exists(args.model_dir):
+        os.makedirs(args.model_dir)
+
+    prediction_path = os.path.join(args.model_dir, 'pred.json')
+    model_path = os.path.join(args.model_dir, 'best')
 
     if not global_args.skip_train:
         fold_log.info("Starting training")
+        train_data = train_pcgts_dataset.to_music_line_page_segmentation_dataset()
+        validation_data = validation_pcgts_dataset.to_music_line_page_segmentation_dataset() if validation_pcgts_dataset else train_data
         settings = TrainSettings(
-            n_iter=20000,
+            n_iter=global_args.n_iter,
             n_classes=len(SymbolLabel),
             l_rate=1e-4,
-            train_data=train_pcgts_dataset.to_music_line_page_segmentation_dataset(),
-            validation_data=validation_pcgts_dataset.to_music_line_page_segmentation_dataset(),
-            load=None,
+            train_data=train_data,
+            validation_data=validation_data,
             display=100,
-            output=model_out,
+            load=args.global_args.pretrained_model,
+            output=model_path,
             early_stopping_test_interval=500,
             early_stopping_max_keep=5,
             early_stopping_on_accuracy=True,
-            threads=4,
+            threads=8,
+            data_augmentation=DefaultAugmenter(contrast=0.1, brightness=10, scale=(-0.1, 0.1, -0.1, 0.1)) if args.global_args.data_augmentation else None,
             checkpoint_iter_delta=None,
             compute_baseline=True,
         )
@@ -82,14 +93,14 @@ def run_single(args: SingleDataArgs):
     if not global_args.skip_predict:
         fold_log.info("Starting prediction")
         pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER,
-                                SymbolDetectionPredictorParameters([model_out], args.global_args.symbol_detection_params))
+                                SymbolDetectionPredictorParameters([model_path], args.global_args.symbol_detection_params))
         predictions = zip(*[(p.line.operation.music_line.symbols, p.symbols) for p in pred.predict(args.test_pcgts_files)])
-        with open(os.path.join(model_out_dir, 'predictions.json'), 'wb') as f:
+        with open(prediction_path, 'wb') as f:
             pickle.dump(predictions, f)
     else:
         fold_log.info("Skipping prediction")
 
-        with open(os.path.join(model_out_dir, 'predictions.json'), 'rb') as f:
+        with open(prediction_path, 'rb') as f:
             predictions = pickle.load(f)
 
     if not global_args.skip_eval:
@@ -125,7 +136,7 @@ def run_single(args: SingleDataArgs):
 
     if not global_args.skip_cleanup:
         fold_log.info("Cleanup")
-        shutil.rmtree(model_out_dir)
+        shutil.rmtree(args.model_dir)
 
     return prec_rec_f1, acc_acc
 
@@ -147,19 +158,33 @@ class Experimenter:
     def __init__(self, args: GlobalDataArgs):
         self.global_args = args
 
-    def run(self):
+    def run(self,
+            n_train: int,
+            val_amount: float,
+            cross_folds: int,
+            single_folds: List[int],
+            train_books: List[str],
+            test_books: List[str],
+            train_books_extend: List[str]
+            ):
+        global_args = self.global_args
         logger.info("Finding PcGts files with valid ground truth")
-        all_pcgts, _ = dataset_by_locked_pages(1, [LockState('Symbol', True), LockState('CreateStaffLines', True)])
-        logger.info("Starting experiment with {} files".format(len(all_pcgts)))
+        train_args = generate_dataset(
+            lock_states=[LockState('StaffLines', True), LockState('Layout', True)],
+            n_train=n_train,
+            val_amount=val_amount,
+            cross_folds=cross_folds,
+            single_folds=single_folds,
+            train_books=train_books,
+            test_books=test_books,
+            train_books_extend=train_books_extend,
+        )
 
-        def prepare_single_fold(fold, train_val_files, test_files):
-            _, val, train = cross_fold(train_val_files, 5)[0]
-            return SingleDataArgs(fold, train, val, test_files, self.global_args)
-
-        train_args = [
-            prepare_single_fold(fold, train_val_files, test_files) for fold, test_files, train_val_files in cross_fold(all_pcgts, self.global_args.cross_folds)
-        ]
-        train_args = [train_args[fold] for fold in (self.global_args.single_folds if self.global_args.single_folds and len(self.global_args.single_folds) > 0 else range(self.global_args.cross_folds))]
+        train_args = [SingleDataArgs(gd.fold,
+                                     os.path.join(global_args.model_dir, 'symbol_detection_{}'.format(gd.fold)),
+                                     gd.train_pcgts_files, gd.validation_pcgts_files,
+                                     gd.test_pcgts_files,
+                                     global_args) for gd in train_args]
 
         results = list(map(run_single, train_args))
 
@@ -193,6 +218,16 @@ class Experimenter:
 
         logger.info("\n" + at.get_string())
 
+        logger.info("OUTPUT FOR EXCEL")
+
+        at = PrettyTable(["All", 'Notes', 'Clefs', 'Accids'])
+        at.add_row([" | ".join(["{} + {}".format(x, y) for x, y in zip(m, s)]) for m, s in zip(prf1_mean[1:], prf1_std[1:])])
+        logger.info("\n" + at.get_string())
+
+        at = PrettyTable(["Note all", "+-0", "Note GC", "+-1", "Note NS", "+-2", "Note PIS", "+-3", "Clef type", "+-4", "Clef PIS", "+-5", "Accid type", "+-6", "Sequence", "+-7", "Sequence NC", "+-8",])
+        at.add_row(np.transpose([acc_mean[:, 0], acc_std[:, 0]]).reshape([-1]) * 100)
+        logger.info("\n" + at.get_string())
+
 
 if __name__ == "__main__":
     import sys
@@ -201,20 +236,28 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', stream=sys.stdout)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=str, default="model_out")
+    parser.add_argument("--train", default=None, nargs="+")
+    parser.add_argument("--test", default=None, nargs="+")
+    parser.add_argument("--train_extend", default=None, nargs="+")
+    parser.add_argument("--model_dir", type=str, default="model_out")
     parser.add_argument("--cross_folds", type=int, default=5)
     parser.add_argument("--single_folds", type=int, default=[0], nargs="+")
     parser.add_argument("--skip_train", action="store_true")
     parser.add_argument("--skip_predict", action="store_true")
     parser.add_argument("--skip_eval", action="store_true")
     parser.add_argument("--cleanup", action="store_true", default=False)
+    parser.add_argument("--n_train", default=-1, type=int)
+    parser.add_argument("--n_iter", default=10000, type=int)
+    parser.add_argument("--val_amount", default=0.2, type=float)
+    parser.add_argument("--pretrained_model", default=None, type=str)
+    parser.add_argument("--data_augmentation", action="store_true")
 
     parser.add_argument("--height", type=int, default=80)
     parser.add_argument("--pad", type=int, default=[0], nargs="+")
     parser.add_argument("--center", action='store_true')
     parser.add_argument("--cut_region", action='store_true')
     parser.add_argument("--dewarp", action='store_true')
-    parser.add_argument("--staff_lines_only", action="store_true")
+    parser.add_argument("--use_regions", action="store_true", default=False)
 
     parser.add_argument("--seed", type=int, default=1)
 
@@ -224,12 +267,12 @@ if __name__ == "__main__":
         random.seed(args.seed)
         np.random.seed(args.seed)
 
-    if args.staff_lines_only and args.cut_region:
+    if not args.use_regions and args.cut_region:
         logger.warning("Cannot bot set 'cut_region' and 'staff_lines_only'. Setting 'cut_region=False'")
         args.cut_region = False
 
-    args = GlobalDataArgs(
-        args.output,
+    global_args = GlobalDataArgs(
+        args.model_dir,
         args.cross_folds,
         args.single_folds,
         args.skip_train,
@@ -243,10 +286,20 @@ if __name__ == "__main__":
             center=args.center,
             cut_region=args.cut_region,
             dewarp=args.dewarp,
-            staff_lines_only=True,
-        )
+            staff_lines_only=not args.use_regions,
+        ),
+        n_iter=args.n_iter,
+        pretrained_model=args.pretrained_model,
+        data_augmentation=args.data_augmentation,
     )
 
-    experimenter = Experimenter(args)
-    experimenter.run()
-
+    experimenter = Experimenter(global_args)
+    experimenter.run(
+        args.n_train,
+        args.val_amount,
+        args.cross_folds,
+        args.single_folds,
+        args.train,
+        args.test,
+        args.train_extend,
+    )
