@@ -102,7 +102,7 @@ def run(ex_args):
 
     rc = process.poll()
 
-    return result
+    return list(map(float, result))
 
 
 if len(experiment_args) == 0:
