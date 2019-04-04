@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class GlobalArgs(NamedTuple):
+    magic_prefix: Optional[str]
     model_dir: str
     cross_folds: int
     single_folds: Optional[List[int]]
@@ -220,12 +221,19 @@ class Experimenter:
         at.add_column("+-", prf1_std[:, 2])
         logger.info("\n\n" + at.get_string())
 
+        if global_args.magic_prefix:
+            all_values = np.array(sum([[prf1_mean[:, i], prf1_std[:, i]] for i in range(3)], [])).transpose().reshape(-1)
+            print("{}{}".format(global_args.magic_prefix, ','.join(map(str, all_values))))
+
+
+
 
 if __name__ == "__main__":
     import sys
     import argparse
     import random
     parser = argparse.ArgumentParser()
+    parser.add_argument('--magic_prefix', default='EXPERIMENT_OUT=')
     parser.add_argument("--train", default=None, nargs="+")
     parser.add_argument("--test", default=None, nargs="+")
     parser.add_argument("--train_extend", default=None, nargs="+")
@@ -262,6 +270,7 @@ if __name__ == "__main__":
         np.random.seed(args.seed)
 
     global_args = GlobalArgs(
+        magic_prefix=args.magic_prefix,
         model_dir=args.model_dir,
         cross_folds=args.cross_folds,
         single_folds=args.single_folds,
