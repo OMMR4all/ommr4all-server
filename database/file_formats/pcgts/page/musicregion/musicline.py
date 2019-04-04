@@ -117,6 +117,10 @@ class Accidental(Symbol):
 
 class NoteType(IntEnum):
     NORMAL = 0
+    ORISCUS = 1
+    APOSTROPHA = 2
+    LIQUESCENT_FOLLOWING_U = 3
+    LIQUESCENT_FOLLOWING_D = 4
 
 
 class GraphicalConnectionType(IntEnum):
@@ -551,9 +555,9 @@ class MusicLines(List[MusicLine]):
     def to_json(self):
         return [l.to_json() for l in self]
 
-    def draw(self, canvas, color=(0, 255, 0)):
+    def draw(self, canvas, color=(0, 255, 0), line_thickness=1):
         for ml in self:
-            ml.draw(canvas, color=color)
+            ml.draw(canvas, color=color, thickness=line_thickness)
 
     def extract_images_and_gt(self, page: np.ndarray) -> List[Tuple[MusicLine, np.ndarray, str]]:
         for ml in self:
