@@ -18,6 +18,13 @@ class InvalidFileNameException(Exception):
         super().__init__("Invalid filename {}".format(filename))
 
 
+class FileExistsException(Exception):
+    def __init__(self, filename, path):
+        super().__init__("File {} at {} exists".format(filename, path))
+        self.path = path
+        self.filename = filename
+
+
 class DatabaseBook:
     @staticmethod
     def list_available():

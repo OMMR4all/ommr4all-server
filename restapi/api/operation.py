@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from database import DatabasePage, DatabaseBook, DatabaseFile
+from database import DatabasePage, DatabaseBook, DatabaseFile, InvalidFileNameException, FileExistsException
 from restapi.operationworker import operation_worker, TaskStatusCodes, TaskNotFoundException
 import logging
 import datetime
@@ -15,6 +15,7 @@ from omr.stafflines.json_util import json_to_line
 from restapi.operationworker import \
     TaskDataStaffLineDetection, TaskDataSymbolDetectionTrainer, TaskDataSymbolDetection, \
     TaskDataLayoutAnalysis
+from restapi.api import ErrorCodes, APIError
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +111,27 @@ class OperationView(APIView):
             name = re.sub('[^\w]', '_', name)
 
             if name != obj['name']:
-                return Response(status=status.HTTP_406_NOT_ACCEPTABLE)
+                return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                                "Renaming page not possible, because the new name '{}' is invalid: '{}' != '{}'".format(obj['name'], obj['name'], name),
+                                "Invalid page name '{}'".format(obj['name']),
+                                ErrorCodes.PAGE_INVALID_NAME,
+                                ).response()
 
-            page.rename(name)
+            try:
+                page.rename(name)
+            except InvalidFileNameException:
+                return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                                "Renaming page not possible, because the new name '{}' is invalid: '{}' != '{}'".format(obj['name'], obj['name'], name),
+                                "Invalid page name '{}'".format(obj['name']),
+                                ErrorCodes.PAGE_INVALID_NAME,
+                                ).response()
+            except FileExistsException as e:
+                return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                                "Renaming page not possible, because a file at '{}' already exists".format(e.filename),
+                                "A file at '{}' already exists".format(e.filename),
+                                ErrorCodes.PAGE_EXISTS,
+                                ).response()
+
             return Response()
 
         return Response(status=status.HTTP_400_BAD_REQUEST)

@@ -1,4 +1,4 @@
-from database.database_book import DatabaseBook, file_name_validator, InvalidFileNameException
+from database.database_book import DatabaseBook, file_name_validator, InvalidFileNameException, FileExistsException
 import os
 import shutil
 
@@ -24,6 +24,9 @@ class DatabasePage:
         old_path = self.local_path()
         self.page = new_name
         new_path = self.local_path()
+
+        if os.path.exists(new_path):
+            raise FileExistsException(new_name, new_path)
 
         shutil.move(old_path, new_path)
 
