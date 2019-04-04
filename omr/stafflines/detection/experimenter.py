@@ -99,7 +99,7 @@ def run_single(args: SingleDataArgs):
             early_stopping_max_keep=5,
             early_stopping_on_accuracy=True,
             threads=8,
-            data_augmentation=DefaultAugmenter(angle=(-2, 2), flip=(0.5, 0.5), contrast=0.8, brightness=20, scale=(-0.1, 0.1, -0.1, 0.1)) if args.global_args.data_augmentation else None,
+            data_augmentation=DefaultAugmenter(angle=(-2, 2), flip=(0.5, 0.5), contrast=0.1, brightness=10, scale=(-0.1, 0.1, -0.1, 0.1)) if args.global_args.data_augmentation else None,
             checkpoint_iter_delta=None,
             compute_baseline=True,
         )
