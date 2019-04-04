@@ -71,18 +71,19 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from PIL import Image
     # page = Book('demo').page('page00000001')
-    book = DatabaseBook('Graduel_Part_2')
+    book = DatabaseBook('Graduel_Part_1')
     # page = book.page('Graduel_de_leglise_de_Nevers_032_rot')  # zacken in linie
     # page = book.page('Graduel_de_leglise_de_Nevers_531')
+    page = book.page('Graduel_de_leglise_de_Nevers_030')
     #page = book.page('Graduel_de_leglise_de_Nevers_520')
-    page = book.page('Graduel_de_leglise_de_Nevers_513')
+    #page = book.page('Graduel_de_leglise_de_Nevers_513')
 
     pcgts = [PcGts.from_file(page.file('pcgts'))]
 
     params = StaffLinePredictorParameters(
         # None if False else [book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))],
         # ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/internal_storage/default_models/french14/pc_staff_lines/model"],
-        ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/models_out/all/line_detection_2/best"],
+        ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/models_out/all/line_detection_4/best"],
         # ["/home/wick/Downloads/line_detection_0/best"],
         target_line_space_height=10,
         post_processing=False,
@@ -100,10 +101,15 @@ if __name__ == '__main__':
     )
     detector = BasicStaffLinePredictor(params)
     for prediction in detector.predict(pcgts):
+        f, ax = plt.subplots(1, 3)
         staffs = prediction.music_lines_local
         data = prediction.line
         img = np.array(data.line_image, dtype=np.uint8)
-        staffs.draw(img, color=255)
-        plt.imshow(img)
+        ax[0].imshow(255 - img, cmap='gray')
+        staffs.draw(img, color=255, line_thickness=3)
+        s = np.zeros(img.shape)
+        staffs.draw(s, color=255, line_thickness=3)
+        ax[1].imshow(img)
+        ax[2].imshow(s, cmap='gray')
         plt.show()
 
