@@ -29,13 +29,18 @@ class EvaluationData(NamedTuple):
         }
 
 
-class StaffLineDetectionEvaluator:
-    def __init__(self):
-        self.line_hit_overlap_threshold = 0.5
-        self.staff_n_lines_threshold = 2
-        self.debug = False
+class EvaluationParams(NamedTuple):
+    line_hit_overlap_threshold: float = 0.5
+    staff_n_lines_threshold: int = 2
+    staff_line_found_distance: int = 5
+    debug: bool = False
 
-    def evaluate(self, data: List[EvaluationData], staff_line_found_distance=5):
+
+class StaffLineDetectionEvaluator:
+    def __init__(self, params=None):
+        self.params = params if params else EvaluationParams()
+
+    def evaluate(self, data: List[EvaluationData]):
         all_counts = np.zeros([0, 4, 4])
         all_prf1 = np.zeros([0, 4, 3])
         all_staff_prf1 = np.zeros([0, 3])
@@ -45,26 +50,26 @@ class StaffLineDetectionEvaluator:
 
             pred_img = np.zeros(single_data.shape, dtype=np.int32)
             gt_img = np.zeros(single_data.shape, dtype=np.int32)
-            pred_lines.draw(pred_img, 1, thickness=staff_line_found_distance // 2)
-            gt_lines.draw(gt_img, 1, thickness=staff_line_found_distance // 2)
+            pred_lines.draw(pred_img, 1, thickness=self.params.staff_line_found_distance // 2)
+            gt_lines.draw(gt_img, 1, thickness=self.params.staff_line_found_distance // 2)
 
             # detect the closest lines
 
             def found_lines(from_lines: StaffLines, target_lines: StaffLines):
                 target_label_img = np.zeros(single_data.shape, dtype=np.int32)
                 for i, line in enumerate(target_lines):
-                    line.draw(target_label_img, i + 1, thickness=staff_line_found_distance // 2)
+                    line.draw(target_label_img, i + 1, thickness=self.params.staff_line_found_distance // 2)
 
                 target_img = (target_label_img > 0).astype(np.int32)
 
                 hit_lines, single_lines = [], []
                 for line in from_lines:
                     canvas = np.zeros(single_data.shape, dtype=np.int32)
-                    line.draw(canvas, 3, thickness=staff_line_found_distance // 2)
+                    line.draw(canvas, 3, thickness=self.params.staff_line_found_distance // 2)
                     sum_img = canvas + target_img
                     if sum_img.max() == 4:
                         target_line_idx = (canvas * 1000 + target_label_img).max() - 3 * 1000 - 1
-                        if self.debug:
+                        if self.params.debug:
                             print(target_line_idx)
                             f, ax = plt.subplots(1, 2, sharex='all', sharey='all')
                             ax[0].imshow(canvas * 4 + target_label_img)
@@ -72,7 +77,7 @@ class StaffLineDetectionEvaluator:
                             plt.show()
                         target_line = target_lines[target_line_idx]
                         target_canvas = np.zeros(canvas.shape, dtype=np.int32)
-                        target_line.draw(target_canvas, 10, thickness=staff_line_found_distance // 2)
+                        target_line.draw(target_canvas, 10, thickness=self.params.staff_line_found_distance // 2)
                         canvas += target_canvas
                         total_line_hit = canvas.max(axis=0)
                         tp = (total_line_hit == 13).sum()
@@ -80,7 +85,7 @@ class StaffLineDetectionEvaluator:
                         fn = (total_line_hit == 10).sum()
                         overlap = tp / (tp + fp + fn)
 
-                        if overlap > self.line_hit_overlap_threshold:
+                        if overlap > self.params.line_hit_overlap_threshold:
                             hit_lines.append((line, target_line, precision_recall_f1(tp, fp, fn)))
                         else:
                             single_lines.append(line)
@@ -88,7 +93,7 @@ class StaffLineDetectionEvaluator:
 
                     else:
                         single_lines.append(line)
-                        if self.debug:
+                        if self.params.debug:
                             f, ax = plt.subplots(1, 2, sharex='all', sharey='all')
                             ax[0].imshow(sum_img)
                             ax[1].imshow(target_img)
@@ -124,7 +129,7 @@ class StaffLineDetectionEvaluator:
 
             for pred_staff in pred_staves:
                 pred_staff_lines = [l for l in pred_staff.staff_lines if l in tp_pred_lines]
-                if len(pred_staff_lines) < self.staff_n_lines_threshold:
+                if len(pred_staff_lines) < self.params.staff_n_lines_threshold:
                     # not hit
                     fp_staves.append(pred_staff)
                     continue

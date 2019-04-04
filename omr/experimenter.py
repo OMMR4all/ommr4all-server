@@ -13,6 +13,7 @@ parser.add_argument('--magic_prefix', default='EXPERIMENT_OUT=')
 parser.add_argument('--header_row', default=2, type=int)
 parser.add_argument('--data_column_offset', default=1, type=int)
 parser.add_argument('--verbose', action='store_true')
+parser.add_argument('--force_all', action='store_true')
 
 args = parser.parse_args()
 
@@ -43,7 +44,7 @@ for i, row in enumerate(all_rows[data_row_start_index:]):
             continue
 
         first_data_cell = row[data_column_start_index]
-        if first_data_cell.value is not None:
+        if first_data_cell.value is not None and not args.force_all:
             # already contains data
             continue
 

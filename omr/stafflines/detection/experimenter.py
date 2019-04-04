@@ -7,7 +7,7 @@ from pagesegmentation.lib.data_augmenter import DefaultAugmenter
 from omr.dataset.datafiles import dataset_by_locked_pages, generate_dataset, GeneratedData
 from omr.stafflines.detection.dataset import PCDataset, StaffLineDetectionDatasetParams
 from omr.stafflines.detection.predictor import create_staff_line_predictor, StaffLinesModelType, StaffLinePredictorParameters
-from omr.stafflines.detection.evaluator import StaffLineDetectionEvaluator, EvaluationData
+from omr.stafflines.detection.evaluator import StaffLineDetectionEvaluator, EvaluationData, EvaluationParams
 from typing import NamedTuple, List, Optional
 import os
 import shutil
@@ -42,6 +42,9 @@ class GlobalArgs(NamedTuple):
     skip_cleanup: bool
 
     dataset_params: StaffLineDetectionDatasetParams
+
+    # evaluation parameters
+    evaluation_params: EvaluationParams
 
 
 class SingleDataArgs(NamedTuple):
@@ -134,7 +137,7 @@ def run_single(args: SingleDataArgs):
             predictions = [EvaluationData.from_json(p) for p in json.load(f)['predictions']]
 
     if not args.global_args.skip_eval:
-        evaluator = StaffLineDetectionEvaluator()
+        evaluator = StaffLineDetectionEvaluator(args.global_args.evaluation_params)
         counts, prf1 = evaluator.evaluate(predictions)
         if counts.shape[0] > 0:
             at = PrettyTable()
@@ -226,8 +229,6 @@ class Experimenter:
             print("{}{}".format(global_args.magic_prefix, ','.join(map(str, all_values))))
 
 
-
-
 if __name__ == "__main__":
     import sys
     import argparse
@@ -263,6 +264,11 @@ if __name__ == "__main__":
     parser.add_argument("--extract_region_only", action="store_true")
     parser.add_argument("--gt_line_thickness", default=3, type=int)
 
+    # evaluation parameters
+    parser.add_argument("--staff_line_found_distance", default=5, type=int)
+    parser.add_argument("--line_hit_overlap_threshold", default=0.5, type=float)
+    parser.add_argument("--staff_n_lines_threshold", default=2, type=int)
+
     args = parser.parse_args()
 
     if args.seed is not None:
@@ -297,6 +303,11 @@ if __name__ == "__main__":
             extract_region_only=args.extract_region_only,
             gt_line_thickness=args.gt_line_thickness,
         ),
+        evaluation_params=EvaluationParams(
+            staff_line_found_distance=args.staff_line_found_distance,
+            line_hit_overlap_threshold=args.line_hit_overlap_threshold,
+            staff_n_lines_threshold=args.staff_n_lines_threshold,
+        )
     )
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', stream=sys.stdout)
     experimenter = Experimenter()
