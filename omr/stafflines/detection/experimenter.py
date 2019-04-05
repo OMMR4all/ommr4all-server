@@ -117,6 +117,8 @@ def run_single(args: SingleDataArgs):
                 post_processing=args.global_args.post_processing,
                 smooth_staff_lines=args.global_args.smooth_staff_lines,
                 line_fit_distance=args.global_args.line_fit_distance,
+                min_num_staff_lines=4,
+                num_staff_lines=4,
             )
         )
         predictions = []

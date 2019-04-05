@@ -14,6 +14,9 @@ class StaffLinePredictorParameters(NamedTuple):
     smooth_staff_lines: int = 2
     line_fit_distance: float = 1
 
+    num_staff_lines: int = 4
+    min_num_staff_lines: int = 3
+
 
 class StaffLinesModelType(Enum):
     PIXEL_CLASSIFIER = 0

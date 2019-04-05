@@ -34,7 +34,8 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
 
         from linesegmentation.detection import LineDetectionSettings, LineDetection
         self.settings = LineDetectionSettings(
-            numLine=4,
+            minLineNum=params.min_num_staff_lines,
+            numLine=params.num_staff_lines,
             minLength=6,
             lineExtension=True,
             lineSpaceHeight=0,
