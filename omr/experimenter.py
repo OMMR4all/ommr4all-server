@@ -3,6 +3,7 @@ import argparse
 import subprocess
 import multiprocessing
 from tqdm import tqdm
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ods', required=True, type=str)
@@ -14,8 +15,12 @@ parser.add_argument('--header_row', default=2, type=int)
 parser.add_argument('--data_column_offset', default=1, type=int)
 parser.add_argument('--verbose', action='store_true')
 parser.add_argument('--force_all', action='store_true')
+parser.add_argument('--first_only', action='store_true')
 
 args = parser.parse_args()
+
+if not os.path.exists(args.ods):
+    raise FileNotFoundError(args.ods)
 
 ods = ezodf.opendoc(args.ods)
 
@@ -69,6 +74,9 @@ for i, row in enumerate(all_rows[data_row_start_index:]):
         'args': ex_args,
     })
 
+if args.first_only:
+    experiment_args = experiment_args[:1]
+
 
 def run(ex_args):
     cmd_list = ['python', '-u', args.script]
@@ -95,6 +103,9 @@ def run(ex_args):
         if output:
             if output.startswith(args.magic_prefix):
                 result = output[len(args.magic_prefix):]
+                if args.verbose:
+                    print("Got result: {}".format(result))
+
                 result = result.split(',')
             else:
                 if args.verbose:

@@ -2,7 +2,7 @@ import logging
 from omr.symboldetection.pixelclassifier.trainer import PCTrainer
 from omr.dataset.datafiles import dataset_by_locked_pages, LockState, generate_dataset, GeneratedData
 from omr.symboldetection.dataset import SymbolDetectionDatasetParams, SymbolDetectionDataset, PcGts
-from omr.symboldetection.evaluator import SymbolDetectionEvaluator, Counts, precision_recall_f1, AccCounts
+from omr.symboldetection.evaluator import SymbolDetectionEvaluator, Counts, precision_recall_f1, AccCounts, SymbolDetectionEvaluatorParams
 from omr.symboldetection.predictor import create_predictor, SymbolDetectionPredictorParameters, PredictionType, PredictorTypes, PredictionResult
 from pagesegmentation.lib.trainer import Trainer, TrainSettings, TrainProgressCallback
 from pagesegmentation.lib.data_augmenter import DefaultAugmenter
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class GlobalDataArgs(NamedTuple):
+    magic_prefix: Optional[str]
     model_dir: str
     cross_folds: int
     single_folds: Optional[List[int]]
@@ -27,6 +28,7 @@ class GlobalDataArgs(NamedTuple):
     skip_eval: bool
     skip_cleanup: bool
     symbol_detection_params: SymbolDetectionDatasetParams
+    symbol_evaluation_params: SymbolDetectionEvaluatorParams
     n_iter: int
     pretrained_model: Optional[str]
     data_augmentation: bool
@@ -106,7 +108,7 @@ def run_single(args: SingleDataArgs):
     if not global_args.skip_eval:
         fold_log.info("Starting evaluation")
         gt_symbols, pred_symbols = predictions
-        evaluator = SymbolDetectionEvaluator()
+        evaluator = SymbolDetectionEvaluator(global_args.symbol_evaluation_params)
         metrics, counts, acc_counts, acc_acc = evaluator.evaluate(gt_symbols, pred_symbols)
 
         at = PrettyTable()
@@ -218,15 +220,11 @@ class Experimenter:
 
         logger.info("\n" + at.get_string())
 
-        logger.info("OUTPUT FOR EXCEL")
-
-        at = PrettyTable(["All", 'Notes', 'Clefs', 'Accids'])
-        at.add_row([" | ".join(["{} + {}".format(x, y) for x, y in zip(m, s)]) for m, s in zip(prf1_mean[1:], prf1_std[1:])])
-        logger.info("\n" + at.get_string())
-
-        at = PrettyTable(["Note all", "+-0", "Note GC", "+-1", "Note NS", "+-2", "Note PIS", "+-3", "Clef type", "+-4", "Clef PIS", "+-5", "Accid type", "+-6", "Sequence", "+-7", "Sequence NC", "+-8",])
-        at.add_row(np.transpose([acc_mean[:, 0], acc_std[:, 0]]).reshape([-1]) * 100)
-        logger.info("\n" + at.get_string())
+        if global_args.magic_prefix or True:
+            # skip first all output
+            all_symbol_detection = np.array(sum([[prf1_mean[1:, i], prf1_std[1:, i]] for i in range(3)], [])).transpose().reshape(-1)
+            all_acc = np.array(np.transpose([acc_mean[:, 0], acc_std[:, 0]]).reshape([-1]))
+            print("{}{}".format(global_args.magic_prefix, ','.join(map(str, list(all_symbol_detection) + list(all_acc)))))
 
 
 if __name__ == "__main__":
@@ -236,6 +234,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', stream=sys.stdout)
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--magic_prefix', default='EXPERIMENT_OUT=')
     parser.add_argument("--train", default=None, nargs="+")
     parser.add_argument("--test", default=None, nargs="+")
     parser.add_argument("--train_extend", default=None, nargs="+")
@@ -261,6 +260,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--seed", type=int, default=1)
 
+    # evaluation params
+    parser.add_argument("--symbol_detected_min_distance", type=int, default=5)
+
     args = parser.parse_args()
 
     if args.seed is not None:
@@ -272,6 +274,7 @@ if __name__ == "__main__":
         args.cut_region = False
 
     global_args = GlobalDataArgs(
+        args.magic_prefix,
         args.model_dir,
         args.cross_folds,
         args.single_folds,
@@ -287,6 +290,9 @@ if __name__ == "__main__":
             cut_region=args.cut_region,
             dewarp=args.dewarp,
             staff_lines_only=not args.use_regions,
+        ),
+        symbol_evaluation_params=SymbolDetectionEvaluatorParams(
+            symbol_detected_min_distance=args.symbol_detected_min_distance,
         ),
         n_iter=args.n_iter,
         pretrained_model=args.pretrained_model,

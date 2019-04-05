@@ -1,5 +1,5 @@
 from database.file_formats.pcgts import *
-from typing import List, Tuple
+from typing import List, Tuple, NamedTuple
 import os
 import numpy as np
 from enum import IntEnum
@@ -89,12 +89,17 @@ class Codec:
         return list(map(self.get, sequence))
 
 
+class SymbolDetectionEvaluatorParams(NamedTuple):
+    symbol_detected_min_distance: int = 5
+
+
 class SymbolDetectionEvaluator:
-    def __init__(self):
+    def __init__(self, params: SymbolDetectionEvaluatorParams = None):
+        self.params = params if params else SymbolDetectionEvaluatorParams()
         self.codec = Codec()
 
-    def evaluate(self, gt_symbols: List[List[Symbol]], pred_symbols: List[List[Symbol]], min_distance=5):
-        min_distance_sqr = min_distance ** 2
+    def evaluate(self, gt_symbols: List[List[Symbol]], pred_symbols: List[List[Symbol]]):
+        min_distance_sqr = self.params.symbol_detected_min_distance ** 2
         def extract_symbol_coord(s: Symbol) -> List[Tuple[Point, Symbol]]:
             if s.symbol_type == SymbolType.NEUME:
                 n: Neume = s
