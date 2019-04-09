@@ -117,9 +117,10 @@ class BookDownloaderView(APIView):
             s.seek(0)
             return FileResponse(s, as_attachment=True, filename=book.book + '.zip')
         elif type == 'monodi2.zip':
-            from database.file_formats.pcgts.monodi2_exporter import pcgts_to_monodi, PcGts
+            from database.file_formats.pcgts.monodi2_exporter import PcgtsToMonodiConverter
+            from database.file_formats import PcGts
             pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
-            obj = pcgts_to_monodi(pcgts).to_json()
+            obj = PcgtsToMonodiConverter(pcgts).root.to_json()
 
             s = io.BytesIO()
             with zipfile.ZipFile(s, 'w') as zf:
