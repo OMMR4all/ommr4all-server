@@ -102,6 +102,12 @@ class Size:
     def __str__(self):
         return self.to_string()
 
+    def __truediv__(self, other):
+        return Size(self.p / other)
+
+    def __floordiv__(self, other):
+        return Size(self.p // other)
+
     @staticmethod
     def from_string(s):
         return Size(*tuple(map(float, s.split(","))))
@@ -189,6 +195,10 @@ class Rect:
     @property
     def br(self):
         return self.origin + self.size
+
+    @property
+    def center(self):
+        return self.origin + self.size / 2
 
     @staticmethod
     def from_json(json: dict):

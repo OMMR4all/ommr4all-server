@@ -10,47 +10,6 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 
-class SymbolType(IntEnum):
-    NEUME = 0
-    CLEF = 1
-    ACCID = 2
-
-    NOTE_COMPONENT = 3
-
-
-class Symbol(ABC):
-    def __init__(self,
-                 s_id: Optional[str],
-                 symbol_type: SymbolType,
-                 fixed_sorting: bool = False,
-                 ):
-        self.id = s_id if s_id else str(uuid4())
-        self.symbol_type = symbol_type
-        self.fixed_sorting = fixed_sorting
-
-    @abstractmethod
-    def to_json(self):
-        return {
-            'id': self.id,
-            'symbol': self.symbol_type.value,
-            'fixedSorting': self.fixed_sorting,
-        }
-
-    @staticmethod
-    def from_json(json: dict):
-        return {
-            SymbolType.NEUME: Neume.from_json,
-            SymbolType.CLEF: Clef.from_json,
-            SymbolType.ACCID: Accidental.from_json,
-        }[SymbolType(json.get('symbol'))](json)
-
-
-class AccidentalType(IntEnum):
-    NATURAL = 0
-    SHARP = 1
-    FLAT = -1
-
-
 class MusicSymbolPositionInStaff(IntEnum):
     UNDEFINED = -1000
 
@@ -86,16 +45,72 @@ class MusicSymbolPositionInStaff(IntEnum):
         return MusicSymbolPositionInStaff.UP <= self.value <= MusicSymbolPositionInStaff.DOWN
 
 
+class SymbolType(IntEnum):
+    NEUME = 0
+    CLEF = 1
+    ACCID = 2
+
+    NOTE_COMPONENT = 3
+
+
+class Symbol(ABC):
+    def __init__(self,
+                 s_id: Optional[str],
+                 symbol_type: SymbolType,
+                 fixed_sorting: bool = False,
+                 coord: Point = None,
+                 position_in_staff: MusicSymbolPositionInStaff = MusicSymbolPositionInStaff.UNDEFINED,
+                 ):
+        self.id = s_id if s_id else str(uuid4())
+        self.coord = coord if coord else Point()
+        self.symbol_type = symbol_type
+        self.fixed_sorting = fixed_sorting
+        self.position_in_staff = position_in_staff
+        self.octave = 0
+        self.note_name = NoteName.UNDEFINED
+
+    def update_note_name(self, clef, staff_lines: Optional['StaffLines'] = None):
+        if self.position_in_staff == MusicSymbolPositionInStaff.UNDEFINED:
+            if staff_lines:
+                self.position_in_staff = staff_lines.position_in_staff(self.coord)
+
+        self.note_name, self.octave = clef.note_name_octave(self.position_in_staff)
+
+    @abstractmethod
+    def to_json(self):
+        return {
+            'id': self.id,
+            'symbol': self.symbol_type.value,
+            'fixedSorting': self.fixed_sorting,
+            'coord': self.coord.to_json(),
+            'positionInStaff': self.position_in_staff,
+        }
+
+    @staticmethod
+    def from_json(json: dict):
+        return {
+            SymbolType.NEUME: Neume.from_json,
+            SymbolType.CLEF: Clef.from_json,
+            SymbolType.ACCID: Accidental.from_json,
+        }[SymbolType(json.get('symbol'))](json)
+
+
+class AccidentalType(IntEnum):
+    NATURAL = 0
+    SHARP = 1
+    FLAT = -1
+
+
 class Accidental(Symbol):
     def __init__(self,
                  accidental=AccidentalType.NATURAL,
                  coord=Point(),
                  fixed_sorting: bool = False,
+                 position_in_staff=MusicSymbolPositionInStaff.UNDEFINED,
                  s_id: str = None
                  ):
-        super().__init__(s_id, SymbolType.ACCID, fixed_sorting)
+        super().__init__(s_id, SymbolType.ACCID, fixed_sorting, coord, position_in_staff)
         self.accidental = accidental
-        self.coord = coord
 
     @staticmethod
     def from_json(json):
@@ -105,13 +120,13 @@ class Accidental(Symbol):
             AccidentalType(json.get('type', AccidentalType.NATURAL)),
             Point.from_json(json.get('coord', Point().to_json())),
             json.get('fixedSorting', False),
+            json.get('positionInStaff', MusicSymbolPositionInStaff.UNDEFINED),
             json.get('id', None),
         )
 
     def to_json(self):
         return dict(super().to_json(), **{
             'type': self.accidental.value,
-            'coord': self.coord.to_json()
         })
 
 
@@ -153,16 +168,11 @@ class NoteComponent(Symbol):
                  fixed_sorting: bool = False,
                  s_id: str = None
                  ):
-        super().__init__(s_id, SymbolType.NOTE_COMPONENT, fixed_sorting)
+        super().__init__(s_id, SymbolType.NOTE_COMPONENT, fixed_sorting, coord, position_in_staff)
         self.note_name = note_name
         self.octave = octave
         self.note_type = note_type
-        self.coord: Point = coord if coord else Point()
-        self.position_in_staff = position_in_staff
         self.graphical_connection = graphical_connection
-
-    def update_note_name(self, clef):
-        self.note_name, self.octave = clef.note_name_octave(self.position_in_staff)
 
     @staticmethod
     def from_json(json: dict):
@@ -232,10 +242,8 @@ class Clef(Symbol):
                  fixed_sorting: bool = False,
                  s_id: str = None
                  ):
-        super().__init__(s_id, SymbolType.CLEF, fixed_sorting)
+        super().__init__(s_id, SymbolType.CLEF, fixed_sorting, coord, position_in_staff)
         self.clef_type = clef_type
-        self.coord = coord
-        self.position_in_staff = position_in_staff
 
     @staticmethod
     def from_json(json: dict):
@@ -250,14 +258,12 @@ class Clef(Symbol):
     def to_json(self):
         return dict(super().to_json(), **{
             "type": self.clef_type.value,
-            "coord": self.coord.to_json(),
-            "positionInStaff": self.position_in_staff.value,
         })
 
     def note_name_octave(self, position_in_staff: MusicSymbolPositionInStaff):
         clef_type_offset = self.clef_type.offset()
         note_name = NoteName((clef_type_offset + 49 - self.position_in_staff + MusicSymbolPositionInStaff.LINE_2 + position_in_staff) % 7)
-        octave = 4 + (clef_type_offset - self.position_in_staff + MusicSymbolPositionInStaff.LINE_1 + position_in_staff) // 7
+        octave = 5 + (clef_type_offset - self.position_in_staff + MusicSymbolPositionInStaff.LINE_1 + position_in_staff) // 7
         return note_name, octave
 
 
@@ -532,13 +538,12 @@ class MusicLine:
         for s in self.symbols:
             if isinstance(s, Clef):
                 current_clef = s
-            elif isinstance(s, Accidental):
-                pass
+                s.update_note_name(current_clef, self.staff_lines)
             elif isinstance(s, Neume):
                 for n in s.notes:
-                    n.update_note_name(current_clef)
+                    n.update_note_name(current_clef, self.staff_lines)
             else:
-                raise TypeError(s)
+                s.update_note_name(current_clef, self.staff_lines)
 
         return current_clef
 

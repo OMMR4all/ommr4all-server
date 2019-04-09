@@ -14,6 +14,10 @@ class MusicRegion:
         assert(isinstance(self.staffs, MusicLines))
         assert(isinstance(self.coords, Coords))
 
+    @property
+    def children(self):
+        return self.staffs
+
     @staticmethod
     def from_json(json):
         return MusicRegion(

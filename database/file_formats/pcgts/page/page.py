@@ -15,8 +15,8 @@ class Page:
                  music_regions: List[MusicRegion]=None,
                  image_filename="", image_height=0, image_width=0,
                  location: 'DatabasePage' = None):
-        self.text_regions = text_regions if text_regions else []
-        self.music_regions = music_regions if music_regions else []
+        self.text_regions: List[TextRegion] = text_regions if text_regions else []
+        self.music_regions: List[MusicRegion] = music_regions if music_regions else []
         self.image_filename = image_filename
         self.image_height = image_height
         self.image_width = image_width

@@ -24,6 +24,10 @@ class TextRegion:
         self.coords = coords if coords else Coords()
         self.text_lines = text_lines if text_lines else []
 
+    @property
+    def children(self):
+        return self.text_lines
+
     def syllable_by_id(self, syllable_id):
         if self.region_type != TextRegionType.LYRICS:
             return None
