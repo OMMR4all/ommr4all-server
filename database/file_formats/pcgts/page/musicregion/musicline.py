@@ -263,7 +263,7 @@ class Clef(Symbol):
     def note_name_octave(self, position_in_staff: MusicSymbolPositionInStaff):
         clef_type_offset = self.clef_type.offset()
         note_name = NoteName((clef_type_offset + 49 - self.position_in_staff + MusicSymbolPositionInStaff.LINE_2 + position_in_staff) % 7)
-        octave = 5 + (clef_type_offset - self.position_in_staff + MusicSymbolPositionInStaff.LINE_1 + position_in_staff) // 7
+        octave = 4 + (clef_type_offset - self.position_in_staff + MusicSymbolPositionInStaff.LINE_1 + position_in_staff) // 7
         return note_name, octave
 
 
