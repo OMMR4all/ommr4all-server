@@ -76,7 +76,6 @@ class Note(NamedTuple):
     liquecent: bool
     octave: int
     focus: bool = False
-    uuid: str = str(uuid.uuid4())
 
     def to_json(self):
         return {
@@ -85,7 +84,7 @@ class Note(NamedTuple):
             'liquescent': self.liquecent,
             'octave': self.octave,
             'focus': self.focus,
-            'uuid': self.uuid,
+            'uuid': str(uuid.uuid4()),
         }
 
 
