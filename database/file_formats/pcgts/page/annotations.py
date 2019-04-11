@@ -3,45 +3,27 @@ from . import *
 from database.file_formats.pcgts.page import page as dt_page
 
 
-class NeumeConnector:
-    def __init__(self,
-                 neume: Neume,
-                 ):
-        self.neume = neume
-        assert(self.neume is not None)
-
-    @staticmethod
-    def from_json(json: dict, mr: MusicRegion):
-        return NeumeConnector(
-            mr.neume_by_id(json['refID'])
-        )
-
-    def to_json(self):
-        return {
-            'refID': self.neume.id
-        }
-
-
 class SyllableConnector:
     def __init__(self,
                  syllable: Syllable,
-                 neume_connections: List[NeumeConnector],
+                 neume: Neume,
                  ):
+        self.neume = neume
         self.syllable = syllable
-        self.neume_connections = neume_connections if neume_connections else []
         assert(self.syllable is not None)
+        assert(self.neume is not None)
 
     @staticmethod
     def from_json(json: dict, mr: MusicRegion, tr: TextRegion):
         return SyllableConnector(
-            tr.syllable_by_id(json['refID']),
-            [NeumeConnector.from_json(nc, mr) for nc in json['neumeConnectors']],
+            tr.syllable_by_id(json['syllableID'], True),
+            mr.neume_by_id(json['neumeID'], True)
         )
 
     def to_json(self):
         return {
-            'refID': self.syllable.id,
-            'neumeConnectors': [nc.to_json() for nc in self.neume_connections],
+            'syllableID': self.syllable.id,
+            'neumeID': self.neume.id,
         }
 
 

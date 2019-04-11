@@ -1,4 +1,4 @@
-from . import Coords, TextLine, TextEquiv
+from . import Coords, TextLine
 from typing import List
 from enum import Enum
 from uuid import uuid4
@@ -28,14 +28,15 @@ class TextRegion:
     def children(self):
         return self.text_lines
 
-    def syllable_by_id(self, syllable_id):
-        if self.region_type != TextRegionType.LYRICS:
-            return None
+    def syllable_by_id(self, syllable_id, require=False):
+        if self.region_type == TextRegionType.LYRICS:
+            for t in self.text_lines:
+                r = t.syllable_by_id(syllable_id)
+                if r:
+                    return r
 
-        for t in self.text_lines:
-            r = t.syllable_by_id(syllable_id)
-            if r:
-                return r
+        if require:
+            raise ValueError("Syllable with ID {} not found in text region {}".format(syllable_id, self.id))
 
         return None
 

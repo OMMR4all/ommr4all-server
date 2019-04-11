@@ -33,11 +33,14 @@ class MusicRegion:
             "musicLines": self.staffs.to_json(),
         }
 
-    def neume_by_id(self, id):
+    def neume_by_id(self, id, required=False):
         for ml in self.staffs:
             for neume in ml.symbols:
                 if neume.symbol_type == SymbolType.NEUME and neume.id == id:
                     return neume
+
+        if required:
+            raise ValueError("Neume with ID {} not found in music region".format(id, self.id))
 
         return None
 
