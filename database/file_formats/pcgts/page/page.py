@@ -74,6 +74,14 @@ class Page:
                 return mr
         return None
 
+    def music_line_by_id(self, id: str):
+        for mr in self.music_regions:
+            for ml in mr.staffs:
+                if ml.id == id:
+                    return ml
+
+        return None
+
     def text_region_by_id(self, id: str):
         for tr in self.text_regions:
             if tr.id == id:

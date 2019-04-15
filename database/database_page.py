@@ -13,6 +13,9 @@ class DatabasePage:
     def __eq__(self, other):
         return isinstance(other, DatabasePage) and self.book == other.book and self.page == other.page
 
+    def exists(self):
+        return os.path.isdir(self.local_path())
+
     def delete(self):
         if os.path.exists(self.local_path()):
             shutil.rmtree(self.local_path())
@@ -51,6 +54,18 @@ class DatabasePage:
             return False
 
         return True
+
+    def copy_to(self, database_book: DatabaseBook) -> 'DatabasePage':
+        if not database_book.exists():
+            raise FileNotFoundError("Database {} not existing".format(database_book.local_path()))
+
+        copy_page = DatabasePage(database_book, self.page)
+
+        if copy_page.exists():
+            shutil.rmtree(copy_page.local_path())
+
+        shutil.copytree(self.local_path(), copy_page.local_path())
+        return copy_page
 
 
 class DatabasePageMeta:

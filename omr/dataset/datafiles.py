@@ -153,5 +153,12 @@ def generate_dataset(lock_states: List[LockState],
 
 if __name__ == '__main__':
     import sys
+    import random
+    import numpy as np
+    np.random.seed(1)
+    random.seed(1)
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', stream=sys.stdout)
-    print(dataset_by_locked_pages(0.5, [LockState('Symbols', True)], datasets=[DatabaseBook('demo')]))
+    # print(dataset_by_locked_pages(0.5, [LockState('Symbols', True)], datasets=[DatabaseBook('demo')]))
+    all_pages, _ = dataset_by_locked_pages(1, [], True, datasets=[DatabaseBook('Graduel_Part_3')])
+    folds = [(i, [t.page.location.local_path() for t in test]) for i, test, train in cross_fold(all_pages, 5)]
+    print([(i, pages) for i, pages in folds if any([('543' in p) for p in pages])])

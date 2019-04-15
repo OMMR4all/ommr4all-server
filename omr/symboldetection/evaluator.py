@@ -4,6 +4,7 @@ import os
 import numpy as np
 from enum import IntEnum
 from edit_distance import edit_distance
+from difflib import SequenceMatcher
 
 class PRF2Metrics(IntEnum):
     SYMBOL = 0
@@ -88,6 +89,50 @@ class Codec:
 
         return list(map(self.get, sequence))
 
+    def compute_sequence_diffs(self, gt, pred):
+        sm = SequenceMatcher(a=pred, b=gt, autojunk=False, isjunk=False)
+        total = max(len(gt), len(pred))
+        missing_accids = 0
+        missing_notes = 0
+        missing_clefs = 0
+        wrong_note_connections = 0
+        wrong_position_in_staff = 0
+        true_positives = 0
+        false_positives = 0
+        total_errors = 0
+        for opcode, pred_start, pred_end, gt_start, gt_end in sm.get_opcodes():
+            if opcode == 'equal':
+                true_positives += gt_end - gt_start
+            elif opcode == 'insert' or opcode == 'replace' or opcode == 'delete':
+                total_errors += pred_end - pred_start + gt_end - gt_start
+                false_positives += pred_end - pred_start
+                for i, s in enumerate(gt[gt_start:gt_end]):
+                    entry = self.codec[s]
+                    symbol_type = entry[0]
+                    if symbol_type == SymbolType.ACCID:
+                        missing_accids += 1
+                    elif symbol_type == SymbolType.NEUME:
+                        if opcode == 'replace' and pred_end > pred_start + i:
+                            # check for wrong connection
+                            p = self.codec[pred[pred_start + i]]
+                            if p[0] == symbol_type:
+                                if p[3] == entry[3]:
+                                    wrong_position_in_staff += 1
+                                else:
+                                    wrong_note_connections += 1
+                            else:
+                                missing_notes += 1
+                        else:
+                            missing_notes += 1
+                    elif symbol_type == SymbolType.CLEF:
+                        missing_clefs += 1
+                    else:
+                        raise ValueError("Unknown symbol type {} of entry {}".format(symbol_type, entry))
+            else:
+                raise ValueError(opcode)
+
+        return missing_notes, wrong_note_connections, wrong_position_in_staff, missing_clefs, missing_accids, false_positives, total, total_errors
+
 
 class SymbolDetectionEvaluatorParams(NamedTuple):
     symbol_detected_min_distance: int = 5
@@ -99,6 +144,7 @@ class SymbolDetectionEvaluator:
         self.codec = Codec()
 
     def evaluate(self, gt_symbols: List[List[Symbol]], pred_symbols: List[List[Symbol]]):
+
         min_distance_sqr = self.params.symbol_detected_min_distance ** 2
         def extract_symbol_coord(s: Symbol) -> List[Tuple[Point, Symbol]]:
             if s.symbol_type == SymbolType.NEUME:
@@ -134,6 +180,8 @@ class SymbolDetectionEvaluator:
 
         acc_counts = np.zeros((0, 9, AccCounts.COUNT), dtype=int)
 
+        total_diffs = np.zeros(8, dtype=int)
+
         for gt, pred in zip(gt_symbols, pred_symbols):
             gt_sequence = self.codec.symbols_to_label_sequence(gt, False)
             pred_sequence = self.codec.symbols_to_label_sequence(pred, False)
@@ -141,6 +189,8 @@ class SymbolDetectionEvaluator:
             pred_sequence_nc = self.codec.symbols_to_label_sequence(pred, True)
             sequence_ed = edit_distance(gt_sequence, pred_sequence)
             sequence_ed_nc = edit_distance(gt_sequence_nc, pred_sequence_nc)
+            diffs = np.asarray(self.codec.compute_sequence_diffs(gt_sequence_nc, pred_sequence_nc))
+            total_diffs += diffs
             pairs = []
             p_symbols = extract_coords_of_symbols(pred)
             gt_symbols_orig = extract_coords_of_symbols(gt)
@@ -283,7 +333,13 @@ class SymbolDetectionEvaluator:
 
         acc_counts = acc_counts.sum(axis=0)
         acc_acc = (acc_counts[:, AccCounts.TRUE] / acc_counts[:, AccCounts.TOTAL]).reshape((-1, 1))
-        return f_metrics.mean(axis=0), counts.sum(axis=0), acc_counts, acc_acc
+
+        # normalize errors
+        total_diffs = total_diffs / total_diffs[-1]
+        # transfer total / errors => acc = 1 - errors / total
+        total_diffs[-2] = 1 - 1 / total_diffs[-2]
+
+        return f_metrics.mean(axis=0), counts.sum(axis=0), acc_counts, acc_acc, total_diffs
 
 
 if __name__ == '__main__':

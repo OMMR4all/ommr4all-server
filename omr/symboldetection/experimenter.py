@@ -1,14 +1,13 @@
 import logging
-from omr.symboldetection.pixelclassifier.trainer import PCTrainer
-from omr.dataset.datafiles import dataset_by_locked_pages, LockState, generate_dataset, GeneratedData
+from database import DatabaseBook, DatabaseBookMeta
+from omr.dataset.datafiles import LockState, generate_dataset
 from omr.symboldetection.dataset import SymbolDetectionDatasetParams, SymbolDetectionDataset, PcGts
 from omr.symboldetection.evaluator import SymbolDetectionEvaluator, Counts, precision_recall_f1, AccCounts, SymbolDetectionEvaluatorParams
-from omr.symboldetection.predictor import create_predictor, SymbolDetectionPredictorParameters, PredictionType, PredictorTypes, PredictionResult
-from pagesegmentation.lib.trainer import Trainer, TrainSettings, TrainProgressCallback
+from omr.symboldetection.predictor import create_predictor, SymbolDetectionPredictorParameters, PredictorTypes
+from pagesegmentation.lib.trainer import Trainer, TrainSettings
 from pagesegmentation.lib.data_augmenter import DefaultAugmenter
 from omr.imageoperations.music_line_operations import SymbolLabel
 from typing import NamedTuple, List, Optional
-import tempfile
 import shutil
 import os
 import pickle
@@ -32,6 +31,7 @@ class GlobalDataArgs(NamedTuple):
     n_iter: int
     pretrained_model: Optional[str]
     data_augmentation: bool
+    output_book: Optional[str]
 
 
 class SingleDataArgs(NamedTuple):
@@ -96,9 +96,38 @@ def run_single(args: SingleDataArgs):
         fold_log.info("Starting prediction")
         pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER,
                                 SymbolDetectionPredictorParameters([model_path], args.global_args.symbol_detection_params))
-        predictions = zip(*[(p.line.operation.music_line.symbols, p.symbols) for p in pred.predict(args.test_pcgts_files)])
+        full_predictions = list(pred.predict(args.test_pcgts_files))
+        predictions = zip(*[(p.line.operation.music_line.symbols, p.symbols) for p in full_predictions])
         with open(prediction_path, 'wb') as f:
             pickle.dump(predictions, f)
+
+        if global_args.output_book:
+            fold_log.info("Outputting data")
+
+            pred_book = DatabaseBook(global_args.output_book)
+            if not pred_book.exists():
+                pred_book_meta = DatabaseBookMeta(global_args.output_book, global_args.output_book)
+                pred_book.create(pred_book_meta)
+
+            output_pcgts = [PcGts.from_file(pcgts.page.location.copy_to(pred_book).file('pcgts'))
+                            for pcgts in args.test_pcgts_files]
+
+            output_pcgts_by_page_name = {}
+            for o_pcgts in output_pcgts:
+                output_pcgts_by_page_name[o_pcgts.page.location.page] = o_pcgts
+                for mr in o_pcgts.page.music_regions:
+                    for ml in mr.staffs:
+                        ml.symbols = []  # clear all symbols
+
+                # clear all annotations
+                o_pcgts.page.annotations.connections = []
+
+            for p in full_predictions:
+                o_pcgts = output_pcgts_by_page_name[p.line.operation.page.location.page]
+                o_pcgts.page.music_line_by_id(p.line.operation.music_line.id).symbols = p.symbols
+
+            for o_pcgts in output_pcgts:
+                o_pcgts.to_file(o_pcgts.page.location.file('pcgts').local_path())
     else:
         fold_log.info("Skipping prediction")
 
@@ -109,7 +138,7 @@ def run_single(args: SingleDataArgs):
         fold_log.info("Starting evaluation")
         gt_symbols, pred_symbols = predictions
         evaluator = SymbolDetectionEvaluator(global_args.symbol_evaluation_params)
-        metrics, counts, acc_counts, acc_acc = evaluator.evaluate(gt_symbols, pred_symbols)
+        metrics, counts, acc_counts, acc_acc, total_diffs = evaluator.evaluate(gt_symbols, pred_symbols)
 
         at = PrettyTable()
 
@@ -132,15 +161,21 @@ def run_single(args: SingleDataArgs):
         at.add_column("Accuracy [%]", acc_acc[:, 0] * 100)
 
         fold_log.debug(at.get_string())
+
+        at = PrettyTable(["Missing Notes", "Wrong NC", "Wrong PIS", "Missing Clefs", "Missing Accids", "FP", "Acc", "Total"])
+        at.add_row(total_diffs)
+        fold_log.debug(at)
+
     else:
         prec_rec_f1 = None
         acc_acc = None
+        total_diffs = None
 
     if not global_args.skip_cleanup:
         fold_log.info("Cleanup")
         shutil.rmtree(args.model_dir)
 
-    return prec_rec_f1, acc_acc
+    return prec_rec_f1, acc_acc, total_diffs
 
 
 def flatten(data):
@@ -192,14 +227,17 @@ class Experimenter:
 
         logger.info("Total Result:")
 
-        prec_rec_f1_list = [r for r, _ in results]
-        acc_counts_list = [r for _, r in results]
+        prec_rec_f1_list = [r for r, _, _ in results]
+        acc_counts_list = [r for _, r, _ in results]
+        total_diffs = [r for _, _, r in results]
 
         prf1_mean = np.mean(prec_rec_f1_list, axis=0)
         prf1_std = np.std(prec_rec_f1_list, axis=0)
 
         acc_mean = np.mean(acc_counts_list, axis=0)
         acc_std = np.std(acc_counts_list, axis=0)
+        diffs_mean = np.mean(total_diffs, axis=0)
+        diffs_std = np.std(total_diffs, axis=0)
 
         at = PrettyTable()
 
@@ -220,11 +258,17 @@ class Experimenter:
 
         logger.info("\n" + at.get_string())
 
+        at = PrettyTable(["Missing Notes", "Wrong NC", "Wrong PIS", "Missing Clefs", "Missing Accids", "FP", "Acc", "Total"])
+        at.add_row(diffs_mean)
+        at.add_row(diffs_std)
+        logger.info("\n" + at.get_string())
+
         if global_args.magic_prefix or True:
             # skip first all output
             all_symbol_detection = np.array(sum([[prf1_mean[1:, i], prf1_std[1:, i]] for i in range(3)], [])).transpose().reshape(-1)
             all_acc = np.array(np.transpose([acc_mean[:, 0], acc_std[:, 0]]).reshape([-1]))
-            print("{}{}".format(global_args.magic_prefix, ','.join(map(str, list(all_symbol_detection) + list(all_acc)))))
+            all_diffs = np.array(np.transpose([diffs_mean, diffs_std])).reshape([-1])
+            print("{}{}".format(global_args.magic_prefix, ','.join(map(str, list(all_symbol_detection) + list(all_acc) + list(all_diffs)))))
 
 
 if __name__ == "__main__":
@@ -250,6 +294,7 @@ if __name__ == "__main__":
     parser.add_argument("--val_amount", default=0.2, type=float)
     parser.add_argument("--pretrained_model", default=None, type=str)
     parser.add_argument("--data_augmentation", action="store_true")
+    parser.add_argument("--output_book", default=None, type=str)
 
     parser.add_argument("--height", type=int, default=80)
     parser.add_argument("--pad", type=int, default=[0], nargs="+")
@@ -297,6 +342,7 @@ if __name__ == "__main__":
         n_iter=args.n_iter,
         pretrained_model=args.pretrained_model,
         data_augmentation=args.data_augmentation,
+        output_book=args.output_book,
     )
 
     experimenter = Experimenter(global_args)
