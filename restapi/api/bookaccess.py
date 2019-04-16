@@ -116,7 +116,17 @@ class BookDownloaderView(APIView):
             zf.close()
             s.seek(0)
             return FileResponse(s, as_attachment=True, filename=book.book + '.zip')
-        elif type == 'monodi2.zip':
+        elif type == 'monodiplus.json':
+            from database.file_formats.pcgts.monodi2_exporter import PcgtsToMonodiConverter
+            from database.file_formats import PcGts
+            pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
+            obj = PcgtsToMonodiConverter(pcgts).root.to_json()
+
+            s = io.BytesIO()
+            s.write(json.dumps(obj, indent=2).encode('utf-8'))
+            s.seek(0)
+            return FileResponse(s, as_attachment=True, filename=book.book + '.json')
+        elif type == 'monodiplus.zip':
             from database.file_formats.pcgts.monodi2_exporter import PcgtsToMonodiConverter
             from database.file_formats import PcGts
             pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
@@ -125,7 +135,7 @@ class BookDownloaderView(APIView):
             s = io.BytesIO()
             with zipfile.ZipFile(s, 'w') as zf:
                 with zf.open(book.book + '.json', 'w') as f:
-                    f.write(json.dumps(obj).encode('utf-8'))
+                    f.write(json.dumps(obj, indent=2).encode('utf-8'))
 
             s.seek(0)
             return FileResponse(s, as_attachment=True, filename=book.book + '.monodi2.zip')

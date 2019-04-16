@@ -406,11 +406,7 @@ class PcgtsToMonodiConverter:
                                 raise TypeError(type(line_symbol))
 
                     for sc in c.syllable_connections:
-
-                        if len(sc.neume_connections) == 0:
-                            continue
-
-                        neume = sc.neume_connections[0].neume
+                        neume = sc.neume
                         try:
                             neume_pos = symbols.index(neume, current_symbol_index)
                         except ValueError as e:
