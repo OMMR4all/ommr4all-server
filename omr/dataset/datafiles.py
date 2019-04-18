@@ -90,7 +90,7 @@ def generate_dataset(lock_states: List[LockState],
         logger.info("Starting experiment with {} files and {} extension files".format(len(all_pcgts), len(train_pcgts_extend)))
 
         def prepare_single_fold(fold, train_val_files, test_files, ext_files):
-            if n_train > 0:
+            if n_train >= 0:
                 ext_files = ext_files[:n_train]
 
             if val_amount == 0:
