@@ -229,14 +229,15 @@ class SymbolDetectionDataset:
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from omr.dewarping.dummy_dewarper import dewarp
-    page = DatabaseBook('Graduel').pages()[0]
+    from imageio import imsave
+    page = [p for p in DatabaseBook('Graduel').pages() if "527" in p.page][0]
     pcgts = PcGts.from_file(page.file('pcgts'))
     params = SymbolDetectionDatasetParams(
         gt_required=True,
-        dewarp=True,
+        dewarp=False,
         cut_region=False,
         center=False,
-        pad=10,
+        pad=0,
         staff_lines_only=True,
     )
     dataset = SymbolDetectionDataset([pcgts], params)
@@ -250,5 +251,7 @@ if __name__ == '__main__':
             ax[i, 0].imshow(img)
             ax[i, 1].imshow(region)
             ax[i, 2].imshow(img / 4 + mask * 50)
+            imsave("/home/wick/line0.jpg", 255 - (mask / mask.max() * 255))
+            break
 
     plt.show()

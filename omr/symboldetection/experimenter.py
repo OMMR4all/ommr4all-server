@@ -121,6 +121,7 @@ def run_single(args: SingleDataArgs):
 
                 # clear all annotations
                 o_pcgts.page.annotations.connections = []
+                o_pcgts.page.comments.comments = []
 
             for p in full_predictions:
                 o_pcgts = output_pcgts_by_page_name[p.line.operation.page.location.page]
@@ -134,7 +135,8 @@ def run_single(args: SingleDataArgs):
         with open(prediction_path, 'rb') as f:
             predictions = pickle.load(f)
 
-    if not global_args.skip_eval:
+    predictions = tuple(predictions)
+    if not global_args.skip_eval and len(predictions) > 0:
         fold_log.info("Starting evaluation")
         gt_symbols, pred_symbols = predictions
         evaluator = SymbolDetectionEvaluator(global_args.symbol_evaluation_params)
@@ -162,7 +164,7 @@ def run_single(args: SingleDataArgs):
 
         fold_log.debug(at.get_string())
 
-        at = PrettyTable(["Missing Notes", "Wrong NC", "Wrong PIS", "Missing Clefs", "Missing Accids", "FP", "Acc", "Total"])
+        at = PrettyTable(["Missing Notes", "Wrong NC", "Wrong PIS", "Missing Clefs", "Missing Accids", "Additional Notes", "FP Wrong NC", "FP Wrong PIS", "Additional Clefs", "Additional Accids", "Acc", "Total"])
         at.add_row(total_diffs)
         fold_log.debug(at)
 
@@ -227,9 +229,11 @@ class Experimenter:
 
         logger.info("Total Result:")
 
-        prec_rec_f1_list = [r for r, _, _ in results]
-        acc_counts_list = [r for _, r, _ in results]
-        total_diffs = [r for _, _, r in results]
+        prec_rec_f1_list = [r for r, _, _ in results if r is not None]
+        acc_counts_list = [r for _, r, _ in results if r is not None]
+        total_diffs = [r for _, _, r in results if r is not None]
+        if len(prec_rec_f1_list) == 0:
+            return
 
         prf1_mean = np.mean(prec_rec_f1_list, axis=0)
         prf1_std = np.std(prec_rec_f1_list, axis=0)
@@ -258,7 +262,7 @@ class Experimenter:
 
         logger.info("\n" + at.get_string())
 
-        at = PrettyTable(["Missing Notes", "Wrong NC", "Wrong PIS", "Missing Clefs", "Missing Accids", "FP", "Acc", "Total"])
+        at = PrettyTable(["Missing Notes", "Wrong NC", "Wrong PIS", "Missing Clefs", "Missing Accids", "Additional Notes", "FP Wrong NC", "FP Wrong PIS", "Additional Clefs", "Additional Accids", "Acc", "Total"])
         at.add_row(diffs_mean)
         at.add_row(diffs_std)
         logger.info("\n" + at.get_string())

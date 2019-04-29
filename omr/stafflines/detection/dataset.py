@@ -72,10 +72,10 @@ class PCDataset:
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from database import DatabaseBook
-    page = DatabaseBook('Graduel').pages()[0]
+    page = [p for p in DatabaseBook('Graduel').pages() if "527" in p.page][0]
     pcgts = PcGts.from_file(page.file('pcgts'))
     params = StaffLineDetectionDatasetParams(
-        full_page=False,
+        full_page=True,
         gray=True,
         pad=(5, 5),
     )
@@ -87,8 +87,13 @@ if __name__ == '__main__':
         img, region, mask = out.line_image, out.region, out.mask
         if np.min(img.shape) > 0:
             print(img.shape)
-            ax[i, 0].imshow(img)
-            ax[i, 1].imshow(region)
-            ax[i, 2].imshow(img / 4 + mask * 50)
+            if params.full_page:
+                ax[0].imshow(img)
+                ax[1].imshow(region)
+                ax[2].imshow(mask)
+            else:
+                ax[i, 0].imshow(img)
+                ax[i, 1].imshow(region)
+                ax[i, 2].imshow(img / 4 + mask * 50)
 
     plt.show()

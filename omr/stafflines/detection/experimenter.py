@@ -1,6 +1,7 @@
 import logging
-from database import DatabaseBook
+from database import DatabaseBook, DatabaseBookMeta
 from database.file_formats import PcGts
+from database.file_formats.pcgts import MusicRegion, MusicLine, MusicLines
 from database.file_formats.performance import LockState
 from pagesegmentation.lib.trainer import TrainSettings, Trainer
 from pagesegmentation.lib.data_augmenter import DefaultAugmenter
@@ -27,6 +28,10 @@ class GlobalArgs(NamedTuple):
     n_iter: int
     val_amount: float
     pretrained_model: Optional[str]
+    output_book: Optional[str]
+    output_only_tp: bool
+    output_only_fp: bool
+    output_symbols: bool
 
     target_line_space: int
     origin_line_space: Optional[int]
@@ -121,29 +126,62 @@ def run_single(args: SingleDataArgs):
                 num_staff_lines=4,
             )
         )
-        predictions = []
-        for p in pred.predict(args.test_pcgts_files):
-            predictions.append(
-                EvaluationData(
-                    p.line.operation.page.location.local_path(),
-                    p.line.operation.music_lines,
-                    p.music_lines,
-                    p.line.operation.page_image.shape,
-                )
+        full_predictions = list(pred.predict(args.test_pcgts_files))
+        predictions = [
+            EvaluationData(
+                p.line.operation.page.location.local_path(),
+                p.line.operation.music_lines,
+                p.music_lines,
+                p.line.operation.page_image.shape,
             )
+            for p in full_predictions
+        ]
 
         with open(prediction_path, 'w') as f:
             json.dump({'predictions': [p.to_json() for p in predictions]}, f)
+
+        if global_args.output_book:
+            fold_log.info("Outputting data")
+
+            pred_book = DatabaseBook(global_args.output_book)
+            if not pred_book.exists():
+                pred_book_meta = DatabaseBookMeta(global_args.output_book, global_args.output_book)
+                pred_book.create(pred_book_meta)
+
+            output_pcgts = [PcGts.from_file(pcgts.page.location.copy_to(pred_book).file('pcgts'))
+                            for pcgts in args.test_pcgts_files]
+
+            output_pcgts_by_page_name = {}
+            for o_pcgts in output_pcgts:
+                output_pcgts_by_page_name[o_pcgts.page.location.page] = o_pcgts
+
+                # clear page
+                o_pcgts.page.music_regions = []
+                o_pcgts.page.text_regions = []
+                o_pcgts.page.annotations.connections = []
+                o_pcgts.page.comments.comments = []
+
+            for p in full_predictions:
+                o_pcgts = output_pcgts_by_page_name[p.line.operation.page.location.page]
+                for ml in p.music_lines:
+                    o_pcgts.page.music_regions.append(
+                        MusicRegion(staffs=MusicLines([
+                            ml
+                        ]))
+                    )
+
+            for o_pcgts in output_pcgts:
+                o_pcgts.to_file(o_pcgts.page.location.file('pcgts').local_path())
     else:
+        full_predictions = []
         with open(prediction_path, 'r') as f:
             predictions = [EvaluationData.from_json(p) for p in json.load(f)['predictions']]
 
     if not args.global_args.skip_eval:
         evaluator = StaffLineDetectionEvaluator(args.global_args.evaluation_params)
-        counts, prf1 = evaluator.evaluate(predictions)
+        counts, prf1, (all_tp_staves, all_fp_staves, all_fn_staves) = evaluator.evaluate(predictions)
         if counts.shape[0] > 0:
             at = PrettyTable()
-            print(counts.shape)
 
             at.add_column("Type", ["Staff lines found", "Staff lines hit", "Staves found", "Staff lines hit"])
             at.add_column("TP", counts[:, 0])
@@ -161,6 +199,56 @@ def run_single(args: SingleDataArgs):
             logger.warning("Empty file without ground truth lines")
             metrics = None
 
+        if global_args.output_book:
+            output_tp = True
+            output_fp = True
+            output_fn = True
+            if global_args.output_only_tp:
+                output_fp = False
+                output_fn = False
+
+            if global_args.output_only_fp:
+                output_tp = False
+                output_fn = False
+
+            logger.info("Outputting music lines to {}".format(global_args.output_book))
+            assert(not global_args.skip_prediction)
+            assert(full_predictions is not None)
+            pred_book = DatabaseBook(global_args.output_book)
+            output_pcgts_by_page_name = {}
+            for pcgts in args.test_pcgts_files:
+                o_pcgts = PcGts.from_file(pred_book.page(pcgts.page.location.page).file('pcgts'))
+                output_pcgts_by_page_name[pcgts.page.location.page] = o_pcgts
+                o_pcgts.page.music_regions.clear()
+
+            for p, tp_staves, fp_staves, fn_staves in zip(full_predictions, all_tp_staves, all_fp_staves, all_fn_staves):
+                o_pcgts = output_pcgts_by_page_name[p.line.operation.page.location.page]
+                if output_tp:
+                    for ml, gt_ml in [(ml, gt_ml) for ml, gt_ml, _ in tp_staves if ml in p.music_lines]:
+                        if global_args.output_symbols:
+                            ml.symbols = gt_ml.symbols[:]
+                        o_pcgts.page.music_regions.append(
+                            MusicRegion(staffs=MusicLines([ml]))
+                        )
+
+                if output_fp:
+                    for ml in [ml for ml in fp_staves if ml in p.music_lines]:
+                        ml.symbols.clear()
+                        o_pcgts.page.music_regions.append(
+                            MusicRegion(staffs=MusicLines([ml]))
+                        )
+
+                if output_fn:
+                    for gt_ml in fn_staves:
+                        if not global_args.output_symbols:
+                            gt_ml.symbols.clear()
+
+                        o_pcgts.page.music_regions.append(
+                            MusicRegion(staffs=MusicLines([gt_ml]))
+                        )
+
+            for _, o_pcgts in output_pcgts_by_page_name.items():
+                o_pcgts.to_file(o_pcgts.page.location.file('pcgts').local_path())
     else:
         counts, metrics = None, None
 
@@ -259,6 +347,10 @@ if __name__ == "__main__":
     parser.add_argument("--n_iter", default=10000, type=int)
     parser.add_argument("--val_amount", default=0.2, type=float)
     parser.add_argument("--pretrained_model", default=None, type=str)
+    parser.add_argument("--output_book", default=None, type=str)
+    parser.add_argument("--output_only_tp", default=False, action="store_true")
+    parser.add_argument("--output_only_fp", default=False, action="store_true")
+    parser.add_argument("--output_symbols", default=False, action="store_true")
 
     parser.add_argument("--gray", action="store_true")
     parser.add_argument("--pad", default=[0], type=int, nargs="+")
@@ -297,6 +389,10 @@ if __name__ == "__main__":
         n_iter=args.n_iter,
         val_amount=args.val_amount,
         pretrained_model=args.pretrained_model,
+        output_book=args.output_book,
+        output_only_tp=args.output_only_tp,
+        output_only_fp=args.output_only_fp,
+        output_symbols=args.output_symbols,
         dataset_params=StaffLineDetectionDatasetParams(
             gt_required=True,
             full_page=args.full_page,

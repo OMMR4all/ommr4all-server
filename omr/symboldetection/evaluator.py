@@ -5,6 +5,7 @@ import numpy as np
 from enum import IntEnum
 from edit_distance import edit_distance
 from difflib import SequenceMatcher
+from dataclasses import dataclass
 
 class PRF2Metrics(IntEnum):
     SYMBOL = 0
@@ -58,6 +59,23 @@ def precision_recall_f1(tp, fp, fn) -> Tuple[float, float, float]:
     return tp / (tp + fp), tp / (tp + fn), 2 * tp / (2 * tp + fp + fn)
 
 
+class SequenceDiffs(NamedTuple):
+    missing_accids: int = 0
+    missing_notes: int = 0
+    missing_clefs: int = 0
+    wrong_note_connections: int = 0
+    wrong_position_in_staff: int = 0
+
+    additional_note: int = 0
+    add_wrong_note_con: int = 0
+    add_wrong_pos_in_staff: int = 0
+    additional_clef: int = 0
+    additional_accid: int = 0
+
+    total: int = 0
+    total_errors: int = 0
+
+
 class Codec:
     def __init__(self):
         self.codec = []
@@ -89,7 +107,7 @@ class Codec:
 
         return list(map(self.get, sequence))
 
-    def compute_sequence_diffs(self, gt, pred):
+    def compute_sequence_diffs(self, gt, pred) -> SequenceDiffs:
         sm = SequenceMatcher(a=pred, b=gt, autojunk=False, isjunk=False)
         total = max(len(gt), len(pred))
         missing_accids = 0
@@ -97,15 +115,21 @@ class Codec:
         missing_clefs = 0
         wrong_note_connections = 0
         wrong_position_in_staff = 0
-        true_positives = 0
-        false_positives = 0
+
+
+        additional_note = 0
+        add_wrong_pos_in_staff = 0
+        add_wrong_note_con = 0
+        additional_clef = 0
+        additional_accid = 0
+
         total_errors = 0
+        true_positives = 0
         for opcode, pred_start, pred_end, gt_start, gt_end in sm.get_opcodes():
             if opcode == 'equal':
                 true_positives += gt_end - gt_start
             elif opcode == 'insert' or opcode == 'replace' or opcode == 'delete':
                 total_errors += pred_end - pred_start + gt_end - gt_start
-                false_positives += pred_end - pred_start
                 for i, s in enumerate(gt[gt_start:gt_end]):
                     entry = self.codec[s]
                     symbol_type = entry[0]
@@ -128,10 +152,37 @@ class Codec:
                         missing_clefs += 1
                     else:
                         raise ValueError("Unknown symbol type {} of entry {}".format(symbol_type, entry))
+
+                for i, s in enumerate(pred[pred_start:pred_end]):
+                    entry = self.codec[s]
+                    symbol_type = entry[0]
+                    if symbol_type == SymbolType.ACCID:
+                        additional_accid += 1
+                    elif symbol_type == SymbolType.NEUME:
+                        if opcode == 'replace' and gt_end > gt_start + i:
+                            # check for wrong connection
+                            p = self.codec[gt[gt_start + i]]
+                            if p[0] == symbol_type:
+                                if p[3] == entry[3]:
+                                    add_wrong_pos_in_staff += 1
+                                else:
+                                    add_wrong_note_con += 1
+                            else:
+                                additional_note += 1
+                        else:
+                            additional_note += 1
+                    elif symbol_type == SymbolType.CLEF:
+                        additional_clef += 1
+                    else:
+                        raise ValueError("Unknown symbol type {} of entry {}".format(symbol_type, entry))
+
             else:
                 raise ValueError(opcode)
-
-        return missing_notes, wrong_note_connections, wrong_position_in_staff, missing_clefs, missing_accids, false_positives, total, total_errors
+        return SequenceDiffs(missing_notes, wrong_note_connections, wrong_position_in_staff, missing_clefs,
+                             missing_accids,
+                             additional_note, add_wrong_note_con, add_wrong_pos_in_staff,
+                             additional_clef, additional_accid,
+                             total, total_errors)
 
 
 class SymbolDetectionEvaluatorParams(NamedTuple):
@@ -180,7 +231,7 @@ class SymbolDetectionEvaluator:
 
         acc_counts = np.zeros((0, 9, AccCounts.COUNT), dtype=int)
 
-        total_diffs = np.zeros(8, dtype=int)
+        total_diffs = np.zeros(12, dtype=int)
 
         for gt, pred in zip(gt_symbols, pred_symbols):
             gt_sequence = self.codec.symbols_to_label_sequence(gt, False)

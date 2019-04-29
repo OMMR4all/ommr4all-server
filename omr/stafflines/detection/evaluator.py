@@ -40,10 +40,19 @@ class StaffLineDetectionEvaluator:
     def __init__(self, params=None):
         self.params = params if params else EvaluationParams()
 
-    def evaluate(self, data: List[EvaluationData]):
+    def evaluate(self, data: List[EvaluationData]) \
+            -> Tuple[np.ndarray, np.ndarray,
+                     Tuple[
+                         List[List[Tuple[MusicLine, MusicLine, np.ndarray]]],
+                         List[List[MusicLine]],
+                         List[List[MusicLine]]
+                         ]]:
         all_counts = np.zeros([0, 4, 4])
         all_prf1 = np.zeros([0, 4, 3])
         all_staff_prf1 = np.zeros([0, 3])
+        all_tp_staves: List[Tuple[MusicLine, MusicLine, np.ndarray]] = []
+        all_fp_staves: List[List[MusicLine]] = []
+        all_fn_staves: List[List[MusicLine]] = []
         line_thickness = (self.params.staff_line_found_distance - 1) // 2 + 1
         for single_data in data:
             pred_lines: StaffLines = StaffLines(single_data.pred.all_staff_lines())
@@ -169,6 +178,10 @@ class StaffLineDetectionEvaluator:
                 for _, _, prf1 in tp_staves:
                     all_staff_prf1 = np.concatenate((all_staff_prf1, [prf1]), axis=0)
 
+            all_tp_staves.append(tp_staves)
+            all_fp_staves.append(fp_staves)
+            all_fn_staves.append(fn_staves)
+
         sum_counts = all_counts.sum(axis=0)
         mean_prf1 = all_prf1.mean(axis=0)
         mean_staff_prf1 = all_staff_prf1.mean(axis=0)
@@ -176,7 +189,7 @@ class StaffLineDetectionEvaluator:
         mean_prf1[2] = precision_recall_f1(*tuple(sum_counts[2, :3]))
         mean_prf1[3] = mean_staff_prf1
 
-        return sum_counts, mean_prf1
+        return sum_counts, mean_prf1, (all_tp_staves, all_fp_staves, all_fn_staves)
 
 
 if __name__ == "__main__":
