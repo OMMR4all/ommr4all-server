@@ -5,7 +5,7 @@ from django.http import HttpResponse
 from database import *
 from restapi.api import OperationStatusView, OperationView, BookView, BooksView, \
     PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView, BookMetaView, \
-    BookVirtualKeyboardView
+    BookVirtualKeyboardView, PageLockView
 from restapi.api.bookcomments import BookCommentsView, BookCommentsCountView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -58,6 +58,7 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/pcgts$', PagePcGtsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/statistics$', PageStatisticsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/page_progress$', PageProgressView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/lock$', PageLockView.as_view()),
         re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
         re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/operation/(?P<operation>\w+)$', OperationView.as_view()),
         re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/operation_status/(?P<operation>\w+)$', OperationStatusView.as_view()),

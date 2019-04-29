@@ -10,6 +10,7 @@ class ErrorCodes(IntEnum):
     # Page related
     PAGE_EXISTS = 44001
     PAGE_INVALID_NAME = 44002
+    PAGE_NOT_LOCKED = 44003
 
 
 class APIError:
@@ -34,3 +35,12 @@ class APIError:
 
     def response(self):
         return Response(self.to_json(), status=self.status)
+
+
+class PageNotLockedAPIError(APIError):
+    def __init__(self, status):
+        super().__init__(status, 'Page not locked by user. Access denied.',
+                         'Access denied. You did not request access to the page',
+                         ErrorCodes.PAGE_NOT_LOCKED
+                         )
+

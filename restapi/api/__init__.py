@@ -1,5 +1,5 @@
-from .error import APIError, ErrorCodes
+from .error import *
 from .operation import OperationStatusView, OperationView
 from .bookaccess import BookView, BooksView, BookDownloaderView, BookUploadView, BookMetaView
-from .pageaccess import PagePcGtsView, PageProgressView, PageStatisticsView
+from .pageaccess import PagePcGtsView, PageProgressView, PageStatisticsView, PageLockView
 from .virtualkeyboards import BookVirtualKeyboardView

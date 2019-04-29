@@ -1,4 +1,6 @@
 from database.database_book import DatabaseBook, file_name_validator, InvalidFileNameException, FileExistsException
+from django.core.exceptions import EmptyResultSet
+from typing import Optional
 import os
 import shutil
 
@@ -67,6 +69,39 @@ class DatabasePage:
         shutil.copytree(self.local_path(), copy_page.local_path())
         return copy_page
 
+    def is_locked(self):
+        lock_path = self.local_file_path('.lock')
+        return os.path.exists(lock_path)
+
+    def lock_user(self) -> Optional['User']:
+        if not self.is_locked():
+            return None
+        else:
+            lock_path = self.local_file_path('.lock')
+            with open(lock_path, 'r') as f:
+                from django.contrib.auth.models import User
+                try:
+                    return User.objects.get(username=f.read())
+                except (EmptyResultSet, User.DoesNotExist):
+                    return None
+
+    def is_locked_by_user(self, user: str):
+        lock_path = self.local_file_path('.lock')
+        if not os.path.exists(lock_path):
+            return False
+
+        with open(lock_path, 'r') as f:
+            return f.read() == user
+
+    def lock(self, user: str):
+        lock_path = self.local_file_path('.lock')
+        with open(lock_path, 'w') as f:
+            return f.write(user)
+
+    def release_lock(self):
+        lock_path = self.local_file_path('.lock')
+        if os.path.exists(lock_path):
+            os.remove(lock_path)
 
 class DatabasePageMeta:
     def __init__(self, d: dict = None):

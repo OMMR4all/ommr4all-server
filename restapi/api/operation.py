@@ -15,7 +15,7 @@ from omr.stafflines.json_util import json_to_line
 from restapi.operationworker import \
     TaskDataStaffLineDetection, TaskDataSymbolDetectionTrainer, TaskDataSymbolDetection, \
     TaskDataLayoutAnalysis
-from restapi.api import ErrorCodes, APIError
+from restapi.api.error import *
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,9 @@ class OperationView(APIView):
 
     def post(self, request, book, page, operation, format=None):
         page = DatabasePage(DatabaseBook(book), page)
+        # check if user has locked page
+        if not page.is_locked_by_user(request.user.username):
+            return PageNotLockedAPIError(status.HTTP_423_LOCKED).response()
 
         if operation == 'layout_extract_cc_by_line':
             obj = json.loads(request.body, encoding='utf-8')
