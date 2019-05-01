@@ -1,8 +1,13 @@
 from database.database_book import DatabaseBook, file_name_validator, InvalidFileNameException, FileExistsException
 from django.core.exceptions import EmptyResultSet
+from database.database_permissions import DatabaseBookPermissionFlag
 from typing import Optional
 import os
 import shutil
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from django.contrib.auth.models import User
 
 
 class DatabasePage:
@@ -71,7 +76,22 @@ class DatabasePage:
 
     def is_locked(self):
         lock_path = self.local_file_path('.lock')
-        return os.path.exists(lock_path)
+        if not os.path.exists(lock_path):
+            return False
+
+        user = open(lock_path, 'r').read()
+        from django.contrib.auth.models import User
+        try:
+            user = User.objects.get(username=user)
+            # check if locked user has sufficient permissions
+            if self.book.resolve_user_permissions(user).has(DatabaseBookPermissionFlag.WRITE):
+                return True
+            else:
+                # invalid lock, release it
+                self.release_lock()
+                return False
+        except (EmptyResultSet, User.DoesNotExist):
+            return False
 
     def lock_user(self) -> Optional['User']:
         if not self.is_locked():
@@ -85,18 +105,22 @@ class DatabasePage:
                 except (EmptyResultSet, User.DoesNotExist):
                     return None
 
-    def is_locked_by_user(self, user: str):
+    def is_locked_by_user(self, user: 'User'):
         lock_path = self.local_file_path('.lock')
         if not os.path.exists(lock_path):
             return False
 
-        with open(lock_path, 'r') as f:
-            return f.read() == user
+        from database.database_permissions import DatabaseBookPermissionFlag
+        if not self.book.resolve_user_permissions(user).has(DatabaseBookPermissionFlag.READ_WRITE):
+            return False
 
-    def lock(self, user: str):
+        with open(lock_path, 'r') as f:
+            return f.read() == user.username
+
+    def lock(self, user: 'User'):
         lock_path = self.local_file_path('.lock')
         with open(lock_path, 'w') as f:
-            return f.write(user)
+            return f.write(user.username)
 
     def release_lock(self):
         lock_path = self.local_file_path('.lock')

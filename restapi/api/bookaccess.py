@@ -3,18 +3,45 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.http import FileResponse
 from database import *
+from database.database_permissions import BookPermissionFlags
+from restapi.api.error import APIError, ErrorCodes
 import json
 import logging
 import re
 import os
+from typing import List
 logger = logging.getLogger(__name__)
 
 
+class require_permissions(object):
+    def __init__(self, flags: List[DatabaseBookPermissionFlag]):
+        self.flags = flags
+
+    def __call__(self, func):
+        def wrapper_require_permissions(view, request, book, *args, **kwargs):
+            book = DatabaseBook(book)
+            user_permissions = book.resolve_user_permissions(request.user)
+            if all([user_permissions.has(f) for f in self.flags]):
+                return func(view, request, book.book, *args, **kwargs)
+            else:
+                return APIError(status=status.HTTP_401_UNAUTHORIZED,
+                                developer_message='User {} has insufficient rights on book {}. Requested flags {} on {}.'.format(
+                                    request.user.username, book.book, self.flags, user_permissions),
+                                user_message='Insufficient permissions to access book {}'.format(book.book),
+                                error_code=ErrorCodes.BOOK_INSUFFICIENT_RIGHTS,
+                                ).response()
+
+        return wrapper_require_permissions
+
+
 class BookMetaView(APIView):
+    @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, format=None):
         book = DatabaseBook(book)
-        return Response(book.get_meta().to_json())
 
+        return Response({**book.get_meta().to_json(), 'permissions': book.resolve_user_permissions(request.user).flags})
+
+    @require_permissions([DatabaseBookPermissionFlag.EDIT_BOOK_META])
     def put(self, request, book, format=None):
         book = DatabaseBook(book)
         meta = DatabaseBookMeta.from_json(book, json.loads(request.body, encoding='utf-8'))
@@ -23,11 +50,13 @@ class BookMetaView(APIView):
 
 
 class BookView(APIView):
+    @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, format=None):
         book = DatabaseBook(book)
         pages = book.pages()
         return Response({'pages': sorted([{'label': page.page} for page in pages if page.is_valid()], key=lambda v: v['label'])})
 
+    @require_permissions([DatabaseBookPermissionFlag.DELETE_BOOK])
     def delete(self, request, book, format=None):
         book = DatabaseBook(book)
         book.delete()
@@ -35,6 +64,7 @@ class BookView(APIView):
 
 
 class BookUploadView(APIView):
+    @require_permissions([DatabaseBookPermissionFlag.ADD_PAGES])
     def post(self, request, book, format=None):
         from PIL import Image
         book = DatabaseBook(book)
@@ -73,7 +103,7 @@ class BooksView(APIView):
         if 'name' not in book:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        book_id = re.sub('[^\w]', '_', book['name'])
+        book_id = re.sub(r'[^\w]', '_', book['name'])
 
         try:
             b = DatabaseBook(book_id)
@@ -81,6 +111,9 @@ class BooksView(APIView):
                 return Response(status=status.HTTP_304_NOT_MODIFIED)
 
             if b.create(DatabaseBookMeta(id=b.book, name=book['name'])):
+                # creator is administrator of book
+                b.get_or_add_user_permissions(request.user, BookPermissionFlags.full_access_flags())
+                b.get_permissions().write()
                 return Response(b.get_meta().to_json())
         except InvalidFileNameException as e:
             logging.error(e)
@@ -91,10 +124,18 @@ class BooksView(APIView):
     def get(self, request, format=None):
         # TODO: sort by in request
         books = DatabaseBook.list_available_book_metas()
-        return Response({'books': sorted([book.to_json() for book in books], key=lambda b: b['name'])})
+
+        def user_access(b):
+            b = DatabaseBook(b)
+            return b.resolve_user_permissions(request.user).has(DatabaseBookPermissionFlag.READ)
+
+        return Response({'books': sorted([{
+            **book.to_json(), **{'permissions': DatabaseBook(book.id).resolve_user_permissions(request.user).flags}
+        } for book in books if user_access(book.id)], key=lambda b: b['name'])})
 
 
 class BookDownloaderView(APIView):
+    @require_permissions([DatabaseBookPermissionFlag.READ])
     def post(self, request, book, type, format=None):
         import json, zipfile, io, os
         pages = json.loads(request.body, encoding='utf-8').get('pages', [])

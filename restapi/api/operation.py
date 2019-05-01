@@ -16,6 +16,8 @@ from restapi.operationworker import \
     TaskDataStaffLineDetection, TaskDataSymbolDetectionTrainer, TaskDataSymbolDetection, \
     TaskDataLayoutAnalysis
 from restapi.api.error import *
+from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
+from restapi.api.pageaccess import require_lock
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +54,10 @@ class OperationView(APIView):
         else:
             return None
 
+    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
+    @require_lock
     def post(self, request, book, page, operation, format=None):
         page = DatabasePage(DatabaseBook(book), page)
-        # check if user has locked page
-        if not page.is_locked_by_user(request.user.username):
-            return PageNotLockedAPIError(status.HTTP_423_LOCKED).response()
 
         if operation == 'layout_extract_cc_by_line':
             obj = json.loads(request.body, encoding='utf-8')
@@ -108,37 +109,11 @@ class OperationView(APIView):
             logger.info('Successfully saved pcgts file to {}'.format(page.file('pcgts').local_path()))
 
             return Response()
-        elif operation == 'rename':
-            obj = json.loads(request.body, encoding='utf-8')
-            name = obj['name']
-            name = re.sub('[^\w]', '_', name)
-
-            if name != obj['name']:
-                return APIError(status.HTTP_406_NOT_ACCEPTABLE,
-                                "Renaming page not possible, because the new name '{}' is invalid: '{}' != '{}'".format(obj['name'], obj['name'], name),
-                                "Invalid page name '{}'".format(obj['name']),
-                                ErrorCodes.PAGE_INVALID_NAME,
-                                ).response()
-
-            try:
-                page.rename(name)
-            except InvalidFileNameException:
-                return APIError(status.HTTP_406_NOT_ACCEPTABLE,
-                                "Renaming page not possible, because the new name '{}' is invalid: '{}' != '{}'".format(obj['name'], obj['name'], name),
-                                "Invalid page name '{}'".format(obj['name']),
-                                ErrorCodes.PAGE_INVALID_NAME,
-                                ).response()
-            except FileExistsException as e:
-                return APIError(status.HTTP_406_NOT_ACCEPTABLE,
-                                "Renaming page not possible, because a file at '{}' already exists".format(e.filename),
-                                "A file at '{}' already exists".format(e.filename),
-                                ErrorCodes.PAGE_EXISTS,
-                                ).response()
-
-            return Response()
 
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
+    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
+    @require_lock
     def get(self, request, book, page, operation, format=None):
         page = DatabasePage(DatabaseBook(book), page)
 
@@ -179,6 +154,7 @@ class OperationView(APIView):
 
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
+    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     def put(self, request, book, page, operation, format=None):
         page = DatabasePage(DatabaseBook(book), page)
         task_data = OperationView.op_to_task_data(operation, page)
@@ -194,6 +170,7 @@ class OperationView(APIView):
 
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
+    @require_permissions([DatabaseBookPermissionFlag.DELETE_PAGES])
     def delete(self, request, book, page, operation, format=None):
         page = DatabasePage(DatabaseBook(book), page)
 

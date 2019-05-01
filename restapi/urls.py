@@ -6,7 +6,11 @@ from database import *
 from restapi.api import OperationStatusView, OperationView, BookView, BooksView, \
     PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView, BookMetaView, \
     BookVirtualKeyboardView, PageLockView
+from restapi.api.auth import AuthView
 from restapi.api.bookcomments import BookCommentsView, BookCommentsCountView
+from restapi.api.bookpermissions import BookPermissionsView, BookUserPermissionsView, BookGroupPermissionsView, BookDefaultPermissionsView
+from restapi.api.pageaccess import PageRenameView
+from restapi.api.user import UserBookPermissionsView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token, verify_jwt_token
@@ -44,11 +48,21 @@ urlpatterns = \
         # ping
         path('ping', ping),
 
+        # auth
+        re_path(r'^auth/(?P<auth>\w+)$', AuthView.as_view()),
+
+        # user
+        re_path(r'^user/book/(?P<book>\w+)/permissions$', UserBookPermissionsView.as_view()),
+
         # content
         re_path(r'^content/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
         re_path(r'^storage/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
 
         # single book
+        re_path(r'^book/(?P<book>\w+)/permissions/user/(?P<username>.+)$', BookUserPermissionsView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/permissions/group/(?P<name>.+)$', BookGroupPermissionsView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/permissions/default$', BookDefaultPermissionsView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/permissions$', BookPermissionsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/comments/count', BookCommentsCountView.as_view()),
         re_path(r'^book/(?P<book>\w+)/comments', BookCommentsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/meta$', BookMetaView.as_view()),
@@ -61,6 +75,7 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/lock$', PageLockView.as_view()),
         re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
         re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/operation/(?P<operation>\w+)$', OperationView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/rename$', PageRenameView.as_view()),
         re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/operation_status/(?P<operation>\w+)$', OperationStatusView.as_view()),
         re_path(r'^book/(?P<book>\w+)$', BookView.as_view()),
 

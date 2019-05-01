@@ -5,25 +5,39 @@ from database import *
 from database.file_formats.performance.pageprogress import PageProgress
 from database.file_formats.performance.statistics import Statistics
 from database.file_formats.pcgts import PcGts
+from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
 from restapi.api.error import *
 from json import JSONDecodeError
 import logging
 import json
+import re
 
 logger = logging.getLogger(__name__)
+
+
+def require_lock(func):
+    def wrapper(view, request, book, page, *args, **kwargs):
+        page = DatabaseBook(book).page(page)
+        if not page.is_locked_by_user(request.user):
+            return PageNotLockedAPIError(status.HTTP_423_LOCKED).response()
+        else:
+            return func(view, request, book, page.page, *args, **kwargs)
+
+    return wrapper
 
 
 class PageLockView(APIView):
     def get(self, request, book, page):
         logger.info(request)
         page = DatabasePage(DatabaseBook(book), page)
-        return Response({'locked': page.is_locked_by_user(request.user.username)})
+        return Response({'locked': page.is_locked_by_user(request.user)})
 
+    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     def put(self, request, book, page):
         body: dict = json.loads(request.body)
         page = DatabasePage(DatabaseBook(book), page)
         if page.is_locked() and not body.get('force', False):
-            if page.is_locked_by_user(request.user.username):
+            if page.is_locked_by_user(request.user):
                 return Response({'locked': True})
             else:
                 # locked by another user
@@ -34,22 +48,21 @@ class PageLockView(APIView):
                 else:
                     return Response({'locked': False, 'first_name': user.first_name, 'last_name': user.last_name, 'email': user.email})
 
-        page.lock(request.user.username)
+        page.lock(request.user)
         return Response({'locked': True})
 
+    @require_lock
     def delete(self, request, book, page):
         page = DatabasePage(DatabaseBook(book), page)
-        if page.is_locked_by_user(request.user.username):
-            page.release_lock()
-            return Response()
-
-        return PageNotLockedAPIError(status=status.HTTP_423_LOCKED)
+        page.release_lock()
+        return Response()
 
 
 class PageProgressView(APIView):
     # authentication_classes = (authentication.TokenAuthentication,)
     # permission_classes = (permissions.IsAdminUser,)
 
+    @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, page, format=None):
         page = DatabasePage(DatabaseBook(book), page)
         file = DatabaseFile(page, 'page_progress')
@@ -67,6 +80,7 @@ class PageProgressView(APIView):
 
 
 class PagePcGtsView(APIView):
+    @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, page, format=None):
         page = DatabasePage(DatabaseBook(book), page)
         file = DatabaseFile(page, 'pcgts')
@@ -84,6 +98,7 @@ class PagePcGtsView(APIView):
 
 
 class PageStatisticsView(APIView):
+    @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, page, format=None):
         page = DatabasePage(DatabaseBook(book), page)
         file = DatabaseFile(page, 'statistics')
@@ -98,4 +113,38 @@ class PageStatisticsView(APIView):
             file.delete()
             file.create()
             return Response(Statistics.from_json_file(file.local_path()).to_json())
+
+
+class PageRenameView(APIView):
+    @require_permissions([DatabaseBookPermissionFlag.RENAME_PAGES])
+    def post(self, request, book, page):
+        page = DatabaseBook(book).page(page)
+        obj = json.loads(request.body, encoding='utf-8')
+        name = obj['name']
+        name = re.sub(r'[^\w]', '_', name)
+
+        if name != obj['name']:
+            return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                            "Renaming page not possible, because the new name '{}' is invalid: '{}' != '{}'".format(obj['name'], obj['name'], name),
+                            "Invalid page name '{}'".format(obj['name']),
+                            ErrorCodes.PAGE_INVALID_NAME,
+                            ).response()
+
+        try:
+            page.rename(name)
+        except InvalidFileNameException:
+            return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                            "Renaming page not possible, because the new name '{}' is invalid: '{}' != '{}'".format(obj['name'], obj['name'], name),
+                            "Invalid page name '{}'".format(obj['name']),
+                            ErrorCodes.PAGE_INVALID_NAME,
+                            ).response()
+        except FileExistsException as e:
+            return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                            "Renaming page not possible, because a file at '{}' already exists".format(e.filename),
+                            "A file at '{}' already exists".format(e.filename),
+                            ErrorCodes.PAGE_EXISTS,
+                            ).response()
+
+        return Response()
+
 

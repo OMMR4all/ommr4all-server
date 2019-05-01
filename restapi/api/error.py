@@ -6,6 +6,7 @@ class ErrorCodes(IntEnum):
     # Book related
     BOOK_EXISTS = 41001
     BOOK_INVALID_NAME = 41002
+    BOOK_INSUFFICIENT_RIGHTS = 41003
 
     # Page related
     PAGE_EXISTS = 44001

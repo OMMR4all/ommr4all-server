@@ -48,6 +48,8 @@ class DatabaseBook:
         if not skip_validation and not file_name_validator.fullmatch(self.book):
             raise InvalidFileNameException(self.book)
 
+        self.permissions = None
+
     def __eq__(self, other):
         return isinstance(other, DatabaseBook) and other.book == self.book
 
@@ -131,3 +133,15 @@ class DatabaseBook:
 
     def page_names(self) -> List[str]:
         return [p.page for p in self.pages()]
+
+    def get_permissions(self, reload=False):
+        from database.database_permissions import DatabaseBookPermissions
+        if self.permissions is None or reload:
+            self.permissions = DatabaseBookPermissions.load(self)
+        return self.permissions
+
+    def resolve_user_permissions(self, user, reload=False):
+        return self.get_permissions(reload).resolve_user_permissions(user)
+
+    def get_or_add_user_permissions(self, user, default=None, reload=False):
+        return self.get_permissions(reload).get_or_add_user_permissions(user, default)
