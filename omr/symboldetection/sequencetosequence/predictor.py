@@ -1,36 +1,71 @@
-from thirdparty.calamari.calamari_ocr.ocr.predictor import Predictor, MultiPredictor
-from thirdparty.calamari.calamari_ocr.ocr.voting import voter_from_proto
-from thirdparty.calamari.calamari_ocr.proto import VoterParams, Predictions
+from calamari_ocr.ocr.predictor import Predictor, MultiPredictor
+from calamari_ocr.ocr.voting import voter_from_proto
+from calamari_ocr.proto import VoterParams, Predictions
 from typing import List
+from omr.dataset.datastructs import CalamariSequence
 from database.file_formats import PcGts
-from omr.dataset.pcgtsdataset import PcGtsDataset
 from database import DatabaseBook
+from omr.symboldetection.predictor import SymbolDetectionPredictor, SymbolDetectionPredictorParameters, \
+    SymbolDetectionDataset, PredictionType, SymbolDetectionDatasetParams, \
+    RegionLineMaskData, Symbol, PredictionResult, Point
+import numpy as np
 
 
-class OMRPredictor:
-    def __init__(self, checkpoints: List[str], ):
-        self.predictor = MultiPredictor(checkpoints)
+class OMRPredictor(SymbolDetectionPredictor):
+    def __init__(self, params: SymbolDetectionPredictorParameters):
+        super().__init__(params)
+        self.predictor = MultiPredictor([s + '/omr_best.ckpt' for s in params.checkpoints])
         self.height = self.predictor.predictors[0].network_params.features
         voter_params = VoterParams()
         voter_params.type = VoterParams.CONFIDENCE_VOTER_DEFAULT_CTC
         self.voter = voter_from_proto(voter_params)
 
-    def predict(self, pcgts_files: List[PcGts]):
-        dataset = PcGtsDataset(pcgts_files, gt_required=False, height=self.height)
-        for r, sample in self.predictor.predict_dataset(dataset.to_calamari_dataset()):
-            prediction = self.voter.vote_prediction_result(r)
-            prediction.id = "voted"
-            print(prediction.sentence, [(p.global_start, p.chars[0].char) for p in prediction.positions])
-            yield r
+    def _predict(self, dataset: SymbolDetectionDataset) -> PredictionType:
+        for marked_symbols, (r, sample) in zip(dataset.marked_symbols(), self.predictor.predict_dataset(dataset.to_music_line_calamari_dataset())):
+            # prediction: PredictionResult = self.voter.vote_prediction_result(r)
+            prediction = r[0]
+            yield PredictionResult(self.extract_symbols(prediction, marked_symbols), marked_symbols)
+
+    def extract_symbols(self, p, m: RegionLineMaskData) -> List[Symbol]:
+        sentence = [(pos.chars[0].char,
+                     self.dataset.line_and_mask_operations.local_to_global_pos(Point((pos.global_start + pos.global_end) / 2, 40), m.operation.params).x)
+                    for pos in p.prediction.positions]
+        return CalamariSequence.to_symbols(sentence, m.operation.music_line.staff_lines)
 
 
 if __name__ == '__main__':
+    from database.file_formats.pcgts.page.musicregion.musicline import Neume, SymbolType, GraphicalConnectionType
     import matplotlib.pyplot as plt
-    from omr.dewarping.dummy_dewarper import dewarp
     b = DatabaseBook('Graduel')
-    pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[:3]]
-    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[3:4]]
-    page = DatabaseBook('Graduel').page('Graduel_de_leglise_de_Nevers_023')
-    # pcgts = PcGts.from_file(page.file('pcgts'))
-    pred = OMRPredictor([b.local_path('omr_models/omr_best_.ckpt')])
-    ps = list(pred.predict(val_pcgts))
+    from omr.dataset.datafiles import dataset_by_locked_pages, LockState
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState("Symbols", True), LockState("Layout", True)], True, [b])
+    params = SymbolDetectionDatasetParams(
+        gt_required=True,
+        height=80,
+        dewarp=True,
+        cut_region=False,
+        pad=(0, 40, 0, 80),
+        center=True,
+        staff_lines_only=True,
+    )
+    pred = OMRPredictor(SymbolDetectionPredictorParameters(
+        checkpoints=[b.local_path('omr_models')],
+        symbol_detection_params=params,
+    ))
+    ps = list(pred.predict(val_pcgts[:1]))
+    orig = np.array(ps[0].line.operation.page_image)
+    for p in ps:
+        for s in p.symbols:
+            if s.symbol_type == SymbolType.NEUME:
+                n: Neume = s
+                for i, nc in enumerate(n.notes):
+                    c = nc.coord.round().astype(int)
+                    t, l = c.y, c.x
+                    orig[t - 2:t + 2, l-2:l+2] = 255 * (i != 0) if nc.graphical_connection == GraphicalConnectionType.LOOPED else 200
+            else:
+                c = s.coord.round().astype(int)
+                t, l = c.y, c.x
+                orig[t - 2:t + 2, l-2:l+2] = 50
+
+    plt.imshow(orig)
+    plt.show()

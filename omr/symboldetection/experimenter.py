@@ -4,9 +4,8 @@ from omr.dataset.datafiles import LockState, generate_dataset
 from omr.symboldetection.dataset import SymbolDetectionDatasetParams, SymbolDetectionDataset, PcGts
 from omr.symboldetection.evaluator import SymbolDetectionEvaluator, Counts, precision_recall_f1, AccCounts, SymbolDetectionEvaluatorParams
 from omr.symboldetection.predictor import create_predictor, SymbolDetectionPredictorParameters, PredictorTypes
-from pagesegmentation.lib.trainer import Trainer, TrainSettings
-from pagesegmentation.lib.data_augmenter import DefaultAugmenter
 from omr.imageoperations.music_line_operations import SymbolLabel
+from omr.symboldetection.trainer import create_symbol_detection_trainer, SymbolDetectionTrainerParams, SymbolDetectionPCParams
 from typing import NamedTuple, List, Optional
 import shutil
 import os
@@ -32,6 +31,7 @@ class GlobalDataArgs(NamedTuple):
     pretrained_model: Optional[str]
     data_augmentation: bool
     output_book: Optional[str]
+    symbol_detection_type: PredictorTypes
 
 
 class SingleDataArgs(NamedTuple):
@@ -68,33 +68,28 @@ def run_single(args: SingleDataArgs):
     model_path = os.path.join(args.model_dir, 'best')
 
     if not global_args.skip_train:
+        from pagesegmentation.lib.data_augmenter import DefaultAugmenter
         fold_log.info("Starting training")
-        train_data = train_pcgts_dataset.to_music_line_page_segmentation_dataset()
-        validation_data = validation_pcgts_dataset.to_music_line_page_segmentation_dataset() if validation_pcgts_dataset else train_data
-        settings = TrainSettings(
-            n_iter=global_args.n_iter,
-            n_classes=len(SymbolLabel),
-            l_rate=1e-4,
-            train_data=train_data,
-            validation_data=validation_data,
-            display=100,
-            load=args.global_args.pretrained_model,
-            output=model_path,
-            early_stopping_test_interval=500,
-            early_stopping_max_keep=5,
-            early_stopping_on_accuracy=True,
-            threads=8,
-            data_augmentation=DefaultAugmenter(contrast=0.1, brightness=10, scale=(-0.1, 0.1, -0.1, 0.1)) if args.global_args.data_augmentation else None,
-            checkpoint_iter_delta=None,
-            compute_baseline=True,
+        trainer = create_symbol_detection_trainer(
+            global_args.symbol_detection_type,
+            SymbolDetectionTrainerParams(
+                train_data=train_pcgts_dataset,
+                validation_data=validation_pcgts_dataset if validation_pcgts_dataset else train_pcgts_dataset,
+                n_iter=global_args.n_iter,
+                display=100,
+                load=args.global_args.pretrained_model,
+                processes=8,
+                output=model_path,
+                page_segmentation_params=SymbolDetectionPCParams(
+                    data_augmenter=DefaultAugmenter(contrast=0.1, brightness=10, scale=(-0.1, 0.1, -0.1, 0.1)) if args.global_args.data_augmentation else None,
+                )
+            )
         )
-
-        trainer = Trainer(settings)
-        trainer.train()
+        trainer.run()
 
     if not global_args.skip_predict:
         fold_log.info("Starting prediction")
-        pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER,
+        pred = create_predictor(global_args.symbol_detection_type,
                                 SymbolDetectionPredictorParameters([model_path], args.global_args.symbol_detection_params))
         full_predictions = list(pred.predict(args.test_pcgts_files))
         predictions = zip(*[(p.line.operation.music_line.symbols, p.symbols) for p in full_predictions])
@@ -299,6 +294,9 @@ if __name__ == "__main__":
     parser.add_argument("--pretrained_model", default=None, type=str)
     parser.add_argument("--data_augmentation", action="store_true")
     parser.add_argument("--output_book", default=None, type=str)
+    parser.add_argument("--type", type=lambda t: PredictorTypes[t],
+                        choices=list(PredictorTypes),
+                        default=PredictorTypes.PIXEL_CLASSIFIER)
 
     parser.add_argument("--height", type=int, default=80)
     parser.add_argument("--pad", type=int, default=[0], nargs="+")
@@ -347,6 +345,7 @@ if __name__ == "__main__":
         pretrained_model=args.pretrained_model,
         data_augmentation=args.data_augmentation,
         output_book=args.output_book,
+        symbol_detection_type=args.type,
     )
 
     experimenter = Experimenter(global_args)

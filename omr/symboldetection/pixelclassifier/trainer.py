@@ -1,11 +1,11 @@
-from typing import List
+from typing import List, NamedTuple, Optional
 from database.file_formats import PcGts
-from omr.symboldetection.dataset import SymbolDetectionDataset, SymbolDetectionDatasetParams
 from database import DatabaseBook
 import os
 from omr.imageoperations.music_line_operations import SymbolLabel
 from pagesegmentation.lib.trainer import Trainer, TrainSettings, TrainProgressCallback
-from omr.symboldetection.trainer import SymbolDetectionTrainerCallback
+from pagesegmentation.lib.data_augmenter import DataAugmenterBase
+from omr.symboldetection.trainer import SymbolDetectionTrainerCallback, SymbolDetectionTrainerBase, SymbolDetectionTrainerParams
 import omr.symboldetection.pixelclassifier.settings as pc_settings
 
 
@@ -27,30 +27,29 @@ class PCTrainerCallback(TrainProgressCallback):
         self.callback.early_stopping()
 
 
-class PCTrainer:
-    def __init__(self, train_pcgts_files: List[PcGts], validation_pcgts_files: List[PcGts], symbol_detection_params: SymbolDetectionDatasetParams):
-        self.params = symbol_detection_params
-        self.train_pcgts_dataset = SymbolDetectionDataset(train_pcgts_files, symbol_detection_params)
-        self.validation_pcgts_dataset = SymbolDetectionDataset(validation_pcgts_files, symbol_detection_params)
+class PCTrainer(SymbolDetectionTrainerBase):
+    def __init__(self, params: SymbolDetectionTrainerParams):
+        super().__init__(params)
 
-    def run(self, model_for_book: DatabaseBook, callback: SymbolDetectionTrainerCallback = None):
+    def run(self, model_for_book: Optional[DatabaseBook]=None, callback: Optional[SymbolDetectionTrainerCallback]=None):
         pc_callback = PCTrainerCallback(callback) if callback else None
 
         settings = TrainSettings(
-            n_iter=20000,
+            n_iter=self.params.n_iter if self.params.n_iter > 0 else 10000,
             n_classes=len(SymbolLabel),
-            l_rate=1e-4,
-            train_data=self.train_pcgts_dataset.to_music_line_page_segmentation_dataset(),
-            validation_data=self.validation_pcgts_dataset.to_music_line_page_segmentation_dataset(),
-            load=None,
-            display=100,
-            output=model_for_book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name)),
-            early_stopping_test_interval=500,
-            early_stopping_max_keep=5,
+            l_rate=self.params.l_rate if self.params.l_rate > 0 else 1e-4,
+            train_data=self.params.train_data.to_music_line_page_segmentation_dataset(),
+            validation_data=self.params.train_data.to_music_line_page_segmentation_dataset(),
+            load=self.params.load,
+            display=self.params.display,
+            output=self.params.output if self.params.output else model_for_book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name)),
+            early_stopping_test_interval=self.params.early_stopping_test_interval if self.params.early_stopping_test_interval >= 0 else 500,
+            early_stopping_max_keep=self.params.early_stopping_max_keep if self.params.early_stopping_max_keep >= 0 else 5,
             early_stopping_on_accuracy=True,
-            threads=4,
+            threads=self.params.processes,
             checkpoint_iter_delta=None,
             compute_baseline=True,
+            data_augmentation=self.params.page_segmentation_params.data_augmenter,
         )
 
         trainer = Trainer(settings)

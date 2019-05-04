@@ -372,6 +372,25 @@ class StaffLines(List[StaffLine]):
     def compute_position_in_staff(self, coord: Point) -> MusicSymbolPositionInStaff:
         return self.position_in_staff(coord)
 
+    def compute_coord_by_position_in_staff(self, x: float, pis: MusicSymbolPositionInStaff) -> Point:
+        line = pis.value - MusicSymbolPositionInStaff.LINE_1
+        if line < 0:
+            return Point(x, self[-1].interpolate_y(x) + abs(line) / 2 * self.avg_line_distance())
+        elif line // 2 + 1 >= len(self):
+            return Point(x, self[0].interpolate_y(x) - abs(len(self) - 1 - line / 2) * self.avg_line_distance())
+        elif line % 2 == 0:
+            return Point(x, self[len(self) - 1 - line // 2].interpolate_y(x))
+        else:
+            return Point(x, (self[len(self) - 1 - line // 2].interpolate_y(x) + self[len(self) - line // 2 - 2].interpolate_y(x)) / 2)
+
+    def avg_line_distance(self, default=-1):
+        if len(self) <= 1:
+            return default
+
+        ys = [sl.center_y() for sl in self]
+        d = max(ys) - min(ys)
+        return d / (len(self) - 1)
+
     # Following code taken from ommr4all-client
     # ==================================================================
     @staticmethod
@@ -500,12 +519,7 @@ class MusicLine:
         }
 
     def avg_line_distance(self, default=-1):
-        if len(self.staff_lines) <= 1:
-            return default
-
-        ys = [sl.center_y() for sl in self.staff_lines]
-        d = max(ys) - min(ys)
-        return d / (len(self.staff_lines) - 1)
+        return self.staff_lines.avg_line_distance(default)
 
     def approximate(self, distance):
         for line in self.staff_lines:
