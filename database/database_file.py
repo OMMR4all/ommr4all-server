@@ -183,7 +183,7 @@ class DatabaseFile:
             self.create()
 
     def local_path(self, file_id=-1):
-        return os.path.join(self.page.local_path(), self.definition.output[file_id if file_id >= 0 else self.definition.default])
+        return os.path.join(self.page.local_path(), self.filename(file_id))
 
     def local_thumbnail_path(self, file_id=-1):
         return os.path.splitext(self.local_path(file_id))[0] + '_preview.jpg'
@@ -193,6 +193,9 @@ class DatabaseFile:
             return self.local_thumbnail_path()
         else:
             return self.local_path()
+
+    def filename(self, file_id=-1):
+        return self.definition.output[file_id if file_id >= 0 else self.definition.default]
 
     def ext(self):
         return os.path.splitext(self.local_request_path())[-1]

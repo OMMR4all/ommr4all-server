@@ -172,6 +172,22 @@ class BookDownloaderView(APIView):
             zf.close()
             s.seek(0)
             return FileResponse(s, as_attachment=True, filename=book.book + '.zip')
+        elif type == 'backup.zip':
+            s = io.BytesIO()
+            zf = zipfile.ZipFile(s, 'w')
+            for page in pages:
+                file_names = ['color_original', 'pcgts', 'page_progress', 'statistics']
+                files = [page.file(f) for f in file_names]
+
+                if any([not f.exists() for f in files]):
+                    continue
+
+                for file in files:
+                    zf.write(file.local_path(), os.path.join(page.page, file.filename()))
+
+            zf.close()
+            s.seek(0)
+            return FileResponse(s, as_attachment=True, filename=book.book + '.backup.zip')
         elif type == 'monodiplus.json':
             from database.file_formats.pcgts.monodi2_exporter import PcgtsToMonodiConverter
             from database.file_formats import PcGts
