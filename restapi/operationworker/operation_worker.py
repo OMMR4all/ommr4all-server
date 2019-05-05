@@ -282,9 +282,6 @@ class OperationWorkerThread:
                 if not os.path.exists(model + '.meta'):
                     model = os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', 'french14', pc_settings.model_dir, pc_settings.model_name)
 
-                part = 3
-                fold = 4
-                model = "/home/ls6/wick/Documents/Projects/ommr4all/modules/ommr4all-server/models_out/single_ext_{}/n-1_pad_aug/symbol_detection_{}/best".format(part, fold)
                 params = SymbolDetectionPredictorParameters(
                     checkpoints=[model],
                     symbol_detection_params=SymbolDetectionDatasetParams(
