@@ -1,6 +1,7 @@
 from database.file_formats.pcgts.page import TextRegion, MusicRegion
 from database.file_formats.pcgts.page import annotations as annotations
 from database.file_formats.pcgts.page.usercomment import UserComments
+from database.file_formats.pcgts.page.readingorder import ReadingOrder
 from typing import List, TYPE_CHECKING
 import numpy as np
 import os
@@ -22,6 +23,7 @@ class Page:
         self.image_width = image_width
         self.annotations = annotations.Annotations(self)
         self.comments = UserComments(self)
+        self.reading_order = ReadingOrder(self)
         self.location = location
         if not os.path.exists(location.local_file_path(self.image_filename)):
             raise Exception("Image not found at {}".format(location.local_file_path(self.image_filename)))
@@ -54,6 +56,9 @@ class Page:
         if 'comments' in json:
             page.comments = UserComments.from_json(json['comments'], page)
 
+        if 'readingOrder' in json:
+            page.reading_order = ReadingOrder.from_json(json['readingOrder'], page)
+
         page._resolve_cross_refs()
         return page
 
@@ -66,6 +71,7 @@ class Page:
             "imageHeight": self.image_height,
             'annotations': self.annotations.to_json(),
             'comments': self.comments.to_json(),
+            'readingOrder': self.reading_order.to_json(),
         }
 
     def music_region_by_id(self, id: str):
@@ -88,8 +94,19 @@ class Page:
                 return tr
         return None
 
+    def text_line_by_id(self, id: str):
+        for tr in self.text_regions:
+            for tl in tr.text_lines:
+                if tl.id == id:
+                    return tl
+
+        return None
+
     def all_music_lines(self):
         return [ml for mr in self.music_regions for ml in mr.staffs]
+
+    def all_text_lines(self):
+        return [tl for tr in self.text_regions for tl in tr.text_lines]
 
     def avg_staff_distance(self, index):
         staffs = self.staff_equivs(index)
