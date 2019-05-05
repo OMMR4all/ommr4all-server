@@ -81,7 +81,13 @@ class SymbolDetectionTrainer:
         logger.debug("Training files: {}".format([p.page.location.local_path() for p in train_pcgts]))
         logger.debug("Validation files: {}".format([p.page.location.local_path() for p in val_pcgts]))
         params = SymbolDetectionDatasetParams()
-        trainer = PCTrainer(train_pcgts, val_pcgts, params)
+        trainer = create_symbol_detection_trainer(
+            PredictorTypes.PIXEL_CLASSIFIER,
+            SymbolDetectionTrainerParams(
+                SymbolDetectionDataset(train_pcgts, params),
+                SymbolDetectionDataset(val_pcgts, params),
+            )
+        )
         trainer.run(target_book, callback=callback)
         logger.info("Training finished for book {}".format(target_book.local_path()))
 

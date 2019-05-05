@@ -46,7 +46,7 @@ class PCTrainer(SymbolDetectionTrainerBase):
             early_stopping_test_interval=self.params.early_stopping_test_interval if self.params.early_stopping_test_interval >= 0 else 500,
             early_stopping_max_keep=self.params.early_stopping_max_keep if self.params.early_stopping_max_keep >= 0 else 5,
             early_stopping_on_accuracy=True,
-            threads=self.params.processes,
+            threads=self.params.processes if self.params.processes > 0 else 1,
             checkpoint_iter_delta=None,
             compute_baseline=True,
             data_augmentation=self.params.page_segmentation_params.data_augmenter,
