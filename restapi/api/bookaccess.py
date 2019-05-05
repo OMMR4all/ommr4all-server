@@ -54,7 +54,15 @@ class BookView(APIView):
     def get(self, request, book, format=None):
         book = DatabaseBook(book)
         pages = book.pages()
-        return Response({'pages': sorted([{'label': page.page} for page in pages if page.is_valid()], key=lambda v: v['label'])})
+
+        pageIndex = int(request.query_params.get("pageIndex", 0))
+        pageSize = int(request.query_params.get("pageSize", 20))
+        offset = pageIndex * pageSize
+
+        paginated_pages = pages[offset:offset + pageSize]
+        return Response({
+            'totalPages': len(pages),
+            'pages': sorted([{'label': page.page} for page in paginated_pages if page.is_valid()], key=lambda v: v['label'])})
 
     @require_permissions([DatabaseBookPermissionFlag.DELETE_BOOK])
     def delete(self, request, book, format=None):
@@ -125,13 +133,20 @@ class BooksView(APIView):
         # TODO: sort by in request
         books = DatabaseBook.list_available_book_metas()
 
+        pageIndex = request.query_params.get("pageIndex", 0)
+        pageSize = request.query_params.get("pageSize", len(books))  # by default all books
+
+        paginatedBooks = books[pageIndex:pageIndex + pageSize]
+
         def user_access(b):
             b = DatabaseBook(b)
             return b.resolve_user_permissions(request.user).has(DatabaseBookPermissionFlag.READ)
 
-        return Response({'books': sorted([{
+        return Response({
+            'totalPages': len(books),
+            'books': sorted([{
             **book.to_json(), **{'permissions': DatabaseBook(book.id).resolve_user_permissions(request.user).flags}
-        } for book in books if user_access(book.id)], key=lambda b: b['name'])})
+        } for book in paginatedBooks if user_access(book.id)], key=lambda b: b['name'])})
 
 
 class BookDownloaderView(APIView):
