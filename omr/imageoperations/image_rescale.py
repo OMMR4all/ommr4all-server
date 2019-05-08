@@ -2,7 +2,7 @@ from .image_operation import ImageOperation, ImageOperationData, OperationOutput
 from typing import Tuple, List, NamedTuple, Any
 import numpy as np
 from scipy.ndimage import interpolation
-from scipy.misc import imresize
+from skimage.transform import resize
 
 
 class ImageScaleOperation(ImageOperation):
@@ -11,7 +11,7 @@ class ImageScaleOperation(ImageOperation):
         self.factor = factor
 
     def apply_single(self, data: ImageOperationData) -> OperationOutput:
-        s = [imresize(d.image, self.factor, interp='nearest' if d.nearest_neighbour_rescale else 'bilinear') for d in data]
+        s = [resize(d.image, self.factor, order=0 if d.nearest_neighbour_rescale else 1) for d in data]
         scale = s[0].shape[1] / data.images[0].image.shape[1]
         data.images = [ImageData(i, d.nearest_neighbour_rescale) for d, i in zip(data, s)]
         data.params = (scale, )
