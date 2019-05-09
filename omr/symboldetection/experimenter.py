@@ -32,6 +32,7 @@ class GlobalDataArgs(NamedTuple):
     data_augmentation: bool
     output_book: Optional[str]
     symbol_detection_type: PredictorTypes
+    calamari_network: str
     calamari_n_folds: int
     calamari_single_folds: Optional[List[int]]
 
@@ -86,6 +87,7 @@ def run_single(args: SingleDataArgs):
                     data_augmenter=DefaultAugmenter(contrast=0.1, brightness=10, scale=(-0.1, 0.1, -0.1, 0.1)) if args.global_args.data_augmentation else None,
                 ),
                 calamari_params=CalamariParams(
+                    network=global_args.calamari_network,
                     n_folds=global_args.calamari_n_folds,
                     single_folds=global_args.calamari_single_folds,
                 )
@@ -313,6 +315,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--calamari_n_folds", type=int, default=0)
     parser.add_argument("--calamari_single_folds", type=int, nargs='+')
+    parser.add_argument("--calamari_network", type=str, default='cnn=32:3x3,pool=2x2,cnn=64:3x3,pool=1x2,cnn=64:3x3,lstm=100,dropout=0.5')
 
     parser.add_argument("--seed", type=int, default=1)
 
@@ -357,6 +360,7 @@ if __name__ == "__main__":
         symbol_detection_type=args.type,
         calamari_n_folds=args.calamari_n_folds,
         calamari_single_folds=args.calamari_single_folds,
+        calamari_network=args.calamari_network,
     )
 
     experimenter = Experimenter(global_args)
