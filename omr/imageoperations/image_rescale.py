@@ -1,7 +1,6 @@
 from .image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point
 from typing import Tuple, List, NamedTuple, Any
 import numpy as np
-from scipy.ndimage import interpolation
 from skimage.transform import resize
 
 
@@ -45,13 +44,5 @@ class ImageRescaleToHeightOperation(ImageOperation):
 
         scale = target_height * 1.0 / h
         target_width = np.maximum(int(scale * w), 1)
-        output = interpolation.affine_transform(
-            img,
-            np.eye(2) / scale,
-            order=order,
-            output_shape=(target_height,target_width),
-            mode='constant',
-            cval=cval)
-
-        output = np.array(output, dtype=img.dtype)
+        output = resize(img, (target_height, target_width), order=order, mode='edge', cval=cval)
         return output

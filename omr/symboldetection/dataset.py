@@ -66,12 +66,12 @@ class SymbolDetectionDataset:
         return Dataset([SingleData(image=d.line_image if self.params.cut_region else d.region, binary=None, mask=d.mask,
                                    user_data=d) for d in self.marked_symbols()])
 
-    def to_music_line_calamari_dataset(self):
+    def to_music_line_calamari_dataset(self, train=False):
         from calamari_ocr.ocr.datasets.dataset import RawDataSet, DataSetMode
         marked_symbols = self.marked_symbols()
-        images = [d.line_image for d in marked_symbols]
+        images = [np.clip(d.line_image if self.params.cut_region else d.region, 0, 255).astype(np.uint8) for d in marked_symbols]
         gts = [d.calamari_sequence().calamai_str for d in marked_symbols]
-        return RawDataSet(DataSetMode.TRAIN, images=images, texts=gts)
+        return RawDataSet(DataSetMode.TRAIN if train else DataSetMode.PREDICT, images=images, texts=gts)
 
     def marked_symbols(self) -> List[RegionLineMaskData]:
         if self.marked_symbol_data is None:

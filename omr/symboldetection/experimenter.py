@@ -5,7 +5,7 @@ from omr.symboldetection.dataset import SymbolDetectionDatasetParams, SymbolDete
 from omr.symboldetection.evaluator import SymbolDetectionEvaluator, Counts, precision_recall_f1, AccCounts, SymbolDetectionEvaluatorParams
 from omr.symboldetection.predictor import create_predictor, SymbolDetectionPredictorParameters, PredictorTypes
 from omr.imageoperations.music_line_operations import SymbolLabel
-from omr.symboldetection.trainer import create_symbol_detection_trainer, SymbolDetectionTrainerParams, SymbolDetectionPCParams
+from omr.symboldetection.trainer import create_symbol_detection_trainer, SymbolDetectionTrainerParams, SymbolDetectionPCParams, CalamariParams
 from typing import NamedTuple, List, Optional
 import shutil
 import os
@@ -32,6 +32,8 @@ class GlobalDataArgs(NamedTuple):
     data_augmentation: bool
     output_book: Optional[str]
     symbol_detection_type: PredictorTypes
+    calamari_n_folds: int
+    calamari_single_folds: Optional[List[int]]
 
 
 class SingleDataArgs(NamedTuple):
@@ -82,6 +84,10 @@ def run_single(args: SingleDataArgs):
                 output=model_path,
                 page_segmentation_params=SymbolDetectionPCParams(
                     data_augmenter=DefaultAugmenter(contrast=0.1, brightness=10, scale=(-0.1, 0.1, -0.1, 0.1)) if args.global_args.data_augmentation else None,
+                ),
+                calamari_params=CalamariParams(
+                    n_folds=global_args.calamari_n_folds,
+                    single_folds=global_args.calamari_single_folds,
                 )
             )
         )
@@ -305,6 +311,9 @@ if __name__ == "__main__":
     parser.add_argument("--dewarp", action='store_true')
     parser.add_argument("--use_regions", action="store_true", default=False)
 
+    parser.add_argument("--calamari_n_folds", type=int, default=0)
+    parser.add_argument("--calamari_single_folds", type=int, nargs='+')
+
     parser.add_argument("--seed", type=int, default=1)
 
     # evaluation params
@@ -346,6 +355,8 @@ if __name__ == "__main__":
         data_augmentation=args.data_augmentation,
         output_book=args.output_book,
         symbol_detection_type=args.type,
+        calamari_n_folds=args.calamari_n_folds,
+        calamari_single_folds=args.calamari_single_folds,
     )
 
     experimenter = Experimenter(global_args)

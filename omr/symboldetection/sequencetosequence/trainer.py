@@ -1,5 +1,6 @@
 from calamari_ocr.proto import CheckpointParams, DataPreprocessorParams, TextProcessorParams, network_params_from_definition_string
 from calamari_ocr.ocr.trainer import Trainer
+from calamari_ocr.ocr.cross_fold_trainer import CrossFoldTrainer
 from calamari_ocr.ocr.augmentation import SimpleDataAugmenter
 from typing import List, Optional
 from database.file_formats import PcGts
@@ -11,10 +12,15 @@ from database import DatabaseBook
 class OMRTrainer(SymbolDetectionTrainerBase):
     def __init__(self, params: SymbolDetectionTrainerParams):
         super().__init__(params)
+        if not params.train_data.params.staff_lines_only or not params.validation_data.params.staff_lines_only:
+            raise ValueError("Calamari S2S training must be performed on staves only. Set dataset param staff_lines_only to True")
+
+        if not params.train_data.params.center or not params.validation_data.params.center:
+            raise ValueError("Calamari S2S training must be performed on centered staves only. Set dataset param center to True")
 
     def run(self, model_for_book: Optional[DatabaseBook] = None, callback: Optional[SymbolDetectionTrainerCallback] = None):
-        train_dataset = self.params.train_data.to_music_line_calamari_dataset()
-        val_dataset = self.params.validation_data.to_music_line_calamari_dataset()
+        train_dataset = self.params.train_data.to_music_line_calamari_dataset(train=True)
+        val_dataset = self.params.validation_data.to_music_line_calamari_dataset(train=True)
         output = self.params.output if self.params.output else model_for_book.local_path('omr_models')
 
         params = CheckpointParams()
@@ -35,7 +41,9 @@ class OMRTrainer(SymbolDetectionTrainerBase):
         params.early_stopping_best_model_prefix = 'omr_best'
         params.early_stopping_best_model_output_dir = output
 
-        params.model.data_preprocessor.type = DataPreprocessorParams.FINAL_PREPARATION
+        for preproc in [DataPreprocessorParams.RANGE_NORMALIZER, DataPreprocessorParams.FINAL_PREPARATION]:
+            pp = params.model.data_preprocessor.children.add()
+            pp.type = preproc
         params.model.text_preprocessor.type = TextProcessorParams.NOOP_NORMALIZER
         params.model.text_postprocessor.type = TextProcessorParams.NOOP_NORMALIZER
 
@@ -45,16 +53,34 @@ class OMRTrainer(SymbolDetectionTrainerBase):
         if self.params.l_rate > 0:
             network_str += ',learning_rate={}'.format(self.params.l_rate)
 
-        network_params_from_definition_string(network_str, params.model.network)
-        trainer = Trainer(
-            checkpoint_params=params,
-            dataset=train_dataset,
-            validation_dataset=val_dataset,
-            n_augmentations=0,
-            data_augmenter=SimpleDataAugmenter(),
-            weights=self.params.load
-        )
-        trainer.train()
+        if self.params.calamari_params.n_folds > 0:
+            train_args = {
+                "max_iters": params.max_iters,
+                "stats_size": params.stats_size,
+                "checkpoint_frequency": params.checkpoint_frequency,
+                "pad": 0,
+                "network": network_str,
+                "early_stopping_frequency": params.early_stopping_frequency,
+                "early_stopping_nbest": params.early_stopping_nbest,
+                "line_height": params.model.line_height,
+                "data_preprocessing": ["RANGE_NORMALIZER", "FINAL_PREPARATION"],
+            }
+            trainer = CrossFoldTrainer(
+                self.params.calamari_params.n_folds, train_dataset,
+                output, 'omr_best_{id}', train_args, progress_bars=True
+            )
+            trainer.run(self.params.calamari_params.single_folds, max_parallel_models=1)
+        else:
+            network_params_from_definition_string(network_str, params.model.network)
+            trainer = Trainer(
+                checkpoint_params=params,
+                dataset=train_dataset,
+                validation_dataset=val_dataset,
+                n_augmentations=0,
+                data_augmenter=SimpleDataAugmenter(),
+                weights=self.params.load
+            )
+            trainer.train()
 
 
 if __name__ == '__main__':
@@ -65,7 +91,7 @@ if __name__ == '__main__':
         gt_required=True,
         height=80,
         dewarp=True,
-        cut_region=True,
+        cut_region=False,
         pad=(0, 40, 0, 80),
         center=True,
         staff_lines_only=True,
