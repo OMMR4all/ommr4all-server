@@ -15,8 +15,8 @@ class OMRTrainer(SymbolDetectionTrainerBase):
         if not params.train_data.params.staff_lines_only or not params.validation_data.params.staff_lines_only:
             raise ValueError("Calamari S2S training must be performed on staves only. Set dataset param staff_lines_only to True")
 
-        if not params.train_data.params.center or not params.validation_data.params.center:
-            raise ValueError("Calamari S2S training must be performed on centered staves only. Set dataset param center to True")
+        # if not params.train_data.params.center or not params.validation_data.params.center:
+        #    raise ValueError("Calamari S2S training must be performed on centered staves only. Set dataset param center to True")
 
     def run(self, model_for_book: Optional[DatabaseBook] = None, callback: Optional[SymbolDetectionTrainerCallback] = None):
         train_dataset = self.params.train_data.to_music_line_calamari_dataset(train=True)
@@ -78,7 +78,9 @@ class OMRTrainer(SymbolDetectionTrainerBase):
                 validation_dataset=val_dataset,
                 n_augmentations=0,
                 data_augmenter=SimpleDataAugmenter(),
-                weights=self.params.load
+                weights=self.params.load,
+                preload_training=True,
+                preload_validation=True,
             )
             trainer.train()
 
@@ -92,7 +94,7 @@ if __name__ == '__main__':
         height=80,
         dewarp=True,
         cut_region=False,
-        pad=(0, 40, 0, 80),
+        pad=(0, 10, 0, 40),
         center=True,
         staff_lines_only=True,
     )

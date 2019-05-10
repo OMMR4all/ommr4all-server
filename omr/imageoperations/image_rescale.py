@@ -38,11 +38,12 @@ class ImageRescaleToHeightOperation(ImageOperation):
 
     @staticmethod
     def scale_to_h(img, target_height, order=1, cval=0):
+        assert(img.dtype == np.uint8)
         h, w = img.shape
         if h == 0:
             return np.zeros((0, target_height))
 
         scale = target_height * 1.0 / h
         target_width = np.maximum(int(scale * w), 1)
-        output = resize(img, (target_height, target_width), order=order, mode='edge', cval=cval)
+        output = resize(img, (target_height, target_width), order=order, mode='edge', cval=cval, preserve_range=True).astype(np.uint8)
         return output

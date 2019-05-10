@@ -57,6 +57,7 @@ class ImagePadToPowerOf2(ImageOperation):
         self.power = power
 
     def apply_single(self, data: ImageOperationData) -> OperationOutput:
+        assert(all([i.image.dtype == np.uint8 for i in data.images]))
         x, y = data.images[0].image.shape
         for d in data:
             assert(d.image.shape == (x, y))

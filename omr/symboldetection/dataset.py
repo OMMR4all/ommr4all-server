@@ -69,13 +69,13 @@ class SymbolDetectionDataset:
     def to_music_line_calamari_dataset(self, train=False):
         from calamari_ocr.ocr.datasets.dataset import RawDataSet, DataSetMode
         marked_symbols = self.marked_symbols()
-        images = [np.clip(d.line_image if self.params.cut_region else d.region, 0, 255).astype(np.uint8) for d in marked_symbols]
+        images = [255 - (d.line_image if self.params.cut_region else d.region).astype(np.uint8) for d in marked_symbols]
         gts = [d.calamari_sequence().calamai_str for d in marked_symbols]
         return RawDataSet(DataSetMode.TRAIN if train else DataSetMode.PREDICT, images=images, texts=gts)
 
     def marked_symbols(self) -> List[RegionLineMaskData]:
         if self.marked_symbol_data is None:
-                self.marked_symbol_data = list(self._create_marked_symbols())
+            self.marked_symbol_data = list(self._create_marked_symbols())
 
         return self.marked_symbol_data
 
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     pcgts = PcGts.from_file(page.file('pcgts'))
     params = SymbolDetectionDatasetParams(
         gt_required=True,
-        dewarp=False,
+        dewarp=True,
         cut_region=False,
         center=False,
         pad=(0, 20, 0, 40),
@@ -112,10 +112,11 @@ if __name__ == '__main__':
     f, ax = plt.subplots(len(calamari_dataset.samples()), 3, sharex='all')
     for i, (sample, out) in enumerate(zip(calamari_dataset.samples(), dataset.marked_symbols())):
         img, region, mask = out.line_image, out.region, out.mask
+        img = sample['image']
         if np.min(img.shape) > 0:
-            print(img.shape)
-            ax[i, 0].imshow(img)
-            ax[i, 1].imshow(region)
+            print(img.shape, img.dtype, img.min(), img.max())
+            ax[i, 0].imshow(img, cmap='gray')
+            ax[i, 1].imshow(sample['image'])
             ax[i, 2].imshow(img / 4 + mask * 50)
             ax[i, 1].set_title(sample['text'])
             # imsave("/home/wick/line0.jpg", 255 - (mask / mask.max() * 255))
