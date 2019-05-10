@@ -96,29 +96,43 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from omr.dewarping.dummy_dewarper import dewarp
     from imageio import imsave
-    page = [p for p in DatabaseBook('Graduel').pages() if "530" in p.page][0]
-    pcgts = PcGts.from_file(page.file('pcgts'))
+    pages = [p for p in DatabaseBook('Graduel_Fully_Annotated').pages()]
     params = SymbolDetectionDatasetParams(
+        height=80,
         gt_required=True,
         dewarp=True,
         cut_region=False,
-        center=False,
-        pad=(0, 20, 0, 40),
+        center=True,
+        pad=(0, 10, 0, 20),
         staff_lines_only=True,
     )
-    dataset = SymbolDetectionDataset([pcgts], params)
-    calamari_dataset = dataset.to_music_line_calamari_dataset()
 
-    f, ax = plt.subplots(len(calamari_dataset.samples()), 3, sharex='all')
-    for i, (sample, out) in enumerate(zip(calamari_dataset.samples(), dataset.marked_symbols())):
-        img, region, mask = out.line_image, out.region, out.mask
-        img = sample['image']
-        if np.min(img.shape) > 0:
-            print(img.shape, img.dtype, img.min(), img.max())
-            ax[i, 0].imshow(img, cmap='gray')
-            ax[i, 1].imshow(sample['image'])
-            ax[i, 2].imshow(img / 4 + mask * 50)
-            ax[i, 1].set_title(sample['text'])
-            # imsave("/home/wick/line0.jpg", 255 - (mask / mask.max() * 255))
+    if True:
+        pages = pages[0:5]
+        f, ax = plt.subplots(len(pages), 9, sharex='all', sharey='all')
+        for i, p in enumerate(pages):
+            pcgts = PcGts.from_file(p.file('pcgts'))
+            dataset = SymbolDetectionDataset([pcgts], params)
+            calamari_dataset = dataset.to_music_line_calamari_dataset()
+            for a, (sample, out) in enumerate(zip(calamari_dataset.samples(), dataset.marked_symbols())):
+                img, region, mask = out.line_image, out.region, out.mask
+                img = sample['image']
+                ax[i, a].imshow(img, cmap='gray')
+    if False:
+        page = pages[0]
+        pcgts = PcGts.from_file(page.file('pcgts'))
+        dataset = SymbolDetectionDataset([pcgts], params)
+        calamari_dataset = dataset.to_music_line_calamari_dataset()
+        f, ax = plt.subplots(len(calamari_dataset.samples()), 3, sharex='all')
+        for i, (sample, out) in enumerate(zip(calamari_dataset.samples(), dataset.marked_symbols())):
+            img, region, mask = out.line_image, out.region, out.mask
+            img = sample['image']
+            if np.min(img.shape) > 0:
+                print(img.shape, img.dtype, img.min(), img.max())
+                ax[i, 0].imshow(img, cmap='gray')
+                ax[i, 1].imshow(sample['image'])
+                ax[i, 2].imshow(img / 4 + mask * 50)
+                ax[i, 1].set_title(sample['text'])
+                # imsave("/home/wick/line0.jpg", 255 - (mask / mask.max() * 255))
 
     plt.show()

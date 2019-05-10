@@ -5,8 +5,9 @@ from calamari_ocr.ocr.augmentation import SimpleDataAugmenter
 from typing import List, Optional
 from database.file_formats import PcGts
 from omr.symboldetection.dataset import SymbolDetectionDataset, SymbolDetectionDatasetParams
-from omr.symboldetection.trainer import SymbolDetectionTrainerCallback, SymbolDetectionTrainerBase, SymbolDetectionTrainerParams
+from omr.symboldetection.trainer import SymbolDetectionTrainerCallback, SymbolDetectionTrainerBase, SymbolDetectionTrainerParams, CalamariParams
 from database import DatabaseBook
+import os
 
 
 class OMRTrainer(SymbolDetectionTrainerBase):
@@ -41,6 +42,7 @@ class OMRTrainer(SymbolDetectionTrainerBase):
         params.early_stopping_best_model_prefix = 'omr_best'
         params.early_stopping_best_model_output_dir = output
 
+        params.model.data_preprocessor.type = DataPreprocessorParams.MULTI_NORMALIZER
         for preproc in [DataPreprocessorParams.RANGE_NORMALIZER, DataPreprocessorParams.FINAL_PREPARATION]:
             pp = params.model.data_preprocessor.children.add()
             pp.type = preproc
@@ -69,7 +71,11 @@ class OMRTrainer(SymbolDetectionTrainerBase):
                 self.params.calamari_params.n_folds, train_dataset,
                 output, 'omr_best_{id}', train_args, progress_bars=True
             )
-            trainer.run(self.params.calamari_params.single_folds, max_parallel_models=1)
+            temporary_dir = os.path.join(output, "temporary_dir")
+            trainer.run(
+                self.params.calamari_params.single_folds, max_parallel_models=1,
+                temporary_dir=temporary_dir,
+            )
         else:
             network_params_from_definition_string(network_str, params.model.network)
             trainer = Trainer(
@@ -86,7 +92,11 @@ class OMRTrainer(SymbolDetectionTrainerBase):
 
 
 if __name__ == '__main__':
-    b = DatabaseBook('Graduel')
+    import random
+    import numpy as np
+    random.seed(2)
+    np.random.seed(2)
+    b = DatabaseBook('Graduel_Fully_Annotated')
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
     train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState("Symbols", True), LockState("Layout", True)], True, [b])
     params = SymbolDetectionDatasetParams(
@@ -94,13 +104,17 @@ if __name__ == '__main__':
         height=80,
         dewarp=True,
         cut_region=False,
-        pad=(0, 10, 0, 40),
+        pad=(0, 10, 0, 20),
         center=True,
         staff_lines_only=True,
     )
     train_params = SymbolDetectionTrainerParams(
         SymbolDetectionDataset(train_pcgts, params),
         SymbolDetectionDataset(val_pcgts, params),
+        l_rate=1e-3,
+        calamari_params=CalamariParams(
+            # network='cnn=64:3x3,pool=2x2,cnn=128:3x3,pool=1x2,cnn=128:3x3,lstm=200,dropout=0.5'
+        )
     )
     trainer = OMRTrainer(train_params)
     trainer.run(b)

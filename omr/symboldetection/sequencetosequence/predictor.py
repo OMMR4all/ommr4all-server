@@ -35,25 +35,25 @@ class OMRPredictor(SymbolDetectionPredictor):
 
 if __name__ == '__main__':
     import random
-    random.seed(2)
-    np.random.seed(2)
     from database.file_formats.pcgts.page.musicregion.musicline import Neume, SymbolType, GraphicalConnectionType
     import matplotlib.pyplot as plt
-    b = DatabaseBook('Graduel')
+    b = DatabaseBook('Graduel_Fully_Annotated')
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
+    random.seed(2)
+    np.random.seed(2)
     train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState("Symbols", True), LockState("Layout", True)], True, [b])
     params = SymbolDetectionDatasetParams(
         gt_required=True,
         height=80,
         dewarp=True,
         cut_region=False,
-        pad=(0, 40, 0, 80),
+        pad=(0, 10, 0, 20),
         center=True,
         staff_lines_only=True,
     )
     pred = OMRPredictor(SymbolDetectionPredictorParameters(
         #checkpoints=['models_out/all_s2s/symbol_detection_0/best'],
-        checkpoints=['storage/Graduel/omr_models/'],
+        checkpoints=['storage/Graduel_Fully_Annotated/omr_models/'],
         symbol_detection_params=params,
     ))
     ps = list(pred.predict(val_pcgts[:1]))
