@@ -73,8 +73,9 @@ class OMRTrainer(SymbolDetectionTrainerBase):
             )
             temporary_dir = os.path.join(output, "temporary_dir")
             trainer.run(
-                self.params.calamari_params.single_folds, max_parallel_models=1,
+                self.params.calamari_params.single_folds,
                 temporary_dir=temporary_dir,
+                spawn_subprocesses=False, max_parallel_models=1,    # Force to run in same scope as parent process
             )
         else:
             network_params_from_definition_string(network_str, params.model.network)
@@ -114,6 +115,7 @@ if __name__ == '__main__':
         l_rate=1e-3,
         calamari_params=CalamariParams(
             # network='cnn=64:3x3,pool=2x2,cnn=128:3x3,pool=1x2,cnn=128:3x3,lstm=200,dropout=0.5'
+            n_folds=2,
         )
     )
     trainer = OMRTrainer(train_params)
