@@ -10,9 +10,11 @@ class StaffLinePredictorParameters(NamedTuple):
     checkpoints: Optional[List[str]]
     dataset_params: StaffLineDetectionDatasetParams = StaffLineDetectionDatasetParams()
     target_line_space_height: int = 10
-    post_processing: bool = True
+    post_processing: bool = False
     smooth_staff_lines: int = 2
     line_fit_distance: float = 1
+    best_fit_postprocess: bool = True
+    best_fit_scale = 2.0
 
     num_staff_lines: int = 4
     min_num_staff_lines: int = 3

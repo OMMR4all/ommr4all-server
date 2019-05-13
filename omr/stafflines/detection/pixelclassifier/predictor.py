@@ -44,6 +44,8 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
             post_process=params.post_processing,
             smooth_lines=params.smooth_staff_lines,
             line_fit_distance=params.line_fit_distance,
+            best_fit_postprocess=params.best_fit_postprocess,
+            best_fit_scale=params.best_fit_scale,
             # debug=True, smooth_lines_advdebug=True,
         )
         self.line_detection = LineDetection(self.settings)
@@ -51,7 +53,7 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
     def predict(self, pcgts_files: List[PcGts]) -> PredictionType:
         pc_dataset = PCDataset(pcgts_files, self.params.dataset_params)
         dataset = pc_dataset.to_line_detection_dataset()
-        gray_images = [(255 - data.line_image).astype(float) for data in dataset]
+        gray_images = [(255 - data.line_image).astype(np.uint8) for data in dataset]
         predictions = self.line_detection.detect(gray_images)
         for i, (data, r) in enumerate(zip(dataset, predictions)):
             rlmd: RegionLineMaskData = data
