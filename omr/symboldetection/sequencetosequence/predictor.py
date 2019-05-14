@@ -37,14 +37,17 @@ if __name__ == '__main__':
     import random
     from database.file_formats.pcgts.page.musicregion.musicline import Neume, SymbolType, GraphicalConnectionType
     import matplotlib.pyplot as plt
-    b = DatabaseBook('Graduel_Fully_Annotated')
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
-    random.seed(2)
-    np.random.seed(2)
-    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState("Symbols", True), LockState("Layout", True)], True, [b])
+    random.seed(1)
+    np.random.seed(1)
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState("Symbols", True), LockState("Layout", True)], True, [
+        DatabaseBook('Graduel_Part_1'),
+        DatabaseBook('Graduel_Part_2'),
+        DatabaseBook('Graduel_Part_3'),
+    ])
     params = SymbolDetectionDatasetParams(
         gt_required=True,
-        height=80,
+        height=136,
         dewarp=True,
         cut_region=False,
         pad=(0, 10, 0, 20),
@@ -53,10 +56,11 @@ if __name__ == '__main__':
     )
     pred = OMRPredictor(SymbolDetectionPredictorParameters(
         #checkpoints=['models_out/all_s2s/symbol_detection_0/best'],
-        checkpoints=['storage/Graduel_Fully_Annotated/omr_models/'],
+        #checkpoints=['storage/Graduel_Fully_Annotated/omr_models/'],
+        checkpoints=['calamari_models_out/pretraining/net_cnn=40:3x3,pool=2x2,cnn=60:3x3,pool=1x2,cnn=80:3x3,pool=1x2,cnn=100:3x3,lstm=200,dropout=0.5/h136_folds0_center1_dewarp1/symbol_detection_0/best'],
         symbol_detection_params=params,
     ))
-    ps = list(pred.predict(val_pcgts[:1]))
+    ps = list(pred.predict(val_pcgts[7:8]))
     orig = np.array(ps[0].line.operation.page_image)
     for p in ps:
         for s in p.symbols:

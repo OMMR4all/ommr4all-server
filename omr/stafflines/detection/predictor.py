@@ -4,16 +4,14 @@ from enum import Enum
 from typing import NamedTuple, List, Generator, Optional
 from omr.symboldetection.dataset import RegionLineMaskData
 from omr.stafflines.detection.dataset import StaffLineDetectionDatasetParams
+from linesegmentation.detection.lineDetector import PostProcess
 
 
 class StaffLinePredictorParameters(NamedTuple):
     checkpoints: Optional[List[str]]
     dataset_params: StaffLineDetectionDatasetParams = StaffLineDetectionDatasetParams()
     target_line_space_height: int = 10
-    post_processing: bool = False
-    smooth_staff_lines: int = 2
-    line_fit_distance: float = 1
-    best_fit_postprocess: bool = True
+    post_processing: PostProcess = PostProcess.BESTFIT
     best_fit_scale = 2.0
 
     num_staff_lines: int = 4
@@ -30,6 +28,15 @@ class PredictionResult(NamedTuple):
     line: RegionLineMaskData
 
 
+class LineDetectionPredictorCallback(ABC):
+    def __init__(self):
+        super().__init__()
+
+    @abstractmethod
+    def progress_updated(self, percentage: float):
+        pass
+
+
 PredictionType = Generator[PredictionResult, None, None]
 
 
@@ -38,7 +45,7 @@ class StaffLinesPredictor(ABC):
         super().__init__()
 
     @abstractmethod
-    def predict(self, pcgts_files: List[PcGts]) -> PredictionType:
+    def predict(self, pcgts_files: List[PcGts], callback: Optional[LineDetectionPredictorCallback] = None) -> PredictionType:
         pass
 
 

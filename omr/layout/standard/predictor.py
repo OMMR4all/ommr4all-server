@@ -23,7 +23,7 @@ class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
         def p_to_np(polys):
             return [Coords(np.array(p.exterior.coords)) for p in polys]
 
-        for p in self.segmentator.segmentate(
+        for p in self.segmentator.segment(
                 map(extract_staffs, pcgts_files),
                 [p.page.location.file('gray_deskewed').local_path() for p in pcgts_files]):
 

@@ -1,14 +1,24 @@
-from omr.stafflines.detection.predictor import StaffLinesPredictor, StaffLinePredictorParameters, PredictionType, PredictionResult, RegionLineMaskData, StaffLineDetectionDatasetParams
+from omr.stafflines.detection.predictor import StaffLinesPredictor, StaffLinePredictorParameters, PredictionType, PredictionResult, RegionLineMaskData, StaffLineDetectionDatasetParams, LineDetectionPredictorCallback
 from database import DatabasePage, DatabaseBook
 from database.file_formats.pcgts import *
 import numpy as np
 import os
 import logging
-from typing import List
+from typing import List, Optional
 import omr.stafflines.detection.pixelclassifier.settings as pc_settings
 from omr.stafflines.detection.dataset import PCDataset
+from linesegmentation.detection.lineDetectionCallback import LineDetectionCallback
 
 logger = logging.getLogger(__name__)
+
+
+class PCPredictionCallback(LineDetectionCallback):
+    def __init__(self, callback: LineDetectionPredictorCallback):
+        self.callback = callback
+        super().__init__(7, 1)
+
+    def changed(self):
+        self.callback.progress_updated(self.get_current_page_progress())
 
 
 class BasicStaffLinePredictor(StaffLinesPredictor):
@@ -42,18 +52,19 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
             targetLineSpaceHeight=params.target_line_space_height,
             model=model_path,
             post_process=params.post_processing,
-            smooth_lines=params.smooth_staff_lines,
-            line_fit_distance=params.line_fit_distance,
-            best_fit_postprocess=params.best_fit_postprocess,
             best_fit_scale=params.best_fit_scale,
             # debug=True, smooth_lines_advdebug=True,
         )
         self.line_detection = LineDetection(self.settings)
 
-    def predict(self, pcgts_files: List[PcGts]) -> PredictionType:
+    def predict(self, pcgts_files: List[PcGts], callback: Optional[LineDetectionPredictorCallback] = None) -> PredictionType:
         pc_dataset = PCDataset(pcgts_files, self.params.dataset_params)
         dataset = pc_dataset.to_line_detection_dataset()
         gray_images = [(255 - data.line_image).astype(np.uint8) for data in dataset]
+        if callback:
+            # TODO: Line detection callback of line-detection not as class member variable
+            self.line_detection.callback = PCPredictionCallback(callback)
+
         predictions = self.line_detection.detect(gray_images)
         for i, (data, r) in enumerate(zip(dataset, predictions)):
             rlmd: RegionLineMaskData = data

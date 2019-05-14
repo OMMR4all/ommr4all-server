@@ -244,7 +244,7 @@ class OperationWorkerThread:
                 data: TaskDataStaffLineDetection = task_data
                 from omr.stafflines.detection.predictor import \
                     create_staff_line_predictor, StaffLinesModelType, StaffLinesPredictor, \
-                    StaffLinePredictorParameters, StaffLineDetectionDatasetParams
+                    StaffLinePredictorParameters, StaffLineDetectionDatasetParams, LineDetectionPredictorCallback
                 import omr.stafflines.detection.pixelclassifier.settings as pc_settings
                 from database.file_formats import PcGts
                 # load book specific model or default model as fallback
@@ -252,12 +252,23 @@ class OperationWorkerThread:
                 if not os.path.exists(model + '.meta'):
                     model = os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', 'french14', pc_settings.model_dir, pc_settings.model_name)
 
+                class Callback(LineDetectionPredictorCallback):
+                    def __init__(self):
+                        super().__init__()
+
+                    def progress_updated(self, percentage: float):
+                        com_queue.put(TaskCommunicationData(task, TaskStatus(
+                            TaskStatusCodes.RUNNING,
+                            TaskProgressCodes.WORKING,
+                            progress=percentage,
+                        )))
+
                 params = StaffLinePredictorParameters(
                     checkpoints=[model],
                 )
                 staff_line_detector: StaffLinesPredictor = create_staff_line_predictor(StaffLinesModelType.PIXEL_CLASSIFIER, params)
                 com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
-                staffs = list(staff_line_detector.predict([PcGts.from_file(data.page.file('pcgts'))]))[0].music_lines
+                staffs = list(staff_line_detector.predict([PcGts.from_file(data.page.file('pcgts'))], Callback()))[0].music_lines
                 result = {'staffs': [l.to_json() for l in staffs]}
             elif isinstance(task_data, TaskDataLayoutAnalysis):
                 data: TaskDataLayoutAnalysis = task_data
