@@ -4,14 +4,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from database.file_formats.pcgts import *
 import cv2
-from scipy.misc import imresize
+from skimage.transform import resize
 from scipy.ndimage import distance_transform_edt
 from skimage.morphology import watershed
 
 def content_rect(binary, data_density_low, data_density_high):
     s = 10
     b = binary.astype(np.float)
-    b = imresize(b, 1 / s, interp='bilinear')
+    b = resize(b, 1 / s, order=1)
 
     b1 = b > data_density_low
     b2 = b < data_density_high

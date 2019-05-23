@@ -272,15 +272,29 @@ class OperationWorkerThread:
                 result = {'staffs': [l.to_json() for l in staffs]}
             elif isinstance(task_data, TaskDataLayoutAnalysis):
                 data: TaskDataLayoutAnalysis = task_data
-                from omr.layout.predictor import LayoutPredictorParameters, create_predictor, PredictorTypes
+                from omr.layout.predictor import LayoutPredictorParameters, create_predictor, PredictorTypes,\
+                    LayoutAnalysisPredictorCallback
                 from database.file_formats import PcGts
+
+                class Callback(LayoutAnalysisPredictorCallback):
+                    def __init__(self):
+                        super().__init__()
+
+                    def progress_updated(self, percentage: float):
+                        print(percentage)
+
+                        com_queue.put(TaskCommunicationData(task, TaskStatus(
+                            TaskStatusCodes.RUNNING,
+                            TaskProgressCodes.WORKING,
+                            progress=percentage,
+                        )))
 
                 params = LayoutPredictorParameters(checkpoints=[])
                 pred = create_predictor(PredictorTypes.STANDARD, params)
                 pcgts = PcGts.from_file(data.page.file('pcgts'))
 
                 com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
-                result = list(pred.predict([pcgts]))[0].to_dict()
+                result = list(pred.predict([pcgts], Callback()))[0].to_dict()
             elif isinstance(task_data, TaskDataSymbolDetection):
                 data: TaskDataSymbolDetection = task_data
                 from omr.symboldetection.predictor import \

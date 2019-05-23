@@ -7,7 +7,7 @@ import logging
 from typing import List, Optional
 import omr.stafflines.detection.pixelclassifier.settings as pc_settings
 from omr.stafflines.detection.dataset import PCDataset
-from linesegmentation.detection.lineDetectionCallback import LineDetectionCallback
+from linesegmentation.detection.callback import LineDetectionCallback
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +44,12 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
 
         from linesegmentation.detection import LineDetectionSettings, LineDetection
         self.settings = LineDetectionSettings(
-            minLineNum=params.min_num_staff_lines,
-            numLine=params.num_staff_lines,
-            minLength=6,
-            lineExtension=True,
-            lineSpaceHeight=0,
-            targetLineSpaceHeight=params.target_line_space_height,
+            min_lines_per_system=params.min_num_staff_lines,
+            line_number=params.num_staff_lines,
+            horizontal_min_length=6,
+            line_interpolation=True,
+            line_space_height=0,
+            target_line_space_height=params.target_line_space_height,
             model=model_path,
             post_process=params.post_processing,
             best_fit_scale=params.best_fit_scale,

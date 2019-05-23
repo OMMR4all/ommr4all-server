@@ -4,7 +4,7 @@ from enum import Enum
 from typing import NamedTuple, List, Generator, Optional
 from omr.symboldetection.dataset import RegionLineMaskData
 from omr.stafflines.detection.dataset import StaffLineDetectionDatasetParams
-from linesegmentation.detection.lineDetector import PostProcess
+from linesegmentation.detection.settings import PostProcess
 
 
 class StaffLinePredictorParameters(NamedTuple):

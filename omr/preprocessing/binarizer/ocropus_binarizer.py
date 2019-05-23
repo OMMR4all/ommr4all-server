@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.ndimage import filters, interpolation, morphology
-from scipy.misc import imresize
+from skimage.transform import resize
 import scipy.stats as stats
 from PIL import Image
 from omr.image_util import normalize_raw_image
@@ -19,7 +19,7 @@ def estimate_local_whitelevel(image, zoom=0.5, perc=80, range=20, debug=0):
     m = filters.percentile_filter(m,perc,size=(2,range))
     m = interpolation.zoom(m,1.0/zoom)
     if m.shape != image.shape:
-        m = imresize((m * 255).astype(np.uint8), image.shape) / 255
+        m = resize((m * 255).astype(np.uint8), image.shape, preserve_range=True) / 255
 
     w,h = np.minimum(np.array(image.shape),np.array(m.shape))
     flat = np.clip(image[:w,:h]-m[:w,:h]+1,0,1)

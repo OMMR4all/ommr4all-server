@@ -1,7 +1,18 @@
-from omr.layout.predictor import LayoutAnalysisPredictor, LayoutPredictorParameters, PredictionType, PredictionResult
-from typing import List
+from omr.layout.predictor import LayoutAnalysisPredictor, LayoutPredictorParameters, PredictionType, PredictionResult\
+    , LayoutAnalysisPredictorCallback
+from typing import List, Optional
 from database.file_formats.pcgts import PcGts, TextRegionType, Coords
 import numpy as np
+from layoutanalysis.segmentation.callback import SegmentationCallback
+
+
+class SPredictionCallback(SegmentationCallback):
+    def __init__(self, callback: LayoutAnalysisPredictorCallback):
+        self.callback = callback
+        super().__init__()
+
+    def changed(self):
+        self.callback.progress_updated(self.get_current_page_progress())
 
 
 class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
@@ -12,7 +23,7 @@ class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
         settings = SegmentationSettings()
         self.segmentator = Segmentator(settings)
 
-    def _predict(self, pcgts_files: List[PcGts]) -> PredictionType:
+    def _predict(self, pcgts_files: List[PcGts], callback: Optional[LayoutAnalysisPredictorCallback]) -> PredictionType:
         def extract_staffs(pcgts: PcGts):
             staffs = []
             for mr in pcgts.page.music_regions:
@@ -22,10 +33,13 @@ class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
 
         def p_to_np(polys):
             return [Coords(np.array(p.exterior.coords)) for p in polys]
+        if callback:
+            # TODO: Layout analyse callback of layout-analyse not as class member variable
+            self.segmentator.callback = SPredictionCallback(callback)
 
         for p in self.segmentator.segment(
                 map(extract_staffs, pcgts_files),
-                [p.page.location.file('gray_deskewed').local_path() for p in pcgts_files]):
+                [p.page.location.file('gray_deskewed').local_path() for p in pcgts_files], ):
 
             yield PredictionResult(
                 text_regions={

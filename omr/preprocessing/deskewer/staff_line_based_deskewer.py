@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.misc import imrotate
+from skimage.transform import rotate
 from scipy.ndimage.morphology import binary_erosion, binary_dilation
 from PIL import Image
 import cv2
@@ -33,7 +33,7 @@ def gray_to_staff_binary(gray_image):
 
 def estimate_rotation(gray_image: np.ndarray):
     angles_to_test = [-3, -2, -1, 0, 1, 2, 3]
-    rotated_images = [imrotate(gray_image, angle) for angle in angles_to_test]
+    rotated_images = [rotate(gray_image, angle) for angle in angles_to_test]
     rotated_images = map(gray_to_staff_binary, rotated_images)
     line_angles = map(extract_line_angles, rotated_images)
     all_angles = []

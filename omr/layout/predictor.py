@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Generator, NamedTuple, Dict
+from typing import List, Generator, NamedTuple, Dict, Optional
 from database.file_formats.pcgts import *
 from omr.symboldetection.dataset import SymbolDetectionDataset
 from enum import Enum
@@ -44,13 +44,22 @@ class FinalPredictionResult(NamedTuple):
 FinalPrediction = Generator[FinalPredictionResult, None, None]
 
 
+class LayoutAnalysisPredictorCallback(ABC):
+    def __init__(self):
+        super().__init__()
+
+    @abstractmethod
+    def progress_updated(self, percentage: float):
+        pass
+
+
 class LayoutAnalysisPredictor(ABC):
     def __init__(self, params: LayoutPredictorParameters):
         self.params = params
         self.dataset: SymbolDetectionDataset = None
 
-    def predict(self, pcgts_files: List[PcGts]) -> FinalPrediction:
-        for r, pcgts in zip(self._predict(pcgts_files), pcgts_files):
+    def predict(self, pcgts_files: List[PcGts], callback: Optional[LayoutAnalysisPredictorCallback]) -> FinalPrediction:
+        for r, pcgts in zip(self._predict(pcgts_files, callback=callback), pcgts_files):
             music_lines = []
             for mr in pcgts.page.music_regions:
                 music_lines += mr.staffs
@@ -67,7 +76,8 @@ class LayoutAnalysisPredictor(ABC):
             )
 
     @abstractmethod
-    def _predict(self, pcgts_files: List[PcGts]) -> PredictionType:
+    def _predict(self, pcgts_files: List[PcGts], callback: Optional[LayoutAnalysisPredictorCallback] = None)\
+            -> PredictionType:
         pass
 
 
