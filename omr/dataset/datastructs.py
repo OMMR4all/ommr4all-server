@@ -6,6 +6,8 @@ from typing import List, Tuple, Union, Optional, Any
 
 
 class CalamariSequence:
+    neume_types = "QQWERTYUTYU__ASIOPD"
+
     neume_start = " "
     pos_to_char =      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     clef_pos_to_char = [
@@ -80,6 +82,7 @@ class CalamariSequence:
 
     def __init__(self, symbols: List[Symbol]):
         out = []
+        nt = []
         last_was_neume = False
         for s in symbols:
             if isinstance(s, Neume):
@@ -100,18 +103,21 @@ class CalamariSequence:
                             raise ValueError("Unknown connection type {}".format(nc.graphical_connection))
 
                     out.append(char)
-
+                nt.append(CalamariSequence.neume_types[n.compute_basic_neume_type()])
             elif isinstance(s, Clef):
                 last_was_neume = False
                 c: Clef = s
                 out.append(CalamariSequence.clef_pos_to_char[c.clef_type.value][c.position_in_staff.value])
+                nt.append(CalamariSequence.clef_pos_to_char[c.clef_type.value][0])
             elif isinstance(s, Accidental):
                 last_was_neume = False
                 a: Accidental = s
                 out.append(CalamariSequence.accid_type_to_char[a.accidental.value])
+                nt.append(CalamariSequence.accid_type_to_char[a.accidental.value])
 
         self.symbols = symbols
-        self.calamai_str = "".join(out).strip()
+        self.calamari_str = "".join(out).strip()
+        self.calamari_neume_types_str = "".join(nt)
 
 
 class RegionLineMaskData:

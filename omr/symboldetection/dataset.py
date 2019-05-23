@@ -51,6 +51,7 @@ class SymbolDetectionDatasetParams:
     apply_fcn_pad_power_of_2: int = 3
     apply_fcn_model: Optional[str] = None
     apply_fcn_height: Optional[int] = None
+    neume_types_only: bool = False
 
 
 class SymbolDetectionDataset:
@@ -101,7 +102,10 @@ class SymbolDetectionDataset:
                 return d.region.transpose()
 
         images = [get_input_image(d).astype(np.uint8) for d in marked_symbols]
-        gts = [d.calamari_sequence().calamai_str for d in marked_symbols]
+        if self.params.neume_types_only:
+            gts = [d.calamari_sequence().calamari_neume_types_str for d in marked_symbols]
+        else:
+            gts = [d.calamari_sequence().calamari_str for d in marked_symbols]
         return RawDataSet(DataSetMode.TRAIN if train else DataSetMode.PREDICT, images=images, texts=gts)
 
     def marked_symbols(self) -> List[RegionLineMaskData]:
@@ -129,14 +133,15 @@ if __name__ == '__main__':
     from imageio import imsave
     pages = [p for p in DatabaseBook('Graduel_Fully_Annotated').pages()]
     params = SymbolDetectionDatasetParams(
-        height=40,
+        height=100,
         gt_required=True,
         dewarp=True,
         cut_region=False,
         center=True,
         pad=(0, 10, 0, 20),
         staff_lines_only=True,
-        masks_as_input=True,
+        masks_as_input=False,
+        neume_types_only=True,
     )
 
     if not True:
@@ -158,11 +163,11 @@ if __name__ == '__main__':
         f, ax = plt.subplots(len(calamari_dataset.samples()), 3, sharex='all', sharey='all')
         for i, (sample, out) in enumerate(zip(calamari_dataset.samples(), dataset.marked_symbols())):
             img, region, mask = out.line_image, out.region, out.mask
-            img = sample['image'][:,:,1:4].transpose([1,0,2])
+            # img = sample['image'][:,:,1:4].transpose([1,0,2])
             if np.min(img.shape) > 0:
                 print(img.shape, img.dtype, img.min(), img.max())
                 ax[i, 0].imshow(img)
-                ax[i, 1].imshow(sample['image'][:,:,0].transpose([1,0]))
+                ax[i, 1].imshow(sample['image'][:,:].transpose([1, 0]))
                 ax[i, 2].imshow(mask)
                 ax[i, 1].set_title(sample['text'])
                 # imsave("/home/wick/line0.jpg", 255 - (mask / mask.max() * 255))

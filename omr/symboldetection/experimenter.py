@@ -314,6 +314,7 @@ if __name__ == "__main__":
     parser.add_argument("--cut_region", action='store_true')
     parser.add_argument("--dewarp", action='store_true')
     parser.add_argument("--use_regions", action="store_true", default=False)
+    parser.add_argument("--neume_types", action="store_true", default=False)
 
     parser.add_argument("--calamari_n_folds", type=int, default=0)
     parser.add_argument("--calamari_single_folds", type=int, nargs='+')
@@ -353,6 +354,7 @@ if __name__ == "__main__":
             dewarp=args.dewarp,
             staff_lines_only=not args.use_regions,
             pad_power_of_2=args.pad_to_power_of_2,
+            neume_types_only=args.neume_types,
         ),
         symbol_evaluation_params=SymbolDetectionEvaluatorParams(
             symbol_detected_min_distance=args.symbol_detected_min_distance,
