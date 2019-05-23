@@ -35,6 +35,7 @@ class GlobalDataArgs(NamedTuple):
     calamari_network: str
     calamari_n_folds: int
     calamari_single_folds: Optional[List[int]]
+    calamari_channels: int
 
 
 class SingleDataArgs(NamedTuple):
@@ -51,8 +52,6 @@ def run_single(args: SingleDataArgs):
     global_args = args.global_args
 
     fold_log = logger.getChild("fold_{}".format(args.id))
-    train_pcgts_dataset = SymbolDetectionDataset(args.train_pcgts_files, args.global_args.symbol_detection_params)
-    validation_pcgts_dataset = SymbolDetectionDataset(args.validation_pcgts_files, args.global_args.symbol_detection_params) if args.validation_pcgts_files else None
 
     def print_dataset_content(files: List[PcGts], label: str):
         fold_log.debug("Got {} {} files: {}".format(len(files), label, [f.page.location.local_path() for f in files]))
@@ -76,8 +75,9 @@ def run_single(args: SingleDataArgs):
         trainer = create_symbol_detection_trainer(
             global_args.symbol_detection_type,
             SymbolDetectionTrainerParams(
-                train_data=train_pcgts_dataset,
-                validation_data=validation_pcgts_dataset if validation_pcgts_dataset else train_pcgts_dataset,
+                dataset_params=args.global_args.symbol_detection_params,
+                train_data=args.train_pcgts_files,
+                validation_data=args.validation_pcgts_files if args.validation_pcgts_files else args.train_pcgts_files,
                 n_iter=global_args.n_iter,
                 display=100,
                 load=args.global_args.pretrained_model,
@@ -90,7 +90,8 @@ def run_single(args: SingleDataArgs):
                     network=global_args.calamari_network,
                     n_folds=global_args.calamari_n_folds,
                     single_folds=global_args.calamari_single_folds,
-                )
+                    channels=global_args.calamari_channels,
+                ),
             )
         )
         trainer.run()
@@ -308,6 +309,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--height", type=int, default=80)
     parser.add_argument("--pad", type=int, default=[0], nargs="+")
+    parser.add_argument("--pad_to_power_of_2", type=int, default=None)
     parser.add_argument("--center", action='store_true')
     parser.add_argument("--cut_region", action='store_true')
     parser.add_argument("--dewarp", action='store_true')
@@ -316,6 +318,7 @@ if __name__ == "__main__":
     parser.add_argument("--calamari_n_folds", type=int, default=0)
     parser.add_argument("--calamari_single_folds", type=int, nargs='+')
     parser.add_argument("--calamari_network", type=str, default='cnn=32:3x3,pool=2x2,cnn=64:3x3,pool=1x2,cnn=64:3x3,lstm=100,dropout=0.5')
+    parser.add_argument("--calamari_channels", type=int, default=1)
 
     parser.add_argument("--seed", type=int, default=1)
 
@@ -349,6 +352,7 @@ if __name__ == "__main__":
             cut_region=args.cut_region,
             dewarp=args.dewarp,
             staff_lines_only=not args.use_regions,
+            pad_power_of_2=args.pad_to_power_of_2,
         ),
         symbol_evaluation_params=SymbolDetectionEvaluatorParams(
             symbol_detected_min_distance=args.symbol_detected_min_distance,
@@ -361,6 +365,7 @@ if __name__ == "__main__":
         calamari_n_folds=args.calamari_n_folds,
         calamari_single_folds=args.calamari_single_folds,
         calamari_network=args.calamari_network,
+        calamari_channels=args.calamari_channels,
     )
 
     experimenter = Experimenter(global_args)

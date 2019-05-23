@@ -35,6 +35,7 @@ class SymbolDetectionPredictor(ABC):
 class PredictorTypes(Enum):
     PIXEL_CLASSIFIER = 0
     CALAMARI = 1
+    PC_CALAMARI = 2
 
     def __str__(self):
         return self.name
@@ -47,5 +48,8 @@ def create_predictor(t: PredictorTypes, params: SymbolDetectionPredictorParamete
     elif t == PredictorTypes.CALAMARI:
         from omr.symboldetection.sequencetosequence.predictor import OMRPredictor
         return OMRPredictor(params)
+    elif t == PredictorTypes.PC_CALAMARI:
+        from omr.symboldetection.pcs2s.predictor import PCS2SPredictor
+        return PCS2SPredictor(params)
 
     raise Exception('Invalid type {}'.format(type))
