@@ -51,6 +51,18 @@ class ImageCropToSmallestBoxOperation(ImageOperation):
         return Point(p.x + r.l, p.y + p.t)
 
 
+def calculate_padding(image: np.ndarray, scaling_factor: int) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    def scale(i: int, f: int) -> int:
+        return (f - i % f) % f
+
+    x, y = image.shape
+    px = scale(x, scaling_factor)
+    py = scale(y, scaling_factor)
+
+    pad = ((0, px), (0, py))
+    return pad
+
+
 class ImagePadToPowerOf2(ImageOperation):
     def __init__(self, power=3):
         super().__init__()
@@ -60,28 +72,17 @@ class ImagePadToPowerOf2(ImageOperation):
         assert(all([i.image.dtype == np.uint8 for i in data.images]))
         x, y = data.images[0].image.shape
         for d in data:
-            assert(d.image.shape == (x, y))
+            assert(tuple(d.image.shape[0:2]) == (x, y))
 
-        f = 2 ** 3
-        tx = (((x // 2) // 2) // 2) * 8
-        ty = (((y // 2) // 2) // 2) * 8
+        def pad_image(d: ImageData, p):
+            if len(d.image.shape) == 2:
+                return ImageData(np.pad(d.image, p, 'edge'), d.nearest_neighbour_rescale)
+            else:
+                return ImageData(np.pad(d.image, p + ((0, 0), ), 'edge'), d.nearest_neighbour_rescale)
 
-        if x % f != 0:
-            px = tx - x + f
-            x = x + px
-        else:
-            px = 0
-
-        if y % f != 0:
-            py = ty - y + f
-            y = y + py
-        else:
-            py = 0
-
-        pad = ((0, px), (0, py))
-
-        data.images = [ImageData(np.pad(d.image, pad, 'edge'), d.nearest_neighbour_rescale) for d in data]
-        data.params = (px, py)
+        pad = calculate_padding(data.images[0].image, 2 ** self.power)
+        data.images = [pad_image(d, pad) for d in data]
+        data.params = pad
         return [data]
 
     def local_to_global_pos(self, p: Point, params: Any) -> Point:

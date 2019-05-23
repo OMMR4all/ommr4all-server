@@ -14,8 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 class SymbolDetectionTrainerParams(NamedTuple):
-    train_data: SymbolDetectionDataset
-    validation_data: SymbolDetectionDataset
+    dataset_params: SymbolDetectionDatasetParams
+    train_data: List[PcGts]
+    validation_data: List[PcGts]
     n_iter: int = -1
     display: int = 100
     early_stopping_test_interval: int = -1
@@ -51,6 +52,8 @@ class SymbolDetectionTrainerCallback:
 class SymbolDetectionTrainerBase(ABC):
     def __init__(self, params: SymbolDetectionTrainerParams):
         self.params = params
+        self.train_dataset = SymbolDetectionDataset(params.train_data, params.dataset_params)
+        self.validation_dataset = SymbolDetectionDataset(params.validation_data, params.dataset_params)
 
     @abstractmethod
     def run(self, model_for_book: Optional[DatabaseBook]=None, callback: Optional[SymbolDetectionTrainerCallback]=None):
@@ -66,6 +69,9 @@ def create_symbol_detection_trainer(
     elif type == PredictorTypes.CALAMARI:
         from omr.symboldetection.sequencetosequence.trainer import OMRTrainer
         return OMRTrainer(params)
+    elif type == PredictorTypes.PC_CALAMARI:
+        from omr.symboldetection.pcs2s.trainer import PCS2STrainer
+        return PCS2STrainer(params)
     else:
         raise ValueError("Unkown type for symbol detection trainer {}".format(type))
 

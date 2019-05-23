@@ -227,7 +227,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         if len(ml.staff_lines) < 2:  # at least two staff lines required
             return None
 
-        radius = (ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 8
+        radius = (ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 4
 
         def set(coord, label: SymbolLabel):
             img[int(coord.y - radius):int(coord.y + radius * 2), int(coord.x - radius): int(coord.x + radius * 2)] = label.value

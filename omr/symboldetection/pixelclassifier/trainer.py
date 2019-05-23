@@ -38,8 +38,8 @@ class PCTrainer(SymbolDetectionTrainerBase):
             n_iter=self.params.n_iter if self.params.n_iter > 0 else 10000,
             n_classes=len(SymbolLabel),
             l_rate=self.params.l_rate if self.params.l_rate > 0 else 1e-4,
-            train_data=self.params.train_data.to_music_line_page_segmentation_dataset(),
-            validation_data=self.params.train_data.to_music_line_page_segmentation_dataset(),
+            train_data=self.train_dataset.to_music_line_page_segmentation_dataset(),
+            validation_data=self.validation_dataset.to_music_line_page_segmentation_dataset(),
             load=self.params.load,
             display=self.params.display,
             output=self.params.output if self.params.output else model_for_book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name)),
@@ -51,6 +51,9 @@ class PCTrainer(SymbolDetectionTrainerBase):
             compute_baseline=True,
             data_augmentation=self.params.page_segmentation_params.data_augmenter,
         )
+
+        if not os.path.exists(os.path.dirname(settings.output)):
+            os.makedirs(os.path.dirname(settings.output))
 
         trainer = Trainer(settings)
         trainer.train(callback=pc_callback)
