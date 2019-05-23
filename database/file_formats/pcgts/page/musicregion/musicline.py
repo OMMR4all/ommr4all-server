@@ -1,6 +1,6 @@
 from database.file_formats.pcgts.page.musicregion import Coords, Point
 from typing import List, Tuple, Optional
-from enum import IntEnum
+from enum import IntEnum, Enum
 import numpy as np
 from abc import ABC, abstractmethod
 from uuid import uuid4
@@ -156,6 +156,43 @@ class NoteName(IntEnum):
     def __str__(self):
         return 'ABCDEFG '[self.value]
 
+# See https://music-encoding.org/guidelines/v3/content/neumes.html (Fig. 1) for reference
+class BasicNeumeType(IntEnum):
+    # Single Notes
+    VIRGA = 0
+    PUNCTA = 1
+
+    # Two-note neumes
+    PES = 2
+    CLIVIS = 3
+
+    # three-note neumes
+    SCANDICUS = 4
+    CLIMACUS = 5
+    TORCULUS = 6
+    PORRECTUS = 7
+
+    # four-note neumes
+    PODATUS_SUBBUPUNCTIS = 8
+    TORCULUS_RESUPINUS = 9
+    PORRECTUS_FLEXUS = 10
+
+    # Liquescent neumes
+    EPIPHONUS = 11
+    CEPHALICUS = 12
+
+    # Stropic neumes
+    DISTROPHA = 13
+    TRISTROPHA = 14
+    ORISCUS = 15
+    PRESSUS = 16
+
+    # Special neumes
+    SALICUS = 17
+    QUILISMA = 18
+
+    OTHER = -1
+
 
 class NoteComponent(Symbol):
     def __init__(self,
@@ -224,6 +261,70 @@ class Neume(Symbol):
         return dict(super().to_json(), **{
             'nc': [nc.to_json() for nc in self.notes]
         })
+
+    def compute_basic_neume_type(self) -> BasicNeumeType:
+        if len(self.notes) == 1:
+            # No difference between virga and punktum
+            return BasicNeumeType.VIRGA
+        elif len(self.notes) == 2:
+            if self.notes[1].graphical_connection == GraphicalConnectionType.GAPED:
+                if self.notes[0].graphical_connection > self.notes[1].graphical_connection > self.notes[2].graphical_connection:
+                    return BasicNeumeType.CLIMACUS
+                return BasicNeumeType.DISTROPHA
+            else:
+                if self.notes[1].position_in_staff > self.notes[0].position_in_staff:
+                    return BasicNeumeType.PES
+                else:
+                    return BasicNeumeType.CLIVIS
+        elif len(self.notes) == 3:
+            if self.notes[1].graphical_connection == GraphicalConnectionType.GAPED:
+                if self.notes[2].graphical_connection == GraphicalConnectionType.GAPED:
+                    if self.notes[0].position_in_staff > self.notes[1].position_in_staff > self.notes[2].position_in_staff:
+                        return BasicNeumeType.CLIMACUS
+                    return BasicNeumeType.TRISTROPHA
+                else:
+                    if self.notes[2].position_in_staff > self.notes[1].position_in_staff:
+                        return BasicNeumeType.SCANDICUS
+                    else:
+                        return BasicNeumeType.PRESSUS
+            else:
+                if self.notes[2].graphical_connection == GraphicalConnectionType.GAPED:
+                    if self.notes[1].position_in_staff > self.notes[0].position_in_staff:
+                        return BasicNeumeType.SCANDICUS
+                    else:
+                        return BasicNeumeType.ORISCUS
+                else:
+                    if self.notes[2].position_in_staff > self.notes[1].position_in_staff > self.notes[0].position_in_staff:
+                        return BasicNeumeType.SCANDICUS
+                    elif self.notes[0].position_in_staff > self.notes[1].position_in_staff < self.notes[2].position_in_staff:
+                        return BasicNeumeType.PORRECTUS
+                    elif self.notes[2].position_in_staff < self.notes[1].position_in_staff > self.notes[0].position_in_staff:
+                        return BasicNeumeType.TORCULUS
+                    else:
+                        return BasicNeumeType.OTHER
+        elif len(self.notes) == 4:
+            if self.notes[0].position_in_staff < self.notes[1].position_in_staff >= self.notes[2].position_in_staff >= self.notes[3].position_in_staff:
+                if self.notes[1].graphical_connection == GraphicalConnectionType.LOOPED and self.notes[2].graphical_connection == GraphicalConnectionType.GAPED and self.notes[3].graphical_connection == GraphicalConnectionType.GAPED:
+                    return BasicNeumeType.PODATUS_SUBBUPUNCTIS
+            if self.notes[0].position_in_staff >= self.notes[1].position_in_staff >= self.notes[2].position_in_staff >= self.notes[3].position_in_staff:
+                if self.notes[1].graphical_connection == GraphicalConnectionType.GAPED and self.notes[2].graphical_connection == GraphicalConnectionType.GAPED and self.notes[3].graphical_connection == GraphicalConnectionType.GAPED:
+                    return BasicNeumeType.CLIMACUS
+            return BasicNeumeType.OTHER
+        elif len(self.notes) == 5:
+            if self.notes[0].position_in_staff < self.notes[1].position_in_staff >= self.notes[2].position_in_staff >= self.notes[3].position_in_staff:
+                if self.notes[1].graphical_connection == GraphicalConnectionType.LOOPED and self.notes[2].graphical_connection == GraphicalConnectionType.GAPED and self.notes[3].graphical_connection == GraphicalConnectionType.GAPED:
+                    return BasicNeumeType.PODATUS_SUBBUPUNCTIS
+            if self.notes[0].position_in_staff >= self.notes[1].position_in_staff >= self.notes[2].position_in_staff >= self.notes[3].position_in_staff:
+                if self.notes[1].graphical_connection == GraphicalConnectionType.GAPED and self.notes[2].graphical_connection == GraphicalConnectionType.GAPED and self.notes[3].graphical_connection == GraphicalConnectionType.GAPED:
+                    return BasicNeumeType.CLIMACUS
+            return BasicNeumeType.OTHER
+        else:
+            return BasicNeumeType.OTHER
+
+
+        raise Exception('Unknown')
+
+
 
 
 class ClefType(IntEnum):
