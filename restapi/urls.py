@@ -5,7 +5,7 @@ from django.http import HttpResponse
 from database import *
 from restapi.api import OperationStatusView, OperationView, BookView, BooksView, \
     PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView, BookMetaView, \
-    BookVirtualKeyboardView, PageLockView
+    BookVirtualKeyboardView, PageLockView, OperationTaskView
 from restapi.api.auth import AuthView
 from restapi.api.bookcomments import BookCommentsView, BookCommentsCountView
 from restapi.api.bookpermissions import BookPermissionsView, BookUserPermissionsView, BookGroupPermissionsView, BookDefaultPermissionsView
@@ -71,6 +71,7 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/lock$', PageLockView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/operation/(?P<operation>\w+)$', OperationView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/operation/(?P<operation>\w+)/task/(?P<task_id>[\w\-]+)$', OperationTaskView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/rename$', PageRenameView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/operation_status/(?P<operation>\w+)$', OperationStatusView.as_view()),
         re_path(r'^book/(?P<book>\w+)$', BookView.as_view()),

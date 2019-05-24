@@ -7,6 +7,7 @@ from enum import Enum
 from dataclasses import dataclass
 from queue import Empty as QueueEmptyException
 import os
+from uuid import uuid4
 
 from database import DatabasePage, DatabaseBook
 
@@ -20,6 +21,11 @@ class TaskNotFoundException(Exception):
 
 class TaskNotFinishedException(Exception):
     pass
+
+
+class TaskAlreadyQueuedException(Exception):
+    def __init__(self, task_id: str):
+        self.task_id = task_id
 
 
 class TaskStatusCodes(Enum):
@@ -58,9 +64,15 @@ class TaskStatus:
 
 @dataclass
 class Task:
+    task_id: str
     task_data: Any
     task_status: TaskStatus
     task_result: dict
+
+
+class TaskIDGenerator:
+    def gen(self):
+        return str(uuid4())
 
 
 class TaskQueue:
@@ -68,29 +80,27 @@ class TaskQueue:
         self.tasks: List[Task] = []
         self.mutex = Lock()
 
-    def remove(self, task_data) -> Optional[Task]:
+    def remove(self, task_id: str) -> Optional[Task]:
         with self.mutex:
             for i, t in enumerate(self.tasks):
-                if t.task_data == task_data:
+                if t.task_id == task_id:
                     del self.tasks[i]
                     return t
 
             return None
 
-    def put(self, task_data) -> bool:
+    def put(self, task_id: str, task_data):
         with self.mutex:
             for task in self.tasks:
-                if task.task_data == task_data:
-                    return False
+                if task.task_id == task_id:
+                    raise TaskAlreadyQueuedException(task_id)
 
-            self.tasks.append(Task(task_data, TaskStatus(code=TaskStatusCodes.QUEUED), {}))
+            self.tasks.append(Task(task_id, task_data, TaskStatus(code=TaskStatusCodes.QUEUED), {}))
 
-            return True
-
-    def pop_result(self, task_data) -> dict:
+    def pop_result(self, task_id: str) -> dict:
         with self.mutex:
             for i, t in enumerate(self.tasks):
-                if t.task_data == task_data:
+                if t.task_id == task_id:
                     if t.task_status.code == TaskStatusCodes.QUEUED or t.task_status.code == TaskStatusCodes.RUNNING:
                         raise TaskNotFinishedException()
 
@@ -99,18 +109,18 @@ class TaskQueue:
 
             raise TaskNotFoundException()
 
-    def status(self, task_data) -> TaskStatus:
+    def status(self, task_id: str) -> TaskStatus:
         with self.mutex:
             for task in self.tasks:
-                if task.task_data == task_data:
+                if task.task_id == task_id:
                     return task.task_status
 
             return TaskStatus(TaskStatusCodes.NOT_FOUND)
 
-    def update_status(self, task_data, status: TaskStatus):
+    def update_status(self, task_id: str, status: TaskStatus):
         with self.mutex:
             for task in self.tasks:
-                if task.task_data == task_data:
+                if task.task_id == task_id:
                     task.task_status = status
                     return
 
@@ -126,12 +136,19 @@ class TaskQueue:
 
             time.sleep(sleep_secs)
 
-    def task_finished(self, task, result):
+    def id_by_data(self, task_data: Any) -> Optional[str]:
+        with self.mutex:
+            for task in self.tasks:
+                if task.task_data == task_data:
+                    return task.task_id
+        return None
+
+    def task_finished(self, task: Task, result):
         with self.mutex:
             task.task_status.code = TaskStatusCodes.FINISHED
             task.task_result = result
 
-    def task_error(self, task, result):
+    def task_error(self, task: Task, result):
         with self.mutex:
             task.task_status.code = TaskStatusCodes.ERROR
             task.task_result = result
@@ -235,12 +252,18 @@ class OperationWorkerThread:
 
     @staticmethod
     def _run_task(name: str, task: Task, queue: Queue, com_queue: Queue):
+        from restapi.operationworker.operationlayoutextractconnectedcomponentsbyline import \
+            TaskDataExtractLayoutConnectedComponentByLine, TaskExtractLayoutConnectedComponentByLineWorker
         try:
             start = time.time()
             task_data = task.task_data
             result = {}
             com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.INITIALIZING)))
-            if isinstance(task_data, TaskDataStaffLineDetection):
+            if isinstance(task_data, TaskDataExtractLayoutConnectedComponentByLine):
+                data: TaskDataExtractLayoutConnectedComponentByLine = task_data
+                runner = TaskExtractLayoutConnectedComponentByLineWorker()
+                result = runner.run(data)
+            elif isinstance(task_data, TaskDataStaffLineDetection):
                 data: TaskDataStaffLineDetection = task_data
                 from omr.stafflines.detection.predictor import \
                     create_staff_line_predictor, StaffLinesModelType, StaffLinesPredictor, \
@@ -389,7 +412,7 @@ class TaskCommunicator:
         while True:
             try:
                 com: TaskCommunicationData = self.queue.get()
-                self.task_queue.update_status(com.task.task_data, com.status)
+                self.task_queue.update_status(com.task.task_id, com.status)
             except TaskNotFoundException:
                 pass
             except Exception as e:
@@ -401,22 +424,31 @@ class OperationWorker:
         self.queue = TaskQueue()
         self.task_communicator = TaskCommunicator(self.queue)
         self.threads = [OperationWorkerThread(i, self.queue, self.task_communicator.queue) for i in range(num_threads)]
+        self.id_generator = TaskIDGenerator()
 
-    def stop(self, task_data):
-        task = self.queue.remove(task_data)
+    def id_by_task_data(self, task_data: Any):
+        return self.queue.id_by_data(task_data)
+
+    def stop(self, task_id: str):
+        task = self.queue.remove(task_id)
         if task is not None:
             for i, t in enumerate(self.threads):
                 if t.cancel_if_current_task(task):
                     break
 
-    def put(self, task_data) -> bool:
-        return self.queue.put(task_data)
+    def put(self, task_data: Any) -> str:
+        task_id = self.id_by_task_data(task_data)
+        if task_id is None:
+            # task not present, generate new task
+            task_id = self.id_generator.gen()
+            self.queue.put(task_id, task_data)
+        return task_id
 
-    def pop_result(self, task_data) -> dict:
-        return self.queue.pop_result(task_data)
+    def pop_result(self, task_id: str) -> dict:
+        return self.queue.pop_result(task_id)
 
-    def status(self, task_data) -> Optional[TaskStatus]:
-        return self.queue.status(task_data)
+    def status(self, task_id) -> Optional[TaskStatus]:
+        return self.queue.status(task_id)
 
 
 operation_worker = OperationWorker()

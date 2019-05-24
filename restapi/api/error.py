@@ -13,6 +13,9 @@ class ErrorCodes(IntEnum):
     PAGE_INVALID_NAME = 44002
     PAGE_NOT_LOCKED = 44003
 
+    # Operation related
+    OPERATION_INVALID_GET = 50001
+
 
 class APIError:
     def __init__(self,
