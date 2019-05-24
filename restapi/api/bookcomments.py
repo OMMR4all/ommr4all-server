@@ -24,4 +24,4 @@ class BookCommentsView(APIView):
 class BookCommentsCountView(APIView):
     def get(self, request, book):
         book = DatabaseBook(book)
-        return Response({'count': sum([len(PcGts.from_file(page.file('pcgts')).page.comments.comments) for page in book.pages()])})
+        return Response({'count': sum([len(PcGts.from_file(page.file('pcgts', create_if_not_existing=True)).page.comments.comments) for page in book.pages()])})
