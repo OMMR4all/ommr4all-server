@@ -54,10 +54,6 @@ urlpatterns = \
         # user
         re_path(r'^user/book/(?P<book>\w+)/permissions$', UserBookPermissionsView.as_view()),
 
-        # content
-        re_path(r'^content/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
-        re_path(r'^storage/(?P<book>\w+)/(?P<page>\w+)/(?P<content>\w+)$', get_content),
-
         # single book
         re_path(r'^book/(?P<book>\w+)/permissions/user/(?P<username>.+)$', BookUserPermissionsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/permissions/group/(?P<name>.+)$', BookGroupPermissionsView.as_view()),
@@ -69,14 +65,14 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/upload/$', BookUploadView.as_view()),
         re_path(r'^book/(?P<book>\w+)/virtual_keyboard/$', BookVirtualKeyboardView.as_view()),
         re_path(r'^book/(?P<book>\w+)/download/(?P<type>[\w\.]+)$', BookDownloaderView.as_view()),
-        re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/pcgts$', PagePcGtsView.as_view()),
-        re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/statistics$', PageStatisticsView.as_view()),
-        re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/page_progress$', PageProgressView.as_view()),
-        re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/lock$', PageLockView.as_view()),
-        re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
-        re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/operation/(?P<operation>\w+)$', OperationView.as_view()),
-        re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/rename$', PageRenameView.as_view()),
-        re_path(r'^book/(?P<book>\w+)/(?P<page>\w+)/operation_status/(?P<operation>\w+)$', OperationStatusView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/pcgts$', PagePcGtsView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/statistics$', PageStatisticsView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/page_progress$', PageProgressView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/lock$', PageLockView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
+        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/operation/(?P<operation>\w+)$', OperationView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/rename$', PageRenameView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/operation_status/(?P<operation>\w+)$', OperationStatusView.as_view()),
         re_path(r'^book/(?P<book>\w+)$', BookView.as_view()),
 
         # all books
