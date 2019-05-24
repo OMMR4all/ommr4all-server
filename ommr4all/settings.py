@@ -1,5 +1,6 @@
 import os
 import datetime
+from typing import NamedTuple, List
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -214,5 +215,16 @@ LOGGING = {
             'handlers': ['console'],
             'level': 'DEBUG',
         },
+        'restapi': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
     },
 }
+
+
+class GPUSettings(NamedTuple):
+    available_gpus: List[int]
+
+
+GPU_SETTINGS = GPUSettings([])

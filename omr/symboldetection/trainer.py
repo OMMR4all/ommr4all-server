@@ -90,8 +90,9 @@ class SymbolDetectionTrainer:
         trainer = create_symbol_detection_trainer(
             PredictorTypes.PIXEL_CLASSIFIER,
             SymbolDetectionTrainerParams(
-                SymbolDetectionDataset(train_pcgts, params),
-                SymbolDetectionDataset(val_pcgts, params),
+                params,
+                train_pcgts,
+                val_pcgts,
             )
         )
         trainer.run(target_book, callback=callback)

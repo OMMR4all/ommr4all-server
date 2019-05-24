@@ -28,7 +28,6 @@ def require_lock(func):
 
 class PageLockView(APIView):
     def get(self, request, book, page):
-        logger.info(request)
         page = DatabasePage(DatabaseBook(book), page)
         return Response({'locked': page.is_locked_by_user(request.user)})
 
@@ -59,11 +58,8 @@ class PageLockView(APIView):
 
 
 class PageProgressView(APIView):
-    # authentication_classes = (authentication.TokenAuthentication,)
-    # permission_classes = (permissions.IsAdminUser,)
-
     @require_permissions([DatabaseBookPermissionFlag.READ])
-    def get(self, request, book, page, format=None):
+    def get(self, request, book, page):
         page = DatabasePage(DatabaseBook(book), page)
         file = DatabaseFile(page, 'page_progress')
 
@@ -73,7 +69,7 @@ class PageProgressView(APIView):
         try:
             return Response(PageProgress.from_json_file(file.local_path()).to_json())
         except JSONDecodeError as e:
-            logging.error(e)
+            logger.error(e)
             file.delete()
             file.create()
             return Response(PageProgress.from_json_file(file.local_path()).to_json())
@@ -81,7 +77,7 @@ class PageProgressView(APIView):
 
 class PagePcGtsView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
-    def get(self, request, book, page, format=None):
+    def get(self, request, book, page):
         page = DatabasePage(DatabaseBook(book), page)
         file = DatabaseFile(page, 'pcgts')
 
@@ -91,7 +87,7 @@ class PagePcGtsView(APIView):
         try:
             return Response(PcGts.from_file(file).to_json())
         except JSONDecodeError as e:
-            logging.error(e)
+            logger.error(e)
             file.delete()
             file.create()
             return Response(PcGts.from_file(file).to_json())
@@ -99,7 +95,7 @@ class PagePcGtsView(APIView):
 
 class PageStatisticsView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
-    def get(self, request, book, page, format=None):
+    def get(self, request, book, page):
         page = DatabasePage(DatabaseBook(book), page)
         file = DatabaseFile(page, 'statistics')
 

@@ -2,7 +2,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from database import DatabasePage, DatabaseBook, DatabaseFile, InvalidFileNameException, FileExistsException
-from restapi.operationworker import operation_worker, TaskStatusCodes, TaskNotFoundException
+from restapi.operationworker import operation_worker, TaskStatusCodes, \
+    TaskNotFoundException, TaskAlreadyQueuedException, TaskNotFinishedException
 import logging
 import datetime
 import json
@@ -12,12 +13,6 @@ from database.file_formats.pcgts import PcGts, Coords
 from database.file_formats.performance.pageprogress import PageProgress
 from database.file_formats.performance.statistics import Statistics
 from omr.stafflines.json_util import json_to_line
-from restapi.operationworker import \
-    TaskDataStaffLineDetection, TaskDataSymbolDetectionTrainer, TaskDataSymbolDetection, \
-    TaskDataLayoutAnalysis
-from restapi.operationworker.operation_worker import TaskAlreadyQueuedException
-from restapi.operationworker.operationlayoutextractconnectedcomponentsbyline import \
-    TaskDataExtractLayoutConnectedComponentByLine
 from restapi.api.error import *
 from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
 from restapi.api.pageaccess import require_lock
@@ -80,9 +75,9 @@ class OperationStatusView(APIView):
     def get(self, request, book, page, operation):
         page = DatabasePage(DatabaseBook(book), page)
         body = json.loads(request.body, encoding='utf-8') if request.body else {}
-        task_data = OperationView.op_to_task_data(operation, page, body)
-        if task_data is not None:
-            task_id = operation_worker.id_by_task_data(task_data)
+        task_runner = OperationView.op_to_task_runner(operation, page, body)
+        if task_runner is not None:
+            task_id = operation_worker.id_by_task_runner(task_runner)
             op_status = operation_worker.status(task_id)
             if op_status:
                 return Response({'status': op_status.to_json()})
@@ -94,18 +89,23 @@ class OperationStatusView(APIView):
 
 class OperationView(APIView):
     @staticmethod
-    def op_to_task_data(operation, page: DatabasePage, body: dict):
+    def op_to_task_runner(operation, page: DatabasePage, body: dict):
         # check if operation is linked to a task
         if operation == 'staffs':
-            return TaskDataStaffLineDetection(page)
+            from restapi.operationworker.taskrunners.taskrunnerstafflinedetection import TaskRunnerStaffLineDetection
+            return TaskRunnerStaffLineDetection(page)
         elif operation == 'symbols':
-            return TaskDataSymbolDetection(page)
+            from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection
+            return TaskRunnerSymbolDetection(page)
         elif operation == 'train_symbols':
-            return TaskDataSymbolDetectionTrainer(page.book)
+            from restapi.operationworker.taskrunners.taskrunnersymboldetectiontrainer import TaskRunnerSymbolDetectionTrainer
+            return TaskRunnerSymbolDetectionTrainer(page.book)
         elif operation == 'layout':
-            return TaskDataLayoutAnalysis(page)
+            from restapi.operationworker.taskrunners.taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis
+            return TaskRunnerLayoutAnalysis(page)
         elif operation == 'layout_extract_cc_by_line':
-            return TaskDataExtractLayoutConnectedComponentByLine(page, Coords.from_json(body['points']))
+            from restapi.operationworker.taskrunners.taskrunnerlayoutextractconnectedcomponentsbyline import TaskRunnerLayoutExtractConnectedComponentsByLine
+            return TaskRunnerLayoutExtractConnectedComponentsByLine(page, Coords.from_json(body['points']))
         else:
             return None
 
@@ -157,10 +157,10 @@ class OperationView(APIView):
     def put(self, request, book, page, operation):
         body = json.loads(request.body, encoding='utf-8')
         page = DatabasePage(DatabaseBook(book), page)
-        task_data = OperationView.op_to_task_data(operation, page, body)
-        if task_data:
+        task_runner = OperationView.op_to_task_runner(operation, page, body)
+        if task_runner:
             try:
-                id = operation_worker.put(task_data)
+                id = operation_worker.put(task_runner)
                 return Response({'task_id': id}, status=status.HTTP_202_ACCEPTED)
             except TaskAlreadyQueuedException as e:
                 return Response({'task_id': e.task_id}, status=status.HTTP_303_SEE_OTHER)
