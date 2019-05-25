@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from database import DatabasePage, DatabaseBook, DatabaseFile, InvalidFileNameException, FileExistsException
 from restapi.operationworker import operation_worker, TaskStatusCodes, \
-    TaskNotFoundException, TaskAlreadyQueuedException, TaskNotFinishedException
+    TaskNotFoundException, TaskAlreadyQueuedException, TaskNotFinishedException, TaskStatus
 import logging
 import datetime
 import json
@@ -55,6 +55,8 @@ class OperationTaskView(APIView):
                 raise error
             else:
                 return Response({'status': op_status.to_json()})
+        except TaskNotFoundException:
+            return Response({'status': TaskStatus().to_json()})
         except KeyError as e:
             logger.exception(e)
             return APIError(status.HTTP_400_BAD_REQUEST,
@@ -97,9 +99,6 @@ class OperationView(APIView):
         elif operation == 'symbols':
             from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection
             return TaskRunnerSymbolDetection(page)
-        elif operation == 'train_symbols':
-            from restapi.operationworker.taskrunners.taskrunnersymboldetectiontrainer import TaskRunnerSymbolDetectionTrainer
-            return TaskRunnerSymbolDetectionTrainer(page.book)
         elif operation == 'layout':
             from restapi.operationworker.taskrunners.taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis
             return TaskRunnerLayoutAnalysis(page)

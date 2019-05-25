@@ -57,11 +57,8 @@ class OperationWorker:
                     break
 
     def put(self, task_runner: TaskRunner) -> str:
-        task_id = self.id_by_task_runner(task_runner)
-        if task_id is None:
-            # task not present, generate new task
-            task_id = self.id_generator.gen()
-            self.queue.put(task_id, task_runner)
+        task_id = self.id_generator.gen()
+        self.queue.put(task_id, task_runner)
         return task_id
 
     def pop_result(self, task_id: str) -> dict:

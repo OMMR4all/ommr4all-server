@@ -22,13 +22,13 @@ class TaskQueue:
 
             return None
 
-    def put(self, task_id: str, task_data):
+    def put(self, task_id: str, task_runner: TaskRunner):
         with self.mutex:
             for task in self.tasks:
-                if task.task_id == task_id:
-                    raise TaskAlreadyQueuedException(task_id)
+                if task.task_id == task_id or self._id_by_runner(task_runner) == task.task_id:
+                    raise TaskAlreadyQueuedException(task.task_id)
 
-            self.tasks.append(Task(task_id, task_data, TaskStatus(code=TaskStatusCodes.QUEUED), {}))
+            self.tasks.append(Task(task_id, task_runner, TaskStatus(code=TaskStatusCodes.QUEUED), {}))
 
     def pop_result(self, task_id: str) -> dict:
         with self.mutex:
@@ -48,7 +48,7 @@ class TaskQueue:
                 if task.task_id == task_id:
                     return task.task_status
 
-            return TaskStatus(TaskStatusCodes.NOT_FOUND)
+            raise TaskNotFoundException()
 
     def update_status(self, task_id: str, status: TaskStatus):
         with self.mutex:
@@ -73,12 +73,15 @@ class TaskQueue:
 
             time.sleep(sleep_secs)
 
+    def _id_by_runner(self, task_runner: TaskRunner) -> Optional[str]:
+        for task in self.tasks:
+            if task.task_runner == task_runner or (type(task.task_runner) == type(task_runner) and task.task_runner.identifier() == task_runner.identifier()):
+                return task.task_id
+        return None
+
     def id_by_runner(self, task_runner: TaskRunner) -> Optional[str]:
         with self.mutex:
-            for task in self.tasks:
-                if task.task_runner == task_runner or (type(task.task_runner) == type(task_runner) and task.task_runner.identifier() == task_runner.identifier()):
-                    return task.task_id
-        return None
+            return self._id_by_runner(task_runner)
 
     def task_finished(self, task: Task, result):
         with self.mutex:

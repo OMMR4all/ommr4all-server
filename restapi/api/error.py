@@ -16,6 +16,9 @@ class ErrorCodes(IntEnum):
     # Operation related
     OPERATION_INVALID_GET = 50001
 
+    # Task related
+    OPERATION_TASK_NOT_FOUND = 51001
+
 
 class APIError:
     def __init__(self,

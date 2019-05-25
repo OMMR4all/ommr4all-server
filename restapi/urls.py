@@ -6,6 +6,7 @@ from database import *
 from restapi.api import OperationStatusView, OperationView, BookView, BooksView, \
     PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView, BookMetaView, \
     BookVirtualKeyboardView, PageLockView, OperationTaskView
+from restapi.api.bookoperations import BookOperationStatusView, BookOperationTaskView, BookOperationView
 from restapi.api.auth import AuthView
 from restapi.api.bookcomments import BookCommentsView, BookCommentsCountView
 from restapi.api.bookpermissions import BookPermissionsView, BookUserPermissionsView, BookGroupPermissionsView, BookDefaultPermissionsView
@@ -65,6 +66,9 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/upload/$', BookUploadView.as_view()),
         re_path(r'^book/(?P<book>\w+)/virtual_keyboard/$', BookVirtualKeyboardView.as_view()),
         re_path(r'^book/(?P<book>\w+)/download/(?P<type>[\w\.]+)$', BookDownloaderView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/operation/(?P<operation>\w+)$', BookOperationView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/operation/(?P<operation>\w+)/task/(?P<task_id>[\w\-]+)$', BookOperationTaskView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/operation/(?P<operation>\w+)/status$', BookOperationStatusView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/pcgts$', PagePcGtsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/statistics$', PageStatisticsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/page_progress$', PageProgressView.as_view()),
