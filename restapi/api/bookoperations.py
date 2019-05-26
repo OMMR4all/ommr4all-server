@@ -85,6 +85,9 @@ class BookOperationView(APIView):
         if operation == 'train_symbols':
             from restapi.operationworker.taskrunners.taskrunnersymboldetectiontrainer import TaskRunnerSymbolDetectionTrainer
             return TaskRunnerSymbolDetectionTrainer(book)
+        elif operation == 'train_staff_line_detector':
+            from restapi.operationworker.taskrunners.taskrunnerstafflinedetectiontrainer import TaskRunnerStaffLineDetectionTrainer
+            return TaskRunnerStaffLineDetectionTrainer(book)
         else:
             return None
 

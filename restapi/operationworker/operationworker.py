@@ -19,8 +19,7 @@ class TaskSettings(NamedTuple):
 
 task_settings = [
     # GPU tasks, but add also threads if no GPU can be used
-    TaskSettings(len(settings.GPU_SETTINGS.available_gpus), {TaskWorkerGroup.LONG_TASKS_GPU}),
-    TaskSettings(1, {TaskWorkerGroup.LONG_TASKS_GPU}),
+    TaskSettings(max(1, len(settings.GPU_SETTINGS.available_gpus)), {TaskWorkerGroup.LONG_TASKS_GPU}),
 
     # CPU only tasks
     TaskSettings(2, {TaskWorkerGroup.LONG_TASKS_CPU, TaskWorkerGroup.NORMAL_TASKS_CPU, TaskWorkerGroup.SHORT_TASKS_CPU}),

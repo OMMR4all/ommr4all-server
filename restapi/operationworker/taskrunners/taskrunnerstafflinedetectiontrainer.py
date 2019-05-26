@@ -4,7 +4,7 @@ from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
 
 
-class TaskRunnerSymbolDetectionTrainer(TaskRunner):
+class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
     def __init__(self,
                  book: DatabaseBook
                  ):
@@ -15,9 +15,9 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
         return self.book,
 
     def run(self, task: Task, com_queue: Queue) -> dict:
-        from omr.symboldetection.trainer import SymbolDetectionTrainer, SymbolDetectionTrainerCallback
+        from omr.stafflines.detection.pixelclassifier.trainer import BasicStaffLinesTrainer, StaffLinesDetectionTrainerCallback
 
-        class Callback(SymbolDetectionTrainerCallback):
+        class Callback(StaffLinesDetectionTrainerCallback):
             def __init__(self):
                 super().__init__()
                 self.iter, self.loss, self.acc, self.best_iter, self.best_acc, self.best_iters = -1, -1, -1, -1, -1, -1
@@ -43,5 +43,6 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
             def early_stopping(self):
                 pass
 
-        SymbolDetectionTrainer(self.book, callback=Callback())
+        trainer = BasicStaffLinesTrainer(self.book)
+        trainer.train(callback=Callback())
         return {}

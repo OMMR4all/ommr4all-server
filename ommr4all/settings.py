@@ -227,4 +227,4 @@ class GPUSettings(NamedTuple):
     available_gpus: List[int]
 
 
-GPU_SETTINGS = GPUSettings([])
+GPU_SETTINGS = GPUSettings([0])

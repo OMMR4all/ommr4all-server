@@ -62,12 +62,10 @@ class TaskQueue:
     def next_unprocessed(self, groups: Set[TaskWorkerGroup], sleep_secs=1.0) -> Task:
         while True:
             with self.mutex:
-                for task in self.tasks:
-                    if not any([g in groups for g in task.task_runner.task_group]):
-                        # not in set
-                        continue
-
-                    if task.task_status.code == TaskStatusCodes.QUEUED:
+                queued_tasks = [task for task in self.tasks if task.task_status.code == TaskStatusCodes.QUEUED]
+                for task in queued_tasks:
+                    if any([g in groups for g in task.task_runner.task_group]):
+                        # found valid group
                         task.task_status.code = TaskStatusCodes.RUNNING
                         return task
 
