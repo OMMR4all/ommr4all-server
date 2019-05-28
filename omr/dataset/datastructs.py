@@ -125,7 +125,7 @@ class RegionLineMaskData:
         self.operation = op
         self.line_image = op.images[1].image
         self.region = op.images[0].image
-        self.mask = op.images[2].image
+        self.mask = op.images[2].image if len(op.images) > 2 else None
 
     def calamari_sequence(self):
         return CalamariSequence(self.operation.music_line.symbols)

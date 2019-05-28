@@ -14,8 +14,8 @@ class TextLine:
         self.coords = coords if coords else Coords()
         self.sentence = sentence if sentence else []
 
-    def text(self):
-        return self.sentence.text()
+    def text(self, with_drop_capital=True):
+        return self.sentence.text(with_drop_capital=with_drop_capital)
 
     def syllable_by_id(self, syllable_id):
         return self.sentence.syllable_by_id(syllable_id)

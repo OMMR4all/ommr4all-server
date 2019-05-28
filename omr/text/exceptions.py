@@ -1,0 +1,2 @@
+class NoTextLinesAvailable(Exception):
+    pass

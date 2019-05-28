@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, NamedTuple, Tuple, Any, Optional, Generator
 import numpy as np
-from database.file_formats.pcgts import Point, MusicLines, Page, MusicRegion, MusicLine
+from database.file_formats.pcgts import Point, MusicLines, Page, MusicRegion, MusicLine, TextLine
 from dataclasses import dataclass
 from copy import copy
 
@@ -22,6 +22,7 @@ class ImageOperationData:
     music_region: Optional[MusicRegion] = None
     music_line: Optional[MusicLine] = None
     music_lines: Optional[MusicLines] = None
+    text_line: Optional[TextLine] = None
 
     def __iter__(self):
         return self.images.__iter__()

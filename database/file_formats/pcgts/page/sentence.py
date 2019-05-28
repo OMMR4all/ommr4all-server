@@ -7,18 +7,22 @@ class Sentence:
                  syllables: List[Syllable]):
         self.syllables = syllables
 
-    def text(self):
+    def text(self, with_drop_capital=True):
         t = ''
         for syllable in self.syllables:
+            text = syllable.text
+            if not with_drop_capital and syllable.drop_capital_length > 0:
+                text = text[syllable.drop_capital_length:]
+
             if syllable.connection == SyllableConnection.NEW:
                 if len(t) == 0:
-                    t += syllable.text
+                    t += text
                 else:
-                    t += ' ' + syllable.text
+                    t += ' ' + text
             elif syllable.connection == SyllableConnection.VISIBLE:
-                t += '~' + syllable.text
+                t += '~' + text
             else:
-                t += '-' + syllable.text
+                t += '-' + text
         return t
 
     def syllable_by_id(self, syllable_id):

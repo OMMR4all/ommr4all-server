@@ -166,7 +166,7 @@ class BookDownloaderView(APIView):
                 if any([not f.exists() for f in files]):
                     continue
 
-                for file, fn in zip(files, file_names):
+                for file, fn in zi.p(files, file_names):
                     zf.write(file.local_path(), os.path.join(fn, page.page + file.ext()))
 
             zf.close()
