@@ -24,7 +24,6 @@ class TaskRunnerLayoutAnalysis(TaskRunner):
                 super().__init__()
 
             def progress_updated(self, percentage: float):
-                print(percentage)
 
                 com_queue.put(TaskCommunicationData(task, TaskStatus(
                     TaskStatusCodes.RUNNING,
