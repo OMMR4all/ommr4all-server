@@ -30,7 +30,7 @@ class PCDataset:
         self.marked_symbol_data: List[Tuple[MusicLine, np.ndarray]] = None
 
         self.line_and_mask_operations = ImageOperationList([
-            ImageLoadFromPageOperation(invert=True, files=['gray_deskewed' if params.gray else 'binary_deskewed']),
+            ImageLoadFromPageOperation(invert=True, files=[('gray_deskewed' if params.gray else 'binary_deskewed', False)]),
             ImageExtractStaffLineImages(full_page=params.full_page, pad=params.pad, extract_region_only=params.extract_region_only, gt_line_thickness=params.gt_line_thickness),
             # ImageScaleOperation(0.5),  // Do not scale here, the line detector needs full resolution images
             # ImagePadToPowerOf2(),      // Padding also done in line detector
