@@ -10,7 +10,7 @@ class Meta:
     @staticmethod
     def from_json(json: dict):
         return Meta(
-            json.get('creatpr', ""),
+            json.get('creator', ""),
             json.get('created', ""),
             json.get('lastChange', ""),
         )
