@@ -139,6 +139,7 @@ class OperationView(APIView):
             return Response()
         elif operation == 'save':
             obj = json.loads(request.body, encoding='utf-8')
+
             pcgts = PcGts.from_json(obj, page)
             pcgts.to_file(page.file('pcgts').local_path())
 

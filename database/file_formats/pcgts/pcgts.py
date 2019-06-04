@@ -24,10 +24,6 @@ class PcGts:
         if len(pcgts.page.image_filename) == 0:
             pcgts.page.image_filename = DatabaseFile.file_definitions()['color_deskewed'].output[0]
 
-        img_path = os.path.join(os.path.split(filename)[0], pcgts.page.image_filename)
-        if not os.path.exists(img_path):
-            raise Exception('Missing image file at {}'.format(img_path))
-
         return pcgts
 
     def to_file(self, filename):
@@ -42,7 +38,8 @@ class PcGts:
 
     @staticmethod
     def from_json(json: dict, location: DatabasePage):
-        image_shape = Image.open(location.file('color_deskewed', True).local_path()).size
+        # original an deskewed have same shape
+        image_shape = Image.open(location.file('color_original', True).local_path()).size
         pcgts = PcGts(
             Meta.from_json(json.get('meta', {})),
             Page.from_json(json.get('page', {}), location=location),

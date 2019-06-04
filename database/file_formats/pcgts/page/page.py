@@ -25,8 +25,6 @@ class Page:
         self.comments = UserComments(self)
         self.reading_order = ReadingOrder(self)
         self.location = location
-        if not os.path.exists(location.local_file_path(self.image_filename)):
-            raise Exception("Image not found at {}".format(location.local_file_path(self.image_filename)))
 
     def syllable_by_id(self, syllable_id):
         for t in self.text_regions:

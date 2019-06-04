@@ -42,15 +42,15 @@ def ping(request):
 urlpatterns = \
     [
         # jwt
-        path('token-auth/', obtain_jwt_token),
-        path('token-refresh/', refresh_jwt_token),
-        path('token-verify/', verify_jwt_token),
+        path('token-auth/', obtain_jwt_token, name='jwtAuth'),
+        path('token-refresh/', refresh_jwt_token, name='jwtRefresh'),
+        path('token-verify/', verify_jwt_token, name='jwtVerify'),
 
         # ping
         path('ping', ping),
 
         # auth
-        re_path(r'^auth/(?P<auth>\w+)$', AuthView.as_view()),
+        re_path(r'^auth/(?P<auth>\w+)$', AuthView.as_view(), name='AuthView'),
 
         # user
         re_path(r'^user/book/(?P<book>\w+)/permissions$', UserBookPermissionsView.as_view()),

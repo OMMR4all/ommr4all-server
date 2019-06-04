@@ -18,7 +18,7 @@ class ImageLoadFromPageOperation(ImageOperation):
         book_page = data.page.location
         d.images = []
         for file, nn_rescale in self.files:
-            img = Image.open(book_page.file(file).local_path())
+            img = Image.open(book_page.file(file, create_if_not_existing=True).local_path())
             if self.invert:
                 img = PIL.ImageOps.invert(img)
 

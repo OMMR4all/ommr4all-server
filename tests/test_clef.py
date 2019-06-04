@@ -1,6 +1,7 @@
 import unittest
 from database.file_formats.pcgts.page.musicregion import Clef, ClefType, MusicSymbolPositionInStaff, NoteName
 
+
 class TestClef(unittest.TestCase):
 
     def test_name_octave(self):
@@ -83,3 +84,7 @@ class TestClef(unittest.TestCase):
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_4), (NoteName.B, 3))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_4), (NoteName.C, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_5), (NoteName.D, 4))
+
+
+if __name__ == '__main__':
+    unittest.main()

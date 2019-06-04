@@ -23,7 +23,7 @@ class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
         settings = SegmentationSettings()
         self.segmentator = Segmentator(settings)
 
-    def _predict(self, pcgts_files: List[PcGts], callback: Optional[LayoutAnalysisPredictorCallback]) -> PredictionType:
+    def _predict(self, pcgts_files: List[PcGts], callback: Optional[LayoutAnalysisPredictorCallback] = None) -> PredictionType:
         def extract_staffs(pcgts: PcGts):
             staffs = []
             for mr in pcgts.page.music_regions:
@@ -39,7 +39,7 @@ class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
 
         for p in self.segmentator.segment(
                 map(extract_staffs, pcgts_files),
-                [p.page.location.file('gray_deskewed').local_path() for p in pcgts_files], ):
+                [p.page.location.file('gray_deskewed', True).local_path() for p in pcgts_files], ):
 
             yield PredictionResult(
                 text_regions={

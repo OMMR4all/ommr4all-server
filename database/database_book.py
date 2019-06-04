@@ -1,7 +1,7 @@
 import os
 import logging
 from typing import List, TYPE_CHECKING
-from ommr4all.settings import PRIVATE_MEDIA_ROOT, PRIVATE_MEDIA_URL, BASE_DIR
+import ommr4all.settings as settings
 import shutil
 import re
 
@@ -29,7 +29,7 @@ class FileExistsException(Exception):
 class DatabaseBook:
     @staticmethod
     def list_available():
-        return [DatabaseBook(name) for name in os.listdir(PRIVATE_MEDIA_ROOT) if DatabaseBook(name, skip_validation=True).is_valid()]
+        return [DatabaseBook(name) for name in os.listdir(settings.PRIVATE_MEDIA_ROOT) if DatabaseBook(name, skip_validation=True).is_valid()]
 
     @staticmethod
     def list_available_book_metas():
@@ -75,16 +75,16 @@ class DatabaseBook:
         return DatabasePage(self, page)
 
     def local_default_models_path(self, sub=''):
-        return os.path.join(BASE_DIR, 'internal_storage', 'default_models', 'french14', sub)
+        return os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', 'french14', sub)
 
     def local_default_virtual_keyboards_path(self, sub=''):
-        return os.path.join(BASE_DIR, 'internal_storage', 'default_virtual_keyboards', sub)
+        return os.path.join(settings.BASE_DIR, 'internal_storage', 'default_virtual_keyboards', sub)
 
     def local_path(self, sub=''):
-        return os.path.join(PRIVATE_MEDIA_ROOT, self.book, sub)
+        return os.path.join(settings.PRIVATE_MEDIA_ROOT, self.book, sub)
 
     def remote_path(self):
-        return os.path.join(PRIVATE_MEDIA_URL, self.book)
+        return os.path.join(settings.PRIVATE_MEDIA_URL, self.book)
 
     def is_valid_name(self):
         return file_name_validator.fullmatch(self.book)

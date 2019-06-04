@@ -1,0 +1,26 @@
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
+before_script:
+  - virtualenv -p python3.7 venv
+  - source venv/bin/activate
+  - pip install tensorflow
+  - pip install -r requirements.txt
+  - python manage.py migrate
+  - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab2.informatik.uni-wuerzburg.de/chw71yx/page-segmentation.git
+  - cd page-segmentation && python setup.py install && cd ..
+  - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab2.informatik.uni-wuerzburg.de/OMMR4all/ommr4all-line-detection.git
+  - cd ommr4all-line-detection && python setup.py install && cd ..
+  - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab2.informatik.uni-wuerzburg.de/OMMR4all/ommr4all-layout-analysis.git
+  - cd ommr4all-layout-analysis && python setup.py install && cd ..
+
+test:
+  tags:
+  - development
+  script:
+  - python manage.py test

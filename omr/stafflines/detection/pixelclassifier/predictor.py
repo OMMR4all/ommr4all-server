@@ -100,9 +100,6 @@ if __name__ == '__main__':
         ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/models_out/all/line_detection_4/best"],
         # ["/home/wick/Downloads/line_detection_0/best"],
         target_line_space_height=10,
-        post_processing=False,
-        smooth_staff_lines=0,
-        line_fit_distance=0,
         dataset_params=StaffLineDetectionDatasetParams(
             gt_required=True,
             full_page=True,
