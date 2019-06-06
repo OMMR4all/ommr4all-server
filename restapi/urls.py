@@ -5,7 +5,7 @@ from django.http import HttpResponse
 from database import *
 from restapi.api import OperationStatusView, OperationView, BookView, BooksView, \
     PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView, BookMetaView, \
-    BookVirtualKeyboardView, PageLockView, OperationTaskView
+    BookVirtualKeyboardView, PageLockView, OperationTaskView, BookRenamePagesView
 from restapi.api.bookoperations import BookOperationStatusView, BookOperationTaskView, BookOperationView
 from restapi.api.auth import AuthView
 from restapi.api.bookcomments import BookCommentsView, BookCommentsCountView
@@ -65,6 +65,7 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/meta$', BookMetaView.as_view()),
         re_path(r'^book/(?P<book>\w+)/upload/$', BookUploadView.as_view()),
         re_path(r'^book/(?P<book>\w+)/virtual_keyboard/$', BookVirtualKeyboardView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/rename_pages/$', BookRenamePagesView.as_view()),
         re_path(r'^book/(?P<book>\w+)/download/(?P<type>[\w\.]+)$', BookDownloaderView.as_view()),
         re_path(r'^book/(?P<book>\w+)/operation/(?P<operation>\w+)$', BookOperationView.as_view()),
         re_path(r'^book/(?P<book>\w+)/operation/(?P<operation>\w+)/task/(?P<task_id>[\w\-]+)$', BookOperationTaskView.as_view()),

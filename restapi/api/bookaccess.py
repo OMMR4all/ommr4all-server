@@ -56,7 +56,7 @@ class BookView(APIView):
         pages = book.pages()
 
         pageIndex = int(request.query_params.get("pageIndex", 0))
-        pageSize = int(request.query_params.get("pageSize", 20))
+        pageSize = int(request.query_params.get("pageSize", len(pages)))
         offset = pageIndex * pageSize
 
         paginated_pages = pages[offset:offset + pageSize]
@@ -214,3 +214,68 @@ class BookDownloaderView(APIView):
 
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
+
+class BookRenamePagesView(APIView):
+    @require_permissions([DatabaseBookPermissionFlag.RENAME_PAGES])
+    def post(self, request, book):
+        book = DatabaseBook(book)
+        body = json.loads(request.body)
+        page_names = set(book.page_names())
+        files = body.get('files', [])
+        pairs = [(file['src'], file['target']) for file in files]
+        srcs, targets = zip(*pairs)
+
+        # checks for uniqueness
+        if len(set(srcs)) != len(srcs):
+            return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                            "Source files are not unique: {}".format(srcs),
+                            "Files are not unique",
+                            ErrorCodes.BOOK_PAGES_RENAME_REQUIRE_UNIQUE_SOURCES
+                            ).response()
+
+        if len(set(targets)) != len(targets):
+            return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                            "Target files are not unique: {}".format(targets),
+                            "Files are not unique",
+                            ErrorCodes.BOOK_PAGES_RENAME_REQUIRE_UNIQUE_TARGETS
+                            ).response()
+
+        # check that no target exists
+        intersection = set(targets).intersection(page_names.difference(set(srcs)))
+        if len(intersection) != 0:
+            return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                            "Target filename already exists: {}".format(intersection),
+                            "Target page(s) {} already exist(s).".format(", ".join(list(intersection))),
+                            ErrorCodes.BOOK_PAGES_RENAME_TARGET_EXISTS,
+                            ).response()
+
+        try:
+            # create prefix for temporary files
+            tmp_prefix = '_'
+            while len({tmp_prefix + s for s in srcs}.intersection(page_names)) != 0:
+                tmp_prefix += '_'
+
+            pages = [book.page(p) for p in srcs]
+
+            # move to temporary files
+            for page in pages:
+                page.rename(tmp_prefix + page.page)
+
+            # move to true targets
+            for page, target in zip(pages, targets):
+                page.rename(target)
+
+        except InvalidFileNameException as e:
+            return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                            "Renaming page not possible, because the new name '{}' is invalid.".format(e.filename),
+                            "Invalid page name '{}'".format(e.filename),
+                            ErrorCodes.PAGE_INVALID_NAME,
+                            ).response()
+        except FileExistsException as e:
+            return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                            "Renaming page not possible, because a file at '{}' already exists".format(e.filename),
+                            "A file at '{}' already exists".format(e.filename),
+                            ErrorCodes.PAGE_EXISTS,
+                            ).response()
+
+        return Response()

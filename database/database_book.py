@@ -17,6 +17,7 @@ file_name_validator = re.compile(r'\w+')
 class InvalidFileNameException(Exception):
     def __init__(self, filename):
         super().__init__("Invalid filename {}".format(filename))
+        self.filename = filename
 
 
 class FileExistsException(Exception):
