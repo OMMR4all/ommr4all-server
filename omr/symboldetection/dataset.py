@@ -1,4 +1,4 @@
-from database.file_formats.pcgts import PcGts, MusicLine
+from database.file_formats.pcgts import PcGts, MusicLine, PageScaleReference
 from database.file_formats.pcgts.page.textregion import TextRegionType
 from omr.dataset import RegionLineMaskData
 from typing import List, Generator, Tuple, Union, Optional
@@ -117,7 +117,7 @@ class SymbolDetectionDataset:
     def _create_marked_symbols(self) -> Generator[RegionLineMaskData, None, None]:
         for f in tqdm(self.files, total=len(self.files), desc="Loading music lines"):
             try:
-                input = ImageOperationData([], page=f.page)
+                input = ImageOperationData([], PageScaleReference.NORMALIZED, page=f.page)
                 for outputs in self.line_and_mask_operations.apply_single(input):
                     yield RegionLineMaskData(outputs)
             except (NoStaffsAvailable, NoStaffLinesAvailable):
@@ -131,17 +131,13 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from omr.dewarping.dummy_dewarper import dewarp
     from imageio import imsave
-    pages = [p for p in DatabaseBook('Graduel_Fully_Annotated').pages()]
+    pages = [p for p in DatabaseBook('demo').pages()]
     params = SymbolDetectionDatasetParams(
-        height=100,
-        gt_required=True,
+        pad=(0, 10, 0, 40),
         dewarp=True,
-        cut_region=False,
         center=True,
-        pad=(0, 10, 0, 20),
         staff_lines_only=True,
-        masks_as_input=False,
-        neume_types_only=True,
+        cut_region=False,
     )
 
     if not True:
@@ -156,6 +152,21 @@ if __name__ == '__main__':
                 img = sample['image']
                 ax[i, a].imshow(img)
     if True:
+        page = pages[0]
+        pcgts = PcGts.from_file(page.file('pcgts'))
+        dataset = SymbolDetectionDataset([pcgts], params)
+        ps_dataset = dataset.to_music_line_page_segmentation_dataset()
+        f, ax = plt.subplots(len(ps_dataset.data), 3, sharex='all', sharey='all')
+        for i, out in enumerate(ps_dataset.data):
+            img, region, mask = out.image, out.image, out.mask
+            # img = sample['image'][:,:,1:4].transpose([1,0,2])
+            if np.min(img.shape) > 0:
+                print(img.shape, img.dtype, img.min(), img.max())
+                ax[i, 0].imshow(img)
+                ax[i, 1].imshow(region)
+                ax[i, 2].imshow(mask)
+                # imsave("/home/wick/line0.jpg", 255 - (mask / mask.max() * 255))
+    if not True:
         page = pages[0]
         pcgts = PcGts.from_file(page.file('pcgts'))
         dataset = SymbolDetectionDataset([pcgts], params)

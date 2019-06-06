@@ -7,6 +7,7 @@ from enum import Enum
 
 class LayoutPredictorParameters(NamedTuple):
     checkpoints: List[str]
+    page_scale_reference: PageScaleReference = PageScaleReference.NORMALIZED
 
 
 class PredictionResult(NamedTuple):
@@ -58,7 +59,7 @@ class LayoutAnalysisPredictor(ABC):
         self.params = params
         self.dataset: SymbolDetectionDataset = None
 
-    def predict(self, pcgts_files: List[PcGts], callback: Optional[LayoutAnalysisPredictorCallback]) -> FinalPrediction:
+    def predict(self, pcgts_files: List[PcGts], callback: Optional[LayoutAnalysisPredictorCallback] = None) -> FinalPrediction:
         for r, pcgts in zip(self._predict(pcgts_files, callback=callback), pcgts_files):
             music_lines = []
             for mr in pcgts.page.music_regions:

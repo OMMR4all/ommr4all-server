@@ -21,14 +21,14 @@ class ImageDrawRegions(ImageOperation):
                 image = image_data.image
                 if self.music_region:
                     for mr in page.music_regions:
-                        mr.coords.draw(image, self.color, fill=True)
+                        page.page_to_image_scale(mr.coords, data.scale_reference).draw(image, self.color, fill=True)
                         for ml in mr.staffs:
-                            ml.coords.draw(image, self.color, fill=True)
+                            page.page_to_image_scale(ml.coords, data.scale_reference).draw(image, self.color, fill=True)
 
                 for r in [r for r in page.text_regions if r.region_type in self.text_region_types]:
-                    r.coords.draw(image, self.color, fill=True)
+                    page.page_to_image_scale(r.coords, data.scale_reference).draw(image, self.color, fill=True)
                     for l in r.text_lines:
-                        l.coords.draw(image, self.color, fill=True)
+                        page.page_to_image_scale(l.coords, data.scale_reference).draw(image, self.color, fill=True)
 
         return [d]
 

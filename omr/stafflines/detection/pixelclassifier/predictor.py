@@ -48,12 +48,13 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
             line_number=params.num_staff_lines,
             horizontal_min_length=6,
             line_interpolation=True,
-            line_space_height=0,
+            line_space_height=10,
             target_line_space_height=params.target_line_space_height,
             model=model_path,
             post_process=params.post_processing,
             best_fit_scale=params.best_fit_scale,
-            # debug=True, smooth_lines_advdebug=True,
+            # debug=True,
+            # debug_model=True,
         )
         self.line_detection = LineDetection(self.settings)
 
@@ -68,6 +69,7 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
         predictions = self.line_detection.detect(gray_images)
         for i, (data, r) in enumerate(zip(dataset, predictions)):
             rlmd: RegionLineMaskData = data
+            page: Page = rlmd.operation.page
             logger.debug("Predicted {}/{}. File {}".format(i + 1, len(dataset), rlmd.operation.page.location.local_path()))
             if len(r) == 0:
                 logger.warning('No staff lines detected.')
@@ -76,8 +78,8 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
                 def transform_points(yx_points):
                     return Coords(np.array([pc_dataset.line_and_mask_operations.local_to_global_pos(Point(p[1], p[0]), rlmd.operation.params).p for p in yx_points]))
 
-                ml_global = MusicLines([MusicLine(staff_lines=StaffLines([StaffLine(transform_points(list(pl))) for pl in l])) for l in r])
-                ml_local = MusicLines([MusicLine(staff_lines=StaffLines([StaffLine(Coords(np.array(pl)[:, ::-1])) for pl in l])) for l in r])
+                ml_global = MusicLines([MusicLine(staff_lines=StaffLines([StaffLine(page.image_to_page_scale(transform_points(list(pl)), rlmd.operation.scale_reference)) for pl in l])) for l in r])
+                ml_local = MusicLines([MusicLine(staff_lines=StaffLines([StaffLine(page.image_to_page_scale(Coords(np.array(pl)[:, ::-1]), rlmd.operation.scale_reference)) for pl in l])) for l in r])
                 yield PredictionResult(ml_global, ml_local, rlmd)
 
 

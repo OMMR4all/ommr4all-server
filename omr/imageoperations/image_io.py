@@ -10,7 +10,7 @@ class ImageLoadFromPageOperation(ImageOperation):
     def __init__(self, invert=False, files: List[Tuple[str, bool]] = None):
         super().__init__()
         self.invert = invert
-        self.files: List[Tuple[str, bool]] = files if files else [('gray_deskewed', False)]
+        self.files: List[Tuple[str, bool]] = files if files else [('gray_norm', False)]
 
     def apply_single(self, data: ImageOperationData) -> OperationOutput:
         d = copy(data)

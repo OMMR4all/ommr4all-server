@@ -1,20 +1,37 @@
-from database.file_formats.pcgts.page import TextRegion, MusicRegion
+from database.file_formats.pcgts.page import TextRegion, MusicRegion, Coords, Point
 from database.file_formats.pcgts.page import annotations as annotations
 from database.file_formats.pcgts.page.usercomment import UserComments
 from database.file_formats.pcgts.page.readingorder import ReadingOrder
-from typing import List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING, Union, Optional
 import numpy as np
-import os
+from enum import IntEnum
 
 if TYPE_CHECKING:
     from database import DatabasePage
+
+
+class PageScaleReference(IntEnum):
+    ORIGINAL = 0
+    HIGHRES = 1
+    LOWRES = 2
+    NORMALIZED = 3
+
+    def file(self, color: str = "color"):
+        if self.value == PageScaleReference.ORIGINAL:
+            return color + "_original"
+        elif self.value == PageScaleReference.HIGHRES:
+            return color + "_highres_preproc"
+        elif self.value == PageScaleReference.LOWRES:
+            return color + "_lowres_preproc"
+        elif self.value == PageScaleReference.NORMALIZED:
+            return color + "_norm"
 
 
 class Page:
     def __init__(self,
                  text_regions: List[TextRegion]=None,
                  music_regions: List[MusicRegion]=None,
-                 image_filename="", image_height=0, image_width=0,
+                 image_filename="", image_height=0, image_width=0, relative_coords=False,
                  location: 'DatabasePage' = None):
         self.text_regions: List[TextRegion] = text_regions if text_regions else []
         self.music_regions: List[MusicRegion] = music_regions if music_regions else []
@@ -25,6 +42,8 @@ class Page:
         self.comments = UserComments(self)
         self.reading_order = ReadingOrder(self)
         self.location = location
+        self.relative_coords = relative_coords
+        self.page_scale_ratios = {}
 
     def syllable_by_id(self, syllable_id):
         for t in self.text_regions:
@@ -46,6 +65,7 @@ class Page:
             json.get('imageFilename', ""),
             json.get('imageHeight', 0),
             json.get('imageWidth', 0),
+            json.get('relativeCoords', False),
             location=location,
         )
         if 'annotations' in json:
@@ -67,6 +87,7 @@ class Page:
             "imageFilename": self.image_filename,
             "imageWidth": self.image_width,
             "imageHeight": self.image_height,
+            "relativeCoords": self.relative_coords,
             'annotations': self.annotations.to_json(),
             'comments': self.comments.to_json(),
             'readingOrder': self.reading_order.to_json(),
@@ -106,15 +127,15 @@ class Page:
     def all_text_lines(self):
         return [tl for tr in self.text_regions for tl in tr.text_lines]
 
-    def avg_staff_distance(self, index):
-        staffs = self.staff_equivs(index)
-        d = []
-        for i in range(1, len(staffs)):
-            top = staffs[i - 1].staff_lines[-1].center_y()
-            bot = staffs[i].staff_lines[0].center_y()
-            d.append(bot - top)
+    def all_staves_staff_line_coords(self, scale: Optional[PageScaleReference] = None) -> List[List[Coords]]:
+        staves: List[List[Coords]] = []
+        for mr in self.music_regions:
+            if scale:
+                staves += [[self.page_to_image_scale(sl.coords, scale) for sl in ml.staff_lines] for ml in mr.staffs]
+            else:
+                staves += [[sl.coords for sl in ml.staff_lines] for ml in mr.staffs]
 
-        return np.mean(d)
+        return staves
 
     def avg_staff_line_distance(self):
         staffs = self.all_music_lines()
@@ -133,3 +154,62 @@ class Page:
     def extract_music_line_images_and_gt(self, dewarped=True):
         pass
 
+    def page_scale_size(self, ref: PageScaleReference):
+        if ref not in self.page_scale_ratios:
+            from PIL import Image
+            img = Image.open(self.location.file(ref.file(), create_if_not_existing=True).local_path())
+            self.page_scale_ratios[ref] = img.size
+
+        return self.page_scale_ratios[ref]
+
+    def _scale(self, p: Union[Coords, Point, float, int], scale: float):
+        if isinstance(p, Coords):
+            return p.scale(scale)
+        elif isinstance(p, Point):
+            return p.scale(scale)
+        else:
+            return p * scale
+
+    def image_to_page_scale(self, p: Union[Coords, Point, float, int], ref: PageScaleReference = PageScaleReference.ORIGINAL):
+        return self._scale(p, 1.0 / self.page_scale_size(ref)[1])
+
+    def page_to_image_scale(self, p: Union[Coords, Point, float, int], ref: PageScaleReference = PageScaleReference.ORIGINAL):
+        return self._scale(p, self.page_scale_size(ref)[1])
+
+    def to_relative_coords(self):
+        if self.relative_coords:
+            # already in relative coords
+            return
+
+        from .musicregion import Neume
+
+        def i2p(p):
+            # validity check
+            if isinstance(p, Coords):
+                assert(0.0 <= p.points.all() <= 1.0)
+            elif isinstance(p, Point):
+                assert(0.0 <= p.p.all() <= 1.0)
+            else:
+                assert(0.0 <= p <= 1.0)
+
+            return self.image_to_page_scale(p, ref=PageScaleReference.ORIGINAL)
+
+        for r in self.text_regions:
+            r.coords = i2p(r.coords)
+            for l in r.text_lines:
+                l.coords = i2p(l.coords)
+
+        for r in self.music_regions:
+            r.coords = i2p(r.coords)
+            for l in r.staffs:
+                l.coords = i2p(l.coords)
+                for s in l.staff_lines:
+                    s.coords = i2p(s.coords)
+
+                for s in l.symbols:
+                    s.coord = i2p(s.coord)
+                    if isinstance(s, Neume):
+                        for nc in s.notes:
+                            nc.coord = i2p(nc.coord)
+
+        self.relative_coords = True

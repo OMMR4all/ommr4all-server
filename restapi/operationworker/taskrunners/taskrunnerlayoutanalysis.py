@@ -2,6 +2,10 @@ from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple
 from database.database_page import DatabasePage
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class TaskRunnerLayoutAnalysis(TaskRunner):
@@ -36,4 +40,8 @@ class TaskRunnerLayoutAnalysis(TaskRunner):
         pcgts = PcGts.from_file(self.page.file('pcgts'))
 
         com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
-        return list(pred.predict([pcgts], Callback()))[0].to_dict()
+        logger.debug("Starting layout prediction")
+        r = list(pred.predict([pcgts], Callback()))[0].to_dict()
+        logger.debug("Finished layout prediction with result: {}".format(r))
+        return r
+

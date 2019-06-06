@@ -26,9 +26,12 @@ class ImageExtractTextLineImages(ImageOperation):
         marked_regions = np.zeros(image.shape, dtype=np.uint8)
         i = 1
         text_regions = [tr for tr in data.page.text_regions if tr.region_type in self.text_region_types]
+        def p2i(p):
+            return data.page.page_to_image_scale(p, data.scale_reference)
+
         for tr in text_regions:
             for tl in tr.text_lines:
-                tl.coords.draw(marked_regions, i, 0, fill=True)
+                p2i(tl.coords).draw(marked_regions, i, 0, fill=True)
                 i += 1
 
         out = []

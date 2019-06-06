@@ -51,10 +51,19 @@ class StaffLinesPredictor(ABC):
 
 def create_staff_line_predictor(detector_type: StaffLinesModelType, params: StaffLinePredictorParameters) -> StaffLinesPredictor:
     if detector_type == StaffLinesModelType.PIXEL_CLASSIFIER:
-        from .pixelclassifier.predictor import BasicStaffLinePredictor
+        from omr.stafflines.detection.pixelclassifier.predictor import BasicStaffLinePredictor
         return BasicStaffLinePredictor(params)
 
     else:
         raise Exception("Unknown staff line detector type: {}".format(detector_type))
 
+
+if __name__ == "__main__":
+    from database import DatabaseBook
+    page = DatabaseBook('demo').pages()[0]
+    params = StaffLinePredictorParameters(checkpoints=[page.book.local_default_models_path('pc_staff_lines/model')])
+    pred = create_staff_line_predictor(StaffLinesModelType.PIXEL_CLASSIFIER, params)
+    pred = list(pred.predict([page.pcgts()]))[0]
+    print(pred)
+    print(len(pred.music_lines))
 

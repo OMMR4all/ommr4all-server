@@ -21,6 +21,9 @@ class Point:
     def y(self):
         return self.p[1]
 
+    def scale(self, scale):
+        return Point(self.p * scale)
+
     def distance_sqr(self, p: 'Point') -> float:
         return (self.x - p.x) ** 2 + (self.y - p.y) ** 2
 
@@ -130,6 +133,9 @@ class Coords:
     def __str__(self):
         return self.to_string()
 
+    def scale(self, factor):
+        return Coords(self.points * factor)
+
     @staticmethod
     def from_string(s):
         if len(s) == 0:
@@ -146,6 +152,9 @@ class Coords:
 
     def to_json(self):
         return self.to_string()
+
+    def center_y(self):
+        return np.mean(self.points[:, 1])
 
     def interpolate_y(self, x):
         return np.interp(x, self.points[:, 0], self.points[:, 1])

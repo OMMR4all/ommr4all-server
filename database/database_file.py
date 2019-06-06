@@ -5,6 +5,7 @@ from locked_dict.locked_dict import LockedDict
 import numpy as np
 import os
 from database.database_page import DatabasePage, DatabasePageMeta
+from omr.preprocessing.preprocessing import Preprocessing
 import logging
 
 
@@ -41,23 +42,6 @@ file_definitions = {
         ['meta.json'],
         requires=['color_original'],
     ),
-    'color_original': DatabaseFileDefinition(
-        'color_original',
-        ['color_original.jpg'],
-        has_preview=True,
-    ),
-    'binary_original': DatabaseFileDefinition(
-        'binary_original',
-        ['binary_original.png'],
-        requires=['gray_original'],
-        has_preview=True,
-    ),
-    'gray_original': DatabaseFileDefinition(
-        'gray_original',
-        ['gray_original.png'],
-        requires=['color_original'],
-        has_preview=True,
-    ),
     'annotation': DatabaseFileDefinition(
         'annotation',
         ['annotation.json'],
@@ -72,96 +56,80 @@ file_definitions = {
         'pcgts_backup',
         ['pcgts_backup.zip'],
     ),
-    'color_deskewed': DatabaseFileDefinition(
-        'color_deskewed',
-        ['color_deskewed.jpg', 'gray_deskewed.jpg', 'binary_deskewed.png'],
-        requires=['binary_original', 'gray_original', 'color_original'],
+    'color_original': DatabaseFileDefinition(
+        'color_original',
+        ['color_original.jpg'],
         has_preview=True,
     ),
-    'gray_deskewed': DatabaseFileDefinition(
-        'gray_deskewed',
-        ['gray_deskewed.jpg'],
-        requires=['color_deskewed'],
+    'color_highres_preproc': DatabaseFileDefinition(
+        'color_highres_preproc',
+        ['color_highres_preproc.jpg', 'gray_highres_preproc.jpg', 'binary_highres_preproc.png'],
+        requires=['color_original'],
         has_preview=True,
     ),
-    'binary_deskewed': DatabaseFileDefinition(
-        'binary_deskewed',
-        ['binary_deskewed.png'],
-        requires=['color_deskewed'],
+    'gray_highres_preproc': DatabaseFileDefinition(
+        'gray_highres_preproc',
+        ['gray_highres_preproc.jpg'],
+        requires=['color_highres_preproc'],
         has_preview=True,
     ),
-    'connected_components_deskewed': DatabaseFileDefinition(
-        'connected_components_deskewed',
-        ['connected_components_deskewed.pkl'],
-        requires=['binary_deskewed'],
-    ),
-    'color_cropped': DatabaseFileDefinition(
-        'color_cropped',
-        ['color_cropped.jpg', 'gray_cropped.jpg', 'binary_cropped.png'],
-        requires=['color_deskewed', 'gray_deskewed', 'binary_deskewed', 'annotation'],
+    'binary_highres_preproc': DatabaseFileDefinition(
+        'binary_highres_preproc',
+        ['binary_highres_preproc.png'],
+        requires=['color_highres_preproc'],
         has_preview=True,
     ),
-    'gray_cropped': DatabaseFileDefinition(
-        'gray_cropped',
-        ['color_cropped.jpg', 'gray_cropped.jpg', 'binary_cropped.png'],
-        default=1,
-        requires=['color_cropped'],
+    'color_lowres_preproc': DatabaseFileDefinition(
+        'color_lowres_preproc',
+        ['color_lowres_preproc.jpg', 'gray_lowres_preproc.jpg', 'binary_lowres_preproc.png'],
+        requires=['color_highres_preproc'],
         has_preview=True,
     ),
-    'binary_cropped': DatabaseFileDefinition(
-        'binary_cropped',
-        ['color_cropped.jpg', 'gray_cropped.jpg', 'binary_cropped.png'],
-        default=2,
-        requires=['color_cropped'],
+    'gray_lowres_preproc': DatabaseFileDefinition(
+        'gray_lowres_preproc',
+        ['gray_lowres_preproc.jpg'],
+        requires=['color_lowres_preproc'],
         has_preview=True,
     ),
-    'detected_staffs': DatabaseFileDefinition(
-        'detected_staffs',
-        ['detected_staffs.json'],
-        requires=['binary_deskewed', 'gray_deskewed'],
-    ),
-    'color_detected_staffs': DatabaseFileDefinition(
-        'color_detected_staffs',
-        ['color_detected_staffs.jpg'],
-        requires=['detected_staffs', 'color_cropped'],
+    'binary_lowres_preproc': DatabaseFileDefinition(
+        'binary_lowres_preproc',
+        ['binary_lowres_preproc.png'],
+        requires=['color_lowres_preproc'],
         has_preview=True,
     ),
-    'gray_detected_staffs': DatabaseFileDefinition(
-        'gray_detected_staffs',
-        ['gray_detected_staffs.jpg'],
-        requires=['detected_staffs', 'gray_cropped'],
+    'color_norm': DatabaseFileDefinition(
+        'color_norm',
+        ['color_norm.jpg', 'gray_norm.jpg', 'binary_norm.png'],
+        requires=['color_highres_preproc', 'color_original'],
         has_preview=True,
     ),
-    'binary_detected_staffs': DatabaseFileDefinition(
-        'binary_detected_staffs',
-        ['binary_detected_staffs.jpg'],
-        requires=['detected_staffs', 'binary_cropped'],
+    'gray_norm': DatabaseFileDefinition(
+        'gray_norm',
+        ['gray_norm.jpg'],
+        requires=['color_norm'],
         has_preview=True,
     ),
-    'dewarped_original': DatabaseFileDefinition(
-        'dewarped_original',
-        ['dewarped_original.jpg', 'dewarped_gray.jpg', 'dewarped_binary.png'],
-        requires=['cropped_binary', 'cropped_gray', 'cropped_original', 'annotation'],
-        has_preview=True,
-    ),
-    'dewarped_gray': DatabaseFileDefinition(
-        'dewarped_gray',
-        ['dewarped_gray.jpg'],
-        requires=['dewarped_original'],
-        has_preview=True,
-    ),
-    'dewarped_binary': DatabaseFileDefinition(
-        'deskewed_binary',
-        ['dewarped_binary.png'],
-        requires=['dewarped_original'],
+    'binary_norm': DatabaseFileDefinition(
+        'binary_norm',
+        ['binary_norm.png'],
+        requires=['color_norm'],
         has_preview=True,
     ),
 
+    'connected_components_norm': DatabaseFileDefinition(
+        'connected_components_norm',
+        ['connected_components_norm.pkl'],
+        requires=['binary_norm'],
+    ),
 }
 
 mutex_dict = LockedDict()
 
 thumbnail_size = (200, 350)
+
+high_res_max_width = 2000
+low_res_max_width = 1000
+target_staff_line_distance = 10
 
 
 class DatabaseFile:
@@ -217,8 +185,12 @@ class DatabaseFile:
             if os.path.exists(self.local_thumbnail_path(file_id=i)):
                 os.remove(self.local_thumbnail_path(file_id=i))
 
+    def _save_and_thumbnail(self, img: Image, idx: int):
+        img.save(self.local_path(idx))
+        img.thumbnail(thumbnail_size)
+        img.save(self.local_thumbnail_path(idx))
+
     def create(self):
-        from database.file_formats.pcgts import MusicLines
 
         with mutex_dict.get(self.local_path(), Lock()):
             if self.exists():
@@ -275,123 +247,59 @@ class DatabaseFile:
                 img = Image.open(self.local_path())
                 img.thumbnail(thumbnail_size)
                 img.save(self.local_thumbnail_path())
-            elif self.definition.id == 'binary_original':
-                from omr.preprocessing.binarizer.ocropus_binarizer import OCRopusBin
-                b = OCRopusBin()
-                gray_image = DatabaseFile(self.page, 'gray_original').local_path()
-                binary = b.binarize(Image.open(gray_image))
-                binary.save(self.local_path())
-                binary.thumbnail(thumbnail_size)
-                binary.save(self.local_thumbnail_path())
-            elif self.definition.id == 'gray_original':
-                from omr.preprocessing.gray.img2gray import im2gray
-                gray = im2gray(Image.open(DatabaseFile(self.page, 'color_original').local_path()))
-                gray.save(self.local_path())
-                gray.thumbnail(thumbnail_size)
-                gray.save(self.local_thumbnail_path())
-            elif self.definition.id == 'color_deskewed':
-                from omr.preprocessing.deskewer import default_deskewer
-                deskewer = default_deskewer()
-                orig, gray, binary = deskewer.deskew(
-                    Image.open(DatabaseFile(self.page, 'color_original').local_path()),
-                    Image.open(DatabaseFile(self.page, 'gray_original').local_path()),
-                    Image.open(DatabaseFile(self.page, 'binary_original').local_path()),
-                )
-                orig.save(self.local_path(0))
-                gray.save(self.local_path(1))
-                binary.save(self.local_path(2))
-                orig.thumbnail(thumbnail_size)
-                orig.save(self.local_thumbnail_path(0))
-                gray.thumbnail(thumbnail_size)
-                gray.save(self.local_thumbnail_path(1))
-                binary.thumbnail(thumbnail_size)
-                binary.save(self.local_thumbnail_path(2))
-            elif self.definition.id == 'connected_components_deskewed':
+            elif self.definition.id == 'color_highres_preproc':
+                preproc = Preprocessing()
+                img = Image.open(self.page.local_file_path('color_original.jpg'))
+                w, h = img.size
+                out_w = min(high_res_max_width, w)
+                out_h = (out_w * h) // w
+                c_hr = img.resize((out_w, out_h), Image.BILINEAR)
+                c_hr, g_hr, b_hr = preproc.preprocess(c_hr)
+                self._save_and_thumbnail(c_hr, 0)
+                self._save_and_thumbnail(g_hr, 1)
+                self._save_and_thumbnail(b_hr, 2)
+            elif self.definition.id == 'color_lowres_preproc':
+                c_hr = Image.open(self.page.local_file_path('color_highres_preproc.jpg'))
+                b_hr = Image.open(self.page.local_file_path('binary_highres_preproc.png'))
+                g_hr = Image.open(self.page.local_file_path('gray_highres_preproc.jpg'))
+                w, h = c_hr.size
+                out_w = min(low_res_max_width, w)
+                out_h = (out_w * h) // w
+                size = (out_w, out_h)
+                c_hr = c_hr.resize(size, Image.BILINEAR)
+                g_hr = g_hr.resize(size, Image.BILINEAR)
+                b_hr = b_hr.resize(size, Image.NEAREST)
+
+                self._save_and_thumbnail(c_hr, 0)
+                self._save_and_thumbnail(g_hr, 1)
+                self._save_and_thumbnail(b_hr, 2)
+            elif self.definition.id == 'color_norm':
+                c_hr = Image.open(self.page.local_file_path('color_highres_preproc.jpg'))
+                low_binary = Image.open(self.page.local_file_path('binary_highres_preproc.png'))
+                from omr.preprocessing.scale.scale import LineDistanceComputer
+                ldc = LineDistanceComputer()
+                r = ldc.get_line_distance(np.array(low_binary) / 255)
+
+                # rescale original image
+                scaling = r.line_distance / target_staff_line_distance
+                size = (int(c_hr.size[0] / scaling), int(c_hr.size[1] / scaling))
+                c_hr = c_hr.resize(size, Image.BILINEAR)
+
+                # compute gray and binary based on normalized color image
+                preproc = Preprocessing()
+                g_hr = preproc.im2gray(c_hr)
+                b_hr = preproc.binarize(c_hr)
+
+                # save output
+                self._save_and_thumbnail(c_hr, 0)
+                self._save_and_thumbnail(g_hr, 1)
+                self._save_and_thumbnail(b_hr, 2)
+            elif self.definition.id == 'connected_components_norm':
                 import pickle
                 from omr.preprocessing.util.connected_compontents import connected_compontents_with_stats
-                binary = np.array(Image.open(DatabaseFile(self.page, 'binary_deskewed').local_path()))
+                binary = np.array(Image.open(DatabaseFile(self.page, 'binary_norm').local_path()))
                 with open(self.local_path(), 'wb') as f:
                     pickle.dump(connected_compontents_with_stats(binary), f)
-            elif self.definition.id == 'detected_staffs':
-                from omr.stafflines.detection.dummy_detector import detect
-                import json
-                binary = Image.open(DatabaseFile(self.page, 'binary_deskewed').local_path())
-                gray = Image.open(DatabaseFile(self.page, 'gray_deskewed').local_path())
-                lines = detect(np.array(binary) // 255, np.array(gray) / 255)
-                s = lines.to_json()
-                with open(self.local_path(), 'w') as f:
-                    json.dump(s, f, indent=2)
-            elif self.definition.id == 'color_cropped':
-                from omr.preprocessing.cropper import default_cropper
-                import json
-                images = (
-                    Image.open(DatabaseFile(self.page, 'color_deskewed').local_path()),
-                    Image.open(DatabaseFile(self.page, 'gray_deskewed').local_path()),
-                    Image.open(DatabaseFile(self.page, 'binary_deskewed').local_path()),
-                )
-                cropper = default_cropper()
-                (orig, gray, binary) = cropper.crop(images[0], images[1], images[2])
-                orig.save(self.local_path(0))
-                orig.thumbnail(thumbnail_size)
-                orig.save(self.local_thumbnail_path(0))
-                gray.save(self.local_path(1))
-                gray.thumbnail(thumbnail_size)
-                gray.save(self.local_thumbnail_path(1))
-                binary.save(self.local_path(2))
-                binary.thumbnail(thumbnail_size)
-                binary.save(self.local_thumbnail_path(2))
-
-                # annotation = File(self.page, 'annotation').local_path()
-                # s = MusicLines.from_json(json.load(open(annotation, 'r')))
-                # s.crop = cropper.rect
-                # with open(annotation, 'w') as f:
-                #    json.dump(s.to_json(), f, indent=2)
-            elif self.definition.id == 'color_detected_staffs':
-                import json
-                img = Image.open(DatabaseFile(self.page, 'color_deskewed').local_path())
-                with open(DatabaseFile(self.page, 'detected_staffs').local_path(), 'r') as f:
-                    staffs = MusicLines.from_json(json.load(f))
-                    img = np.array(img)
-                    staffs.draw(img)
-                    img = Image.fromarray(img)
-                    img.save(self.local_path())
-                    img.thumbnail(thumbnail_size)
-                    img.save(self.local_thumbnail_path())
-            elif self.definition.id == 'gray_detected_staffs':
-                import json
-                img = Image.open(DatabaseFile(self.page, 'gray_deskewed').local_path())
-                with open(DatabaseFile(self.page, 'detected_staffs').local_path(), 'r') as f:
-                    staffs = MusicLines.from_json(json.load(f))
-                    img = np.array(img)
-                    staffs.draw(img, color=(0, ))
-                    img = Image.fromarray(img)
-                    img.save(self.local_path())
-                    img.thumbnail(thumbnail_size)
-                    img.save(self.local_thumbnail_path())
-            elif self.definition.id == 'binary_detected_staffs':
-                import json
-                img = Image.open(DatabaseFile(self.page, 'binary_deskewed').local_path())
-                with open(DatabaseFile(self.page, 'detected_staffs').local_path(), 'r') as f:
-                    staffs = MusicLines.from_json(json.load(f))
-                    img = np.array(img)
-                    staffs.draw(img, color=(0, ))
-                    img = Image.fromarray(img)
-                    img.save(self.local_path())
-                    img.thumbnail(thumbnail_size)
-                    img.save(self.local_thumbnail_path())
-            elif self.definition.id == 'dewarped_gray' or self.definition.id == 'dewarped_binary' \
-                    or self.definition.id == 'dewarped_original':
-                from omr.dewarping.dummy_dewarper import dewarp
-                import json
-                orig, gray, binary = dewarp(
-                    (Image.open(DatabaseFile(self.page, 'cropped_original').local_path()),
-                     Image.open(DatabaseFile(self.page, 'cropped_gray').local_path()),
-                     Image.open(DatabaseFile(self.page, 'cropped_binary').local_path())),
-                    MusicLines.from_json(json.load(open(DatabaseFile(self.page, 'annotation').local_path(), 'r')))
-                )
-                orig.save(self.local_path(0))
-                gray.save(self.local_path(1))
-                binary.save(self.local_path(2))
             else:
                 raise Exception("Cannot create file for {}".format(self.definition.id))
 

@@ -60,10 +60,9 @@ class PCTrainer(SymbolDetectionTrainerBase):
 
 
 if __name__ == '__main__':
-    b = DatabaseBook('Graduel')
-    pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[12:13]]
-    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[:1]]
-    page = DatabaseBook('Graduel').page('Graduel_de_leglise_de_Nevers_033')
+    b = DatabaseBook('demo')
+    pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[0:1]]
+    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[0:1]]
     # pcgts = PcGts.from_file(page.file('pcgts'))
     trainer = PCTrainer(pcgts, val_pcgts)
     trainer.run(b)

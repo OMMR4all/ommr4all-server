@@ -61,5 +61,5 @@ class BasicStaffLinesTrainer(StaffLinesTrainer):
 
 
 if __name__=="__main__":
-    trainer = BasicStaffLinesTrainer(DatabaseBook('Graduel'))
+    trainer = BasicStaffLinesTrainer(DatabaseBook('demo'))
     trainer.train()

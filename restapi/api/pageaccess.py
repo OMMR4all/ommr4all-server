@@ -85,7 +85,10 @@ class PagePcGtsView(APIView):
             file.create()
 
         try:
-            return Response(PcGts.from_file(file).to_json())
+            pcgts = PcGts.from_file(file)
+            # TODO: REMOVE to local coords
+            pcgts.page.to_relative_coords()
+            return Response(pcgts.to_json())
         except JSONDecodeError as e:
             logger.error(e)
             file.delete()

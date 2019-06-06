@@ -1,7 +1,7 @@
-from omr.imageoperations.image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point, ImageOperationList
+from omr.imageoperations.image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point
 from omr.imageoperations.image_crop import ImageCropToSmallestBoxOperation
-from typing import Tuple, List, NamedTuple, Any, Optional
-from database.file_formats.pcgts import Page, MusicLine, Neume, NoteComponent, ClefType, Clef, AccidentalType, Accidental, GraphicalConnectionType, MusicLines
+from typing import Tuple, List, Any, Optional
+from database.file_formats.pcgts import Page, PageScaleReference, MusicLine, Neume, ClefType, Clef, AccidentalType, Accidental, GraphicalConnectionType, MusicLines, Coords
 import numpy as np
 from PIL import Image
 from copy import copy
@@ -38,13 +38,19 @@ class ImageExtractStaffLineImages(ImageOperation):
         image = data.images[0].image
         marked_regions = np.zeros(image.shape, dtype=np.uint8)
         marked_staff_lines = np.zeros(image.shape, dtype=np.uint8)
+        page = data.page
+
+        def scale(p):
+            return page.page_to_image_scale(p, data.scale_reference)
+
         i = 1
         s = []
         for mr in data.page.music_regions:
             for ml in mr.staffs:
                 s.append(ml)
-                ml.coords.draw(marked_regions, i, 0, fill=True)
-                ml.staff_lines.draw(marked_staff_lines, color=1, thickness=self.gt_line_thickness)
+                scale(ml.coords).draw(marked_regions, i, 0, fill=True)
+                for sl in ml.staff_lines:
+                    scale(sl.coords).draw(marked_staff_lines, color=1, thickness=self.gt_line_thickness)
                 i += 1
 
         out = []
@@ -109,22 +115,27 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         labels = np.zeros(image.shape, dtype=np.uint8)
         marked_symbols = np.zeros(labels.shape, dtype=np.uint8)
         i = 1
-        s = []
+        s: List[List[Coords]] = []
+
+        def extract_transformed_coords(ml: MusicLine) -> List[Coords]:
+            lines = ml.staff_lines.sorted()
+            return [data.page.page_to_image_scale(sl.coords, data.scale_reference) for sl in lines]
+
         for mr in data.page.music_regions:
             for ml in mr.staffs:
-                s.append(ml)
+                coords = extract_transformed_coords(ml)
+                s.append(coords)
                 if self.staff_lines_only:
                     # draw staff lines instead of full area, however add an average line distance to top and bottom
-                    lines = ml.staff_lines.sorted()
-                    avg_d = ml.avg_line_distance()
-                    top = int(lines[0].coords.points[:,1].min() - avg_d)
-                    bot = int(lines[-1].coords.points[:, 1].max() + avg_d)
-                    left = int(lines[0].coords.points[:, 0].min())
-                    right = int(lines[0].coords.points[:, 0].max())
+                    avg_d = data.page.page_to_image_scale(ml.avg_line_distance(), data.scale_reference)
+                    top = int(coords[0].points[:, 1].min() - avg_d)
+                    bot = int(coords[-1].points[:, 1].max() + avg_d)
+                    left = int(coords[0].points[:, 0].min())
+                    right = int(coords[0].points[:, 0].max())
                     labels[top:bot, left:right] = i
                 else:
-                    ml.coords.draw(labels, i, 0, fill=True)
-                self._symbols_to_mask(ml, marked_symbols)
+                    data.page.page_to_image_scale(ml.coords, data.scale_reference).draw(labels, i, 0, fill=True)
+                self._symbols_to_mask(ml, marked_symbols, data.page, data.scale_reference)
                 i += 1
 
         if self.dewarp:
@@ -157,13 +168,14 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                     cropped = self.cropper.apply_single(img_data)[0]
                     self._extract_image_op(img_data)
                     if self.center:
-                        r = self._resize_to_height(cropped.images, ml, rect=cropped.params)
+                        coords = extract_transformed_coords(ml)
+                        r = self._resize_to_height(cropped.images, coords, rect=cropped.params)
                         if r is not None:  # Invalid resize (probably no staff lines present)
                             img_data.images, r_params = r
-                            img_data.params = (i, cropped.params, r_params, all_music_lines)
+                            img_data.params = (i, cropped.params, r_params, s)
                             out.append(img_data)
                     else:
-                        img_data.params = (i, cropped.params, (0, ), all_music_lines)
+                        img_data.params = (i, cropped.params, (0, ), s)
                         out.append(img_data)
 
                 i += 1
@@ -180,8 +192,8 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
         return out
 
-    def _resize_to_height(self, lines: List[ImageData], ml: MusicLine, rect, relative_staff_height=3) -> Optional[Tuple[List[ImageData], Any]]:
-        if len(ml.staff_lines) < 1:
+    def _resize_to_height(self, lines: List[ImageData], coords: List[Coords], rect, relative_staff_height=3) -> Optional[Tuple[List[ImageData], Any]]:
+        if len(coords) < 1:
             return None
 
         t, b, l, r = rect
@@ -189,8 +201,8 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
             assert(lines[0].image.shape == l.image.shape)
 
         height, width = lines[0].image.shape
-        top = int(ml.staff_lines[0].center_y()) - t
-        bot = int(ml.staff_lines[-1].center_y()) - t
+        top = int(coords[0].center_y()) - t
+        bot = int(coords[-1].center_y()) - t
         if top > height or bot > height:
             logger.error('Invalid line. Staff lines out of region.')
             return None
@@ -223,13 +235,17 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
     def _extract_image_op(self, data: ImageOperationData):
         data.images = [data.images[1], ImageData(data.images[0].image * data.images[1].image, False)] + data.images[2:]
 
-    def _symbols_to_mask(self, ml: MusicLine, img: np.ndarray):
+    def _symbols_to_mask(self, ml: MusicLine, img: np.ndarray, page: Page, scale: PageScaleReference):
         if len(ml.staff_lines) < 2:  # at least two staff lines required
             return None
 
-        radius = (ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 4
+        def p2i(p):
+            return page.page_to_image_scale(p, scale)
+
+        radius = p2i(ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 4
 
         def set(coord, label: SymbolLabel):
+            coord = p2i(coord)
             img[int(coord.y - radius):int(coord.y + radius * 2), int(coord.x - radius): int(coord.x + radius * 2)] = label.value
 
         for s in ml.symbols:

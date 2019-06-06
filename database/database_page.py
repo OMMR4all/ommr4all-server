@@ -53,6 +53,10 @@ class DatabasePage:
     def remote_path(self):
         return os.path.join(self.book.remote_path(), self.page)
 
+    def pcgts(self, create_if_not_existing=True):
+        from database.file_formats.pcgts import PcGts
+        return PcGts.from_file(self.file('pcgts', create_if_not_existing))
+
     def is_valid(self):
         if not os.path.exists(self.local_path()):
             return True

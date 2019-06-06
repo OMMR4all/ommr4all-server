@@ -1,4 +1,4 @@
-from database.file_formats.pcgts import PcGts, TextRegionType, MusicLine
+from database.file_formats.pcgts import PcGts, TextRegionType, MusicLine, PageScaleReference
 import numpy as np
 from typing import List, Tuple, Generator, NamedTuple, Union
 from omr.dataset import RegionLineMaskData
@@ -17,7 +17,8 @@ class StaffLineDetectionDatasetParams(NamedTuple):
     gray: bool = True
     pad: Union[int, Tuple[int], Tuple[int, int], Tuple[int, int, int, int]] = 0
     extract_region_only: bool = True
-    gt_line_thickness: int = 3
+    gt_line_thickness: int = 2
+    page_scale_reference: PageScaleReference = PageScaleReference.NORMALIZED
 
 
 class PCDataset:
@@ -30,13 +31,13 @@ class PCDataset:
         self.marked_symbol_data: List[Tuple[MusicLine, np.ndarray]] = None
 
         self.line_and_mask_operations = ImageOperationList([
-            ImageLoadFromPageOperation(invert=True, files=[('gray_deskewed' if params.gray else 'binary_deskewed', False)]),
+            ImageLoadFromPageOperation(invert=True, files=[(params.page_scale_reference.file('gray' if params.gray else 'binary'), False)]),
             ImageExtractStaffLineImages(full_page=params.full_page, pad=params.pad, extract_region_only=params.extract_region_only, gt_line_thickness=params.gt_line_thickness),
             # ImageScaleOperation(0.5),  // Do not scale here, the line detector needs full resolution images
             # ImagePadToPowerOf2(),      // Padding also done in line detector
         ])
 
-    def to_page_segmentation_dataset(self, target_staff_line_distance=10, origin_staff_line_distance=None):
+    def to_page_segmentation_dataset(self, target_staff_line_distance=10, origin_staff_line_distance=10):
         from pagesegmentation.lib.dataset import Dataset, SingleData, DatasetLoader
         loader = DatasetLoader(target_staff_line_distance)
         return Dataset([loader.load_images(
@@ -61,7 +62,7 @@ class PCDataset:
     def _create_marked_lines(self) -> Generator[RegionLineMaskData, None, None]:
         for f in tqdm(self.files, total=len(self.files), desc="Loading music lines"):
             try:
-                input = ImageOperationData([], page=f.page)
+                input = ImageOperationData([], self.params.page_scale_reference, page=f.page)
                 for outputs in self.line_and_mask_operations.apply_single(input):
                     yield RegionLineMaskData(outputs)
             except Exception as e:
@@ -72,7 +73,7 @@ class PCDataset:
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from database import DatabaseBook
-    page = [p for p in DatabaseBook('Graduel').pages() if "527" in p.page][0]
+    page = DatabaseBook('demo').pages()[0]
     pcgts = PcGts.from_file(page.file('pcgts'))
     params = StaffLineDetectionDatasetParams(
         full_page=True,

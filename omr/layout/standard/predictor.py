@@ -25,29 +25,31 @@ class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[LayoutAnalysisPredictorCallback] = None) -> PredictionType:
         def extract_staffs(pcgts: PcGts):
+            page = pcgts.page
             staffs = []
             for mr in pcgts.page.music_regions:
                 for s in mr.staffs:
-                    staffs.append([list(sl.coords.points[:, ::-1].astype(int)) for sl in s.staff_lines])
+                    staffs.append([list(page.page_to_image_scale(sl.coords, self.params.page_scale_reference).points[:, ::-1].astype(int)) for sl in s.staff_lines])
             return staffs
 
-        def p_to_np(polys):
-            return [Coords(np.array(p.exterior.coords)) for p in polys]
+        def p_to_np(polys, page):
+            return [page.image_to_page_scale(Coords(np.array(p.exterior.coords)), self.params.page_scale_reference) for p in polys]
         if callback:
             # TODO: Layout analyse callback of layout-analyse not as class member variable
             self.segmentator.callback = SPredictionCallback(callback)
 
-        for p in self.segmentator.segment(
+        for p, pcgts in zip(self.segmentator.segment(
                 map(extract_staffs, pcgts_files),
-                [p.page.location.file('gray_deskewed', True).local_path() for p in pcgts_files], ):
+                [p.page.location.file(self.params.page_scale_reference.file('gray'), True).local_path() for p in pcgts_files], ), pcgts_files):
+            page = pcgts.page
 
             yield PredictionResult(
                 text_regions={
-                    TextRegionType.LYRICS: p_to_np(p.get('lyrics')),
-                    TextRegionType.DROP_CAPITAL: p_to_np(p.get('initials')),
-                    TextRegionType.PARAGRAPH: p_to_np(p.get('text')),
+                    TextRegionType.LYRICS: p_to_np(p.get('lyrics', []), page),
+                    TextRegionType.DROP_CAPITAL: p_to_np(p.get('initials', []), page),
+                    TextRegionType.PARAGRAPH: p_to_np(p.get('text', []), page),
                 },
-                music_regions=p_to_np(p.get('system')),
+                music_regions=p_to_np(p.get('system', []), page),
             )
 
 
@@ -56,9 +58,9 @@ if __name__ == "__main__":
     from PIL import Image
     import matplotlib.pyplot as plt
 
-    b = DatabaseBook('Graduel')
-    p = b.page('Graduel_de_leglise_de_Nevers_022')
-    img = np.array(Image.open(p.file('color_deskewed').local_path()))
+    b = DatabaseBook('demo')
+    p = b.page('page00000001')
+    img = np.array(Image.open(p.file('color_norm').local_path()))
     mask = np.zeros(img.shape, np.float) + 255
     val_pcgts = [PcGts.from_file(p.file('pcgts'))]
 

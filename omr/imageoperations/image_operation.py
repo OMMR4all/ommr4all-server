@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List, NamedTuple, Tuple, Any, Optional, Generator
+from typing import List, Any, Optional
 import numpy as np
-from database.file_formats.pcgts import Point, MusicLines, Page, MusicRegion, MusicLine, TextLine
+from database.file_formats.pcgts import Point, MusicLines, Page, MusicRegion, MusicLine, TextLine, PageScaleReference
 from dataclasses import dataclass
 from copy import copy
 
@@ -15,6 +15,7 @@ class ImageData:
 @dataclass
 class ImageOperationData:
     images: List[ImageData]
+    scale_reference: PageScaleReference
     params: Any = None
 
     page: Optional[Page] = None

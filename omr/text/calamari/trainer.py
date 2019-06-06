@@ -91,7 +91,7 @@ if __name__ == '__main__':
     import numpy as np
     random.seed(1)
     np.random.seed(1)
-    b = DatabaseBook('Graduel')
+    b = DatabaseBook('demo')
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
     train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState("Layout", True)], True, [b])
     params = TextDatasetParams(
@@ -105,7 +105,7 @@ if __name__ == '__main__':
         train_pcgts,
         val_pcgts,
         l_rate=1e-3,
-        load='/home/ls6/wick/Documents/Projects/calamari_models/fraktur_historical_ligs/0.ckpt.json',
+        load='/home/cwick/Documents/Projects/calamari_models/fraktur_historical_ligs/0.ckpt.json',
         calamari_params=CalamariParams(
             network="cnn=40:3x3,pool=2x2,cnn=60:3x3,pool=2x2,lstm=200,dropout=0.5",
             n_folds=0,

@@ -21,7 +21,6 @@ class TaskRunnerStaffLineDetection(TaskRunner):
             create_staff_line_predictor, StaffLinesModelType, StaffLinesPredictor, \
             StaffLinePredictorParameters, StaffLineDetectionDatasetParams, LineDetectionPredictorCallback
         import omr.stafflines.detection.pixelclassifier.settings as pc_settings
-        from database.file_formats import PcGts
         # load book specific model or default model as fallback
         model = self.page.book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))
         if not os.path.exists(model + '.meta'):
@@ -43,5 +42,5 @@ class TaskRunnerStaffLineDetection(TaskRunner):
         )
         staff_line_detector: StaffLinesPredictor = create_staff_line_predictor(StaffLinesModelType.PIXEL_CLASSIFIER, params)
         com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
-        staffs = list(staff_line_detector.predict([PcGts.from_file(self.page.file('pcgts'))], Callback()))[0].music_lines
+        staffs = list(staff_line_detector.predict([self.page.pcgts()], Callback()))[0].music_lines
         return {'staffs': [l.to_json() for l in staffs]}

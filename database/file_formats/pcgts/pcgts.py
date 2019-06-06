@@ -22,7 +22,7 @@ class PcGts:
             raise Exception("Invalid file extension of file '{}'".format(filename))
 
         if len(pcgts.page.image_filename) == 0:
-            pcgts.page.image_filename = DatabaseFile.file_definitions()['color_deskewed'].output[0]
+            pcgts.page.image_filename = DatabaseFile.file_definitions()['color_norm'].output[0]
 
         return pcgts
 
@@ -56,6 +56,9 @@ class PcGts:
 
 if __name__ == '__main__':
     from database.file_formats.pcgts import TextRegion, TextRegionType, Page, Meta
+    from database.database_page import DatabaseBook
+    import json
+    page = DatabaseBook('demo').pages()[0]
     pcgts = PcGts(Meta(), Page(
         [
             TextRegion(
@@ -66,8 +69,4 @@ if __name__ == '__main__':
     ))
 
     print(pcgts.to_json())
-    print(PcGts.from_json(pcgts.to_json()).to_json() == pcgts.to_json())
-
-
-
-
+    print(PcGts.from_json(pcgts.to_json(), page).to_json() == pcgts.to_json())

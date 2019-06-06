@@ -9,7 +9,7 @@ from omr.imageoperations.textlineoperations import ImageExtractTextLineImages
 
 from tqdm import tqdm
 
-from database.file_formats.pcgts import PcGts, TextLine
+from database.file_formats.pcgts import PcGts, TextLine, PageScaleReference
 from database.file_formats.pcgts.page.textregion import TextRegionType
 
 import logging
@@ -22,6 +22,7 @@ class TextDatasetParams:
     height: int = 80
     cut_region: bool = True
     pad: Union[int, Tuple[int], Tuple[int, int], Tuple[int, int, int, int]] = 0
+    scale_reference: PageScaleReference = PageScaleReference.NORMALIZED
 
 
 class TextDataset:
@@ -32,7 +33,7 @@ class TextDataset:
         self._lines: Optional[List[Tuple[TextLine, np.ndarray]]] = None
 
         operations = [
-            ImageLoadFromPageOperation(invert=True, files=[('binary_deskewed', True)]),
+            ImageLoadFromPageOperation(invert=True, files=[(params.scale_reference.file('binary'), True)]),
             ImageExtractTextLineImages({TextRegionType.LYRICS}, params.cut_region, params.pad),
             ImageRescaleToHeightOperation(height=params.height),
         ]
@@ -67,7 +68,7 @@ class TextDataset:
     def _generator(self) -> Generator[RegionLineMaskData, None, None]:
         for f in tqdm(self.files, total=len(self.files), desc="Loading music lines"):
             try:
-                input = ImageOperationData([], page=f.page)
+                input = ImageOperationData([], self.params.scale_reference, page=f.page)
                 for outputs in self.line_and_mask_operations.apply_single(input):
                     yield RegionLineMaskData(outputs)
             except Exception as e:
@@ -78,12 +79,13 @@ class TextDataset:
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from database.database_book import DatabaseBook
-    pages = [p for p in DatabaseBook('Graduel_Fully_Annotated').pages()]
+    pages = [p for p in DatabaseBook('demo').pages()]
     params = TextDatasetParams(
         height=60,
         gt_required=True,
         cut_region=True,
         pad=(0, 10, 0, 20),
+        scale_reference=PageScaleReference.HIGHRES,
     )
 
     if True:

@@ -203,7 +203,7 @@ def reduceImageCC(cc: ConnectedComponents, central_text_line: np.ndarray, filter
     return intersection_image, (min_x, min_y)
 
 
-def extract_components(cc: ConnectedComponents, central_text_line: Coords, staff_lines: List[StaffLine] = None, debug=False) -> List[Coords]:
+def extract_components(cc: ConnectedComponents, central_text_line: Coords, staff_lines: List[Coords] = None, debug=False) -> List[Coords]:
     if staff_lines is None:
         staff_lines = []
 
@@ -221,7 +221,7 @@ def extract_components(cc: ConnectedComponents, central_text_line: Coords, staff
     if len(staff_lines) > 0:
         intersection_image = intersection_image.astype(np.uint8)
         for sl in staff_lines:
-            Coords(sl.coords.points - offset).draw(intersection_image, (0, ), 2)
+            Coords(sl.points - offset).draw(intersection_image, (0, ), 2)
 
         cc = ConnectedComponents(*cv2.connectedComponentsWithStats(intersection_image, 4, cv2.CV_32S))
         result = reduceImageCC(cc, central_text_line - offset, filter_sigma=2)
@@ -257,9 +257,9 @@ def extract_components(cc: ConnectedComponents, central_text_line: Coords, staff
 if __name__ == '__main__':
     from database import DatabaseBook
     import pickle
-    book = DatabaseBook('test')
-    page = book.page('Graduel_de_leglise_de_Nevers_536')
-    with open(page.file('connected_components_deskewed', create_if_not_existing=True).local_path(), 'rb') as f:
+    book = DatabaseBook('demo')
+    page = book.pages()[0]
+    with open(page.file('connected_components_norm', create_if_not_existing=True).local_path(), 'rb') as f:
         cc = pickle.load(f)
     line = Coords(np.array([[100, 740], [900, 738]]))
     staff_lines = []

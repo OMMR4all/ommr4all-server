@@ -41,7 +41,7 @@ class PCS2STrainer(SymbolDetectionTrainerBase):
 
     def run(self, model_for_book: Optional[DatabaseBook] = None, callback: Optional[SymbolDetectionTrainerCallback] = None):
         print("Training the pixel classifier")
-        #self.pc_trainer.run(model_for_book, callback)
+        self.pc_trainer.run(model_for_book, callback)
         print("Training Calamari")
         self.s2s_trainer.run(model_for_book, callback)
         print("Done")
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     import numpy as np
     random.seed(1)
     np.random.seed(1)
-    b = DatabaseBook('Graduel_Fully_Annotated')
+    b = DatabaseBook('demo')
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
     train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState("Symbols", True), LockState("Layout", True)], True, [b])
     output = 'models_out/test_pcs2s'

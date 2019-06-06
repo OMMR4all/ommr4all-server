@@ -33,8 +33,8 @@ class OcropusDeskewer(Deskewer):
                  ):
         super().__init__(binarizer)
 
-    def _estimate_skew_angle(self):
-        return estimate_skew(np.array(self.binary_image))
+    def _estimate_skew_angle(self, color_image, gray_image, binary_image):
+        return estimate_skew(np.array(binary_image))
 
 
 if __name__ == '__main__':

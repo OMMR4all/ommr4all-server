@@ -2,7 +2,7 @@ from typing import List
 from pagesegmentation.lib.predictor import Predictor, PredictSettings
 import os
 from database.file_formats.pcgts import *
-from omr.symboldetection.dataset import RegionLineMaskData, SymbolDetectionDataset, SymbolDetectionDatasetParams
+from omr.symboldetection.dataset import RegionLineMaskData, SymbolDetectionDataset
 import cv2
 import numpy as np
 from omr.imageoperations.music_line_operations import SymbolLabel
@@ -70,6 +70,7 @@ class PCPredictor(SymbolDetectionPredictor):
             x = stats[i, cv2.CC_STAT_LEFT]
             c = Point(x=centroids[i, 0], y=centroids[i, 1])
             coord = self.dataset.line_and_mask_operations.local_to_global_pos(c, m.operation.params)
+            coord = m.operation.page.image_to_page_scale(coord, m.operation.scale_reference)
             #coord = coord.round().astype(int)
 
             # compute label this the label with the hightest frequency of the connected component

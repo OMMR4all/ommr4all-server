@@ -33,8 +33,11 @@ class PCS2SPredictor(SymbolDetectionPredictor):
             yield PredictionResult(self.extract_symbols(prediction, marked_symbols), marked_symbols)
 
     def extract_symbols(self, p, m: RegionLineMaskData) -> List[Symbol]:
+        def i2p(p):
+            return m.operation.page.image_to_page_scale(p, m.operation.scale_reference)
+
         sentence = [(pos.chars[0].char,
-                     self.dataset.line_and_mask_operations.local_to_global_pos(Point((pos.global_start + pos.global_end) / 2, 40), m.operation.params).x)
+                     i2p(self.dataset.line_and_mask_operations.local_to_global_pos(Point((pos.global_start + pos.global_end) / 2, 40), m.operation.params).x))
                     for pos in p.positions]
         return CalamariSequence.to_symbols(sentence, m.operation.music_line.staff_lines)
 
@@ -47,10 +50,11 @@ if __name__ == '__main__':
     import os
     random.seed(1)
     np.random.seed(1)
-    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState("Symbols", True), LockState("Layout", True)], True, [
-        DatabaseBook('Graduel_Part_1'),
-        DatabaseBook('Graduel_Part_2'),
-        DatabaseBook('Graduel_Part_3'),
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState("StaffLines", True), LockState("Layout", True)], True, [
+        # DatabaseBook('Graduel_Part_1'),
+        # DatabaseBook('Graduel_Part_2'),
+        # DatabaseBook('Graduel_Part_3'),
+        DatabaseBook('demo'),
     ])
     model_dir = 'models_out/test_pcs2s'
     params = SymbolDetectionDatasetParams(
@@ -69,18 +73,22 @@ if __name__ == '__main__':
         checkpoints=[model_dir],
         symbol_detection_params=params,
     ))
-    ps = list(pred.predict(val_pcgts[7:8]))
+    ps = list(pred.predict(train_pcgts[0:1]))
     orig = np.array(ps[0].line.operation.page_image)
     for p in ps:
+        page = p.line.operation.page
+        def p2i(l):
+            return page.page_to_image_scale(l, p.line.operation.scale_reference)
+
         for s in p.symbols:
             if s.symbol_type == SymbolType.NEUME:
                 n: Neume = s
                 for i, nc in enumerate(n.notes):
-                    c = nc.coord.round().astype(int)
+                    c = p2i(nc.coord).round().astype(int)
                     t, l = c.y, c.x
                     orig[t - 2:t + 2, l-2:l+2] = 255 * (i != 0) if nc.graphical_connection == GraphicalConnectionType.LOOPED else 250
             else:
-                c = s.coord.round().astype(int)
+                c = p2i(s.coord).round().astype(int)
                 t, l = c.y, c.x
                 orig[t - 2:t + 2, l-2:l+2] = 0
 
