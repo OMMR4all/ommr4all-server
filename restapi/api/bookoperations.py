@@ -88,6 +88,12 @@ class BookOperationView(APIView):
         elif operation == 'train_staff_line_detector':
             from restapi.operationworker.taskrunners.taskrunnerstafflinedetectiontrainer import TaskRunnerStaffLineDetectionTrainer
             return TaskRunnerStaffLineDetectionTrainer(book)
+        elif operation == 'preprocessing':
+            from restapi.operationworker.taskrunners.taskrunnerpreprocessing import TaskRunnerPreprocessing, PageSelection, Settings
+            return TaskRunnerPreprocessing(
+                PageSelection.from_json(body, book),
+                Settings.from_json(body),
+            )
         else:
             return None
 

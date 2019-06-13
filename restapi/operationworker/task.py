@@ -41,6 +41,8 @@ class TaskStatus:
     accuracy: float = -1
     early_stopping_progress: float = -1
     loss: float = -1
+    n_processed: int = 0
+    n_total: int = 0
 
     def to_json(self):
         return {
@@ -50,6 +52,8 @@ class TaskStatus:
             'accuracy': self.accuracy,
             'early_stopping_progress': self.early_stopping_progress,
             'loss': self.loss,
+            'n_processed': self.n_processed,
+            'n_total': self.n_total,
         }
 
 
