@@ -12,7 +12,7 @@ class EmptyDataSetException(BaseException):
     pass
 
 
-def dataset_by_locked_pages(n_train, locks: List[LockState], shuffle=True, datasets: List[DatabaseBook] = None) -> Tuple[List[PcGts], List[PcGts]]:
+def dataset_by_locked_pages(n_train, locks: List[LockState], shuffle: bool = True, datasets: List[DatabaseBook] = None) -> Tuple[List[PcGts], List[PcGts]]:
     logger.info("Finding PcGts files with valid ground truth")
     pcgts = []
     for dataset in (datasets if datasets else DatabaseBook.list_available()):

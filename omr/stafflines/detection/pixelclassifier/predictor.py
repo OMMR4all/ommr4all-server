@@ -87,23 +87,25 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from PIL import Image
     # page = Book('demo').page('page00000001')
-    book = DatabaseBook('Graduel_Part_1')
+    book = DatabaseBook('Graduel')
+    page = book.pages()[0]
     # page = book.page('Graduel_de_leglise_de_Nevers_032_rot')  # zacken in linie
     # page = book.page('Graduel_de_leglise_de_Nevers_531')
-    page = book.page('Graduel_de_leglise_de_Nevers_030')
-    #page = book.page('Graduel_de_leglise_de_Nevers_520')
-    #page = book.page('Graduel_de_leglise_de_Nevers_513')
+    # page = book.page('Graduel_de_leglise_de_Nevers_030')
+    # page = book.page('Graduel_de_leglise_de_Nevers_520')
+    # page = book.page('Graduel_de_leglise_de_Nevers_513')
 
     pcgts = [PcGts.from_file(page.file('pcgts'))]
 
     params = StaffLinePredictorParameters(
         # None if False else [book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))],
         # ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/internal_storage/default_models/french14/pc_staff_lines/model"],
-        ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/models_out/all/line_detection_4/best"],
+        #["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/models_out/all/line_detection_4/best"],
+        ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/storage/Graduel/pc_staff_lines/model"],
         # ["/home/wick/Downloads/line_detection_0/best"],
         target_line_space_height=10,
         dataset_params=StaffLineDetectionDatasetParams(
-            gt_required=True,
+            gt_required=False,
             full_page=True,
             gray=True,
             pad=0,

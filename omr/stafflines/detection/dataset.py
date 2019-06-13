@@ -46,8 +46,6 @@ class PCDataset:
                        mask=d.mask,
                        line_height_px=origin_staff_line_distance if origin_staff_line_distance is not None else d.operation.page.avg_staff_line_distance(),
                        original_shape=d.line_image.shape,
-                       xpad=0,
-                       ypad=0,
                        user_data=d)) for d in self.marked_lines()])
 
     def to_line_detection_dataset(self) -> List[RegionLineMaskData]:
@@ -73,7 +71,7 @@ class PCDataset:
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from database import DatabaseBook
-    page = DatabaseBook('demo').pages()[0]
+    page = DatabaseBook('Graduel').pages()[0]
     pcgts = PcGts.from_file(page.file('pcgts'))
     params = StaffLineDetectionDatasetParams(
         full_page=True,

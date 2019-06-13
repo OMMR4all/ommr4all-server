@@ -12,7 +12,7 @@ class StaffLinePredictorParameters(NamedTuple):
     dataset_params: StaffLineDetectionDatasetParams = StaffLineDetectionDatasetParams()
     target_line_space_height: int = 10
     post_processing: PostProcess = PostProcess.BESTFIT
-    best_fit_scale = 2.0
+    best_fit_scale = 4.0
 
     num_staff_lines: int = 4
     min_num_staff_lines: int = 3

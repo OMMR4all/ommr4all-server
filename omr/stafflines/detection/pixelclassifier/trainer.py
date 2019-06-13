@@ -36,7 +36,7 @@ class BasicStaffLinesTrainer(StaffLinesTrainer):
     def train(self, callback: Optional[StaffLinesDetectionTrainerCallback]=None):
         pc_callback = PCTrainerCallback(callback) if callback else None
 
-        train, val = dataset_by_locked_pages(0.8, [LockState('StaffLines', True)])
+        train, val = dataset_by_locked_pages(0.8, [LockState('StaffLines', True)], datasets=[self.book])
         if len(train) == 0 or len(val) == 0:
             raise EmptyDataSetException()
 
@@ -53,7 +53,7 @@ class BasicStaffLinesTrainer(StaffLinesTrainer):
             early_stopping_max_keep=5,
             early_stopping_on_accuracy=True,
             threads=8,
-            data_augmentation=DefaultAugmenter(angle=(-2, 2), flip=(0.5, 0.5), contrast=0.8, brightness=20, scale=(-0.2, 0.2, -0.2, 0.2)),
+            data_augmentation=DefaultAugmenter(angle=(-2, 2), flip=(0.5, 0.5), contrast=0.2, brightness=5),
             checkpoint_iter_delta=None,
         )
         trainer = Trainer(settings)
@@ -61,5 +61,5 @@ class BasicStaffLinesTrainer(StaffLinesTrainer):
 
 
 if __name__=="__main__":
-    trainer = BasicStaffLinesTrainer(DatabaseBook('demo'))
+    trainer = BasicStaffLinesTrainer(DatabaseBook('Graduel'))
     trainer.train()

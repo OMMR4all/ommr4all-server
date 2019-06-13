@@ -1,10 +1,9 @@
-from typing import List, NamedTuple, Optional
+from typing import Optional
 from database.file_formats import PcGts
 from database import DatabaseBook
 import os
 from omr.imageoperations.music_line_operations import SymbolLabel
 from pagesegmentation.lib.trainer import Trainer, TrainSettings, TrainProgressCallback
-from pagesegmentation.lib.data_augmenter import DataAugmenterBase
 from omr.symboldetection.trainer import SymbolDetectionTrainerCallback, SymbolDetectionTrainerBase, SymbolDetectionTrainerParams
 import omr.symboldetection.pixelclassifier.settings as pc_settings
 
@@ -60,10 +59,15 @@ class PCTrainer(SymbolDetectionTrainerBase):
 
 
 if __name__ == '__main__':
-    b = DatabaseBook('demo')
-    pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[0:1]]
-    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[0:1]]
-    # pcgts = PcGts.from_file(page.file('pcgts'))
-    trainer = PCTrainer(pcgts, val_pcgts)
+    from omr.symboldetection.dataset import SymbolDetectionDatasetParams
+    from omr.dataset.datafiles import dataset_by_locked_pages, LockState
+    b = DatabaseBook('Graduel')
+    train, val = dataset_by_locked_pages(0.8, [LockState('StaffLines', True)], datasets=[b])
+    params = SymbolDetectionTrainerParams(
+        SymbolDetectionDatasetParams(),
+        train,
+        val,
+    )
+    trainer = PCTrainer(params)
     trainer.run(b)
 

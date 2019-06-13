@@ -29,13 +29,7 @@ class TaskRunnerSymbolDetection(TaskRunner):
 
         params = SymbolDetectionPredictorParameters(
             checkpoints=[model],
-            symbol_detection_params=SymbolDetectionDatasetParams(
-                pad=(0, 10, 0, 40),
-                center=False,
-                staff_lines_only=True,
-                cut_region=False,
-                dewarp=False,
-            )
+            symbol_detection_params=SymbolDetectionDatasetParams()
         )
         pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER, params)
         pcgts = PcGts.from_file(self.page.file('pcgts'))

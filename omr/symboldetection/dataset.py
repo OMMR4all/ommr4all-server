@@ -41,12 +41,12 @@ class ScaleImage(NamedTuple):
 class SymbolDetectionDatasetParams:
     gt_required: bool = False
     height: int = 80
-    dewarp: bool = True
-    cut_region: bool = True
-    pad: Union[int, Tuple[int], Tuple[int, int], Tuple[int, int, int, int]] = 0
+    dewarp: bool = False
+    cut_region: bool = False
+    pad: Union[int, Tuple[int], Tuple[int, int], Tuple[int, int, int, int]] = (0, 10, 0, 40)
     pad_power_of_2: Optional[int] = 3
     center: bool = True
-    staff_lines_only: bool = False          # Determine the staff line AABB based on staff lines only (this is used for evaluation only)
+    staff_lines_only: bool = True
     masks_as_input: bool = False
     apply_fcn_pad_power_of_2: int = 3
     apply_fcn_model: Optional[str] = None
