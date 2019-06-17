@@ -4,7 +4,7 @@ from multiprocessing import Lock
 from locked_dict.locked_dict import LockedDict
 import numpy as np
 import os
-from database.database_page import DatabasePage, DatabasePageMeta
+from database.database_page import DatabasePage
 from omr.preprocessing.preprocessing import Preprocessing
 import logging
 
@@ -40,7 +40,6 @@ file_definitions = {
     'meta': DatabaseFileDefinition(
         'meta',
         ['meta.json'],
-        requires=['color_original'],
     ),
     'annotation': DatabaseFileDefinition(
         'annotation',
@@ -234,14 +233,6 @@ class DatabaseFile:
                 import zipfile
                 zf = zipfile.ZipFile(self.local_path(), mode='w', compression=zipfile.ZIP_DEFLATED)
                 zf.close()
-            elif self.definition.id == 'meta':
-                img = Image.open(DatabaseFile(self.page, 'color_original').local_path())
-                width, height = img.size
-                meta = DatabasePageMeta({
-                    'width': width,
-                    'height': height,
-                })
-                meta.dumpfn(self.local_path())
             elif self.definition.id == 'color_original':
                 # create preview
                 img = Image.open(self.local_path())
@@ -274,14 +265,22 @@ class DatabaseFile:
                 self._save_and_thumbnail(g_hr, 1)
                 self._save_and_thumbnail(b_hr, 2)
             elif self.definition.id == 'color_norm':
+                meta = self.page.meta()
                 c_hr = Image.open(self.page.local_file_path('color_highres_preproc.jpg'))
                 low_binary = Image.open(self.page.local_file_path('binary_highres_preproc.png'))
-                from omr.preprocessing.scale.scale import LineDistanceComputer
-                ldc = LineDistanceComputer()
-                r = ldc.get_line_distance(np.array(low_binary) / 255)
+                if meta.preprocessing.auto_line_distance:
+                    from omr.preprocessing.scale.scale import LineDistanceComputer
+                    ldc = LineDistanceComputer()
+                    line_distance = ldc.get_line_distance(np.array(low_binary) / 255).line_distance
+                    meta.preprocessing.average_line_distance = line_distance
+                    meta.save(self.page)
+                else:
+                    line_distance = meta.preprocessing.average_line_distance
+
+                assert(line_distance > 0)
 
                 # rescale original image
-                scaling = r.line_distance / target_staff_line_distance
+                scaling = line_distance / target_staff_line_distance
                 size = (int(c_hr.size[0] / scaling), int(c_hr.size[1] / scaling))
                 c_hr = c_hr.resize(size, Image.BILINEAR)
 

@@ -17,6 +17,9 @@ class DatabasePage:
         if not skip_validation and not file_name_validator.fullmatch(self.page):
             raise InvalidFileNameException(self.page)
 
+        from database.database_page_meta import DatabasePageMeta
+        self._meta: Optional[DatabasePageMeta] = None
+
     def __eq__(self, other):
         return isinstance(other, DatabasePage) and self.book == other.book and self.page == other.page
 
@@ -56,6 +59,15 @@ class DatabasePage:
     def pcgts(self, create_if_not_existing=True):
         from database.file_formats.pcgts import PcGts
         return PcGts.from_file(self.file('pcgts', create_if_not_existing))
+
+    def meta(self):
+        from database.database_page_meta import DatabasePageMeta
+        self._meta = DatabasePageMeta.load(self)
+        return self._meta
+
+    def save_meta(self):
+        if self._meta:
+            self._meta.save(self)
 
     def is_valid(self):
         if not os.path.exists(self.local_path()):
@@ -130,27 +142,3 @@ class DatabasePage:
         lock_path = self.local_file_path('.lock')
         if os.path.exists(lock_path):
             os.remove(lock_path)
-
-class DatabasePageMeta:
-    def __init__(self, d: dict = None):
-        d = d if d else {}
-        self.width = d.get('width', -1)
-        self.height = d.get('height', -1)
-
-    def json(self):
-        return {
-            'width': self.width,
-            'height': self.height,
-        }
-
-    def dumpfn(self, filename):
-        import json
-        with open(filename, 'w') as f:
-            json.dump(self.json(), f)
-
-    @staticmethod
-    def loadfn(filename):
-        import json
-        with open(filename, 'r') as f:
-            return DatabasePageMeta(json.load(f))
-

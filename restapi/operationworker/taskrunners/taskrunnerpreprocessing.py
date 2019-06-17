@@ -28,6 +28,14 @@ class Settings(NamedTuple):
 
 def _process_single(args: Tuple[DatabasePage, Settings]):
     page, settings = args
+
+    # update page meta
+    meta = page.meta()
+    meta.preprocessing.average_line_distance = settings.average_line_distance
+    meta.preprocessing.auto_line_distance = settings.automatic_line_distance
+    meta.save(page)
+
+    # process all files
     for file in files:
         # create or recreate files
         file = page.file(file)

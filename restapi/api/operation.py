@@ -94,8 +94,9 @@ class OperationView(APIView):
     def op_to_task_runner(operation, page: DatabasePage, body: dict):
         # check if operation is linked to a task
         if operation == 'staffs':
-            from restapi.operationworker.taskrunners.taskrunnerstafflinedetection import TaskRunnerStaffLineDetection
-            return TaskRunnerStaffLineDetection(PageSelection.from_page(page))
+            from restapi.operationworker.taskrunners.taskrunnerstafflinedetection import TaskRunnerStaffLineDetection, Settings
+            return TaskRunnerStaffLineDetection(PageSelection.from_page(page),
+                                                Settings())
         elif operation == 'symbols':
             from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection
             return TaskRunnerSymbolDetection(page)

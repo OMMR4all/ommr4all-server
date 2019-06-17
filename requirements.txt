@@ -16,3 +16,4 @@ djangorestframework-jwt
 prettytable
 ezodf
 cryptography
+mashumaro
