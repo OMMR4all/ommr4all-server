@@ -1,8 +1,9 @@
 from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple
-from database.database_page import DatabasePage, DatabaseBook
+from database.database_page import DatabasePage
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
-from typing import Optional, List, NamedTuple
+from typing import NamedTuple
+from restapi.operationworker.taskrunners.pageselection import PageSelection, require_json
 import multiprocessing
 import logging
 
@@ -10,27 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-from enum import Enum
-
-class PageCount(Enum):
-    ALL = 'all'
-    UNPROCESSED = 'unprocessed'
-    CUSTOM = 'custom'
-
-
-class JsonParseKeyNotFound(Exception):
-    def __init__(self, key: str, d: dict):
-        self.key = key
-        self.d = d
-
-
 files = ['color_norm', 'color_highres_preproc', 'color_lowres_preproc', 'connected_components_norm']
-
-def require_json(d: dict, key: str):
-    if not key in d:
-        raise JsonParseKeyNotFound(key, d)
-
-    return d[key]
 
 
 class Settings(NamedTuple):
@@ -45,42 +26,6 @@ class Settings(NamedTuple):
         )
 
 
-class PageSelection:
-    def __init__(self,
-                 book: DatabaseBook,
-                 page_count: PageCount,
-                 pages: Optional[List[DatabasePage]] = None,
-                 ):
-        self.book = book
-        self.page_count = page_count
-        self.pages = pages if pages else []
-
-    @staticmethod
-    def from_json(d: dict, book: DatabaseBook):
-        if not 'count' in d:
-            raise JsonParseKeyNotFound('count', d)
-
-        return PageSelection(
-            book,
-            PageCount(require_json(d, 'count')),
-            [book.page(page) for page in d.get('pages', [])]
-        )
-
-    def identifier(self) -> Tuple:
-        return self.book, self.page_count, self.pages
-
-    def __eq__(self, other):
-        return isinstance(other, type(self)) and self.identifier() == other.identifier()
-
-    def get(self) -> List[DatabasePage]:
-        if self.page_count == PageCount.ALL:
-            return self.book.pages()
-        elif self.page_count == PageCount.UNPROCESSED:
-            return [p for p in self.book.pages() if any([not p.file(f).exists() for f in files])]
-        else:
-            return self.pages
-
-
 def _process_single(args: Tuple[DatabasePage, Settings]):
     page, settings = args
     for file in files:
@@ -88,6 +33,10 @@ def _process_single(args: Tuple[DatabasePage, Settings]):
         file = page.file(file)
         file.delete()
         file.create()
+
+
+def unprocessed(page: DatabasePage) -> bool:
+    return any([not page.file(f).exists() for f in files])
 
 
 class TaskRunnerPreprocessing(TaskRunner):
@@ -103,7 +52,7 @@ class TaskRunnerPreprocessing(TaskRunner):
         return self.selection.identifier()
 
     def run(self, task: Task, com_queue: Queue) -> dict:
-        pages = self.selection.get()
+        pages = self.selection.get(unprocessed)
         com_queue.put(TaskCommunicationData(task, TaskStatus(
             TaskStatusCodes.RUNNING,
             TaskProgressCodes.WORKING,

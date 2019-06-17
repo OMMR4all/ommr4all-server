@@ -8,6 +8,7 @@ import json
 from restapi.api.error import *
 from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
 from restapi.api.pageaccess import require_lock
+from restapi.operationworker.taskrunners.pageselection import PageSelection
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +90,18 @@ class BookOperationView(APIView):
             from restapi.operationworker.taskrunners.taskrunnerstafflinedetectiontrainer import TaskRunnerStaffLineDetectionTrainer
             return TaskRunnerStaffLineDetectionTrainer(book)
         elif operation == 'preprocessing':
-            from restapi.operationworker.taskrunners.taskrunnerpreprocessing import TaskRunnerPreprocessing, PageSelection, Settings
+            from restapi.operationworker.taskrunners.taskrunnerpreprocessing import TaskRunnerPreprocessing, Settings
             return TaskRunnerPreprocessing(
                 PageSelection.from_json(body, book),
                 Settings.from_json(body),
+            )
+        elif operation == 'stafflines':
+            from restapi.operationworker.taskrunners.taskrunnerstafflinedetection import TaskRunnerStaffLineDetection, Settings
+            return TaskRunnerStaffLineDetection(
+                PageSelection.from_json(body, book),
+                Settings(
+                    store_to_pcgts=True,
+                )
             )
         else:
             return None

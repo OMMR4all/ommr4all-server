@@ -12,7 +12,7 @@ import re
 from database.file_formats.pcgts import PcGts, Coords
 from database.file_formats.performance.pageprogress import PageProgress
 from database.file_formats.performance.statistics import Statistics
-from omr.stafflines.json_util import json_to_line
+from restapi.operationworker.taskrunners.pageselection import PageSelection
 from restapi.api.error import *
 from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
 from restapi.api.pageaccess import require_lock
@@ -95,7 +95,7 @@ class OperationView(APIView):
         # check if operation is linked to a task
         if operation == 'staffs':
             from restapi.operationworker.taskrunners.taskrunnerstafflinedetection import TaskRunnerStaffLineDetection
-            return TaskRunnerStaffLineDetection(page)
+            return TaskRunnerStaffLineDetection(PageSelection.from_page(page))
         elif operation == 'symbols':
             from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection
             return TaskRunnerSymbolDetection(page)
