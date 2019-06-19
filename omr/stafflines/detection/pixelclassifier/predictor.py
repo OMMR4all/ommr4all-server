@@ -18,7 +18,11 @@ class PCPredictionCallback(LineDetectionCallback):
         super().__init__(7, 1)
 
     def changed(self):
-        self.callback.progress_updated(self.get_current_page_progress())
+        self.callback.progress_updated(
+            self.get_progress(),
+            self.get_total_pages(),
+            self.get_processed_pages(),
+        )
 
 
 class BasicStaffLinePredictor(StaffLinesPredictor):
@@ -53,8 +57,8 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
             model=model_path,
             post_process=params.post_processing,
             best_fit_scale=params.best_fit_scale,
-            # debug=True,
-            # debug_model=True,
+            debug=False,
+            debug_model=False,
         )
         self.line_detection = LineDetection(self.settings)
 

@@ -12,7 +12,7 @@ class TextLine:
                  ):
         self.id = tl_id if tl_id else str(uuid4())
         self.coords = coords if coords else Coords()
-        self.sentence = sentence if sentence else []
+        self.sentence = sentence if sentence else Sentence([])
 
     def text(self, with_drop_capital=True):
         return self.sentence.text(with_drop_capital=with_drop_capital)

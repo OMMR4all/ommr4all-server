@@ -97,12 +97,12 @@ class OperationView(APIView):
             from restapi.operationworker.taskrunners.taskrunnerstafflinedetection import TaskRunnerStaffLineDetection, Settings
             return TaskRunnerStaffLineDetection(PageSelection.from_page(page),
                                                 Settings())
-        elif operation == 'symbols':
-            from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection
-            return TaskRunnerSymbolDetection(page)
         elif operation == 'layout':
-            from restapi.operationworker.taskrunners.taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis
-            return TaskRunnerLayoutAnalysis(page)
+            from restapi.operationworker.taskrunners.taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis, Settings
+            return TaskRunnerLayoutAnalysis(PageSelection.from_page(page), Settings())
+        elif operation == 'symbols':
+            from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection, Settings
+            return TaskRunnerSymbolDetection(PageSelection.from_page(page), Settings())
         elif operation == 'layout_extract_cc_by_line':
             from restapi.operationworker.taskrunners.taskrunnerlayoutextractconnectedcomponentsbyline import TaskRunnerLayoutExtractConnectedComponentsByLine
             return TaskRunnerLayoutExtractConnectedComponentsByLine(page, Coords.from_json(body['points']))

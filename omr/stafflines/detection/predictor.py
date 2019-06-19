@@ -33,7 +33,10 @@ class LineDetectionPredictorCallback(ABC):
         super().__init__()
 
     @abstractmethod
-    def progress_updated(self, percentage: float):
+    def progress_updated(self,
+                         percentage: float,
+                         n_pages: int = 0,
+                         n_processed_pages: int = 0):
         pass
 
 

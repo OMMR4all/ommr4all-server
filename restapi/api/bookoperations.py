@@ -103,6 +103,22 @@ class BookOperationView(APIView):
                     store_to_pcgts=True,
                 )
             )
+        elif operation == 'layout':
+            from restapi.operationworker.taskrunners.taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis, Settings
+            return TaskRunnerLayoutAnalysis(
+                PageSelection.from_json(body, book),
+                Settings(
+                    store_to_pcgts=True,
+                )
+            )
+        elif operation == 'symbols':
+            from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection, Settings
+            return TaskRunnerSymbolDetection(
+                PageSelection.from_json(body, book),
+                Settings(
+                    store_to_pcgts=True,
+                )
+            )
         else:
             return None
 

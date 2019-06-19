@@ -16,7 +16,6 @@ class Settings(NamedTuple):
     store_to_pcgts: bool = False
 
 
-
 class TaskRunnerStaffLineDetection(TaskRunner):
     def __init__(self,
                  selection: PageSelection,
@@ -44,13 +43,17 @@ class TaskRunnerStaffLineDetection(TaskRunner):
                 super().__init__()
                 self.n_total = n_total
 
-            def progress_updated(self, percentage: float):
+            def progress_updated(self,
+                                 percentage: float,
+                                 n_pages: int = 0,
+                                 n_processed_pages: int = 0,
+                                 ):
                 com_queue.put(TaskCommunicationData(task, TaskStatus(
                     TaskStatusCodes.RUNNING,
                     TaskProgressCodes.WORKING,
                     progress=percentage,
-                    n_total=self.n_total,
-                    n_processed=int(self.n_total * percentage)
+                    n_total=n_pages,
+                    n_processed=n_processed_pages,
                 )))
 
         params = StaffLinePredictorParameters(
