@@ -179,10 +179,10 @@ class BookDownloaderView(APIView):
                 file_names = ['color_original', 'pcgts', 'page_progress', 'statistics']
                 files = [page.file(f) for f in file_names]
 
-                if any([not f.exists() for f in files]):
-                    continue
-
                 for file in files:
+                    if not file.exists():
+                        continue
+
                     zf.write(file.local_path(), os.path.join(page.page, file.filename()))
 
             zf.close()
