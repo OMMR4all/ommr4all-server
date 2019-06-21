@@ -1,5 +1,5 @@
 from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple
-from database.database_book import DatabaseBook
+from database import DatabaseBook, DatabasePage
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
 
@@ -13,6 +13,10 @@ class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
 
     def identifier(self) -> Tuple:
         return self.book,
+
+    @staticmethod
+    def unprocessed(page: DatabasePage) -> bool:
+        return True
 
     def run(self, task: Task, com_queue: Queue) -> dict:
         from omr.stafflines.detection.pixelclassifier.trainer import BasicStaffLinesTrainer, StaffLinesDetectionTrainerCallback

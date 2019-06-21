@@ -13,6 +13,23 @@ from restapi.operationworker.taskrunners.pageselection import PageSelection
 logger = logging.getLogger(__name__)
 
 
+class BookPageSelectionView(APIView):
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def post(self, request, book, operation):
+        body = json.loads(request.body, encoding='utf-8')
+        book = DatabaseBook(book)
+        task_runner = BookOperationView.op_to_task_runner(operation, book, body)
+        page_selection = PageSelection.from_json(body, book)
+        pages = page_selection.get(task_runner.unprocessed)
+        return Response({
+            'pages': [p.page for p in pages],
+            'pageCount': page_selection.page_count.value,
+            'singlePage': page_selection.single_page,
+            'book': book.book,
+            'totalPages': len(book.pages()),
+        })
+
+
 class BookOperationTaskView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, operation, task_id):
@@ -105,11 +122,10 @@ class BookOperationView(APIView):
             )
         elif operation == 'layout':
             from restapi.operationworker.taskrunners.taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis, Settings
+            body['storeToPcGts'] = True
             return TaskRunnerLayoutAnalysis(
                 PageSelection.from_json(body, book),
-                Settings(
-                    store_to_pcgts=True,
-                )
+                Settings.from_json(body),
             )
         elif operation == 'symbols':
             from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection, Settings

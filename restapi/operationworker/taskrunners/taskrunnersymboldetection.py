@@ -7,10 +7,6 @@ from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
 from typing import NamedTuple
 
 
-def unprocessed(page: DatabasePage) -> bool:
-    return all([len(l.symbols) == 0 for l in page.pcgts().page.all_music_lines()])
-
-
 class Settings(NamedTuple):
     store_to_pcgts: bool = False
 
@@ -27,12 +23,16 @@ class TaskRunnerSymbolDetection(TaskRunner):
     def identifier(self) -> Tuple:
         return self.selection.identifier(),
 
+    @staticmethod
+    def unprocessed(page: DatabasePage) -> bool:
+        return all([len(l.symbols) == 0 for l in page.pcgts().page.all_music_lines()])
+
     def run(self, task: Task, com_queue: Queue) -> dict:
         from omr.symboldetection.predictor import \
             SymbolDetectionPredictorParameters, PredictorTypes, create_predictor, SymbolDetectionDatasetParams
         import omr.symboldetection.pixelclassifier.settings as pc_settings
 
-        selected_pages = self.selection.get(unprocessed)
+        selected_pages = self.selection.get(TaskRunnerSymbolDetection.unprocessed)
         pages = [p.pcgts() for p in selected_pages]
 
         # load book specific model or default model as fallback

@@ -8,10 +8,6 @@ from typing import NamedTuple
 from database.file_formats.pcgts import MusicRegion, MusicLines
 
 
-def unprocessed(page: DatabasePage) -> bool:
-    return len(page.pcgts().page.music_regions) == 0
-
-
 class Settings(NamedTuple):
     store_to_pcgts: bool = False
 
@@ -24,6 +20,10 @@ class TaskRunnerStaffLineDetection(TaskRunner):
         super().__init__({TaskWorkerGroup.NORMAL_TASKS_CPU})
         self.selection = selection
         self.settings = settings
+
+    @staticmethod
+    def unprocessed(page: DatabasePage) -> bool:
+        return len(page.pcgts().page.music_regions) == 0
 
     def identifier(self) -> Tuple:
         return self.selection.identifier(),
@@ -61,7 +61,7 @@ class TaskRunnerStaffLineDetection(TaskRunner):
         )
         staff_line_detector: StaffLinesPredictor = create_staff_line_predictor(StaffLinesModelType.PIXEL_CLASSIFIER, params)
         com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
-        selected_pages = self.selection.get(unprocessed)
+        selected_pages = self.selection.get(TaskRunnerStaffLineDetection.unprocessed)
         pages = [p.pcgts() for p in selected_pages]
         staves = list(staff_line_detector.predict(pages, Callback(len(pages))))
         results = [

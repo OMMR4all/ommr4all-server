@@ -43,10 +43,6 @@ def _process_single(args: Tuple[DatabasePage, Settings]):
         file.create()
 
 
-def unprocessed(page: DatabasePage) -> bool:
-    return any([not page.file(f).exists() for f in files])
-
-
 class TaskRunnerPreprocessing(TaskRunner):
     def __init__(self,
                  selection: PageSelection,
@@ -59,8 +55,12 @@ class TaskRunnerPreprocessing(TaskRunner):
     def identifier(self) -> Tuple:
         return self.selection.identifier()
 
+    @staticmethod
+    def unprocessed(page: DatabasePage) -> bool:
+        return any([not page.file(f).exists() for f in files])
+
     def run(self, task: Task, com_queue: Queue) -> dict:
-        pages = self.selection.get(unprocessed)
+        pages = self.selection.get(TaskRunnerPreprocessing.unprocessed)
         com_queue.put(TaskCommunicationData(task, TaskStatus(
             TaskStatusCodes.RUNNING,
             TaskProgressCodes.WORKING,

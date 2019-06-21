@@ -197,6 +197,17 @@ class Rect:
         else:
             self.size = size if size else Size()
 
+    def to_coords(self) -> Coords:
+        return Coords(np.array([self.origin.p, self.origin.p + (self.size.w, 0),
+                                self.origin.p + self.size.p, self.origin.p + (0, self.size.h)]))
+
+    def union(self, aabb: 'Rect') -> 'Rect':
+        top = min(aabb.top(), self.top())
+        left = min(aabb.left(), self.left())
+        bottom = max(aabb.bottom(), self.bottom())
+        right = max(aabb.right(), self.right())
+        return Rect(Point(np.array([left, top])), Size(np.array([right - left, bottom - top])))
+
     @property
     def tl(self):
         return self.origin
@@ -204,6 +215,18 @@ class Rect:
     @property
     def br(self):
         return self.origin + self.size
+
+    def left(self):
+        return self.origin.x
+
+    def right(self):
+        return self.origin.x + self.size.w
+
+    def top(self):
+        return self.origin.y
+
+    def bottom(self):
+        return self.origin.y + self.size.h
 
     @property
     def center(self):

@@ -4,17 +4,35 @@ from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
 import logging
 from typing import NamedTuple
+from enum import Enum
 from database.file_formats.pcgts import TextRegion, TextLine, MusicRegion, MusicLine, MusicLines
+from omr.layout.predictor import PredictorTypes
+
 
 logger = logging.getLogger(__name__)
 
 
-def unprocessed(page: DatabasePage) -> bool:
-    return len(page.pcgts().page.text_regions) == 0
+class LayoutModes(Enum):
+    SIMPLE = 'simple'
+    COMPLEX = 'complex'
+
+    def to_predictor_type(self) -> PredictorTypes:
+        return {
+            LayoutModes.SIMPLE: PredictorTypes.STANDARD,
+            LayoutModes.COMPLEX: PredictorTypes.LYRICS_BBS,
+        }[self]
 
 
 class Settings(NamedTuple):
     store_to_pcgts: bool = False
+    layout_mode: LayoutModes = LayoutModes.COMPLEX
+
+    @staticmethod
+    def from_json(d: dict):
+        return Settings(
+            d.get('storeToPcGts', False),
+            LayoutModes(d.get('layoutModes', LayoutModes.COMPLEX.value)),
+        )
 
 
 class TaskRunnerLayoutAnalysis(TaskRunner):
@@ -29,8 +47,14 @@ class TaskRunnerLayoutAnalysis(TaskRunner):
     def identifier(self) -> Tuple:
         return self.selection.identifier(),
 
+    @staticmethod
+    def unprocessed(page: DatabasePage) -> bool:
+        return len(page.pcgts().page.text_regions) == 0
+
     def run(self, task: Task, com_queue: Queue) -> dict:
-        from omr.layout.predictor import LayoutPredictorParameters, create_predictor, PredictorTypes, \
+        logger.debug("Starting layout prediction with mode {}".format(self.settings.layout_mode))
+
+        from omr.layout.predictor import LayoutPredictorParameters, create_predictor, \
             LayoutAnalysisPredictorCallback
 
         class Callback(LayoutAnalysisPredictorCallback):
@@ -45,13 +69,12 @@ class TaskRunnerLayoutAnalysis(TaskRunner):
                 )))
 
         params = LayoutPredictorParameters(checkpoints=[])
-        pred = create_predictor(PredictorTypes.STANDARD, params)
+        pred = create_predictor(self.settings.layout_mode.to_predictor_type(), params)
 
-        selected_pages = self.selection.get(unprocessed)
+        selected_pages = self.selection.get(TaskRunnerLayoutAnalysis.unprocessed)
         pages = [p.pcgts() for p in selected_pages]
 
         com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
-        logger.debug("Starting layout prediction")
         results = list(pred.predict(pages, Callback()))
         logger.debug("Finished layout prediction")
         if self.settings.store_to_pcgts:

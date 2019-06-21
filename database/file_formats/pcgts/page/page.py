@@ -1,4 +1,4 @@
-from database.file_formats.pcgts.page import TextRegion, MusicRegion, Coords, Point
+from database.file_formats.pcgts.page import TextRegion, MusicRegion, Coords, Point, MusicLine
 from database.file_formats.pcgts.page import annotations as annotations
 from database.file_formats.pcgts.page.usercomment import UserComments
 from database.file_formats.pcgts.page.readingorder import ReadingOrder
@@ -121,7 +121,7 @@ class Page:
 
         return None
 
-    def all_music_lines(self):
+    def all_music_lines(self) -> List[MusicLine]:
         return [ml for mr in self.music_regions for ml in mr.staffs]
 
     def all_text_lines(self):

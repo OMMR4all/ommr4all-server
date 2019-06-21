@@ -1,4 +1,5 @@
 from database.file_formats.pcgts.page.musicregion import Coords, Point
+from database.file_formats.pcgts.page.coords import Rect
 from typing import List, Tuple, Optional
 from enum import IntEnum, Enum
 import numpy as np
@@ -463,6 +464,14 @@ class StaffLines(List[StaffLine]):
     def draw(self, canvas, color=(0, 255, 0), thickness=5):
         for l in self:
             l.draw(canvas, color, thickness)
+
+    def aabb(self) -> Rect:
+        if len(self) == 0:
+            return Rect()
+        r = self[0].coords.aabb()
+        for sl in self[1:]:
+            r = r.union(sl.coords.aabb())
+        return r
 
     def sort(self):
         super(StaffLines, self).sort(key=lambda s: s.center_y())

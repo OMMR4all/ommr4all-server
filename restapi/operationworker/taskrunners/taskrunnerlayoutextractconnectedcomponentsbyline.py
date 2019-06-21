@@ -17,6 +17,10 @@ class TaskRunnerLayoutExtractConnectedComponentsByLine(TaskRunner):
     def identifier(self) -> Tuple:
         return self.page, self.initial_line
 
+    @staticmethod
+    def unprocessed(page: DatabasePage) -> bool:
+        return True
+
     def run(self, task: Task, com_queue: Queue) -> dict:
         from omr.layout.correction_tools.connected_component_selector import extract_components
         import pickle
