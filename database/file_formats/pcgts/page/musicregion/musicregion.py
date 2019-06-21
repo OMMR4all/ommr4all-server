@@ -7,7 +7,8 @@ class MusicRegion:
     def __init__(self,
                  mr_id: str = None,
                  coords: Coords = None,
-                 staffs: MusicLines = None):
+                 staffs: MusicLines = None,
+                 ):
         self.id = mr_id if mr_id else str(uuid4())
         self.coords = coords if coords else Coords()
         self.staffs = staffs if staffs else MusicLines()

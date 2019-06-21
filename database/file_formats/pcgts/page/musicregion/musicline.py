@@ -594,18 +594,19 @@ class StaffLines(List[StaffLine]):
     # ==================================================================
 
 
-
 class MusicLine:
     def __init__(self,
                  ml_id: str = None,
                  coords: Coords = None,
                  staff_lines: StaffLines = None,
                  symbols: List[Symbol] = None,
+                 reconstructed=False,
                  ):
         self.id = ml_id if ml_id else str(uuid4())
         self.coords = coords if coords else Coords()
         self.staff_lines = staff_lines if staff_lines else StaffLines()
         self.symbols = symbols if symbols else []
+        self.reconstructed = reconstructed
         assert(isinstance(self.coords, Coords))
         assert(isinstance(self.id, str))
         assert(isinstance(self.staff_lines, StaffLines))
@@ -618,6 +619,7 @@ class MusicLine:
             Coords.from_json(json.get('coords', [])),
             StaffLines.from_json(json.get('staffLines', [])),
             [Symbol.from_json(s) for s in json.get('symbols', [])],
+            json.get('reconstructed', False),
         )
 
     def to_json(self):
@@ -626,6 +628,7 @@ class MusicLine:
             "coords": self.coords.to_json(),
             "staffLines": self.staff_lines.to_json(),
             "symbols": [s.to_json() for s in self.symbols],
+            'reconstructed': self.reconstructed,
         }
 
     def avg_line_distance(self, default=-1):
