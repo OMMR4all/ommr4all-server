@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Any, Optional
 import numpy as np
-from database.file_formats.pcgts import Point, MusicLines, Page, MusicRegion, MusicLine, TextLine, PageScaleReference
+from database.file_formats.pcgts import Point, Line, Page, Block, PageScaleReference
 from dataclasses import dataclass
 from copy import copy
 
@@ -20,10 +20,10 @@ class ImageOperationData:
 
     page: Optional[Page] = None
     page_image: np.ndarray = None
-    music_region: Optional[MusicRegion] = None
-    music_line: Optional[MusicLine] = None
-    music_lines: Optional[MusicLines] = None
-    text_line: Optional[TextLine] = None
+    music_region: Optional[Block] = None
+    music_line: Optional[Line] = None
+    music_lines: Optional[List[Line]] = None
+    text_line: Optional[Line] = None
 
     def __iter__(self):
         return self.images.__iter__()

@@ -57,7 +57,7 @@ class PCPredictor(SymbolDetectionPredictor):
                 plt.show()
             yield symbols
 
-    def exract_symbols(self, p: np.ndarray, m: RegionLineMaskData) -> List[Symbol]:
+    def exract_symbols(self, p: np.ndarray, m: RegionLineMaskData) -> List[MusicSymbol]:
         n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
         symbols = []
         sorted_labels = sorted(range(1, n_labels), key=lambda i: (centroids[i, 0], -centroids[i, 1]))
@@ -79,27 +79,36 @@ class PCPredictor(SymbolDetectionPredictor):
             centroids_canvas[int(np.round(c.y)), int(np.round(c.x))] = label
             position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
             if label == SymbolLabel.NOTE_START:
-                symbols.append(Neume(notes=[NoteComponent(coord=coord, position_in_staff=position_in_staff)]))
-            elif label == SymbolLabel.NOTE_GAPPED or label == SymbolLabel.NOTE_LOOPED:
-                if len(symbols) > 0 and isinstance(symbols[-1], Neume):
-                    n: Neume = symbols[-1]
-                    if label == SymbolLabel.NOTE_GAPPED:
-                        n.notes.append(NoteComponent(coord=coord, graphical_connection=GraphicalConnectionType.GAPED, position_in_staff=position_in_staff))
-                    else:
-                        n.notes.append(NoteComponent(coord=coord, graphical_connection=GraphicalConnectionType.LOOPED, position_in_staff=position_in_staff))
-                else:
-                    symbols.append(Neume(notes=[NoteComponent(coord=coord, position_in_staff=position_in_staff)]))
-
+                symbols.append(MusicSymbol(
+                    symbol_type=SymbolType.NOTE,
+                    coord=coord,
+                    position_in_staff=position_in_staff,
+                    graphical_connection=GraphicalConnectionType.NEUME_START,
+                ))
+            elif label == SymbolLabel.NOTE_GAPPED:
+                symbols.append(MusicSymbol(
+                    symbol_type=SymbolType.NOTE,
+                    coord=coord,
+                    position_in_staff=position_in_staff,
+                    graphical_connection=GraphicalConnectionType.GAPED,
+                ))
+            elif label == SymbolLabel.NOTE_LOOPED:
+                symbols.append(MusicSymbol(
+                    symbol_type=SymbolType.NOTE,
+                    coord=coord,
+                    position_in_staff=position_in_staff,
+                    graphical_connection=GraphicalConnectionType.LOOPED,
+                ))
             elif label == SymbolLabel.CLEF_C:
-                symbols.append(Clef(clef_type=ClefType.CLEF_C, coord=coord, position_in_staff=position_in_staff))
+                symbols.append(create_clef(ClefType.C, coord=coord, position_in_staff=position_in_staff))
             elif label == SymbolLabel.CLEF_F:
-                symbols.append(Clef(clef_type=ClefType.CLEF_F, coord=coord, position_in_staff=position_in_staff))
+                symbols.append(create_clef(ClefType.F, coord=coord, position_in_staff=position_in_staff))
             elif label == SymbolLabel.ACCID_FLAT:
-                symbols.append(Accidental(accidental=AccidentalType.FLAT, coord=coord))
+                symbols.append(create_accid(AccidType.FLAT, coord=coord))
             elif label == SymbolLabel.ACCID_SHARP:
-                symbols.append(Accidental(accidental=AccidentalType.SHARP, coord=coord))
+                symbols.append(create_accid(AccidType.SHARP, coord=coord))
             elif label == SymbolLabel.ACCID_NATURAL:
-                symbols.append(Accidental(accidental=AccidentalType.NATURAL, coord=coord))
+                symbols.append(create_accid(AccidType.NATURAL, coord=coord))
             else:
                 raise Exception("Unknown label {} during decoding".format(label))
 
@@ -114,20 +123,18 @@ class PCPredictor(SymbolDetectionPredictor):
 if __name__ == '__main__':
     from database import DatabaseBook
     import omr.symboldetection.pixelclassifier.settings as pc_settings
-    b = DatabaseBook('Graduel')
-    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[12:13]]
+    b = DatabaseBook('demo')
+    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[0:1]]
     pred = PCPredictor(SymbolDetectionPredictorParameters([b.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))]))
     ps = list(pred.predict(val_pcgts))
     import matplotlib.pyplot as plt
     orig = np.array(ps[0].line.operation.page_image)
     for p in ps:
         for s in p.symbols:
-            if s.symbol_type == SymbolType.NEUME:
-                n: Neume = s
-                for nc in n.notes:
-                    c = nc.coord.round().astype(int)
-                    t, l = c.y, c.x
-                    orig[t - 2:t + 2, l-2:l+2] = 255
+            if s.symbol_type == SymbolType.NOTE:
+                c = p.line.operation.page.page_to_image_scale(s.coord, ref=PageScaleReference.NORMALIZED_X2).round().astype(int)
+                t, l = c.y, c.x
+                orig[t - 2:t + 2, l-2:l+2] = 255
 
     plt.imshow(orig)
     plt.show()

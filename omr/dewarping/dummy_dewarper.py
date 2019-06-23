@@ -1,4 +1,3 @@
-from database.file_formats.pcgts.page.musicregion import MusicLine, StaffLine
 from database.file_formats.pcgts import PcGts, Coords
 import numpy as np
 import matplotlib.pyplot as plt

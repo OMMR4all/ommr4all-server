@@ -1,4 +1,4 @@
-from . import Coords, TextLine
+from . import Coords, Line
 from typing import List
 from enum import Enum
 from uuid import uuid4
@@ -17,7 +17,7 @@ class TextRegion:
                  id: str = None,
                  region_type=TextRegionType.PARAGRAPH,
                  coords: Coords = None,
-                 text_lines: List[TextLine] = None,
+                 text_lines: List[Line] = None,
                  ):
         self.id = id if id else str(uuid4())
         self.region_type = region_type

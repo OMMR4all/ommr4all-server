@@ -1,11 +1,11 @@
 import unittest
-from database.file_formats.pcgts.page.musicregion import Clef, ClefType, MusicSymbolPositionInStaff, NoteName
+from database.file_formats.pcgts.page.musicsymbol import create_clef, ClefType, MusicSymbolPositionInStaff, NoteName
 
 
 class TestClef(unittest.TestCase):
 
     def test_name_octave(self):
-        clef = Clef(clef_type=ClefType.CLEF_F, position_in_staff=MusicSymbolPositionInStaff.LINE_1)
+        clef = create_clef(clef_type=ClefType.F, position_in_staff=MusicSymbolPositionInStaff.LINE_1)
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_1), (NoteName.F, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_2), (NoteName.G, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_2), (NoteName.A, 4))
@@ -15,7 +15,7 @@ class TestClef(unittest.TestCase):
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_4), (NoteName.E, 5))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_5), (NoteName.F, 5))
 
-        clef = Clef(clef_type=ClefType.CLEF_F, position_in_staff=MusicSymbolPositionInStaff.LINE_2)
+        clef = create_clef(clef_type=ClefType.F, position_in_staff=MusicSymbolPositionInStaff.LINE_2)
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_1), (NoteName.D, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_2), (NoteName.E, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_2), (NoteName.F, 4))
@@ -25,7 +25,7 @@ class TestClef(unittest.TestCase):
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_4), (NoteName.C, 5))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_5), (NoteName.D, 5))
 
-        clef = Clef(clef_type=ClefType.CLEF_F, position_in_staff=MusicSymbolPositionInStaff.LINE_3)
+        clef = create_clef(clef_type=ClefType.F, position_in_staff=MusicSymbolPositionInStaff.LINE_3)
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_1), (NoteName.B, 3))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_2), (NoteName.C, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_2), (NoteName.D, 4))
@@ -35,7 +35,7 @@ class TestClef(unittest.TestCase):
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_4), (NoteName.A, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_5), (NoteName.B, 4))
 
-        clef = Clef(clef_type=ClefType.CLEF_F, position_in_staff=MusicSymbolPositionInStaff.LINE_4)
+        clef = create_clef(clef_type=ClefType.F, position_in_staff=MusicSymbolPositionInStaff.LINE_4)
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_1), (NoteName.G, 3))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_2), (NoteName.A, 3))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_2), (NoteName.B, 3))
@@ -45,7 +45,7 @@ class TestClef(unittest.TestCase):
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_4), (NoteName.F, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_5), (NoteName.G, 4))
 
-        clef = Clef(clef_type=ClefType.CLEF_C, position_in_staff=MusicSymbolPositionInStaff.LINE_1)
+        clef = create_clef(clef_type=ClefType.C, position_in_staff=MusicSymbolPositionInStaff.LINE_1)
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_1), (NoteName.C, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_2), (NoteName.D, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_2), (NoteName.E, 4))
@@ -55,7 +55,7 @@ class TestClef(unittest.TestCase):
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_4), (NoteName.B, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_5), (NoteName.C, 5))
 
-        clef = Clef(clef_type=ClefType.CLEF_C, position_in_staff=MusicSymbolPositionInStaff.LINE_2)
+        clef = create_clef(clef_type=ClefType.C, position_in_staff=MusicSymbolPositionInStaff.LINE_2)
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_1), (NoteName.A, 3))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_2), (NoteName.B, 3))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_2), (NoteName.C, 4))
@@ -65,7 +65,7 @@ class TestClef(unittest.TestCase):
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_4), (NoteName.G, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_5), (NoteName.A, 4))
 
-        clef = Clef(clef_type=ClefType.CLEF_C, position_in_staff=MusicSymbolPositionInStaff.LINE_3)
+        clef = create_clef(clef_type=ClefType.C, position_in_staff=MusicSymbolPositionInStaff.LINE_3)
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_1), (NoteName.F, 3))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_2), (NoteName.G, 3))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_2), (NoteName.A, 3))
@@ -75,7 +75,7 @@ class TestClef(unittest.TestCase):
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_4), (NoteName.E, 4))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_5), (NoteName.F, 4))
 
-        clef = Clef(clef_type=ClefType.CLEF_C, position_in_staff=MusicSymbolPositionInStaff.LINE_4)
+        clef = create_clef(clef_type=ClefType.C, position_in_staff=MusicSymbolPositionInStaff.LINE_4)
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_1), (NoteName.D, 3))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.SPACE_2), (NoteName.E, 3))
         self.assertTupleEqual(clef.note_name_octave(MusicSymbolPositionInStaff.LINE_2), (NoteName.F, 3))

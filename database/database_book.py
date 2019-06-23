@@ -29,7 +29,7 @@ class FileExistsException(Exception):
 
 class DatabaseBook:
     @staticmethod
-    def list_available():
+    def list_available() -> List['DatabaseBook']:
         return [DatabaseBook(name) for name in os.listdir(settings.PRIVATE_MEDIA_ROOT) if DatabaseBook(name, skip_validation=True).is_valid()]
 
     @staticmethod

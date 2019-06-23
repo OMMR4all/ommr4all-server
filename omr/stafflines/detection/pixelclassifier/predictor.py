@@ -77,13 +77,13 @@ class BasicStaffLinePredictor(StaffLinesPredictor):
             logger.debug("Predicted {}/{}. File {}".format(i + 1, len(dataset), rlmd.operation.page.location.local_path()))
             if len(r) == 0:
                 logger.warning('No staff lines detected.')
-                yield PredictionResult(MusicLines(), MusicLines(), rlmd)
+                yield PredictionResult([], [], rlmd)
             else:
                 def transform_points(yx_points):
                     return Coords(np.array([pc_dataset.line_and_mask_operations.local_to_global_pos(Point(p[1], p[0]), rlmd.operation.params).p for p in yx_points]))
 
-                ml_global = MusicLines([MusicLine(staff_lines=StaffLines([StaffLine(page.image_to_page_scale(transform_points(list(pl)), rlmd.operation.scale_reference)) for pl in l])) for l in r])
-                ml_local = MusicLines([MusicLine(staff_lines=StaffLines([StaffLine(page.image_to_page_scale(Coords(np.array(pl)[:, ::-1]), rlmd.operation.scale_reference)) for pl in l])) for l in r])
+                ml_global = [Line(staff_lines=StaffLines([StaffLine(page.image_to_page_scale(transform_points(list(pl)), rlmd.operation.scale_reference)) for pl in l])) for l in r]
+                ml_local = [Line(staff_lines=StaffLines([StaffLine(page.image_to_page_scale(Coords(np.array(pl)[:, ::-1]), rlmd.operation.scale_reference)) for pl in l])) for l in r]
                 yield PredictionResult(ml_global, ml_local, rlmd)
 
 
@@ -103,9 +103,9 @@ if __name__ == '__main__':
 
     params = StaffLinePredictorParameters(
         # None if False else [book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))],
-        # ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/internal_storage/default_models/french14/pc_staff_lines/model"],
+        ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/internal_storage/default_models/french14/pc_staff_lines/model"],
         #["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/models_out/all/line_detection_4/best"],
-        ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/storage/Graduel/pc_staff_lines/model"],
+        # ["/home/wick/Documents/Projects/ommr4all-deploy/modules/ommr4all-server/storage/Graduel/pc_staff_lines/model"],
         # ["/home/wick/Downloads/line_detection_0/best"],
         target_line_space_height=10,
         dataset_params=StaffLineDetectionDatasetParams(
@@ -120,15 +120,18 @@ if __name__ == '__main__':
     )
     detector = BasicStaffLinePredictor(params)
     for prediction in detector.predict(pcgts):
+        def scale(p):
+            return prediction.line.operation.page.page_to_image_scale(p, ref=PageScaleReference.NORMALIZED)
+
         f, ax = plt.subplots(1, 3)
         staffs = prediction.music_lines_local
         data = prediction.line
         img = np.array(data.line_image, dtype=np.uint8)
         ax[0].imshow(255 - img, cmap='gray')
-        staffs.draw(img, color=255, line_thickness=3)
-        s = np.zeros(img.shape)
-        staffs.draw(s, color=255, line_thickness=3)
+        [s.draw(img, color=255, thickness=3, scale=scale) for s in staffs]
+        b = np.zeros(img.shape)
+        [s.draw(b, color=255, thickness=3, scale=scale) for s in staffs]
         ax[1].imshow(img)
-        ax[2].imshow(s, cmap='gray')
+        ax[2].imshow(b, cmap='gray')
         plt.show()
 

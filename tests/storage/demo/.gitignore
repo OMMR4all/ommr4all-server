@@ -5,4 +5,5 @@ pages/*/*
 !pages/*/color_original.*
 !pages/*layout*/pcgts.json
 !pages/*symbol*/pcgts.json
+!pages/*upgrade*/pcgts.json
 !/.permissions.pkl

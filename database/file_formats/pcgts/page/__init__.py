@@ -1,9 +1,9 @@
-from .definitions import EquivIndex
 from .coords import Coords, Point
 from .syllable import Syllable, SyllableConnection
 from .sentence import Sentence
-from .textline import TextLine
-from .textregion import TextRegion, TextRegionType
-from .musicregion import *
+from .block import BlockType, Block
+from .line import Line
+from .staffline import StaffLines, StaffLine
+from .musicsymbol import *
 from .annotations import *
 from .page import Page

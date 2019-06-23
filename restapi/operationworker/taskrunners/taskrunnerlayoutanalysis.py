@@ -5,7 +5,7 @@ from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
 import logging
 from typing import NamedTuple
 from enum import Enum
-from database.file_formats.pcgts import TextRegion, TextLine, MusicRegion, MusicLine, MusicLines
+from database.file_formats.pcgts import BlockType, Block, Line
 from omr.layout.predictor import PredictorTypes
 
 
@@ -18,8 +18,8 @@ class LayoutModes(Enum):
 
     def to_predictor_type(self) -> PredictorTypes:
         return {
-            LayoutModes.SIMPLE: PredictorTypes.STANDARD,
-            LayoutModes.COMPLEX: PredictorTypes.LYRICS_BBS,
+            LayoutModes.SIMPLE: PredictorTypes.LYRICS_BBS,
+            LayoutModes.COMPLEX: PredictorTypes.STANDARD,
         }[self]
 
 
@@ -31,7 +31,7 @@ class Settings(NamedTuple):
     def from_json(d: dict):
         return Settings(
             d.get('storeToPcGts', False),
-            LayoutModes(d.get('layoutModes', LayoutModes.COMPLEX.value)),
+            LayoutModes(d.get('layoutMode', LayoutModes.COMPLEX.value)),
         )
 
 
@@ -49,7 +49,7 @@ class TaskRunnerLayoutAnalysis(TaskRunner):
 
     @staticmethod
     def unprocessed(page: DatabasePage) -> bool:
-        return len(page.pcgts().page.text_regions) == 0
+        return len(page.pcgts().page.text_blocks()) == 0
 
     def run(self, task: Task, com_queue: Queue) -> dict:
         logger.debug("Starting layout prediction with mode {}".format(self.settings.layout_mode))
@@ -79,20 +79,20 @@ class TaskRunnerLayoutAnalysis(TaskRunner):
         logger.debug("Finished layout prediction")
         if self.settings.store_to_pcgts:
             for page_layouts, pcgts, page in zip(results, pages, selected_pages):
-                pcgts.page.text_regions.clear()
-                for type, id_coords in page_layouts.text_regions.items():
+                pcgts.page.clear_text_blocks()
+                for type, id_coords in page_layouts.blocks.items():
                     for ic in id_coords:
-                        pcgts.page.text_regions.append(
-                            TextRegion(ic.id, type, None, [TextLine(coords=ic.coords)])
-                        )
+                        if type == BlockType.MUSIC:
+                            ml = pcgts.page.music_line_by_id(ic.id)
+                            if not ml:
+                                logger.warning('Music line with id "{}" not found'.format(ic.id))
+                                continue
 
-                for ic in page_layouts.music_regions:
-                    ml = pcgts.page.music_line_by_id(ic.id)
-                    if not ml:
-                        logger.warning('Music line with id "{}" not found'.format(ic.id))
-                        continue
-
-                    ml.coords = ic.coords
+                            ml.coords = ic.coords
+                        else:
+                            pcgts.page.blocks.append(
+                                Block(type, ic.id, lines=[Line(coords=ic.coords)])
+                            )
 
                 pcgts.to_file(page.file('pcgts').local_path())
 

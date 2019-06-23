@@ -5,7 +5,7 @@ from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
 from .pageselection import PageSelection, DatabasePage
 from typing import NamedTuple
-from database.file_formats.pcgts import MusicRegion, MusicLines
+from database.file_formats.pcgts import Block, Line, BlockType
 
 
 class Settings(NamedTuple):
@@ -23,7 +23,7 @@ class TaskRunnerStaffLineDetection(TaskRunner):
 
     @staticmethod
     def unprocessed(page: DatabasePage) -> bool:
-        return len(page.pcgts().page.music_regions) == 0
+        return len(page.pcgts().page.music_blocks()) == 0
 
     def identifier(self) -> Tuple:
         return self.selection.identifier(),
@@ -74,10 +74,10 @@ class TaskRunnerStaffLineDetection(TaskRunner):
 
         if self.settings.store_to_pcgts:
             for page_staves, pcgts, page in zip(staves, pages, selected_pages):
-                pcgts.page.music_regions.clear()
+                pcgts.page.clear_blocks_of_type(BlockType.MUSIC)
                 for ml in page_staves.music_lines:
-                    pcgts.page.music_regions.append(
-                        MusicRegion(staffs=MusicLines([ml]))
+                    pcgts.page.blocks.append(
+                        Block(BlockType.MUSIC, lines=[ml])
                     )
 
                 pcgts.to_file(page.file('pcgts').local_path())

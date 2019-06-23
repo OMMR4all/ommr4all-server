@@ -11,7 +11,7 @@ class SymbolDetectionPredictorParameters(NamedTuple):
 
 
 class PredictionResult(NamedTuple):
-    symbols: List[Symbol]
+    symbols: List[MusicSymbol]
     line: RegionLineMaskData
 
 

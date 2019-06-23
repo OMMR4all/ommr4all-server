@@ -1,5 +1,4 @@
-from database.file_formats.pcgts import PcGts, MusicLine, PageScaleReference
-from database.file_formats.pcgts.page.textregion import TextRegionType
+from database.file_formats.pcgts import PcGts, Line, PageScaleReference, BlockType
 from omr.dataset import RegionLineMaskData
 from typing import List, Generator, Tuple, Union, Optional
 from database import DatabaseBook
@@ -25,7 +24,7 @@ class Rect(NamedTuple):
 
 
 class LoadedImage(NamedTuple):
-    music_line: MusicLine
+    music_line: Line
     line_image: np.ndarray
     original_image: np.ndarray
     rect: Rect
@@ -43,7 +42,7 @@ class SymbolDetectionDatasetParams:
     height: int = 80
     dewarp: bool = False
     cut_region: bool = False
-    pad: Union[int, Tuple[int], Tuple[int, int], Tuple[int, int, int, int]] = (0, 10, 0, 40)
+    pad: Union[int, Tuple[int], Tuple[int, int], Tuple[int, int, int, int]] = (0, 80, 0, 80)
     pad_power_of_2: Optional[int] = 3
     center: bool = True
     staff_lines_only: bool = True
@@ -58,12 +57,12 @@ class SymbolDetectionDataset:
     def __init__(self, pcgts: List[PcGts], params: SymbolDetectionDatasetParams):
         self.files = pcgts
         self.params = params
-        self.loaded: Optional[List[Tuple[MusicLine, np.ndarray, str]]] = None
-        self.marked_symbol_data: Optional[List[Tuple[MusicLine, np.ndarray]]] = None
+        self.loaded: Optional[List[Tuple[Line, np.ndarray, str]]] = None
+        self.marked_symbol_data: Optional[List[Tuple[Line, np.ndarray]]] = None
 
         operations = [
-            ImageLoadFromPageOperation(invert=True),
-            ImageDrawRegions(text_region_types=[TextRegionType.DROP_CAPITAL] if params.cut_region else [], color=0),
+            ImageLoadFromPageOperation(invert=True, files=[('gray_norm_x2', False)]),
+            ImageDrawRegions(block_types=[BlockType.DROP_CAPITAL] if params.cut_region else [], color=0),
             ImageExtractDewarpedStaffLineImages(params.dewarp, params.cut_region, params.pad, params.center, params.staff_lines_only),
         ]
         if self.params.apply_fcn_model is not None:
@@ -117,7 +116,7 @@ class SymbolDetectionDataset:
     def _create_marked_symbols(self) -> Generator[RegionLineMaskData, None, None]:
         for f in tqdm(self.files, total=len(self.files), desc="Loading music lines"):
             try:
-                input = ImageOperationData([], PageScaleReference.NORMALIZED, page=f.page)
+                input = ImageOperationData([], PageScaleReference.NORMALIZED_X2, page=f.page)
                 for outputs in self.line_and_mask_operations.apply_single(input):
                     yield RegionLineMaskData(outputs)
             except (NoStaffsAvailable, NoStaffLinesAvailable):
@@ -131,7 +130,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from omr.dewarping.dummy_dewarper import dewarp
     from imageio import imsave
-    pages = [p for p in DatabaseBook('demo').pages()]
+    pages = [p for p in DatabaseBook('Graduel').pages()]
     params = SymbolDetectionDatasetParams(
         pad=(0, 10, 0, 40),
         dewarp=True,
@@ -162,6 +161,7 @@ if __name__ == '__main__':
             # img = sample['image'][:,:,1:4].transpose([1,0,2])
             if np.min(img.shape) > 0:
                 print(img.shape, img.dtype, img.min(), img.max())
+                print(mask.shape, mask.dtype, mask.min(), mask.max())
                 ax[i, 0].imshow(img)
                 ax[i, 1].imshow(region)
                 ax[i, 2].imshow(mask)

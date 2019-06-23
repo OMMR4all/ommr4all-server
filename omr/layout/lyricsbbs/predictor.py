@@ -1,7 +1,7 @@
 from omr.layout.predictor import LayoutAnalysisPredictor, LayoutPredictorParameters, PredictionType, PredictionResult \
     , LayoutAnalysisPredictorCallback
 from typing import List, Optional
-from database.file_formats.pcgts import PcGts, TextRegionType, Coords, MusicLine, Rect, Point, Size
+from database.file_formats.pcgts import PcGts, BlockType, Coords, Line, Rect, Point, Size
 import numpy as np
 
 
@@ -11,6 +11,7 @@ class LyricsBBSLayoutAnalysisPredictor(LayoutAnalysisPredictor):
 
     def _predict_single(self, pcgts_file: PcGts) -> PredictionResult:
         mls = pcgts_file.page.all_music_lines()
+        mls.sort(key=lambda ml: ml.center_y())
         ids_aabbs = [(ml.id, ml.staff_lines.aabb()) for ml in mls]
         music_coords = [aabb.to_coords() for _, aabb in ids_aabbs]
         ids_aabbs.sort(key=lambda id_aabb: id_aabb[1].bottom())
@@ -30,10 +31,10 @@ class LyricsBBSLayoutAnalysisPredictor(LayoutAnalysisPredictor):
             lyrics_aabbs.append(Rect(Point(last.left(), last.bottom()), Size(last.size.w, avg_h)))
 
         return PredictionResult(
-            text_regions={
-                TextRegionType.LYRICS: [aabb.to_coords() for aabb in lyrics_aabbs]
+            blocks={
+                BlockType.LYRICS: [aabb.to_coords() for aabb in lyrics_aabbs],
+                BlockType.MUSIC: music_coords
             },
-            music_regions=music_coords
         )
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[LayoutAnalysisPredictorCallback] = None) -> PredictionType:

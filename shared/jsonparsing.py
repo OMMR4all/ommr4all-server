@@ -10,3 +10,8 @@ def require_json(d: dict, key: str):
 
     return d[key]
 
+
+def optional_enum(d: dict, key: str, enum: type, default):
+    if key in d:
+        return enum(d[key])
+    return default

@@ -33,11 +33,13 @@ class Sentence:
         return None
 
     @staticmethod
-    def from_json(json: list):
+    def from_json(json: dict):
         return Sentence(
-            [Syllable.from_json(s) for s in json]
+            [Syllable.from_json(s) for s in json.get('syllables', [])]
         )
 
-    def to_json(self):
-        return [s.to_json() for s in self.syllables]
+    def to_json(self) -> dict:
+        return {
+            'syllables': [s.to_json() for s in self.syllables],
+        }
 

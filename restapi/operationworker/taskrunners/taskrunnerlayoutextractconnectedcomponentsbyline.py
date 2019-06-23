@@ -26,8 +26,8 @@ class TaskRunnerLayoutExtractConnectedComponentsByLine(TaskRunner):
         import pickle
         staff_lines: List[Coords] = []
         pcgts = PcGts.from_file(self.page.file('pcgts'))
-        for mr in pcgts.page.music_regions:
-            for ml in mr.staffs:
+        for mr in pcgts.page.music_blocks():
+            for ml in mr.lines:
                 staff_lines += [pcgts.page.page_to_image_scale(s.coords, PageScaleReference.NORMALIZED) for s in ml.staff_lines]
 
         with open(self.page.file('connected_components_norm', create_if_not_existing=True).local_path(), 'rb') as pkl:

@@ -1,7 +1,7 @@
 from omr.imageoperations import ImageOperationData
-from database.file_formats.pcgts.page.musicregion import Symbol, SymbolType, Neume, Clef, Accidental, \
-    GraphicalConnectionType, AccidentalType, ClefType, \
-    MusicSymbolPositionInStaff, StaffLines, NoteComponent
+from database.file_formats.pcgts.page import MusicSymbol, SymbolType, \
+    GraphicalConnectionType, AccidType, ClefType, NoteType, \
+    MusicSymbolPositionInStaff, StaffLines, create_clef, create_accid
 from typing import List, Tuple, Union, Optional, Any
 
 
@@ -14,7 +14,7 @@ class CalamariSequence:
         "`1234567890=",   # F-Clef
         "~!@#$%^&*()+",   # C-Clef
     ]
-    accid_type_to_char = {AccidentalType.FLAT: '}', AccidentalType.NATURAL: '[', AccidentalType.SHARP: '['}
+    accid_type_to_char = {AccidType.FLAT: '}', AccidType.NATURAL: '[', AccidType.SHARP: '['}
     char_to_accid_type = dict((value, key) for key, value in accid_type_to_char.items())
 
     @staticmethod
@@ -22,7 +22,7 @@ class CalamariSequence:
         return MusicSymbolPositionInStaff(p)
 
     @staticmethod
-    def to_symbol_types(s: str, user_data=None) -> List[Tuple[SymbolType, Union[AccidentalType, ClefType, GraphicalConnectionType],
+    def to_symbol_types(s: str, user_data=None) -> List[Tuple[SymbolType, Union[AccidType, ClefType, GraphicalConnectionType],
                                               MusicSymbolPositionInStaff, int, Any]]:
         bool_to_graphical_connection_type = [GraphicalConnectionType.LOOPED, GraphicalConnectionType.GAPED]
         out = []
@@ -54,38 +54,27 @@ class CalamariSequence:
         return out
 
     @staticmethod
-    def to_symbols(s_p: List[Tuple[str, float]], staff_lines: StaffLines) -> List[Symbol]:
+    def to_symbols(s_p: List[Tuple[str, float]], staff_lines: StaffLines) -> List[MusicSymbol]:
         s = "".join([char for char, _ in s_p])
         pos = [x for _, x in s_p]
         out = []
         neume: Optional[Neume] = None
         for symbol_type, sub_type, pis, neume_start, x in CalamariSequence.to_symbol_types(s, pos):
             coord = staff_lines.compute_coord_by_position_in_staff(x, pis)
-            if symbol_type == SymbolType.ACCID:
-                out.append(Accidental(sub_type, coord=coord, position_in_staff=pis))
-                neume = None
-            elif symbol_type == SymbolType.CLEF:
-                out.append(Clef(sub_type, coord=coord, position_in_staff=pis))
-                neume = None
-            else:
-                if neume is None or neume_start:
-                    neume = Neume()
-                    out.append(neume)
-
-                neume.notes.append(
-                    NoteComponent(coord=coord,
-                                  graphical_connection=sub_type if len(neume.notes) > 0 else GraphicalConnectionType.GAPED,
-                                  position_in_staff=pis)
-                )
+            out.append(MusicSymbol(None,
+                                   symbol_type=symbol_type,
+                                   coord=coord,
+                                   position_in_staff=pis,
+                                   graphical_connection=GraphicalConnectionType.NEUME_START if neume_start else sub_type,))
 
         return out
 
-    def __init__(self, symbols: List[Symbol]):
+    def __init__(self, symbols: List[MusicSymbol]):
         out = []
         nt = []
         last_was_neume = False
         for s in symbols:
-            if isinstance(s, Neume):
+            if s.symbol_type == SymbolType.NOTE:
                 if len(out) > 0 and out[-1] != ' ' and last_was_neume:
                     out.append(CalamariSequence.neume_start)
 
@@ -104,16 +93,14 @@ class CalamariSequence:
 
                     out.append(char)
                 nt.append(CalamariSequence.neume_types[n.compute_basic_neume_type()])
-            elif isinstance(s, Clef):
+            elif s.symbol_type == SymbolType.CLEF:
                 last_was_neume = False
-                c: Clef = s
-                out.append(CalamariSequence.clef_pos_to_char[c.clef_type.value][c.position_in_staff.value])
-                nt.append(CalamariSequence.clef_pos_to_char[c.clef_type.value][0])
-            elif isinstance(s, Accidental):
+                out.append(CalamariSequence.clef_pos_to_char[s.clef_type.value][s.position_in_staff.value])
+                nt.append(CalamariSequence.clef_pos_to_char[s.clef_type.value][0])
+            elif s.symbol_type == SymbolType.ACCID:
                 last_was_neume = False
-                a: Accidental = s
-                out.append(CalamariSequence.accid_type_to_char[a.accidental.value])
-                nt.append(CalamariSequence.accid_type_to_char[a.accidental.value])
+                out.append(CalamariSequence.accid_type_to_char[s.accid_type.value])
+                nt.append(CalamariSequence.accid_type_to_char[s.accid_type.value])
 
         self.symbols = symbols
         self.calamari_str = "".join(out).strip()

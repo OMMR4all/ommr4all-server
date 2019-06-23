@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from database.file_formats.pcgts import MusicLines, PcGts
+from database.file_formats.pcgts import Line, PcGts
 from enum import Enum
 from typing import NamedTuple, List, Generator, Optional
 from omr.symboldetection.dataset import RegionLineMaskData
@@ -23,8 +23,8 @@ class StaffLinesModelType(Enum):
 
 
 class PredictionResult(NamedTuple):
-    music_lines: MusicLines             # Music lines in global (page coords)
-    music_lines_local: MusicLines       # Music lines in local (cropped line if not full page)
+    music_lines: List[Line]             # Music lines in global (page coords)
+    music_lines_local: List[Line]       # Music lines in local (cropped line if not full page)
     line: RegionLineMaskData
 
 

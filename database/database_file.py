@@ -114,6 +114,24 @@ file_definitions = {
         requires=['color_norm'],
         has_preview=True,
     ),
+    'color_norm_x2': DatabaseFileDefinition(
+        'color_norm_x2',
+        ['color_norm_x2.jpg', 'gray_norm_x2.jpg', 'binary_norm_x2.png'],
+        requires=['color_highres_preproc', 'color_original', 'color_norm'],
+        has_preview=True,
+    ),
+    'gray_norm_x2': DatabaseFileDefinition(
+        'gray_norm_x2',
+        ['gray_norm_x2.jpg'],
+        requires=['color_norm_x2'],
+        has_preview=True,
+    ),
+    'binary_norm_x2': DatabaseFileDefinition(
+        'binary_norm_x2',
+        ['binary_norm_x2.png'],
+        requires=['color_norm_x2'],
+        has_preview=True,
+    ),
 
     'connected_components_norm': DatabaseFileDefinition(
         'connected_components_norm',
@@ -267,10 +285,10 @@ class DatabaseFile:
             elif self.definition.id == 'color_norm':
                 meta = self.page.meta()
                 c_hr = Image.open(self.page.local_file_path('color_highres_preproc.jpg'))
-                low_binary = Image.open(self.page.local_file_path('binary_highres_preproc.png'))
                 if meta.preprocessing.auto_line_distance:
                     from omr.preprocessing.scale.scale import LineDistanceComputer
                     ldc = LineDistanceComputer()
+                    low_binary = Image.open(self.page.local_file_path('binary_highres_preproc.png'))
                     line_distance = ldc.get_line_distance(np.array(low_binary) / 255).line_distance
                     meta.preprocessing.average_line_distance = line_distance
                     meta.save(self.page)
@@ -281,6 +299,33 @@ class DatabaseFile:
 
                 # rescale original image
                 scaling = line_distance / target_staff_line_distance
+                size = (int(c_hr.size[0] / scaling), int(c_hr.size[1] / scaling))
+                c_hr = c_hr.resize(size, Image.BILINEAR)
+
+                # compute gray and binary based on normalized color image
+                preproc = Preprocessing()
+                g_hr = preproc.im2gray(c_hr)
+                b_hr = preproc.binarize(c_hr)
+
+                # save output
+                self._save_and_thumbnail(c_hr, 0)
+                self._save_and_thumbnail(g_hr, 1)
+                self._save_and_thumbnail(b_hr, 2)
+            elif self.definition.id == 'color_norm_x2':
+                meta = self.page.meta()
+                line_distance = meta.preprocessing.average_line_distance
+                if line_distance <= 0:
+                    nf = self.page.file('color_norm')
+                    nf.delete()
+                    nf.create()
+                    meta = self.page.meta()
+                    line_distance = meta.preprocessing.average_line_distance
+
+                assert(line_distance > 0)
+                c_hr = Image.open(self.page.local_file_path('color_highres_preproc.jpg'))
+
+                # rescale original image
+                scaling = line_distance / (target_staff_line_distance * 2)
                 size = (int(c_hr.size[0] / scaling), int(c_hr.size[1] / scaling))
                 c_hr = c_hr.resize(size, Image.BILINEAR)
 

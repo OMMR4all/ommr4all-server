@@ -54,8 +54,8 @@ def remove_word_and_neume_connector_layer(apps, schema_editor):
                                              "You need to manually convert this file. "
                                              "".format(pcgts_file.local_path(), len(neume_connectors)))
 
-                pcgts = PcGts.from_json(pcgts, pcgts_file.page)
-                pcgts.to_file(pcgts_file.local_path())
+                with open(pcgts_file.local_path(), 'w') as f:
+                    json.dump(pcgts, f)
             except Exception as e:
                 logger.error("Exception occurred during processing of page {}".format(pcgts_file.local_path()))
                 raise e

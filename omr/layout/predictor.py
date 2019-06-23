@@ -11,8 +11,7 @@ class LayoutPredictorParameters(NamedTuple):
 
 
 class PredictionResult(NamedTuple):
-    text_regions: Dict[TextRegionType, List[Coords]]
-    music_regions: List[Coords]
+    blocks: Dict[BlockType, List[Coords]]
 
 
 PredictionType = Generator[PredictionResult, None, None]
@@ -30,15 +29,13 @@ class IdCoordsPair(NamedTuple):
 
 
 class FinalPredictionResult(NamedTuple):
-    text_regions: Dict[TextRegionType, List[IdCoordsPair]]
-    music_regions: List[IdCoordsPair]
+    blocks: Dict[BlockType, List[IdCoordsPair]]
 
     def to_dict(self):
         return {
-            'textRegions': {
-                key.value: [v.to_dict() for v in val] for key, val in self.text_regions.items()
-            },
-            'musicRegions': [v.to_dict() for v in self.music_regions]
+            'blocks': {
+                key.value: [v.to_dict() for v in val] for key, val in self.blocks.items()
+            }
         }
 
 
@@ -61,19 +58,23 @@ class LayoutAnalysisPredictor(ABC):
 
     def predict(self, pcgts_files: List[PcGts], callback: Optional[LayoutAnalysisPredictorCallback] = None) -> FinalPrediction:
         for r, pcgts in zip(self._predict(pcgts_files, callback=callback), pcgts_files):
-            music_lines = []
-            for mr in pcgts.page.music_regions:
-                music_lines += mr.staffs
+            music_lines = pcgts.page.all_music_lines()
 
             # music lines must be sorted
             music_lines.sort(key=lambda ml: ml.center_y())
 
-            for ml, coords in zip(music_lines, r.music_regions):
+            for ml, coords in zip(music_lines, r.blocks.get(BlockType.MUSIC, [])):
                 ml.coords = coords
 
             yield FinalPredictionResult(
-                {k: [IdCoordsPair(c) for c in coords] for k, coords in r.text_regions.items()},
-                [IdCoordsPair(coords, str(ml.id)) for ml, coords in zip(music_lines, r.music_regions)]
+                {
+                    **{
+                        k: [IdCoordsPair(c) for c in coords] for k, coords in r.blocks.items() if k != BlockType.MUSIC
+                    },
+                    **{
+                        BlockType.MUSIC: [IdCoordsPair(coords, str(ml.id)) for ml, coords in zip(music_lines, r.blocks[BlockType.MUSIC])],
+                    }
+                 }
             )
 
     @abstractmethod
@@ -119,13 +120,13 @@ if __name__ == "__main__":
         return val_pcgts[0].page.page_to_image_scale(c, params.page_scale_reference)
 
     for p in pred.predict(val_pcgts):
-        for i, mr_c in enumerate(p.music_regions):
+        for i, mr_c in enumerate(p.blocks.get(BlockType.MUSIC, [])):
             s(mr_c.coords).draw(mask, (255, 0, 0), fill=True, thickness=0)
 
-        for i, mr_c in enumerate(p.text_regions.get(TextRegionType.LYRICS, [])):
+        for i, mr_c in enumerate(p.blocks.get(BlockType.LYRICS, [])):
             s(mr_c.coords).draw(mask, (0, 255, 0), fill=True, thickness=0)
 
-        for i, mr_c in enumerate(p.text_regions.get(TextRegionType.DROP_CAPITAL, [])):
+        for i, mr_c in enumerate(p.blocks.get(BlockType.DROP_CAPITAL, [])):
             s(mr_c.coords).draw(mask, (0, 0, 255), fill=True, thickness=0)
 
     import json

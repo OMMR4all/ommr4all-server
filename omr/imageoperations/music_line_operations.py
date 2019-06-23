@@ -1,7 +1,7 @@
 from omr.imageoperations.image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point
 from omr.imageoperations.image_crop import ImageCropToSmallestBoxOperation
 from typing import Tuple, List, Any, Optional
-from database.file_formats.pcgts import Page, PageScaleReference, MusicLine, Neume, ClefType, Clef, AccidentalType, Accidental, GraphicalConnectionType, MusicLines, Coords
+from database.file_formats.pcgts import Page, PageScaleReference, Line, MusicSymbol, ClefType, AccidType, GraphicalConnectionType, Coords, SymbolType
 import numpy as np
 from PIL import Image
 from copy import copy
@@ -45,8 +45,8 @@ class ImageExtractStaffLineImages(ImageOperation):
 
         i = 1
         s = []
-        for mr in data.page.music_regions:
-            for ml in mr.staffs:
+        for mr in data.page.music_blocks():
+            for ml in mr.lines:
                 s.append(ml)
                 scale(ml.coords).draw(marked_regions, i, 0, fill=True)
                 for sl in ml.staff_lines:
@@ -59,7 +59,7 @@ class ImageExtractStaffLineImages(ImageOperation):
             image_data.images = [ImageData(marked_regions, True), ImageData(image, False), ImageData(marked_staff_lines, True)]
             image_data.params = None
             image_data.page_image = image
-            image_data.music_lines = MusicLines(s)
+            image_data.music_lines = s
             out.append(image_data)
         else:
             i = 1
@@ -74,7 +74,7 @@ class ImageExtractStaffLineImages(ImageOperation):
                         img_data.page_image = image
                         img_data.music_region = mr
                         img_data.music_line = ml
-                        img_data.music_lines = MusicLines([ml])
+                        img_data.music_lines = [ml]
                         img_data.images = [ImageData(mask, True), ImageData(image, False), ImageData(marked_staff_lines, True)]
                         cropped = self.cropper.apply_single(img_data)[0]
                         self._extract_image_op(img_data)
@@ -117,12 +117,12 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         i = 1
         s: List[List[Coords]] = []
 
-        def extract_transformed_coords(ml: MusicLine) -> List[Coords]:
+        def extract_transformed_coords(ml: Line) -> List[Coords]:
             lines = ml.staff_lines.sorted()
             return [data.page.page_to_image_scale(sl.coords, data.scale_reference) for sl in lines]
 
-        for mr in data.page.music_regions:
-            for ml in mr.staffs:
+        for mr in data.page.music_blocks():
+            for ml in mr.lines:
                 coords = extract_transformed_coords(ml)
                 s.append(coords)
                 if self.staff_lines_only:
@@ -152,12 +152,8 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
         i = 1
         out = []
-        all_music_lines = []
-        for mr in data.page.music_regions:
-            all_music_lines += mr.staffs
-
-        for mr in data.page.music_regions:
-            for ml in mr.staffs:
+        for mr in data.page.music_blocks():
+            for ml in mr.lines:
                 mask = dew_labels == i
                 if np.sum(mask) != 0:  # empty mask, skip
                     img_data = copy(data)
@@ -235,44 +231,40 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
     def _extract_image_op(self, data: ImageOperationData):
         data.images = [data.images[1], ImageData(data.images[0].image * data.images[1].image, False)] + data.images[2:]
 
-    def _symbols_to_mask(self, ml: MusicLine, img: np.ndarray, page: Page, scale: PageScaleReference):
+    def _symbols_to_mask(self, ml: Line, img: np.ndarray, page: Page, scale: PageScaleReference):
         if len(ml.staff_lines) < 2:  # at least two staff lines required
             return None
 
         def p2i(p):
             return page.page_to_image_scale(p, scale)
 
-        radius = p2i(ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 4
+        radius = max(1, p2i(ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 8)
 
         def set(coord, label: SymbolLabel):
             coord = p2i(coord)
             img[int(coord.y - radius):int(coord.y + radius * 2), int(coord.x - radius): int(coord.x + radius * 2)] = label.value
 
         for s in ml.symbols:
-            if isinstance(s, Neume):
-                n: Neume = s
-                for i, nc in enumerate(n.notes):
-                    if i == 0:
-                        set(nc.coord, SymbolLabel.NOTE_START)
-                    elif nc.graphical_connection == GraphicalConnectionType.LOOPED:
-                        set(nc.coord, SymbolLabel.NOTE_LOOPED)
-                    else:
-                        set(nc.coord, SymbolLabel.NOTE_GAPPED)
+            if s.symbol_type == SymbolType.NOTE:
+                if s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                    set(s.coord, SymbolLabel.NOTE_START)
+                elif s.graphical_connection == GraphicalConnectionType.LOOPED:
+                    set(s.coord, SymbolLabel.NOTE_LOOPED)
+                else:
+                    set(s.coord, SymbolLabel.NOTE_GAPPED)
 
-            elif isinstance(s, Clef):
-                c: Clef = s
-                if c.clef_type == ClefType.CLEF_F:
-                    set(c.coord, SymbolLabel.CLEF_F)
+            elif s.symbol_type == SymbolType.CLEF:
+                if s.clef_type == ClefType.F:
+                    set(s.coord, SymbolLabel.CLEF_F)
                 else:
-                    set(c.coord, SymbolLabel.CLEF_C)
-            elif isinstance(s, Accidental):
-                a: Accidental = s
-                if a.accidental == AccidentalType.NATURAL:
-                    set(a.coord, SymbolLabel.ACCID_NATURAL)
-                elif a.accidental == AccidentalType.FLAT:
-                    set(a.coord, SymbolLabel.ACCID_FLAT)
+                    set(s.coord, SymbolLabel.CLEF_C)
+            elif s.symbol_type == SymbolType.ACCID:
+                if s.accid_type == AccidType.NATURAL:
+                    set(s.coord, SymbolLabel.ACCID_NATURAL)
+                elif s.accid_type == AccidType.FLAT:
+                    set(s.coord, SymbolLabel.ACCID_FLAT)
                 else:
-                    set(a.coord, SymbolLabel.ACCID_SHARP)
+                    set(s.coord, SymbolLabel.ACCID_SHARP)
 
         return img
 

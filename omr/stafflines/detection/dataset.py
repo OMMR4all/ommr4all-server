@@ -1,4 +1,4 @@
-from database.file_formats.pcgts import PcGts, TextRegionType, MusicLine, PageScaleReference
+from database.file_formats.pcgts import PcGts, Line, BlockType, Block, PageScaleReference
 import numpy as np
 from typing import List, Tuple, Generator, NamedTuple, Union
 from omr.dataset import RegionLineMaskData
@@ -27,8 +27,8 @@ class PCDataset:
                  ):
         self.params = params
         self.files = pcgts
-        self.loaded: List[Tuple[MusicLine, np.ndarray, str]] = None
-        self.marked_symbol_data: List[Tuple[MusicLine, np.ndarray]] = None
+        self.loaded: List[Tuple[Line, np.ndarray, str]] = None
+        self.marked_symbol_data: List[Tuple[Line, np.ndarray]] = None
 
         self.line_and_mask_operations = ImageOperationList([
             ImageLoadFromPageOperation(invert=True, files=[(params.page_scale_reference.file('gray' if params.gray else 'binary'), False)]),

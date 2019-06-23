@@ -1,8 +1,8 @@
-from database.file_formats.pcgts.page import TextRegion, MusicRegion, Coords, Point, MusicLine
+from database.file_formats.pcgts.page import Coords, Point, Block, BlockType, Line
 from database.file_formats.pcgts.page import annotations as annotations
 from database.file_formats.pcgts.page.usercomment import UserComments
 from database.file_formats.pcgts.page.readingorder import ReadingOrder
-from typing import List, TYPE_CHECKING, Union, Optional
+from typing import List, TYPE_CHECKING, Union, Optional, Iterable
 import numpy as np
 from enum import IntEnum
 
@@ -15,6 +15,7 @@ class PageScaleReference(IntEnum):
     HIGHRES = 1
     LOWRES = 2
     NORMALIZED = 3
+    NORMALIZED_X2 = 4
 
     def file(self, color: str = "color"):
         if self.value == PageScaleReference.ORIGINAL:
@@ -25,16 +26,16 @@ class PageScaleReference(IntEnum):
             return color + "_lowres_preproc"
         elif self.value == PageScaleReference.NORMALIZED:
             return color + "_norm"
+        elif self.value == PageScaleReference.NORMALIZED_X2:
+            return color + "_norm_x2"
 
 
 class Page:
     def __init__(self,
-                 text_regions: List[TextRegion]=None,
-                 music_regions: List[MusicRegion]=None,
-                 image_filename="", image_height=0, image_width=0, relative_coords=False,
+                 blocks: List[Block]=None,
+                 image_filename="", image_height=0, image_width=0,
                  location: 'DatabasePage' = None):
-        self.text_regions: List[TextRegion] = text_regions if text_regions else []
-        self.music_regions: List[MusicRegion] = music_regions if music_regions else []
+        self.blocks: List[Block] = blocks if blocks else []
         self.image_filename = image_filename
         self.image_height = image_height
         self.image_width = image_width
@@ -42,30 +43,23 @@ class Page:
         self.comments = UserComments(self)
         self.reading_order = ReadingOrder(self)
         self.location = location
-        self.relative_coords = relative_coords
         self.page_scale_ratios = {}
 
     def syllable_by_id(self, syllable_id):
-        for t in self.text_regions:
-            r = t.syllable_by_id(syllable_id)
+        for b in self.blocks:
+            r = b.syllable_by_id(syllable_id)
             if r:
                 return r
 
         return None
 
-    def _resolve_cross_refs(self):
-        for t in self.text_regions:
-            t._resolve_cross_refs(self)
-
     @staticmethod
-    def from_json(json: dict, location: 'DatabasePage'):
+    def from_json(json: dict, location: Optional['DatabasePage']):
         page = Page(
-            [TextRegion.from_json(t) for t in json.get('textRegions', [])],
-            [MusicRegion.from_json(m) for m in json.get('musicRegions', [])],
+            [Block.from_json(t) for t in json.get('blocks', [])],
             json.get('imageFilename', ""),
             json.get('imageHeight', 0),
             json.get('imageWidth', 0),
-            json.get('relativeCoords', False),
             location=location,
         )
         if 'annotations' in json:
@@ -77,63 +71,98 @@ class Page:
         if 'readingOrder' in json:
             page.reading_order = ReadingOrder.from_json(json['readingOrder'], page)
 
-        page._resolve_cross_refs()
         return page
 
     def to_json(self):
         return {
-            "textRegions": [t.to_json() for t in self.text_regions],
-            "musicRegions": [m.to_json() for m in self.music_regions],
+            "blocks": [t.to_json() for t in self.blocks],
             "imageFilename": self.image_filename,
             "imageWidth": self.image_width,
             "imageHeight": self.image_height,
-            "relativeCoords": self.relative_coords,
             'annotations': self.annotations.to_json(),
             'comments': self.comments.to_json(),
             'readingOrder': self.reading_order.to_json(),
         }
 
-    def music_region_by_id(self, id: str):
-        for mr in self.music_regions:
+    def blocks_of_type(self, block_type: Union[BlockType, Iterable[BlockType]]) -> List[Block]:
+        try:
+            block_types = list(block_type)
+            return [b for b in self.blocks if b.block_type in block_types]
+        except TypeError:
+            return [b for b in self.blocks if b.block_type == block_type]
+
+    def clear_blocks_of_type(self, block_type: BlockType):
+        self.blocks = [b for b in self.blocks if b.block_type != block_type]
+
+    def clear_text_blocks(self):
+        for b in self.blocks:
+            if b.block_type == BlockType.MUSIC:
+                continue
+
+            self.annotations.drop_annotation_by_text_block(b)
+
+        self.blocks = [b for b in self.blocks if b.block_type == BlockType.MUSIC]
+
+    def music_blocks(self):
+        return self.blocks_of_type(BlockType.MUSIC)
+
+    def text_blocks(self):
+        return [b for b in self.blocks if b.block_type != BlockType.MUSIC]
+
+    def block_by_id(self, id: str) -> Optional[Block]:
+        for b in self.blocks:
+            if b.id == id:
+                return b
+        return None
+
+    def line_by_id(self, id: str) -> Optional[Line]:
+        for b in self.blocks:
+            l = b.line_by_id(id)
+            if l:
+                return l
+        return None
+
+    def music_region_by_id(self, id: str) -> Optional[Block]:
+        for mr in self.blocks_of_type(BlockType.MUSIC):
             if mr.id == id:
                 return mr
         return None
 
-    def music_line_by_id(self, id: str):
-        for mr in self.music_regions:
-            for ml in mr.staffs:
-                if ml.id == id:
-                    return ml
+    def music_line_by_id(self, id: str) -> Optional[Line]:
+        for mr in self.blocks_of_type(BlockType.MUSIC):
+            l = mr.line_by_id(id)
+            if l:
+                return l
 
         return None
 
-    def text_region_by_id(self, id: str):
-        for tr in self.text_regions:
+    def text_region_by_id(self, id: str) -> Optional[Block]:
+        for tr in self.text_blocks():
             if tr.id == id:
                 return tr
         return None
 
-    def text_line_by_id(self, id: str):
-        for tr in self.text_regions:
-            for tl in tr.text_lines:
-                if tl.id == id:
-                    return tl
+    def text_line_by_id(self, id: str) -> Optional[Line]:
+        for tr in self.text_blocks():
+            l = tr.line_by_id(id)
+            if l:
+                return l
 
         return None
 
-    def all_music_lines(self) -> List[MusicLine]:
-        return [ml for mr in self.music_regions for ml in mr.staffs]
+    def all_music_lines(self) -> List[Line]:
+        return sum([mr.lines for mr in self.music_blocks()], [])
 
     def all_text_lines(self):
-        return [tl for tr in self.text_regions for tl in tr.text_lines]
+        return sum([b.lines for b in self.text_blocks()], [])
 
     def all_staves_staff_line_coords(self, scale: Optional[PageScaleReference] = None) -> List[List[Coords]]:
         staves: List[List[Coords]] = []
-        for mr in self.music_regions:
+        for mr in self.music_blocks():
             if scale:
-                staves += [[self.page_to_image_scale(sl.coords, scale) for sl in ml.staff_lines] for ml in mr.staffs]
+                staves += [[self.page_to_image_scale(sl.coords, scale) for sl in ml.staff_lines] for ml in mr.lines]
             else:
-                staves += [[sl.coords for sl in ml.staff_lines] for ml in mr.staffs]
+                staves += [[sl.coords for sl in ml.staff_lines] for ml in mr.lines]
 
         return staves
 
@@ -150,9 +179,6 @@ class Page:
 
         for staff in self.all_music_lines():
             staff.draw(canvas, color, thickness)
-
-    def extract_music_line_images_and_gt(self, dewarped=True):
-        pass
 
     def page_scale_size(self, ref: PageScaleReference):
         if ref not in self.page_scale_ratios:
@@ -175,41 +201,3 @@ class Page:
 
     def page_to_image_scale(self, p: Union[Coords, Point, float, int], ref: PageScaleReference = PageScaleReference.ORIGINAL):
         return self._scale(p, self.page_scale_size(ref)[1])
-
-    def to_relative_coords(self):
-        if self.relative_coords:
-            # already in relative coords
-            return
-
-        from .musicregion import Neume
-
-        def i2p(p):
-            # validity check
-            if isinstance(p, Coords):
-                assert(0.0 <= p.points.all() <= 1.0)
-            elif isinstance(p, Point):
-                assert(0.0 <= p.p.all() <= 1.0)
-            else:
-                assert(0.0 <= p <= 1.0)
-
-            return self.image_to_page_scale(p, ref=PageScaleReference.ORIGINAL)
-
-        for r in self.text_regions:
-            r.coords = i2p(r.coords)
-            for l in r.text_lines:
-                l.coords = i2p(l.coords)
-
-        for r in self.music_regions:
-            r.coords = i2p(r.coords)
-            for l in r.staffs:
-                l.coords = i2p(l.coords)
-                for s in l.staff_lines:
-                    s.coords = i2p(s.coords)
-
-                for s in l.symbols:
-                    s.coord = i2p(s.coord)
-                    if isinstance(s, Neume):
-                        for nc in s.notes:
-                            nc.coord = i2p(nc.coord)
-
-        self.relative_coords = True

@@ -1,4 +1,4 @@
-from database.file_formats.pcgts.page.musicregion import Coords, Point
+from database.file_formats.pcgts import SymbolType, Point, MusicSymbolPositionInStaff, NoteName
 from database.file_formats.pcgts.page.coords import Rect
 from typing import List, Tuple, Optional
 from enum import IntEnum, Enum
@@ -10,48 +10,6 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-
-class MusicSymbolPositionInStaff(IntEnum):
-    UNDEFINED = -1000
-
-    # usual notation
-    SPACE_0 = 0
-    LINE_0 = 1
-    SPACE_1 = 2
-    LINE_1 = 3
-    SPACE_2 = 4
-    LINE_2 = 5
-    SPACE_3 = 6
-    LINE_3 = 7
-    SPACE_4 = 8
-    LINE_4 = 9
-    SPACE_5 = 10
-    LINE_5 = 11
-    SPACE_6 = 12
-    LINE_6 = 13
-    SPACE_7 = 14
-
-    # 11th Century Notation only store up/down/equal
-    UP = 101
-    DOWN = 99
-    EQUAL = 100
-
-    def is_undefined(self):
-        return self.value == MusicSymbolPositionInStaff.UNDEFINED
-
-    def is_absolute(self):
-        return MusicSymbolPositionInStaff.SPACE_0 <= self.value < MusicSymbolPositionInStaff.SPACE_7
-
-    def is_relative(self):
-        return MusicSymbolPositionInStaff.UP <= self.value <= MusicSymbolPositionInStaff.DOWN
-
-
-class SymbolType(IntEnum):
-    NEUME = 0
-    CLEF = 1
-    ACCID = 2
-
-    NOTE_COMPONENT = 3
 
 
 class Symbol(ABC):
@@ -129,70 +87,6 @@ class Accidental(Symbol):
         return dict(super().to_json(), **{
             'type': self.accidental.value,
         })
-
-
-class NoteType(IntEnum):
-    NORMAL = 0
-    ORISCUS = 1
-    APOSTROPHA = 2
-    LIQUESCENT_FOLLOWING_U = 3
-    LIQUESCENT_FOLLOWING_D = 4
-
-
-class GraphicalConnectionType(IntEnum):
-    GAPED = 0
-    LOOPED = 1
-
-
-class NoteName(IntEnum):
-    UNDEFINED = -1
-    A = 0
-    B = 1
-    C = 2
-    D = 3
-    E = 4
-    F = 5
-    G = 6
-
-    def __str__(self):
-        return 'ABCDEFG '[self.value]
-
-# See https://music-encoding.org/guidelines/v3/content/neumes.html (Fig. 1) for reference
-class BasicNeumeType(IntEnum):
-    # Single Notes
-    VIRGA = 0
-    PUNCTA = 1
-
-    # Two-note neumes
-    PES = 2
-    CLIVIS = 3
-
-    # three-note neumes
-    SCANDICUS = 4
-    CLIMACUS = 5
-    TORCULUS = 6
-    PORRECTUS = 7
-
-    # four-note neumes
-    PODATUS_SUBBUPUNCTIS = 8
-    TORCULUS_RESUPINUS = 9
-    PORRECTUS_FLEXUS = 10
-
-    # Liquescent neumes
-    EPIPHONUS = 11
-    CEPHALICUS = 12
-
-    # Stropic neumes
-    DISTROPHA = 13
-    TRISTROPHA = 14
-    ORISCUS = 15
-    PRESSUS = 16
-
-    # Special neumes
-    SALICUS = 17
-    QUILISMA = 18
-
-    OTHER = -1
 
 
 class NoteComponent(Symbol):
@@ -332,9 +226,6 @@ class ClefType(IntEnum):
     CLEF_F = 0
     CLEF_C = 1
 
-    def offset(self):
-        return [0, -3][self.value]
-
 
 class Clef(Symbol):
     def __init__(self,
@@ -362,236 +253,7 @@ class Clef(Symbol):
             "type": self.clef_type.value,
         })
 
-    def note_name_octave(self, position_in_staff: MusicSymbolPositionInStaff):
-        clef_type_offset = self.clef_type.offset()
-        note_name = NoteName((clef_type_offset + 49 - self.position_in_staff + MusicSymbolPositionInStaff.LINE_2 + position_in_staff) % 7)
-        octave = 4 + (clef_type_offset - self.position_in_staff + MusicSymbolPositionInStaff.LINE_1 + position_in_staff) // 7
-        return note_name, octave
 
-
-class StaffLine:
-    def __init__(self, coords=Coords(), highlighted=False, space=False, sl_id=''):
-        self.id = sl_id
-        self.coords = coords
-        self._center_y = 0
-        self._dewarped_y = 0
-        self.highlighted = highlighted
-        self.space = space
-        self.update()
-
-    @staticmethod
-    def from_json(json):
-        return StaffLine(
-            Coords.from_json(json.get('coords', [])),
-            json.get('highlighted', False),
-            json.get('space', False),
-            json.get('id', ''),
-        )
-
-    def to_json(self):
-        return {
-            'id': self.id,
-            'coords': self.coords.to_json(),
-            'highlighted': self.highlighted,
-            'space': self.space,
-        }
-
-    def update(self):
-        self._center_y = np.mean(self.coords.points[:, 1])
-        self._dewarped_y = int(self._center_y)
-
-    def approximate(self, distance):
-        self.coords.approximate(distance)
-        self.update()
-
-    def interpolate_y(self, x):
-        return self.coords.interpolate_y(x)
-
-    def center_y(self):
-        return self._center_y
-
-    def dewarped_y(self):
-        return self._dewarped_y
-
-    def draw(self, canvas, color=(0, 255, 0), thickness=5, offset=(0, 0)):
-        self.coords.draw(canvas, color, thickness, offset=offset)
-
-    def fit_to_gray_image(self, gray: np.ndarray, offset=5, debug=False):
-        # bounds
-        left, top = tuple(list(map(int, self.coords.points.min(axis=0))))
-        right, bot = tuple(list(map(int, self.coords.points.max(axis=0))))
-
-        # padding
-        gray = np.pad(gray, ((2 * offset, 2 * offset), (2 * offset, 2 * offset)), mode='constant', constant_values=0)
-        left += 2 * offset
-        top += 2 * offset
-        right += 2 * offset
-        bot += 2 * offset
-
-        # offset
-        top -= offset
-        bot += offset
-
-        # lines
-        line = np.zeros(gray.shape)
-        self.draw(line, color=(255,), thickness=2, offset=(2 * offset, 2 * offset))
-        target = gray[top-offset:bot+offset, left:right]
-        search = line[top:bot, left:right]
-
-        fit = [np.mean(target[i:i+bot-top, :] * search) for i in range(offset * 2)]
-        shift = np.argmin(fit) - offset
-        self.coords.points[:, 1] += shift
-
-        # debug output
-        if debug:
-            import matplotlib.pyplot as plt
-            sub_imgs = [target[i:i+bot-top, :] * search for i in range(offset * 2)]
-            f, ax = plt.subplots(len(sub_imgs), 1)
-            for a, si in zip(ax, sub_imgs):
-                a.imshow(si)
-            plt.show()
-            print(shift)
-
-
-class StaffLines(List[StaffLine]):
-    @staticmethod
-    def from_json(json):
-        return StaffLines([StaffLine.from_json(l) for l in json]).sorted()
-
-    def to_json(self):
-        return [l.to_json() for l in self]
-
-    def draw(self, canvas, color=(0, 255, 0), thickness=5):
-        for l in self:
-            l.draw(canvas, color, thickness)
-
-    def aabb(self) -> Rect:
-        if len(self) == 0:
-            return Rect()
-        r = self[0].coords.aabb()
-        for sl in self[1:]:
-            r = r.union(sl.coords.aabb())
-        return r
-
-    def sort(self):
-        super(StaffLines, self).sort(key=lambda s: s.center_y())
-
-    def sorted(self):
-        return StaffLines(sorted(self, key=lambda s: s.center_y()))
-
-    def compute_position_in_staff(self, coord: Point) -> MusicSymbolPositionInStaff:
-        return self.position_in_staff(coord)
-
-    def compute_coord_by_position_in_staff(self, x: float, pis: MusicSymbolPositionInStaff) -> Point:
-        line = pis.value - MusicSymbolPositionInStaff.LINE_1
-        if line < 0:
-            return Point(x, self[-1].interpolate_y(x) + abs(line) / 2 * self.avg_line_distance())
-        elif line // 2 + 1 >= len(self):
-            return Point(x, self[0].interpolate_y(x) - abs(len(self) - 1 - line / 2) * self.avg_line_distance())
-        elif line % 2 == 0:
-            return Point(x, self[len(self) - 1 - line // 2].interpolate_y(x))
-        else:
-            return Point(x, (self[len(self) - 1 - line // 2].interpolate_y(x) + self[len(self) - line // 2 - 2].interpolate_y(x)) / 2)
-
-    def avg_line_distance(self, default=-1):
-        if len(self) <= 1:
-            return default
-
-        ys = [sl.center_y() for sl in self]
-        d = max(ys) - min(ys)
-        return d / (len(self) - 1)
-
-    # Following code taken from ommr4all-client
-    # ==================================================================
-    @staticmethod
-    def _round_to_staff_pos(x: float):
-        rounded = np.round(x)
-        even = (rounded + 2000) % 2 == 0
-        if not even:
-            if abs(x - rounded) < 0.4:
-                return rounded
-            else:
-                return rounded + 1 if x - rounded > 0 else rounded - 1
-        else:
-            return rounded
-
-    @staticmethod
-    def _interp_staff_pos(y: float, top: float, bot: float, top_space: bool, bot_space: bool,
-                          top_pos: MusicSymbolPositionInStaff, bot_pos: MusicSymbolPositionInStaff,
-                          offset: int) -> Tuple[float, MusicSymbolPositionInStaff]:
-        ld = bot - top
-        if top_space and not bot_space:
-            top -= ld
-            top_pos += 1
-        elif not top_space and bot_space:
-            bot += ld
-            bot_pos -= 1
-        elif top_space and bot_space:
-            center = (top + bot) / 1
-            if center > y:
-                top -= ld / 2
-                bot = center
-                top_pos += 1
-                bot_pos = top_pos - 2
-            else:
-                top = center
-                bot += ld / 2
-                top_pos -= 1
-                top_pos = bot_pos + 2
-
-        d = y -top
-        rel = d / (bot - top)
-        snapped = -offset + StaffLines._round_to_staff_pos(2 * rel)
-        return top + snapped * (bot - top) / 2, \
-               MusicSymbolPositionInStaff(max(MusicSymbolPositionInStaff.SPACE_0,
-                                              min(MusicSymbolPositionInStaff.SPACE_7, int(top_pos - snapped))))
-
-    def _staff_pos(self, p: Point, offset: int = 0) -> Tuple[float, MusicSymbolPositionInStaff]:
-        @dataclass
-        class StaffPos:
-            line: StaffLine
-            y: float
-            pos: MusicSymbolPositionInStaff
-
-        if len(self) <= 1:
-            return p.y, MusicSymbolPositionInStaff.UNDEFINED
-
-        y_on_staff: List[StaffPos] = []
-        for staffLine in self.sorted():
-            y_on_staff.append(StaffPos(staffLine, staffLine.coords.interpolate_y(p.x), MusicSymbolPositionInStaff.UNDEFINED))
-
-        y_on_staff[-1].pos = MusicSymbolPositionInStaff.SPACE_1 if y_on_staff[-1].line.space else MusicSymbolPositionInStaff.LINE_1
-        for i in reversed(range(0, len(y_on_staff) - 1)):
-            if y_on_staff[i + 1].line.space == y_on_staff[i].line.space:
-                y_on_staff[i].pos = y_on_staff[i + 1].pos + 2
-            else:
-                y_on_staff[i].pos = y_on_staff[i + 1].pos + 1
-
-        pre_line_idx = -1
-        l = [i for i, l in enumerate(y_on_staff) if l.y > p.y]
-        if len(l) > 0:
-            pre_line_idx = l[0]
-
-        if pre_line_idx == -1:
-            # bot
-            last = y_on_staff[-1]
-            prev = y_on_staff[-2]
-        elif pre_line_idx == 0:
-            last = y_on_staff[pre_line_idx + 1]
-            prev = y_on_staff[pre_line_idx]
-        else:
-            last = y_on_staff[pre_line_idx]
-            prev = y_on_staff[pre_line_idx - 1]
-
-        return StaffLines._interp_staff_pos(p.y, prev.y, last.y, prev.line.space, last.line.space, prev.pos, last.pos, offset)
-
-    def position_in_staff(self, p: Point) -> MusicSymbolPositionInStaff:
-        return self._staff_pos(p)[1]
-
-    def snap_to_pos(self, p: Point, offset: int = 0) -> float:
-        return self._staff_pos(p, offset)[0]
-
-    # ==================================================================
 
 
 class MusicLine:
@@ -651,30 +313,6 @@ class MusicLine:
             image = self.coords.extract_from_image(page)
 
         return image, None
-
-    def center_y(self):
-        if len(self.staff_lines) == 0:
-            return None
-
-        return (self.staff_lines[0].center_y() + self.staff_lines[-1].center_y()) / 2
-
-    def compute_position_in_staff(self, coord: Point) -> MusicSymbolPositionInStaff:
-        return self.staff_lines.compute_position_in_staff(coord)
-
-    def update_note_names(self, initial_clef: Clef = None):
-        current_clef = initial_clef if initial_clef else Clef()
-
-        for s in self.symbols:
-            if isinstance(s, Clef):
-                current_clef = s
-                s.update_note_name(current_clef, self.staff_lines)
-            elif isinstance(s, Neume):
-                for n in s.notes:
-                    n.update_note_name(current_clef, self.staff_lines)
-            else:
-                s.update_note_name(current_clef, self.staff_lines)
-
-        return current_clef
 
 
 class MusicLines(List[MusicLine]):

@@ -1,7 +1,7 @@
 from database.database_page import DatabaseBook, DatabasePage
 from typing import Optional, List, Tuple, Callable
 from enum import Enum
-from restapi.utils.jsonparsing import JsonParseKeyNotFound, require_json
+from shared.jsonparsing import JsonParseKeyNotFound, require_json
 
 
 class PageCount(Enum):

@@ -1,36 +1,38 @@
 from . import *
 
 from database.file_formats.pcgts.page import page as dt_page
+from typing import List
 
 
 class SyllableConnector:
     def __init__(self,
                  syllable: Syllable,
-                 neume: Neume,
+                 note: MusicSymbol,
                  ):
-        self.neume = neume
+        self.note = note
         self.syllable = syllable
         assert(self.syllable is not None)
-        assert(self.neume is not None)
+        assert(self.note is not None)
+        assert(self.note.symbol_type == SymbolType.NOTE)
 
     @staticmethod
-    def from_json(json: dict, mr: MusicRegion, tr: TextRegion):
+    def from_json(json: dict, mr: Block, tr: Block):
         return SyllableConnector(
             tr.syllable_by_id(json['syllableID'], True),
-            mr.neume_by_id(json['neumeID'], True)
+            mr.note_by_id(json['noteID'], True)
         )
 
     def to_json(self):
         return {
             'syllableID': self.syllable.id,
-            'neumeID': self.neume.id,
+            'noteID': self.note.id,
         }
 
 
 class Connection:
     def __init__(self,
-                 music_region: MusicRegion = None,
-                 text_region: TextRegion = None,
+                 music_region: Block = None,
+                 text_region: Block = None,
                  syllable_connections: List[SyllableConnector] = None,
                  ):
         self.music_region = music_region
@@ -73,7 +75,10 @@ class Annotations:
             'connections': [c.to_json() for c in self.connections]
         }
 
-    def lyrics_of_music_line(self, mr: MusicRegion) -> TextRegion:
+    def drop_annotation_by_text_block(self, block: Block):
+        self.connections = [c for c in self.connections if c.text_region != block]
+
+    def lyrics_of_music_line(self, mr: Block) -> Block:
         for connection in self.connections:
             if connection.music_region == mr:
                 return connection.text_region

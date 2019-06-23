@@ -1,7 +1,7 @@
 from omr.layout.predictor import LayoutAnalysisPredictor, LayoutPredictorParameters, PredictionType, PredictionResult\
     , LayoutAnalysisPredictorCallback
 from typing import List, Optional
-from database.file_formats.pcgts import PcGts, TextRegionType, Coords
+from database.file_formats.pcgts import PcGts, Coords, BlockType
 import numpy as np
 from layoutanalysis.segmentation.callback import SegmentationCallback
 
@@ -27,8 +27,8 @@ class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
         def extract_staffs(pcgts: PcGts):
             page = pcgts.page
             staffs = []
-            for mr in pcgts.page.music_regions:
-                for s in mr.staffs:
+            for mr in pcgts.page.music_blocks():
+                for s in mr.lines:
                     staffs.append([list(page.page_to_image_scale(sl.coords, self.params.page_scale_reference).points[:, ::-1].astype(int)) for sl in s.staff_lines])
             return staffs
 
@@ -44,12 +44,12 @@ class StandardLayoutAnalysisPredictor(LayoutAnalysisPredictor):
             page = pcgts.page
 
             yield PredictionResult(
-                text_regions={
-                    TextRegionType.LYRICS: p_to_np(p.get('lyrics', []), page),
-                    TextRegionType.DROP_CAPITAL: p_to_np(p.get('initials', []), page),
-                    TextRegionType.PARAGRAPH: p_to_np(p.get('text', []), page),
+                blocks={
+                    BlockType.LYRICS: p_to_np(p.get('lyrics', []), page),
+                    BlockType.DROP_CAPITAL: p_to_np(p.get('initials', []), page),
+                    BlockType.PARAGRAPH: p_to_np(p.get('text', []), page),
+                    BlockType.MUSIC: p_to_np(p.get('system', []), page),
                 },
-                music_regions=p_to_np(p.get('system', []), page),
             )
 
 
@@ -68,15 +68,18 @@ if __name__ == "__main__":
         checkpoints=[],
     )
     pred = StandardLayoutAnalysisPredictor(params)
+    def s(c):
+        return val_pcgts[0].page.page_to_image_scale(c, params.page_scale_reference)
+
     for p in pred.predict(val_pcgts):
-        for i, mr_c in enumerate(p.music_regions):
-            mr_c.coords.draw(mask, (255, 0, 0), fill=True)
+        for i, mr_c in enumerate(p.blocks.get(BlockType.MUSIC, [])):
+            s(mr_c.coords).draw(mask, (255, 0, 0), fill=True, thickness=0)
 
-        for i, mr_c in enumerate(p.text_regions.get(TextRegionType.LYRICS, [])):
-            mr_c.coords.draw(mask, (0, 255, 0), fill=True)
+        for i, mr_c in enumerate(p.blocks.get(BlockType.LYRICS, [])):
+            s(mr_c.coords).draw(mask, (0, 255, 0), fill=True, thickness=0)
 
-        for i, mr_c in enumerate(p.text_regions.get(TextRegionType.DROP_CAPITAL, [])):
-            mr_c.coords.draw(mask, (0, 0, 255), fill=True)
+        for i, mr_c in enumerate(p.blocks.get(BlockType.DROP_CAPITAL, [])):
+            s(mr_c.coords).draw(mask, (0, 0, 255), fill=True, thickness=0)
 
     import json
     print(p.to_dict())
