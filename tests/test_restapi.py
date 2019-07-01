@@ -1,6 +1,7 @@
 import unittest
 
 from django.contrib.auth.models import User
+from django.http import FileResponse
 from django.test import Client
 from django.urls import reverse
 import ommr4all.settings as settings
@@ -10,6 +11,9 @@ import time
 import os
 import sys
 import logging
+import json
+from database.database_page import DatabaseBook, DatabasePage
+from shared.jsonparsing import drop_all_attributes
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', stream=sys.stdout)
 
@@ -90,21 +94,17 @@ class OperationTests(APITestCase):
         response = self.client.get('/api/book/demo/page/page00000001/content/page_progress', format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
 
-    def _test_line_detection_of_page(self, page, n_lines):
-        self.lock_page(page)
-        response = self.client.put('/api/book/demo/page/{}/operation/staffs'.format(page), '{}', format='json')
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.content)
-        taskid = response.data['task_id']
-        url = '/api/book/demo/page/{}/operation/staffs/task/{}'.format(page, taskid)
-        response = self.client.post(url, '{}', format='json')
-        data = response.data
-        while data['status']['code'] == 1 or data['status']['code'] == 0:
-            time.sleep(1)
-            response = self.client.post(url, '{}', format='json')
-            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
-            data = response.data
+    def _test_preprocessing_of_page(self, page: DatabasePage):
+        self.call_operation(page, 'preprocessing', {'automaticLd': True})
+
+    def test_preprocessing_001(self):
+        page = DatabaseBook('demo').page('page_test_preprocessing_001')
+        self._test_preprocessing_of_page(page)
+
+    def _test_line_detection_of_page(self, page: str, n_lines):
+        page = DatabaseBook('demo').page(page)
+        data = self.call_operation(page, 'staffs', {})
         self.assertEqual(len(data['staffs']), n_lines)
-        self.unlock_page(page)
 
     def test_line_detection_001(self):
         self._test_line_detection_of_page('page_test_staff_line_detection_001', 9)
@@ -112,23 +112,10 @@ class OperationTests(APITestCase):
     def test_line_detection_002(self):
         self._test_line_detection_of_page('page_test_staff_line_detection_002', 9)
 
-    def _test_layout_detection_of_page(self, page):
-        self.lock_page(page)
-
-        response = self.client.put('/api/book/demo/page/{}/operation/layout'.format(page), '{}', format='json')
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.content)
-        taskid = response.data['task_id']
-        url = '/api/book/demo/page/{}/operation/layout/task/{}'.format(page, taskid)
-        response = self.client.post(url, '{}', format='json')
-        data = response.data
-        while data['status']['code'] == 1 or data['status']['code'] == 0:
-            time.sleep(1)
-            response = self.client.post(url, '{}', format='json')
-            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
-            data = response.data
-        self.unlock_page(page)
-
-        # Todo check data
+    def _test_layout_detection_of_page(self, page: str):
+        page = DatabaseBook('demo').page(page)
+        data = self.call_operation(page, 'layout')
+        # TODO check data
 
     def test_layout_detection_001(self):
         self._test_layout_detection_of_page('page_test_layout_detection_001')
@@ -136,20 +123,10 @@ class OperationTests(APITestCase):
     def test_layout_detection_002(self):
         self._test_layout_detection_of_page('page_test_layout_detection_002')
 
-    def _test_symbol_detection_of_page(self, page):
-        self.lock_page(page)
-        response = self.client.put('/api/book/demo/page/{}/operation/symbols'.format(page), '{}', format='json')
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.content)
-        taskid = response.data['task_id']
-        url = '/api/book/demo/page/{}/operation/symbols/task/{}'.format(page, taskid)
-        response = self.client.post(url, '{}', format='json')
-        data = response.data
-        while data['status']['code'] == 1 or data['status']['code'] == 0:
-            time.sleep(1)
-            response = self.client.post(url, '{}', format='json')
-            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
-            data = response.data
-        self.unlock_page(page)
+    def _test_symbol_detection_of_page(self, page: str):
+        page = DatabaseBook('demo').page(page)
+        data = self.call_operation(page, 'symbols')
+        # TODO check data
 
     def test_symbol_detection_001(self):
         self._test_symbol_detection_of_page('page_test_symbol_detection_001')
@@ -157,8 +134,36 @@ class OperationTests(APITestCase):
     def test_symbol_detection_002(self):
         self._test_symbol_detection_of_page('page_test_symbol_detection_002')
 
-    def save_page(self, page, json):
-        return self.client.post('/api/book/demo/page/{}/operation/save'.format(page), json, format='json')
+    def test_export_monodi(self):
+        page = DatabaseBook('demo').page('page_test_monodi_export_001')
+        response: FileResponse = self.client.post('/api/book/{}/download/monodiplus.json'.format(page.book.book),
+                                                  {'pages': [page.page]}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.filename)
+        data = b''.join(response.streaming_content).decode('utf-8')
+        data = json.loads(data)
+        drop_all_attributes(data, 'uuid')
+        with open(page.local_file_path('monodi.json')) as f:
+            self.assertEqual(data, json.load(f))
+
+    def test_export_annotations(self):
+        page = DatabaseBook('demo').page('page_test_monodi_export_001')
+        self.call_operation(page, 'preprocessing', {'automaticLd': True})
+        self.client.post('/api/book/{}/page/{}/operation')
+        response: FileResponse = self.client.post('/api/book/{}/download/annotations.zip'.format(page.book.book),
+                                                  {'pages': [page.page]}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.filename)
+        import io
+        import zipfile
+        by = io.BytesIO(b''.join(response.streaming_content))
+        files_to_expect = ['color_original', 'color_norm_x2', 'binary_norm_x2', 'pcgts', 'meta']
+        with zipfile.ZipFile(by) as f:
+            zip_files = [z.filename for z in f.infolist()]
+            files_to_expect = ["{}/{}{}".format(file, page.page, page.file(file).ext()) for file in files_to_expect]
+            self.assertListEqual(files_to_expect, zip_files)
+            self.assertEqual(len(zip_files), len(files_to_expect))
+
+    def save_page(self, page, data):
+        return self.client.post('/api/book/demo/page/{}/operation/save'.format(page), data, format='json')
 
     def lock_page(self, page):
         payload = {}
@@ -169,6 +174,22 @@ class OperationTests(APITestCase):
         payload = {}
         response = self.client.delete('/api/book/demo/page/{}/lock'.format(page), payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+
+    def call_operation(self, page: DatabasePage, operation: str, data={}):
+        self.lock_page(page.page)
+        response = self.client.put('/api/book/{}/page/{}/operation/{}'.format(page.book.book, page.page, operation), data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.content)
+        taskid = response.data['task_id']
+        url = '/api/book/{}/page/{}/operation/{}/task/{}'.format(page.book.book, page.page, operation, taskid)
+        response = self.client.post(url, '{}', format='json')
+        data = response.data
+        while data['status']['code'] == 1 or data['status']['code'] == 0:
+            time.sleep(1)
+            response = self.client.post(url, '{}', format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+            data = response.data
+        self.unlock_page(page.page)
+        return data
 
 
 if __name__ == '__main__':

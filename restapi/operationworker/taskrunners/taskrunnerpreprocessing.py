@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-files = ['color_norm', 'color_highres_preproc', 'color_lowres_preproc', 'connected_components_norm']
+files = ['color_norm', 'color_norm_x2', 'color_highres_preproc', 'color_lowres_preproc', 'connected_components_norm']
 
 
 class Settings(NamedTuple):

@@ -97,6 +97,12 @@ class OperationView(APIView):
             from restapi.operationworker.taskrunners.taskrunnerstafflinedetection import TaskRunnerStaffLineDetection, Settings
             return TaskRunnerStaffLineDetection(PageSelection.from_page(page),
                                                 Settings())
+        elif operation == 'preprocessing':
+            from restapi.operationworker.taskrunners.taskrunnerpreprocessing import TaskRunnerPreprocessing, Settings
+            return TaskRunnerPreprocessing(
+                PageSelection.from_page(page),
+                Settings.from_json(body),
+            )
         elif operation == 'layout':
             from restapi.operationworker.taskrunners.taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis, Settings
             return TaskRunnerLayoutAnalysis(PageSelection.from_page(page), Settings())
