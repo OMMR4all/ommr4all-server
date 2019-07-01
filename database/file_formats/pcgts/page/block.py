@@ -16,6 +16,7 @@ class Block(Region):
         super().__init__(id, coords)
         self.block_type = block_type
         self.lines = lines if lines else []
+        self.update_note_names()
 
     @staticmethod
     def from_json(d: dict) -> 'Block':
@@ -63,4 +64,9 @@ class Block(Region):
             raise ValueError("Note with ID {} not found in music region".format(id, self.id))
 
         return None
+
+    def update_note_names(self):
+        current_clef = None
+        for line in self.lines:
+            current_clef = line.update_note_names(current_clef)
 

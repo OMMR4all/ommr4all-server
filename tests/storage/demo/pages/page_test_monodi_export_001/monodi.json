@@ -1,0 +1,666 @@
+{
+  "kind": "RootContainer",
+  "children": [
+    {
+      "kind": "MiscContainer",
+      "children": [
+        {
+          "kind": "ParatextContainer",
+          "text": "2",
+          "retro": false,
+          "paratextType": "Formteil"
+        },
+        {
+          "kind": "ZeileContainer",
+          "children": [
+            {
+              "kind": "Clef",
+              "focus": false,
+              "base": "C",
+              "octave": 4,
+              "shape": "C"
+            },
+            {
+              "kind": "Syllable",
+              "text": "Al",
+              "notes": {
+                "spaced": [
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "D",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "syllableType": "Normal"
+            },
+            {
+              "kind": "Syllable",
+              "text": "le",
+              "notes": {
+                "spaced": [
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "E",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      },
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "syllableType": "Normal"
+            },
+            {
+              "kind": "Syllable",
+              "text": "lu",
+              "notes": {
+                "spaced": [
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "A",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "C",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          }
+                        ]
+                      },
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "B",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      },
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "A",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "B",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "A",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "F",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "syllableType": "Normal"
+            },
+            {
+              "kind": "Syllable",
+              "text": "\u1e8fa",
+              "notes": {
+                "spaced": [
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "F",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "D",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "E",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "C",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "D",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "D",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "B",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "D",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          }
+                        ]
+                      },
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "B",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      },
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "A",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "B",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "A",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "A",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "syllableType": "Normal"
+            },
+            {
+              "kind": "Syllable",
+              "text": "Vir",
+              "notes": {
+                "spaced": [
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "A",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "C",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          }
+                        ]
+                      },
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "B",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      },
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "A",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "syllableType": "Normal"
+            },
+            {
+              "kind": "Syllable",
+              "text": "ga",
+              "notes": {
+                "spaced": [
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "A",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "syllableType": "Normal"
+            },
+            {
+              "kind": "Clef",
+              "focus": false,
+              "base": "C",
+              "octave": 4,
+              "shape": "C"
+            },
+            {
+              "kind": "Syllable",
+              "text": "ie\u017f",
+              "notes": {
+                "spaced": [
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "G",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "D",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "syllableType": "Normal"
+            },
+            {
+              "kind": "Syllable",
+              "text": "\u017fe",
+              "notes": {
+                "spaced": [
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "E",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "C",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "D",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nonSpaced": [
+                      {
+                        "grouped": [
+                          {
+                            "noteType": "Normal",
+                            "base": "D",
+                            "liquescent": false,
+                            "octave": 4,
+                            "focus": false
+                          },
+                          {
+                            "noteType": "Normal",
+                            "base": "B",
+                            "liquescent": false,
+                            "octave": 3,
+                            "focus": false
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "syllableType": "Normal"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "comments": [],
+  "documentType": "Gesang"
+}

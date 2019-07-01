@@ -6,4 +6,5 @@ pages/*/*
 !pages/*layout*/pcgts.json
 !pages/*symbol*/pcgts.json
 !pages/*upgrade*/pcgts.json
+!pages/*monodi*/*.json
 !/.permissions.pkl
