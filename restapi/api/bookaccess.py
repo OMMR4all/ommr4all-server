@@ -160,7 +160,7 @@ class BookDownloaderView(APIView):
             s = io.BytesIO()
             zf = zipfile.ZipFile(s, 'w')
             for page in pages:
-                file_names = ['color_deskewed', 'binary_deskewed', 'pcgts', ]
+                file_names = ['color_original', 'color_norm_x2', 'binary_norm_x2', 'pcgts', 'meta']
                 files = [page.file(f) for f in file_names]
 
                 if any([not f.exists() for f in files]):
