@@ -9,6 +9,7 @@ from restapi.api.error import *
 from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
 from restapi.api.pageaccess import require_lock
 from restapi.operationworker.taskrunners.pageselection import PageSelection
+from omr.dataset.datafiles import EmptyDataSetException
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,12 @@ class BookOperationTaskView(APIView):
                 raise error
             else:
                 return Response({'status': op_status.to_json()})
+        except TaskNotFoundException as e:
+            return APIError(status.HTTP_404_NOT_FOUND,
+                            "Task was not found.",
+                            "Task not found.",
+                            ErrorCodes.OPERATION_TASK_NOT_FOUND,
+                            ).response()
         except KeyError as e:
             logger.exception(e)
             return APIError(status.HTTP_400_BAD_REQUEST,
@@ -72,10 +79,20 @@ class BookOperationTaskView(APIView):
                             ErrorCodes.OPERATION_INVALID_GET,
                             ).response()
         except (FileNotFoundError, OSError) as e:
-            logger.error(e)
-            return Response({'error': 'no-model'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.exception(e)
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            "Model not found",
+                            "No model was found",
+                            ErrorCodes.OPERATION_TASK_NO_MODEL).response()
+        except EmptyDataSetException as e:
+            logger.exception(e)
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            "Dataset is empty",
+                            "No ground truth files available",
+                            ErrorCodes.OPERATION_TASK_TRAIN_EMPTY_DATASET,
+                            ).response()
         except Exception as e:
-            logging.error(e)
+            logging.exception(e)
             return Response({'error': 'unknown'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -101,11 +118,11 @@ class BookOperationView(APIView):
     def op_to_task_runner(operation, book: DatabaseBook, body: dict):
         # check if operation is linked to a task
         if operation == 'train_symbols':
-            from restapi.operationworker.taskrunners.taskrunnersymboldetectiontrainer import TaskRunnerSymbolDetectionTrainer
-            return TaskRunnerSymbolDetectionTrainer(book)
+            from restapi.operationworker.taskrunners.taskrunnersymboldetectiontrainer import TaskRunnerSymbolDetectionTrainer, TaskTrainerParams
+            return TaskRunnerSymbolDetectionTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})))
         elif operation == 'train_staff_line_detector':
-            from restapi.operationworker.taskrunners.taskrunnerstafflinedetectiontrainer import TaskRunnerStaffLineDetectionTrainer
-            return TaskRunnerStaffLineDetectionTrainer(book)
+            from restapi.operationworker.taskrunners.taskrunnerstafflinedetectiontrainer import TaskRunnerStaffLineDetectionTrainer, TaskTrainerParams
+            return TaskRunnerStaffLineDetectionTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})))
         elif operation == 'preprocessing':
             from restapi.operationworker.taskrunners.taskrunnerpreprocessing import TaskRunnerPreprocessing, Settings
             return TaskRunnerPreprocessing(

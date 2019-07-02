@@ -2,9 +2,10 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from omr.stafflines.detection.predictor import StaffLinesModelType
 from database import DatabaseBook
+from omr.stafflines.detection.dataset import PCDatasetCallback
 
 
-class StaffLinesDetectionTrainerCallback:
+class StaffLinesDetectionTrainerCallback(PCDatasetCallback):
     def __init__(self):
         super().__init__()
         self.total_iters = 0
@@ -21,6 +22,9 @@ class StaffLinesDetectionTrainerCallback:
         pass
 
     def early_stopping(self):
+        pass
+
+    def resolving_files(self):
         pass
 
 

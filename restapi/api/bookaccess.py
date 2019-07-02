@@ -36,22 +36,22 @@ class require_permissions(object):
 
 class BookMetaView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
-    def get(self, request, book, format=None):
+    def get(self, request, book):
         book = DatabaseBook(book)
 
-        return Response({**book.get_meta().to_json(), 'permissions': book.resolve_user_permissions(request.user).flags})
+        return Response({**book.get_meta().to_dict(), 'permissions': book.resolve_user_permissions(request.user).flags})
 
     @require_permissions([DatabaseBookPermissionFlag.EDIT_BOOK_META])
-    def put(self, request, book, format=None):
+    def put(self, request, book):
         book = DatabaseBook(book)
-        meta = DatabaseBookMeta.from_json(book, json.loads(request.body, encoding='utf-8'))
-        book.save_json_to_meta(meta.to_json())
+        meta = DatabaseBookMeta.from_book_dict(book, json.loads(request.body, encoding='utf-8'))
+        book.save_json_to_meta(meta.to_dict())
         return Response()
 
 
 class BookView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
-    def get(self, request, book, format=None):
+    def get(self, request, book):
         book = DatabaseBook(book)
         pages = book.pages()
 
@@ -145,7 +145,7 @@ class BooksView(APIView):
         return Response({
             'totalPages': len(books),
             'books': sorted([{
-            **book.to_json(), **{'permissions': DatabaseBook(book.id).resolve_user_permissions(request.user).flags}
+                **book.to_dict(), **{'permissions': DatabaseBook(book.id).resolve_user_permissions(request.user).flags}
         } for book in paginatedBooks if user_access(book.id)], key=lambda b: b['name'])})
 
 

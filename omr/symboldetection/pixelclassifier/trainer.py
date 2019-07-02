@@ -30,6 +30,10 @@ class PCTrainer(SymbolDetectionTrainerBase):
     def __init__(self, params: SymbolDetectionTrainerParams):
         super().__init__(params)
 
+    @staticmethod
+    def load_base_dir_to_model(d: str) -> str:
+        return os.path.join(d, pc_settings.model_dir, pc_settings.model_name)
+
     def run(self, model_for_book: Optional[DatabaseBook]=None, callback: Optional[SymbolDetectionTrainerCallback]=None):
         pc_callback = PCTrainerCallback(callback) if callback else None
 
@@ -37,9 +41,9 @@ class PCTrainer(SymbolDetectionTrainerBase):
             n_iter=self.params.n_iter if self.params.n_iter > 0 else 10000,
             n_classes=len(SymbolLabel),
             l_rate=self.params.l_rate if self.params.l_rate > 0 else 1e-4,
-            train_data=self.train_dataset.to_music_line_page_segmentation_dataset(),
-            validation_data=self.validation_dataset.to_music_line_page_segmentation_dataset(),
-            load=self.params.load,
+            train_data=self.train_dataset.to_music_line_page_segmentation_dataset(callback),
+            validation_data=self.validation_dataset.to_music_line_page_segmentation_dataset(callback),
+            load=self.preloaded_model_path(),
             display=self.params.display,
             output=self.params.output if self.params.output else model_for_book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name)),
             early_stopping_test_interval=self.params.early_stopping_test_interval if self.params.early_stopping_test_interval >= 0 else 500,

@@ -6,6 +6,7 @@ import numpy as np
 from typing import NamedTuple
 from tqdm import tqdm
 from dataclasses import dataclass
+from abc import ABC, abstractmethod
 
 from omr.imageoperations import ImageExtractDewarpedStaffLineImages, ImageOperationList, ImageLoadFromPageOperation, \
     ImageOperationData, ImageRescaleToHeightOperation, ImagePadToPowerOf2, ImageDrawRegions, ImageApplyFCN
@@ -53,6 +54,31 @@ class SymbolDetectionDatasetParams:
     neume_types_only: bool = False
 
 
+class SymbolDatasetCallback(ABC):
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def loading(self, n: int, total: int):
+        pass
+
+    @abstractmethod
+    def loading_started(self, total: int):
+        pass
+
+    @abstractmethod
+    def loading_finished(self, total: int):
+        pass
+
+    def apply(self, gen, total: int):
+        self.loading_started(total)
+        self.loading(0, total)
+        for i, v in enumerate(gen):
+            self.loading(i + 1, total)
+            yield v
+        self.loading_finished(total)
+
+
 class SymbolDetectionDataset:
     def __init__(self, pcgts: List[PcGts], params: SymbolDetectionDatasetParams):
         self.files = pcgts
@@ -81,14 +107,14 @@ class SymbolDetectionDataset:
 
         self.line_and_mask_operations = ImageOperationList(operations)
 
-    def to_music_line_page_segmentation_dataset(self):
+    def to_music_line_page_segmentation_dataset(self, callback: Optional[SymbolDatasetCallback] = None):
         from pagesegmentation.lib.dataset import Dataset, SingleData
         return Dataset([SingleData(image=d.line_image if self.params.cut_region else d.region, binary=None, mask=d.mask,
-                                   user_data=d) for d in self.marked_symbols()])
+                                   user_data=d) for d in self.marked_symbols(callback)])
 
-    def to_music_line_calamari_dataset(self, train=False):
+    def to_music_line_calamari_dataset(self, train=False, callback: Optional[SymbolDatasetCallback] = None):
         from calamari_ocr.ocr.datasets.dataset import RawDataSet, DataSetMode
-        marked_symbols = self.marked_symbols()
+        marked_symbols = self.marked_symbols(callback)
 
         def get_input_image(d: RegionLineMaskData):
             if self.params.cut_region:
@@ -107,14 +133,19 @@ class SymbolDetectionDataset:
             gts = [d.calamari_sequence().calamari_str for d in marked_symbols]
         return RawDataSet(DataSetMode.TRAIN if train else DataSetMode.PREDICT, images=images, texts=gts)
 
-    def marked_symbols(self) -> List[RegionLineMaskData]:
+    def marked_symbols(self, callback: Optional[SymbolDatasetCallback] = None) -> List[RegionLineMaskData]:
         if self.marked_symbol_data is None:
-            self.marked_symbol_data = list(self._create_marked_symbols())
+            self.marked_symbol_data = list(self._create_marked_symbols(callback))
 
         return self.marked_symbol_data
 
-    def _create_marked_symbols(self) -> Generator[RegionLineMaskData, None, None]:
-        for f in tqdm(self.files, total=len(self.files), desc="Loading music lines"):
+    def _create_marked_symbols(self, callback: Optional[SymbolDatasetCallback]) -> Generator[RegionLineMaskData, None, None]:
+        def wrapper(g):
+            if callback:
+                return callback.apply(g, total=len(self.files))
+            return g
+
+        for f in tqdm(wrapper(self.files), total=len(self.files), desc="Loading music lines"):
             try:
                 input = ImageOperationData([], PageScaleReference.NORMALIZED_X2, page=f.page)
                 for outputs in self.line_and_mask_operations.apply_single(input):

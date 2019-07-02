@@ -8,7 +8,7 @@ from typing import Tuple, List, Optional, NamedTuple
 logger = logging.getLogger(__name__)
 
 
-class EmptyDataSetException(BaseException):
+class EmptyDataSetException(Exception):
     pass
 
 

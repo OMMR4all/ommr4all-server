@@ -31,6 +31,9 @@ class TaskProgressCodes(IntEnum):
     INITIALIZING = 0
     WORKING = 1
     FINALIZING = 2
+    RESOLVING_DATA = 3
+    LOADING_DATA = 4
+    PREPARING_TRAINING = 5
 
 
 @dataclass

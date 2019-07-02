@@ -2,14 +2,21 @@ from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple
 from database import DatabaseBook, DatabasePage
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
+from .trainerparams import TaskTrainerParams
+import logging
+from omr.dataset.datafiles import dataset_by_locked_pages, LockState
+
+logger = logging.getLogger(__name__)
 
 
 class TaskRunnerSymbolDetectionTrainer(TaskRunner):
     def __init__(self,
-                 book: DatabaseBook
+                 book: DatabaseBook,
+                 params: TaskTrainerParams,
                  ):
         super().__init__({TaskWorkerGroup.LONG_TASKS_GPU})
         self.book = book
+        self.params = params
 
     def identifier(self) -> Tuple:
         return self.book,
@@ -19,12 +26,38 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
         return True
 
     def run(self, task: Task, com_queue: Queue) -> dict:
-        from omr.symboldetection.trainer import SymbolDetectionTrainer, SymbolDetectionTrainerCallback
+        from omr.symboldetection.trainer import SymbolDetectionTrainerCallback, create_symbol_detection_trainer, \
+            SymbolDetectionDatasetParams, PredictorTypes
+        from omr.symboldetection.pixelclassifier.trainer import SymbolDetectionTrainerParams
 
         class Callback(SymbolDetectionTrainerCallback):
             def __init__(self):
                 super().__init__()
                 self.iter, self.loss, self.acc, self.best_iter, self.best_acc, self.best_iters = -1, -1, -1, -1, -1, -1
+
+            def resolving_files(self):
+                com_queue.put(TaskCommunicationData(task, TaskStatus(
+                    TaskStatusCodes.RUNNING,
+                    TaskProgressCodes.RESOLVING_DATA,
+                )))
+
+            def loading(self, n: int, total: int):
+                com_queue.put(TaskCommunicationData(task, TaskStatus(
+                    TaskStatusCodes.RUNNING,
+                    TaskProgressCodes.LOADING_DATA,
+                    progress=n / total,
+                    n_processed=n,
+                    n_total=total,
+                )))
+
+            def loading_started(self, total: int):
+                pass
+
+            def loading_finished(self, total: int):
+                com_queue.put(TaskCommunicationData(task, TaskStatus(
+                    TaskStatusCodes.RUNNING,
+                    TaskProgressCodes.PREPARING_TRAINING,
+                )))
 
             def put(self):
                 com_queue.put(TaskCommunicationData(task, TaskStatus(
@@ -47,5 +80,26 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
             def early_stopping(self):
                 pass
 
-        SymbolDetectionTrainer(self.book, callback=Callback())
+        callback = Callback()
+
+        logger.info("Finding PcGts files with valid ground truth")
+        callback.resolving_files()
+        train_pcgts, val_pcgts = dataset_by_locked_pages(
+            self.params.nTrain, [LockState('Symbols', True)],
+            datasets=[self.book] if not self.params.includeAllTrainingData else [])
+        logger.info("Starting training with {} training and {} validation files".format(len(train_pcgts), len(val_pcgts)))
+        logger.debug("Training files: {}".format([p.page.location.local_path() for p in train_pcgts]))
+        logger.debug("Validation files: {}".format([p.page.location.local_path() for p in val_pcgts]))
+        params = SymbolDetectionDatasetParams()
+        trainer = create_symbol_detection_trainer(
+            PredictorTypes.PIXEL_CLASSIFIER,
+            SymbolDetectionTrainerParams(
+                params,
+                train_pcgts,
+                val_pcgts,
+                load_base_dir=self.book.get_meta().default_models_path(),
+            )
+        )
+        trainer.run(self.book, callback=callback)
+        logger.info("Training finished for book {}".format(self.book.local_path()))
         return {}

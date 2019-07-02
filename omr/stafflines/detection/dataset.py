@@ -1,9 +1,10 @@
 from database.file_formats.pcgts import PcGts, Line, BlockType, Block, PageScaleReference
 import numpy as np
-from typing import List, Tuple, Generator, NamedTuple, Union
+from typing import List, Tuple, Generator, NamedTuple, Union, Optional
 from omr.dataset import RegionLineMaskData
 from tqdm import tqdm
 import logging
+from abc import ABC, abstractmethod
 
 from omr.imageoperations import ImageLoadFromPageOperation, ImageOperationList, ImageScaleOperation, ImagePadToPowerOf2, ImageExtractStaffLineImages, ImageOperationData
 
@@ -19,6 +20,32 @@ class StaffLineDetectionDatasetParams(NamedTuple):
     extract_region_only: bool = True
     gt_line_thickness: int = 2
     page_scale_reference: PageScaleReference = PageScaleReference.NORMALIZED
+
+
+class PCDatasetCallback(ABC):
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def loading(self, n: int, total: int):
+        pass
+
+    @abstractmethod
+    def loading_started(self, total: int):
+        pass
+
+    @abstractmethod
+    def loading_finished(self, total: int):
+        pass
+
+    @staticmethod
+    def apply(gen, cb: 'PCDatasetCallback', total: int):
+        cb.loading_started(total)
+        cb.loading(0, total)
+        for i, v in enumerate(gen):
+            cb.loading(i + 1, total)
+            yield v
+        cb.loading_finished(total)
 
 
 class PCDataset:
@@ -37,7 +64,7 @@ class PCDataset:
             # ImagePadToPowerOf2(),      // Padding also done in line detector
         ])
 
-    def to_page_segmentation_dataset(self, target_staff_line_distance=10, origin_staff_line_distance=10):
+    def to_page_segmentation_dataset(self, target_staff_line_distance=10, origin_staff_line_distance=10, callback: Optional[PCDatasetCallback] = None):
         from pagesegmentation.lib.dataset import Dataset, SingleData, DatasetLoader
         loader = DatasetLoader(target_staff_line_distance)
         return Dataset([loader.load_images(
@@ -46,14 +73,17 @@ class PCDataset:
                        mask=d.mask,
                        line_height_px=origin_staff_line_distance if origin_staff_line_distance is not None else d.operation.page.avg_staff_line_distance(),
                        original_shape=d.line_image.shape,
-                       user_data=d)) for d in self.marked_lines()])
+                       user_data=d)) for d in self.marked_lines(callback)])
 
-    def to_line_detection_dataset(self) -> List[RegionLineMaskData]:
-        return self.marked_lines()
+    def to_line_detection_dataset(self, callback: Optional[PCDatasetCallback] = None) -> List[RegionLineMaskData]:
+        return self.marked_lines(callback)
 
-    def marked_lines(self) -> List[RegionLineMaskData]:
+    def marked_lines(self, callback: Optional[PCDatasetCallback] = None) -> List[RegionLineMaskData]:
         if self.marked_symbol_data is None:
-            self.marked_symbol_data = list(self._create_marked_lines())
+            if not callback:
+                self.marked_symbol_data = list(self._create_marked_lines())
+            else:
+                self.marked_symbol_data = list(PCDatasetCallback.apply(self._create_marked_lines(), callback, len(self.files)))
 
         return self.marked_symbol_data
 

@@ -8,6 +8,7 @@ import time
 from typing import Set
 from .taskworkergroup import TaskWorkerGroup
 from django.conf import settings
+from omr.dataset.datafiles import EmptyDataSetException
 import logging
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ class TaskWorkerThread:
                 if isinstance(result, Exception):
                     logger.info("THREAD {}: Exception during Task-Execution: {}".format(self.thread.name, result))
                     raise result
-            except (BrokenPipeError, TaskNotFinishedException) as e:
+            except (BrokenPipeError, TaskNotFinishedException, EmptyDataSetException) as e:
                 with self.mutex:
                     self.queue.task_error(self._current_task, e)
                     self._current_task = None

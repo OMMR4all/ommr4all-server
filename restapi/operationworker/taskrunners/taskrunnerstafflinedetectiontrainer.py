@@ -2,14 +2,17 @@ from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple
 from database import DatabaseBook, DatabasePage
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
+from .trainerparams import TaskTrainerParams
 
 
 class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
     def __init__(self,
-                 book: DatabaseBook
+                 book: DatabaseBook,
+                 params: TaskTrainerParams,
                  ):
         super().__init__({TaskWorkerGroup.LONG_TASKS_GPU})
         self.book = book
+        self.params = params
 
     def identifier(self) -> Tuple:
         return self.book,
@@ -25,6 +28,24 @@ class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
             def __init__(self):
                 super().__init__()
                 self.iter, self.loss, self.acc, self.best_iter, self.best_acc, self.best_iters = -1, -1, -1, -1, -1, -1
+
+            def loading(self, n: int, total: int):
+                com_queue.put(TaskCommunicationData(task, TaskStatus(
+                    TaskStatusCodes.RUNNING,
+                    TaskProgressCodes.LOADING_DATA,
+                    progress=n / total,
+                    n_processed=n,
+                    n_total=total,
+                )))
+
+            def loading_started(self, total: int):
+                pass
+
+            def loading_finished(self, total: int):
+                com_queue.put(TaskCommunicationData(task, TaskStatus(
+                    TaskStatusCodes.RUNNING,
+                    TaskProgressCodes.PREPARING_TRAINING,
+                )))
 
             def put(self):
                 com_queue.put(TaskCommunicationData(task, TaskStatus(
@@ -47,6 +68,12 @@ class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
             def early_stopping(self):
                 pass
 
-        trainer = BasicStaffLinesTrainer(self.book)
+            def resolving_files(self):
+                com_queue.put(TaskCommunicationData(task, TaskStatus(
+                    TaskStatusCodes.RUNNING,
+                    TaskProgressCodes.RESOLVING_DATA,
+                )))
+
+        trainer = BasicStaffLinesTrainer(self.book, self.params)
         trainer.train(callback=Callback())
         return {}

@@ -1,5 +1,7 @@
 from enum import IntEnum
 from rest_framework.response import Response
+from mashumaro import DataClassDictMixin
+from dataclasses import dataclass
 
 
 class ErrorCodes(IntEnum):
@@ -22,30 +24,21 @@ class ErrorCodes(IntEnum):
 
     # Task related
     OPERATION_TASK_NOT_FOUND = 51001
+    OPERATION_TASK_NO_MODEL = 51002
+
+    # Task training related
+    OPERATION_TASK_TRAIN_EMPTY_DATASET = 52001
 
 
-class APIError:
-    def __init__(self,
-                 status,
-                 developer_message: str,
-                 user_message: str,
-                 error_code: ErrorCodes
-                 ):
-        self.status = status
-        self.developer_message = developer_message
-        self.user_message = user_message
-        self.error_code = error_code
-
-    def to_json(self):
-        return {
-            'status': self.status,
-            'developerMessage': self.developer_message,
-            'userMessage': self.user_message,
-            'error_code': self.error_code.value,
-        }
+@dataclass
+class APIError(DataClassDictMixin):
+    status: int
+    developerMessage: str
+    userMessage: str
+    errorCode: ErrorCodes
 
     def response(self):
-        return Response(self.to_json(), status=self.status)
+        return Response(self.to_dict(), status=self.status)
 
 
 class PageNotLockedAPIError(APIError):
