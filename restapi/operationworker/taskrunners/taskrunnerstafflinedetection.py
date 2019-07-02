@@ -61,8 +61,10 @@ class TaskRunnerStaffLineDetection(TaskRunner):
         )
         staff_line_detector: StaffLinesPredictor = create_staff_line_predictor(StaffLinesModelType.PIXEL_CLASSIFIER, params)
         com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
-        selected_pages = self.selection.get(TaskRunnerStaffLineDetection.unprocessed)
-        pages = [p.pcgts() for p in selected_pages]
+
+        pages = self.selection.get_pcgts(TaskRunnerStaffLineDetection.unprocessed)
+        selected_pages = [p.page.location for p in pages]
+
         staves = list(staff_line_detector.predict(pages, Callback(len(pages))))
         results = [
             {

@@ -7,15 +7,16 @@ from typing import List
 
 class TaskRunnerLayoutExtractConnectedComponentsByLine(TaskRunner):
     def __init__(self,
-                 page: DatabasePage,
+                 pcgts: PcGts,
                  initial_line: Coords,
                  ):
         super().__init__({TaskWorkerGroup.SHORT_TASKS_CPU})
-        self.page = page
+        self.pcgts = pcgts
+        self.page = self.pcgts.page.location
         self.initial_line = initial_line
 
     def identifier(self) -> Tuple:
-        return self.page, self.initial_line
+        return self.pcgts.page.location, self.initial_line
 
     @staticmethod
     def unprocessed(page: DatabasePage) -> bool:
@@ -25,7 +26,7 @@ class TaskRunnerLayoutExtractConnectedComponentsByLine(TaskRunner):
         from omr.layout.correction_tools.connected_component_selector import extract_components
         import pickle
         staff_lines: List[Coords] = []
-        pcgts = PcGts.from_file(self.page.file('pcgts'))
+        pcgts = self.pcgts
         for mr in pcgts.page.music_blocks():
             for ml in mr.lines:
                 staff_lines += [pcgts.page.page_to_image_scale(s.coords, PageScaleReference.NORMALIZED) for s in ml.staff_lines]

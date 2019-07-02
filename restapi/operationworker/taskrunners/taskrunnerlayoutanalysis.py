@@ -71,8 +71,8 @@ class TaskRunnerLayoutAnalysis(TaskRunner):
         params = LayoutPredictorParameters(checkpoints=[])
         pred = create_predictor(self.settings.layout_mode.to_predictor_type(), params)
 
-        selected_pages = self.selection.get(TaskRunnerLayoutAnalysis.unprocessed)
-        pages = [p.pcgts() for p in selected_pages]
+        pages = self.selection.get_pcgts(TaskRunnerLayoutAnalysis.unprocessed)
+        selected_pages = [p.page.location for p in pages]
 
         com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
         results = list(pred.predict(pages, Callback()))

@@ -32,8 +32,8 @@ class TaskRunnerSymbolDetection(TaskRunner):
             SymbolDetectionPredictorParameters, PredictorTypes, create_predictor, SymbolDetectionDatasetParams
         import omr.symboldetection.pixelclassifier.settings as pc_settings
 
-        selected_pages = self.selection.get(TaskRunnerSymbolDetection.unprocessed)
-        pages = [p.pcgts() for p in selected_pages]
+        pages = self.selection.get_pcgts(TaskRunnerSymbolDetection.unprocessed)
+        selected_pages = [p.page.location for p in pages]
 
         # load book specific model or default model as fallback
         model = self.selection.book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))

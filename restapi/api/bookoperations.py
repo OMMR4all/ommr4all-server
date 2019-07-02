@@ -20,7 +20,7 @@ class BookPageSelectionView(APIView):
         book = DatabaseBook(book)
         task_runner = BookOperationView.op_to_task_runner(operation, book, body)
         page_selection = PageSelection.from_json(body, book)
-        pages = page_selection.get(task_runner.unprocessed)
+        pages = page_selection.get_pages(task_runner.unprocessed)
         return Response({
             'pages': [p.page for p in pages],
             'pageCount': page_selection.page_count.value,

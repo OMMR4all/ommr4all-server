@@ -1,4 +1,5 @@
 from database.database_page import DatabaseBook, DatabasePage
+from database.file_formats.pcgts import PcGts
 from typing import Optional, List, Tuple, Callable
 from enum import Enum
 from shared.jsonparsing import JsonParseKeyNotFound, require_json
@@ -15,12 +16,17 @@ class PageSelection:
                  book: DatabaseBook,
                  page_count: PageCount,
                  pages: Optional[List[DatabasePage]] = None,
+                 pcgts: Optional[List[PcGts]] = None,
                  single_page: bool = False,
                  ):
         self.book = book
         self.page_count = page_count
         self.pages = pages if pages else []
+        self.pcgts = pcgts
         self.single_page = single_page
+
+        if pcgts:
+            self.pages = [p.page.location for p in pcgts]
 
     @staticmethod
     def from_page(page: DatabasePage):
@@ -29,6 +35,15 @@ class PageSelection:
             PageCount.CUSTOM,
             [page],
             single_page=True
+        )
+
+    @staticmethod
+    def from_pcgts(pcgts: PcGts):
+        return PageSelection(
+            pcgts.page.location.book,
+            PageCount.CUSTOM,
+            pcgts=[pcgts],
+            single_page=True,
         )
 
     @staticmethod
@@ -48,7 +63,7 @@ class PageSelection:
     def __eq__(self, other):
         return isinstance(other, type(self)) and self.identifier() == other.identifier()
 
-    def get(self, unprocessed: Optional[Callable[[DatabasePage], bool]] = None) -> List[DatabasePage]:
+    def get_pages(self, unprocessed: Optional[Callable[[DatabasePage], bool]] = None) -> List[DatabasePage]:
         if self.page_count == PageCount.ALL:
             return self.book.pages()
         elif self.page_count == PageCount.UNPROCESSED:
@@ -59,3 +74,8 @@ class PageSelection:
         else:
             return self.pages
 
+    def get_pcgts(self, unprocessed: Optional[Callable[[DatabasePage], bool]] = None) -> List[PcGts]:
+        if self.pcgts:
+            return self.pcgts
+        else:
+            return [p.pcgts() for p in self.get_pages(unprocessed)]

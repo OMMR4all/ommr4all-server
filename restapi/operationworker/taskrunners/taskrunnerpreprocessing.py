@@ -60,7 +60,9 @@ class TaskRunnerPreprocessing(TaskRunner):
         return any([not page.file(f).exists() for f in files])
 
     def run(self, task: Task, com_queue: Queue) -> dict:
-        pages = self.selection.get(TaskRunnerPreprocessing.unprocessed)
+        pages = self.selection.get_pages(TaskRunnerPreprocessing.unprocessed)
+        logger.debug("Starting preprocessing of {} pages".format(len(pages)))
+
         com_queue.put(TaskCommunicationData(task, TaskStatus(
             TaskStatusCodes.RUNNING,
             TaskProgressCodes.WORKING,
@@ -69,6 +71,7 @@ class TaskRunnerPreprocessing(TaskRunner):
             n_total=len(pages),
         )))
         pool = multiprocessing.Pool(processes=4)
+
         for i, _ in enumerate(pool.imap_unordered(_process_single, [(p, self.settings) for p in pages])):
             percentage = (i + 1) / len(pages)
             com_queue.put(TaskCommunicationData(task, TaskStatus(
@@ -81,7 +84,6 @@ class TaskRunnerPreprocessing(TaskRunner):
 
         com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
 
-        logger.debug("Starting preprocessing of {} pages".format(len(pages)))
         logger.debug("Finished preprocessing of {} pages".format(len(pages)))
         return {}
 

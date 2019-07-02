@@ -92,26 +92,23 @@ class OperationStatusView(APIView):
 class OperationView(APIView):
     @staticmethod
     def op_to_task_runner(operation, page: DatabasePage, body: dict):
+        selection = PageSelection.from_page(page) if 'pcgts' not in body else PageSelection.from_pcgts(PcGts.from_json(body['pcgts'], page))
         # check if operation is linked to a task
         if operation == 'staffs':
             from restapi.operationworker.taskrunners.taskrunnerstafflinedetection import TaskRunnerStaffLineDetection, Settings
-            return TaskRunnerStaffLineDetection(PageSelection.from_page(page),
-                                                Settings())
+            return TaskRunnerStaffLineDetection(selection, Settings())
         elif operation == 'preprocessing':
             from restapi.operationworker.taskrunners.taskrunnerpreprocessing import TaskRunnerPreprocessing, Settings
-            return TaskRunnerPreprocessing(
-                PageSelection.from_page(page),
-                Settings.from_json(body),
-            )
+            return TaskRunnerPreprocessing(selection, Settings.from_json(body))
         elif operation == 'layout':
             from restapi.operationworker.taskrunners.taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis, Settings
-            return TaskRunnerLayoutAnalysis(PageSelection.from_page(page), Settings())
+            return TaskRunnerLayoutAnalysis(selection, Settings())
         elif operation == 'symbols':
             from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection, Settings
-            return TaskRunnerSymbolDetection(PageSelection.from_page(page), Settings())
+            return TaskRunnerSymbolDetection(selection, Settings())
         elif operation == 'layout_extract_cc_by_line':
             from restapi.operationworker.taskrunners.taskrunnerlayoutextractconnectedcomponentsbyline import TaskRunnerLayoutExtractConnectedComponentsByLine
-            return TaskRunnerLayoutExtractConnectedComponentsByLine(page, Coords.from_json(body['points']))
+            return TaskRunnerLayoutExtractConnectedComponentsByLine(selection.get_pcgts()[0], Coords.from_json(body['points']))
         else:
             return None
 
