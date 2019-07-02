@@ -24,7 +24,7 @@ def pcgts_update_version(apps, schema_editor):
 
             if upgraded:
                 with open(pcgts_file.local_path(), 'w') as f:
-                    json.dump(j, f)
+                    json.dump(j, f, indent=2)
 
 
 class Migration(migrations.Migration):

@@ -51,7 +51,7 @@ class PcGts:
     def from_json(json: dict, location: Optional[DatabasePage]):
         from database.file_formats.pcgts.jsonloader import update_pcgts
         if update_pcgts(json):
-            logger.warning("PcGts file at {} was upgraded. Maybe some migrations are not applied?".format(location.local_path()))
+            logger.warning("PcGts file at {} was upgraded. Maybe new migrations were not applied, yet?".format(location.local_path()))
 
         pcgts = PcGts(
             Meta.from_json(json.get('meta', {})),
