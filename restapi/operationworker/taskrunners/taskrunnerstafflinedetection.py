@@ -1,14 +1,14 @@
-from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple
-import os
-from django.conf import settings
+from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
+from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, AlgorithmTypes
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
 from .pageselection import PageSelection, DatabasePage
 from typing import NamedTuple
-from database.file_formats.pcgts import Block, Line, BlockType
+from database.file_formats.pcgts import Block, BlockType
 
 
 class Settings(NamedTuple):
+    params: AlgorithmPredictorParams
     store_to_pcgts: bool = False
 
 
@@ -17,7 +17,7 @@ class TaskRunnerStaffLineDetection(TaskRunner):
                  selection: PageSelection,
                  settings: Settings,
                  ):
-        super().__init__({TaskWorkerGroup.NORMAL_TASKS_CPU})
+        super().__init__(AlgorithmTypes.STAFF_LINES_PC, {TaskWorkerGroup.NORMAL_TASKS_CPU})
         self.selection = selection
         self.settings = settings
 
@@ -29,16 +29,10 @@ class TaskRunnerStaffLineDetection(TaskRunner):
         return self.selection.identifier(),
 
     def run(self, task: Task, com_queue: Queue) -> dict:
-        from omr.stafflines.detection.predictor import \
-            create_staff_line_predictor, StaffLinesModelType, StaffLinesPredictor, \
-            StaffLinePredictorParameters, StaffLineDetectionDatasetParams, LineDetectionPredictorCallback
-        import omr.stafflines.detection.pixelclassifier.settings as pc_settings
-        # load book specific model or default model as fallback
-        model = self.selection.book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))
-        if not os.path.exists(model + '.meta'):
-            model = os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', 'french14', pc_settings.model_dir, pc_settings.model_name)
+        from omr.steps.algorithm import PredictionCallback, AlgorithmPredictor, AlgorithmPredictorSettings
+        meta = self.algorithm_meta()
 
-        class Callback(LineDetectionPredictorCallback):
+        class Callback(PredictionCallback):
             def __init__(self, n_total):
                 super().__init__()
                 self.n_total = n_total
@@ -56,10 +50,10 @@ class TaskRunnerStaffLineDetection(TaskRunner):
                     n_processed=n_processed_pages,
                 )))
 
-        params = StaffLinePredictorParameters(
-            checkpoints=[model],
+        params = AlgorithmPredictorSettings(
+            model=meta.selected_model_for_book(self.selection.book)
         )
-        staff_line_detector: StaffLinesPredictor = create_staff_line_predictor(StaffLinesModelType.PIXEL_CLASSIFIER, params)
+        staff_line_detector: AlgorithmPredictor = meta.create_predictor(params)
         com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
 
         pages = self.selection.get_pcgts(TaskRunnerStaffLineDetection.unprocessed)

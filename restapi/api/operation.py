@@ -12,10 +12,12 @@ import re
 from database.file_formats.pcgts import PcGts, Coords
 from database.file_formats.performance.pageprogress import PageProgress
 from database.file_formats.performance.statistics import Statistics
-from restapi.operationworker.taskrunners.pageselection import PageSelection
+from restapi.operationworker.taskrunners.pageselection import PageSelection, PageSelectionParams
+from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from restapi.api.error import *
 from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
 from restapi.api.pageaccess import require_lock
+from dataclasses import field
 
 logger = logging.getLogger(__name__)
 
@@ -90,23 +92,30 @@ class OperationStatusView(APIView):
 
 
 class OperationView(APIView):
+    @dataclass()
+    class AlgorithmRequest(DataClassDictMixin):
+        params: AlgorithmPredictorParams = field(default_factory=lambda: AlgorithmPredictorParams())
+
     @staticmethod
     def op_to_task_runner(operation, page: DatabasePage, body: dict):
-        selection = PageSelection.from_page(page) if 'pcgts' not in body else PageSelection.from_pcgts(PcGts.from_json(body['pcgts'], page))
         # check if operation is linked to a task
         if operation == 'staffs':
             from restapi.operationworker.taskrunners.taskrunnerstafflinedetection import TaskRunnerStaffLineDetection, Settings
-            return TaskRunnerStaffLineDetection(selection, Settings())
+            r = OperationView.AlgorithmRequest.from_dict(body)
+            return TaskRunnerStaffLineDetection(PageSelection.from_page(page), Settings(r.params))
         elif operation == 'preprocessing':
-            from restapi.operationworker.taskrunners.taskrunnerpreprocessing import TaskRunnerPreprocessing, Settings
-            return TaskRunnerPreprocessing(selection, Settings.from_json(body))
+            from restapi.operationworker.taskrunners.taskrunnerpreprocessing import TaskRunnerPreprocessing, AlgorithmPredictorParams
+            return TaskRunnerPreprocessing(PageSelection.from_page(page), AlgorithmPredictorParams.from_dict(body))
         elif operation == 'layout':
             from restapi.operationworker.taskrunners.taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis, Settings
-            return TaskRunnerLayoutAnalysis(selection, Settings())
+            r = OperationView.AlgorithmRequest.from_dict(body)
+            return TaskRunnerLayoutAnalysis(PageSelection.from_pcgts(PcGts.from_json(body['pcgts'], page)), Settings(r.params))
         elif operation == 'symbols':
             from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection, Settings
-            return TaskRunnerSymbolDetection(selection, Settings())
+            r = OperationView.AlgorithmRequest.from_dict(body)
+            return TaskRunnerSymbolDetection(PageSelection.from_pcgts(PcGts.from_json(body['pcgts'], page)), Settings(r.params))
         elif operation == 'layout_extract_cc_by_line':
+            selection = PageSelection.from_page(page) if 'pcgts' not in body else PageSelection.from_pcgts(PcGts.from_json(body['pcgts'], page))
             from restapi.operationworker.taskrunners.taskrunnerlayoutextractconnectedcomponentsbyline import TaskRunnerLayoutExtractConnectedComponentsByLine
             return TaskRunnerLayoutExtractConnectedComponentsByLine(selection.get_pcgts()[0], Coords.from_json(body['points']))
         else:

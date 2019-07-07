@@ -1,10 +1,12 @@
-from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple
+from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, AlgorithmTypes
 from database import DatabaseBook, DatabasePage
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
 from .trainerparams import TaskTrainerParams
 import logging
 from omr.dataset.datafiles import dataset_by_locked_pages, LockState
+from omr.steps.algorithm import TrainerCallback, AlgorithmTrainerSettings, DatasetParams
+from omr.dataset.dataset import PageScaleReference
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +16,7 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
                  book: DatabaseBook,
                  params: TaskTrainerParams,
                  ):
-        super().__init__({TaskWorkerGroup.LONG_TASKS_GPU})
+        super().__init__(AlgorithmTypes.SYMBOLS_PC, {TaskWorkerGroup.LONG_TASKS_GPU})
         self.book = book
         self.params = params
 
@@ -26,11 +28,7 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
         return True
 
     def run(self, task: Task, com_queue: Queue) -> dict:
-        from omr.symboldetection.trainer import SymbolDetectionTrainerCallback, create_symbol_detection_trainer, \
-            SymbolDetectionDatasetParams, PredictorTypes
-        from omr.symboldetection.pixelclassifier.trainer import SymbolDetectionTrainerParams
-
-        class Callback(SymbolDetectionTrainerCallback):
+        class Callback(TrainerCallback):
             def __init__(self):
                 super().__init__()
                 self.iter, self.loss, self.acc, self.best_iter, self.best_acc, self.best_iters = -1, -1, -1, -1, -1, -1
@@ -90,16 +88,28 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
         logger.info("Starting training with {} training and {} validation files".format(len(train_pcgts), len(val_pcgts)))
         logger.debug("Training files: {}".format([p.page.location.local_path() for p in train_pcgts]))
         logger.debug("Validation files: {}".format([p.page.location.local_path() for p in val_pcgts]))
-        params = SymbolDetectionDatasetParams()
-        trainer = create_symbol_detection_trainer(
-            PredictorTypes.PIXEL_CLASSIFIER,
-            SymbolDetectionTrainerParams(
-                params,
-                train_pcgts,
-                val_pcgts,
-                load_base_dir=self.book.get_meta().default_models_path(),
-            )
+
+        meta = self.algorithm_meta()
+        train, val = self.params.to_train_val(locks=[LockState('StaffLines', True)], books=[self.book])
+
+        settings = AlgorithmTrainerSettings(
+            train_data=train,
+            validation_data=val,
+            dataset_params=DatasetParams(
+                gt_required=True,
+                pad=None,
+                pad_power_of_2=3,
+                height=80,
+                dewarp=False,
+                cut_region=False,
+                center=True,
+                staff_lines_only=True,
+            ),
         )
-        trainer.run(self.book, callback=callback)
+
+        trainer = meta.create_trainer(settings)
+        if self.params.pretrainedModel:
+            trainer.settings.params.load = self.params.pretrainedModel.id
+        trainer.train(self.book, callback=callback)
         logger.info("Training finished for book {}".format(self.book.local_path()))
         return {}

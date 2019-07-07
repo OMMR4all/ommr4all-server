@@ -1,7 +1,6 @@
 from omr.preprocessing.util.connected_compontents import ConnectedComponents
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
 from scipy import signal, spatial
 from skimage.measure import approximate_polygon
 from omr.stafflines.text_line import TextBoundaries, TextLine
@@ -272,6 +271,7 @@ def extract_text(cc: ConnectedComponents, central_text_line: np.ndarray, debug=F
                                                np.column_stack((center_x, cap_bot_line))))
 
     if debug:
+        import matplotlib.pyplot as plt
         canvas = np.stack(((canvas).astype(np.uint8),) * 3, -1)
         text_line.draw(canvas)
         plt.imshow(canvas)

@@ -14,7 +14,8 @@ ActionHistory = List[ActionHistoryEntry]
 class Statistics:
     @staticmethod
     def from_json_file(filename):
-        return Statistics.from_json(json.load(open(filename)))
+        with open(filename) as f:
+            return Statistics.from_json(json.load(f))
 
     @staticmethod
     def from_json(d):

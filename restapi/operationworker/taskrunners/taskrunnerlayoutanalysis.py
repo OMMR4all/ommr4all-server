@@ -4,35 +4,16 @@ from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
 import logging
 from typing import NamedTuple
-from enum import Enum
 from database.file_formats.pcgts import BlockType, Block, Line
-from omr.layout.predictor import PredictorTypes
+from omr.steps.algorithm import AlgorithmPredictorParams
 
 
 logger = logging.getLogger(__name__)
 
 
-class LayoutModes(Enum):
-    SIMPLE = 'simple'
-    COMPLEX = 'complex'
-
-    def to_predictor_type(self) -> PredictorTypes:
-        return {
-            LayoutModes.SIMPLE: PredictorTypes.LYRICS_BBS,
-            LayoutModes.COMPLEX: PredictorTypes.STANDARD,
-        }[self]
-
-
 class Settings(NamedTuple):
+    params: AlgorithmPredictorParams
     store_to_pcgts: bool = False
-    layout_mode: LayoutModes = LayoutModes.COMPLEX
-
-    @staticmethod
-    def from_json(d: dict):
-        return Settings(
-            d.get('storeToPcGts', False),
-            LayoutModes(d.get('layoutMode', LayoutModes.COMPLEX.value)),
-        )
 
 
 class TaskRunnerLayoutAnalysis(TaskRunner):
@@ -40,7 +21,7 @@ class TaskRunnerLayoutAnalysis(TaskRunner):
                  selection: PageSelection,
                  settings: Settings,
                  ):
-        super().__init__({TaskWorkerGroup.NORMAL_TASKS_CPU})
+        super().__init__(settings.params.layoutMode.to_predictor_type(), {TaskWorkerGroup.NORMAL_TASKS_CPU})
         self.selection = selection
         self.settings = settings
 
@@ -52,24 +33,28 @@ class TaskRunnerLayoutAnalysis(TaskRunner):
         return len(page.pcgts().page.text_blocks()) == 0
 
     def run(self, task: Task, com_queue: Queue) -> dict:
-        logger.debug("Starting layout prediction with mode {}".format(self.settings.layout_mode))
+        from omr.steps.algorithm import AlgorithmPredictorSettings, PredictionCallback
+        logger.debug("Starting layout prediction with mode {}".format(self.settings.params.layoutMode))
+        meta = self.algorithm_meta()
+        pred = meta.create_predictor(AlgorithmPredictorSettings(
+            model=meta.best_model_for_book(self.selection.book),
+        ))
 
-        from omr.layout.predictor import LayoutPredictorParameters, create_predictor, \
-            LayoutAnalysisPredictorCallback
-
-        class Callback(LayoutAnalysisPredictorCallback):
+        class Callback(PredictionCallback):
             def __init__(self):
                 super().__init__()
 
-            def progress_updated(self, percentage: float):
+            def progress_updated(self,
+                                 percentage: float,
+                                 n_pages: int = 0,
+                                 n_processed_pages: int = 0):
                 com_queue.put(TaskCommunicationData(task, TaskStatus(
                     TaskStatusCodes.RUNNING,
                     TaskProgressCodes.WORKING,
                     progress=percentage,
+                    n_total=n_pages,
+                    n_processed=n_processed_pages,
                 )))
-
-        params = LayoutPredictorParameters(checkpoints=[])
-        pred = create_predictor(self.settings.layout_mode.to_predictor_type(), params)
 
         pages = self.selection.get_pcgts(TaskRunnerLayoutAnalysis.unprocessed)
         selected_pages = [p.page.location for p in pages]

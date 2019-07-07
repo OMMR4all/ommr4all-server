@@ -1,0 +1,28 @@
+{
+  "gt_required": true,
+  "pad": [
+    0,
+    40,
+    0,
+    80
+  ],
+  "pad_power_of_2": 3,
+  "image_input": "region_image",
+  "full_page": true,
+  "gray": true,
+  "extract_region_only": true,
+  "gt_line_thickness": 2,
+  "page_scale_reference": 4,
+  "target_staff_line_distance": 10,
+  "origin_staff_line_distance": 10,
+  "height": 80,
+  "dewarp": false,
+  "cut_region": false,
+  "center": true,
+  "staff_lines_only": true,
+  "masks_as_input": false,
+  "apply_fcn_pad_power_of_2": 3,
+  "apply_fcn_model": null,
+  "apply_fcn_height": null,
+  "neume_types_only": false
+}

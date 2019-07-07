@@ -1,6 +1,5 @@
 from database.file_formats.pcgts import PcGts, Coords
 import numpy as np
-import matplotlib.pyplot as plt
 import logging
 from PIL import Image
 from typing import List, Optional
@@ -147,6 +146,7 @@ def dewarp(images, staves: List[List[Coords]], resamples: List[int] = None):
 if __name__ == '__main__':
     from database import DatabaseBook
     from database.file_formats.pcgts import PageScaleReference
+    import matplotlib.pyplot as plt
     page = DatabaseBook('demo').pages()[0]
     binary = Image.open(page.file('binary_highres_preproc', create_if_not_existing=True).local_path())
     gray = Image.open(page.file('gray_highres_preproc').local_path())

@@ -28,7 +28,8 @@ class PageProgress:
 
     @staticmethod
     def from_json_file(file: str):
-        return PageProgress.from_json(json.load(open(file)))
+        with open(file) as f:
+            return PageProgress.from_json(json.load(f))
 
     def to_json_file(self, filename: str):
         s = json.dumps(self.to_json(), indent=2)

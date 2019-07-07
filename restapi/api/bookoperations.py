@@ -8,8 +8,11 @@ import json
 from restapi.api.error import *
 from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
 from restapi.api.pageaccess import require_lock
-from restapi.operationworker.taskrunners.pageselection import PageSelection
+from restapi.operationworker.taskrunners.taskrunner import TaskRunner
+from restapi.operationworker.taskrunners.pageselection import PageSelection, PageSelectionParams
 from omr.dataset.datafiles import EmptyDataSetException
+from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
+from dataclasses import field, dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +23,7 @@ class BookPageSelectionView(APIView):
         body = json.loads(request.body, encoding='utf-8')
         book = DatabaseBook(book)
         task_runner = BookOperationView.op_to_task_runner(operation, book, body)
-        page_selection = PageSelection.from_json(body, book)
+        page_selection = PageSelection.from_params(PageSelectionParams.from_dict(body), book)
         pages = page_selection.get_pages(task_runner.unprocessed)
         return Response({
             'pages': [p.page for p in pages],
@@ -113,9 +116,15 @@ class BookOperationStatusView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+@dataclass()
+class AlgorithmRequest(DataClassDictMixin):
+    params: AlgorithmPredictorParams = field(default_factory=lambda: AlgorithmPredictorParams())
+    selection: PageSelectionParams = field(default_factory=lambda: PageSelectionParams())
+
+
 class BookOperationView(APIView):
     @staticmethod
-    def op_to_task_runner(operation, book: DatabaseBook, body: dict):
+    def op_to_task_runner(operation, book: DatabaseBook, body: dict) -> TaskRunner:
         # check if operation is linked to a task
         if operation == 'train_symbols':
             from restapi.operationworker.taskrunners.taskrunnersymboldetectiontrainer import TaskRunnerSymbolDetectionTrainer, TaskTrainerParams
@@ -124,36 +133,44 @@ class BookOperationView(APIView):
             from restapi.operationworker.taskrunners.taskrunnerstafflinedetectiontrainer import TaskRunnerStaffLineDetectionTrainer, TaskTrainerParams
             return TaskRunnerStaffLineDetectionTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})))
         elif operation == 'preprocessing':
-            from restapi.operationworker.taskrunners.taskrunnerpreprocessing import TaskRunnerPreprocessing, Settings
+            from restapi.operationworker.taskrunners.taskrunnerpreprocessing import TaskRunnerPreprocessing, AlgorithmPredictorParams
+            r = AlgorithmRequest.from_dict(body)
             return TaskRunnerPreprocessing(
-                PageSelection.from_json(body, book),
-                Settings.from_json(body),
+                PageSelection.from_params(r.selection, book),
+                r.params,
             )
         elif operation == 'stafflines':
             from restapi.operationworker.taskrunners.taskrunnerstafflinedetection import TaskRunnerStaffLineDetection, Settings
+            r = AlgorithmRequest.from_dict(body)
             return TaskRunnerStaffLineDetection(
-                PageSelection.from_json(body, book),
+                PageSelection.from_params(r.selection, book),
                 Settings(
+                    r.params,
                     store_to_pcgts=True,
                 )
             )
         elif operation == 'layout':
             from restapi.operationworker.taskrunners.taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis, Settings
-            body['storeToPcGts'] = True
+            r = AlgorithmRequest.from_dict(body)
             return TaskRunnerLayoutAnalysis(
-                PageSelection.from_json(body, book),
-                Settings.from_json(body),
+                PageSelection.from_params(r.selection, book),
+                Settings(
+                    r.params,
+                    store_to_pcgts=True,
+                )
             )
         elif operation == 'symbols':
             from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection, Settings
+            r = AlgorithmRequest.from_dict(body)
             return TaskRunnerSymbolDetection(
-                PageSelection.from_json(body, book),
+                PageSelection.from_params(r.selection, book),
                 Settings(
+                    r.params,
                     store_to_pcgts=True,
                 )
             )
         else:
-            return None
+            raise NotImplementedError()
 
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     def put(self, request, book, operation):
@@ -183,3 +200,34 @@ class BookOperationView(APIView):
                 return Response({'task_id': task_id})
 
         return Response(status=status.HTTP_404_NOT_FOUND)
+
+
+class BookOperationModelsView(APIView):
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book, operation):
+        book = DatabaseBook(book)
+        body = json.loads(request.body, encoding='utf-8') if request.body else {}
+        task_runner = BookOperationView.op_to_task_runner(operation, book, body)
+        models = task_runner.list_available_models_for_book(book)
+
+        return Response(models.to_dict())
+
+
+class BookOperationModelView(APIView):
+    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
+    def delete(self, request, book, operation, model):
+        book = DatabaseBook(book)
+        task_runner = BookOperationView.op_to_task_runner(operation, book, {})
+        # check that the model is really part of the model
+        for m in task_runner.algorithm_meta().models_for_book(book).list_models():
+            if m.id() == model:
+                m.delete()
+                return Response()
+
+        return APIError(status.HTTP_404_NOT_FOUND,
+                        "Model with id '{}' was not found in book '{}'. Available books {}.".format(
+                            model, book.book,
+                            [m.id() for m in task_runner.algorithm_meta().models_for_book(book).list_models()]),
+                        "Model not found.",
+                        ErrorCodes.MODEL_NOT_FOUND,
+                        ).response()

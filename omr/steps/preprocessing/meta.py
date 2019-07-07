@@ -1,0 +1,32 @@
+from omr.steps.algorithm import AlgorithmMeta, AlgorithmPredictor, AlgorithmTrainer, Type, AlgorithmTypes, Dataset
+from omr.steps.step import Step
+
+
+class Meta(AlgorithmMeta):
+    @staticmethod
+    def type() -> AlgorithmTypes:
+        return AlgorithmTypes.PREPROCESSING
+
+    @classmethod
+    def predictor(cls) -> Type[AlgorithmPredictor]:
+        from .predictor import PreprocessingPredictor
+        return PreprocessingPredictor
+
+    @classmethod
+    def trainer(cls) -> Type[AlgorithmTrainer]:
+        raise NotImplementedError()
+
+    @staticmethod
+    def dataset_class() -> Type[Dataset]:
+        return None
+
+    @staticmethod
+    def model_dir() -> str:
+        return "preprocessing"
+
+    @staticmethod
+    def best_model_name() -> str:
+        return "model"
+
+
+Step.register(Meta)

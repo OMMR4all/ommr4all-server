@@ -2,6 +2,8 @@ from database.database_page import DatabaseBook, DatabasePage
 from database.file_formats.pcgts import PcGts
 from typing import Optional, List, Tuple, Callable
 from enum import Enum
+from dataclasses import dataclass, field
+from mashumaro import DataClassDictMixin
 from shared.jsonparsing import JsonParseKeyNotFound, require_json
 
 
@@ -9,6 +11,12 @@ class PageCount(Enum):
     ALL = 'all'
     UNPROCESSED = 'unprocessed'
     CUSTOM = 'custom'
+
+
+@dataclass
+class PageSelectionParams(DataClassDictMixin):
+    count: PageCount = PageCount.ALL
+    pages: List[str] = field(default_factory=lambda: [])
 
 
 class PageSelection:
@@ -29,6 +37,14 @@ class PageSelection:
             self.pages = [p.page.location for p in pcgts]
 
     @staticmethod
+    def from_params(params: PageSelectionParams, book: DatabaseBook):
+        return PageSelection(
+            book,
+            PageCount(params.count),
+            [book.page(page) for page in params.pages]
+        )
+
+    @staticmethod
     def from_page(page: DatabasePage):
         return PageSelection(
             page.book,
@@ -47,13 +63,10 @@ class PageSelection:
         )
 
     @staticmethod
-    def from_json(d: dict, book: DatabaseBook):
-        if not 'count' in d:
-            raise JsonParseKeyNotFound('count', d)
-
+    def from_dict(d: dict, book: DatabaseBook):
         return PageSelection(
             book,
-            PageCount(require_json(d, 'count')),
+            PageCount(d.get('count', PageCount.ALL.value)),
             [book.page(page) for page in d.get('pages', [])]
         )
 

@@ -6,7 +6,7 @@ from database import *
 from restapi.api import OperationStatusView, OperationView, BookView, BooksView, \
     PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView, BookMetaView, \
     BookVirtualKeyboardView, PageLockView, OperationTaskView, BookRenamePagesView
-from restapi.api.bookoperations import BookOperationStatusView, BookOperationTaskView, BookOperationView, BookPageSelectionView
+from restapi.api.bookoperations import BookOperationStatusView, BookOperationTaskView, BookOperationView, BookPageSelectionView, BookOperationModelsView, BookOperationModelView
 from restapi.api.auth import AuthView
 from restapi.api.bookcomments import BookCommentsView, BookCommentsCountView
 from restapi.api.bookpermissions import BookPermissionsView, BookUserPermissionsView, BookGroupPermissionsView, BookDefaultPermissionsView
@@ -71,6 +71,8 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/operation/(?P<operation>\w+)/page_selection$', BookPageSelectionView.as_view()),
         re_path(r'^book/(?P<book>\w+)/operation/(?P<operation>\w+)/task/(?P<task_id>[\w\-]+)$', BookOperationTaskView.as_view()),
         re_path(r'^book/(?P<book>\w+)/operation/(?P<operation>\w+)/status$', BookOperationStatusView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/operation/(?P<operation>\w+)/models$', BookOperationModelsView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/operation/(?P<operation>\w+)/model/(?P<model>.+)$', BookOperationModelView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/pcgts$', PagePcGtsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/statistics$', PageStatisticsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/page_progress$', PageProgressView.as_view()),

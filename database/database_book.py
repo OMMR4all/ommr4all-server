@@ -33,6 +33,10 @@ class DatabaseBook:
         return [DatabaseBook(name) for name in os.listdir(settings.PRIVATE_MEDIA_ROOT) if DatabaseBook(name, skip_validation=True).is_valid()]
 
     @staticmethod
+    def list_available_of_style(notation_style: str) -> List['DatabaseBook']:
+        return [b for b in DatabaseBook.list_available() if b.get_meta().notationStyle == notation_style]
+
+    @staticmethod
     def list_available_book_metas():
         return [b.get_meta() for b in DatabaseBook.list_available()]
 
@@ -76,10 +80,13 @@ class DatabaseBook:
         return DatabasePage(self, page)
 
     def local_default_models_path(self, sub=''):
-        return os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', 'french14', sub)
+        return os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', self.get_meta().notationStyle, sub)
 
     def local_default_virtual_keyboards_path(self, sub=''):
         return os.path.join(settings.BASE_DIR, 'internal_storage', 'default_virtual_keyboards', sub)
+
+    def local_models_path(self, sub=''):
+        return self.local_path(os.path.join('models', sub))
 
     def local_path(self, sub=''):
         return os.path.join(settings.PRIVATE_MEDIA_ROOT, self.book, sub)

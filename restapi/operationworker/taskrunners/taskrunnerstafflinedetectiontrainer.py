@@ -1,8 +1,10 @@
-from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple
+from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, DatabaseAvailableModels, AlgorithmTypes
 from database import DatabaseBook, DatabasePage
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
-from .trainerparams import TaskTrainerParams
+from .trainerparams import TaskTrainerParams, LockState
+from omr.steps.algorithm import TrainerCallback, AlgorithmTrainerSettings, DatasetParams
+from omr.dataset.dataset import PageScaleReference
 
 
 class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
@@ -10,7 +12,7 @@ class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
                  book: DatabaseBook,
                  params: TaskTrainerParams,
                  ):
-        super().__init__({TaskWorkerGroup.LONG_TASKS_GPU})
+        super().__init__(AlgorithmTypes.STAFF_LINES_PC, {TaskWorkerGroup.LONG_TASKS_GPU})
         self.book = book
         self.params = params
 
@@ -22,9 +24,9 @@ class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
         return True
 
     def run(self, task: Task, com_queue: Queue) -> dict:
-        from omr.stafflines.detection.pixelclassifier.trainer import BasicStaffLinesTrainer, StaffLinesDetectionTrainerCallback
+        meta = self.algorithm_meta()
 
-        class Callback(StaffLinesDetectionTrainerCallback):
+        class Callback(TrainerCallback):
             def __init__(self):
                 super().__init__()
                 self.iter, self.loss, self.acc, self.best_iter, self.best_acc, self.best_iters = -1, -1, -1, -1, -1, -1
@@ -74,6 +76,27 @@ class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
                     TaskProgressCodes.RESOLVING_DATA,
                 )))
 
-        trainer = BasicStaffLinesTrainer(self.book, self.params)
-        trainer.train(callback=Callback())
+        train, val = self.params.to_train_val(locks=[LockState('StaffLines', True)], books=[self.book])
+
+        settings = AlgorithmTrainerSettings(
+            train_data=train,
+            validation_data=val,
+            dataset_params=DatasetParams(
+                gt_required=True,
+                pad=None,
+                pad_power_of_2=3,
+                full_page=True,
+                gray=True,
+                extract_region_only=True,
+                gt_line_thickness=2,
+                page_scale_reference=PageScaleReference.NORMALIZED,
+                target_staff_line_distance=10,
+                origin_staff_line_distance=10,
+            ),
+        )
+
+        trainer = meta.create_trainer(settings)
+        if self.params.pretrainedModel:
+            trainer.settings.params.load = self.params.pretrainedModel.id
+        trainer.train(self.book, callback=Callback())
         return {}

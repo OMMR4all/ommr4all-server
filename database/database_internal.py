@@ -1,5 +1,5 @@
 import os
-from django.conf import settings
+import ommr4all.settings as settings
 
 INTERNAL_STORAGE = os.path.join(settings.BASE_DIR, 'internal_storage')
 

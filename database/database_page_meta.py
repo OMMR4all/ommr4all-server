@@ -17,7 +17,8 @@ class DatabasePageMeta(DataClassJSONMixin):
     def load(page: DatabasePage):
         path = page.file('meta').local_path()
         try:
-            return DatabasePageMeta.from_json(open(path).read())
+            with open(path) as f:
+                return DatabasePageMeta.from_json(f.read())
         except FileNotFoundError as e:
             return DatabasePageMeta(
                 Preprocessing()

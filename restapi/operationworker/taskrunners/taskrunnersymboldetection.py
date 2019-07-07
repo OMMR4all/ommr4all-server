@@ -1,13 +1,14 @@
-from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple
+from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, AlgorithmTypes
 from .pageselection import PageSelection, DatabasePage
-import os
-from django.conf import settings
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
 from typing import NamedTuple
+from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
+from database.model import Model
 
 
 class Settings(NamedTuple):
+    params: AlgorithmPredictorParams
     store_to_pcgts: bool = False
 
 
@@ -16,7 +17,7 @@ class TaskRunnerSymbolDetection(TaskRunner):
                  selection: PageSelection,
                  settings: Settings,
                  ):
-        super().__init__({TaskWorkerGroup.NORMAL_TASKS_CPU})
+        super().__init__(AlgorithmTypes.SYMBOLS_PC, {TaskWorkerGroup.NORMAL_TASKS_CPU})
         self.selection = selection
         self.settings = settings
 
@@ -28,23 +29,17 @@ class TaskRunnerSymbolDetection(TaskRunner):
         return all([len(l.symbols) == 0 for l in page.pcgts().page.all_music_lines()])
 
     def run(self, task: Task, com_queue: Queue) -> dict:
-        from omr.symboldetection.predictor import \
-            SymbolDetectionPredictorParameters, PredictorTypes, create_predictor, SymbolDetectionDatasetParams
-        import omr.symboldetection.pixelclassifier.settings as pc_settings
+        from omr.steps.algorithm import AlgorithmPredictorSettings
 
         pages = self.selection.get_pcgts(TaskRunnerSymbolDetection.unprocessed)
         selected_pages = [p.page.location for p in pages]
 
         # load book specific model or default model as fallback
-        model = self.selection.book.local_path(os.path.join(pc_settings.model_dir, pc_settings.model_name))
-        if not os.path.exists(model + '.meta'):
-            model = os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', 'french14', pc_settings.model_dir, pc_settings.model_name)
-
-        params = SymbolDetectionPredictorParameters(
-            checkpoints=[model],
-            symbol_detection_params=SymbolDetectionDatasetParams()
+        meta = self.algorithm_meta()
+        params = AlgorithmPredictorSettings(
+            model=Model.from_id(self.settings.params.modelId) if self.settings.params.modelId else meta.selected_model_for_book(self.selection.book)
         )
-        pred = create_predictor(PredictorTypes.PIXEL_CLASSIFIER, params)
+        pred = meta.create_predictor(params)
 
         com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
 
@@ -59,6 +54,7 @@ class TaskRunnerSymbolDetection(TaskRunner):
 
         if self.settings.store_to_pcgts:
             for pcgts, page in zip(pages, selected_pages):
+                pcgts.page.annotations.connections.clear()
                 pcgts.to_file(page.file('pcgts').local_path())
 
         return {'musicLines': music_lines}

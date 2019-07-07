@@ -82,7 +82,8 @@ class DatabaseBookPermissions:
     @staticmethod
     def load(book: 'DatabaseBook'):
         try:
-            permissions = pickle.load(open(book.local_path(_permissions_file), 'rb'))
+            with open(book.local_path(_permissions_file), 'rb') as f:
+                permissions = pickle.load(f)
         except FileNotFoundError:
             permissions = BookPermissionData({}, {}, BookPermissionFlags())
 

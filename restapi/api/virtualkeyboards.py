@@ -18,7 +18,8 @@ class BookVirtualKeyboardView(APIView):
         if not os.path.exists(file):
             file = book.local_default_virtual_keyboards_path('default.json')
 
-        return Response(json.load(open(file, 'r')))
+        with open(file) as f:
+            return Response(json.load(f))
 
     def put(self, request, book):
         book = DatabaseBook(book)

@@ -1,4 +1,4 @@
-from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple
+from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, AlgorithmTypes
 from database.database_page import DatabasePage
 from ..task import Task
 from database.file_formats.pcgts import Coords, PcGts, PageScaleReference
@@ -10,7 +10,7 @@ class TaskRunnerLayoutExtractConnectedComponentsByLine(TaskRunner):
                  pcgts: PcGts,
                  initial_line: Coords,
                  ):
-        super().__init__({TaskWorkerGroup.SHORT_TASKS_CPU})
+        super().__init__(AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION, {TaskWorkerGroup.SHORT_TASKS_CPU})
         self.pcgts = pcgts
         self.page = self.pcgts.page.location
         self.initial_line = initial_line
@@ -23,7 +23,7 @@ class TaskRunnerLayoutExtractConnectedComponentsByLine(TaskRunner):
         return True
 
     def run(self, task: Task, com_queue: Queue) -> dict:
-        from omr.layout.correction_tools.connected_component_selector import extract_components
+        from omr.steps.layout.correction_tools.connected_component_selector import extract_components
         import pickle
         staff_lines: List[Coords] = []
         pcgts = self.pcgts

@@ -26,6 +26,8 @@ class ImageCropToSmallestBoxOperation(ImageOperation):
                 raise ValueError("Invalid shape of padding {}".format(pad))
         elif isinstance(pad, int):
             self.pad = (pad, pad, pad, pad)
+        elif pad is None:
+            self.pad = 0
         else:
             raise TypeError("Invalid type of pad: {}. Only int or tuple is supported".format(type(pad)))
 

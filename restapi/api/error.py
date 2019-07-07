@@ -29,6 +29,9 @@ class ErrorCodes(IntEnum):
     # Task training related
     OPERATION_TASK_TRAIN_EMPTY_DATASET = 52001
 
+    # Model related
+    MODEL_NOT_FOUND = 55000
+
 
 @dataclass
 class APIError(DataClassDictMixin):

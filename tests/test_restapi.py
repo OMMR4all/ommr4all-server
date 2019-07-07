@@ -14,6 +14,9 @@ import logging
 import json
 from database.database_page import DatabaseBook, DatabasePage
 from shared.jsonparsing import drop_all_attributes
+from restapi.api.bookoperations import AlgorithmRequest, AlgorithmPredictorParams
+from omr.steps.algorithmpreditorparams import LayoutModes
+from restapi.operationworker.taskrunners.pageselection import PageCount, PageSelectionParams
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', stream=sys.stdout)
 
@@ -114,7 +117,9 @@ class OperationTests(APITestCase):
 
     def _test_layout_detection_of_page(self, page: str):
         page = DatabaseBook('demo').page(page)
-        data = self.call_operation(page, 'layout')
+        data = self.call_operation(page, 'layout', {
+            'pcgts': page.pcgts().to_json(),
+        })
         # TODO check data
 
     def test_layout_detection_001(self):
@@ -125,7 +130,9 @@ class OperationTests(APITestCase):
 
     def _test_symbol_detection_of_page(self, page: str):
         page = DatabaseBook('demo').page(page)
-        data = self.call_operation(page, 'symbols')
+        data = self.call_operation(page, 'symbols', {
+            'pcgts': page.pcgts().to_json(),
+        })
         # TODO check data
 
     def test_symbol_detection_001(self):
@@ -162,6 +169,22 @@ class OperationTests(APITestCase):
             self.assertListEqual(files_to_expect, zip_files)
             self.assertEqual(len(zip_files), len(files_to_expect))
 
+    def _test_list_models(self, operation):
+        from database.database_available_models import DatabaseAvailableModels
+        book = DatabaseBook('demo')
+        response = self.client.get('/api/book/{}/operation/{}/models'.format(book.book, operation))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response)
+
+        models = DatabaseAvailableModels.from_dict(response.data)
+        self.assertEqual(models.newest_model, None)
+        self.assertEqual(models.selected_model.id, 'internal_storage/default_models/french14/pc_staff_lines')
+        self.assertEqual(models.default_book_style_model.id, 'internal_storage/default_models/french14/pc_staff_lines')
+        self.assertListEqual(models.book_models, [])
+        self.assertListEqual(models.models_of_same_book_style, [])
+
+    def test_list_models(self):
+        self._test_list_models("stafflines")
+
     def save_page(self, page, data):
         return self.client.post('/api/book/demo/page/{}/operation/save'.format(page), data, format='json')
 
@@ -175,7 +198,8 @@ class OperationTests(APITestCase):
         response = self.client.delete('/api/book/demo/page/{}/lock'.format(page), payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
 
-    def call_operation(self, page: DatabasePage, operation: str, data={}):
+    def call_operation(self, page: DatabasePage, operation: str, data=None):
+        data = data if data else {}
         self.lock_page(page.page)
         response = self.client.put('/api/book/{}/page/{}/operation/{}'.format(page.book.book, page.page, operation), data, format='json')
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.content)
@@ -189,6 +213,86 @@ class OperationTests(APITestCase):
             self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
             data = response.data
         self.unlock_page(page.page)
+        return data
+
+    # Test Book Operations
+    # ========================================
+
+    def test_book_preprocessing(self):
+        book = DatabaseBook('demo')
+        params = AlgorithmRequest(
+            params=AlgorithmPredictorParams(
+                automaticLd=True
+            ),
+            selection=PageSelectionParams(
+                count=PageCount.CUSTOM,
+                pages=['page_test_preprocessing_001'],
+            )
+        )
+        self.call_book_operation(book, 'preprocessing', params)
+
+    def test_book_line_detection(self):
+        book = DatabaseBook('demo')
+        params = AlgorithmRequest(
+            params=AlgorithmPredictorParams(),
+            selection=PageSelectionParams(
+                count=PageCount.CUSTOM,
+                pages=['page_test_staff_line_detection_001', 'page_test_staff_line_detection_002'],
+            )
+        )
+        self.call_book_operation(book, 'stafflines', params)
+
+    def test_book_layout_detection_complex(self):
+        book = DatabaseBook('demo')
+        params = AlgorithmRequest(
+            params=AlgorithmPredictorParams(
+                layoutMode=LayoutModes.COMPLEX,
+            ),
+            selection=PageSelectionParams(
+                count=PageCount.CUSTOM,
+                pages=['page_test_layout_detection_001', 'page_test_layout_detection_002'],
+            )
+        )
+        self.call_book_operation(book, 'layout', params)
+
+    def test_book_layout_detection_simple(self):
+        book = DatabaseBook('demo')
+        params = AlgorithmRequest(
+            params=AlgorithmPredictorParams(
+                layoutMode=LayoutModes.SIMPLE,
+            ),
+            selection=PageSelectionParams(
+                count=PageCount.CUSTOM,
+                pages=['page_test_layout_detection_001', 'page_test_layout_detection_002'],
+            )
+        )
+        self.call_book_operation(book, 'layout', params)
+
+    def test_book_symbol_detection(self):
+        book = DatabaseBook('demo')
+        params = AlgorithmRequest(
+            params=AlgorithmPredictorParams(
+            ),
+            selection=PageSelectionParams(
+                count=PageCount.CUSTOM,
+                pages=['page_test_symbol_detection_001', 'page_test_symbol_detection_002'],
+            )
+        )
+        self.call_book_operation(book, 'symbols', params)
+
+    def call_book_operation(self, book: DatabaseBook, operation: str, data: AlgorithmRequest = None):
+        data = data if data else AlgorithmRequest()
+        response = self.client.put('/api/book/{}/operation/{}'.format(book.book, operation), data.to_dict(), format='json')
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.content)
+        taskid = response.data['task_id']
+        url = '/api/book/{}/operation/{}/task/{}'.format(book.book, operation, taskid)
+        response = self.client.post(url, '{}', format='json')
+        data = response.data
+        while data['status']['code'] == 1 or data['status']['code'] == 0:
+            time.sleep(1)
+            response = self.client.post(url, '{}', format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+            data = response.data
         return data
 
 

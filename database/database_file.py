@@ -5,7 +5,7 @@ from locked_dict.locked_dict import LockedDict
 import numpy as np
 import os
 from database.database_page import DatabasePage
-from omr.preprocessing.preprocessing import Preprocessing
+from omr.steps.preprocessing.preprocessing import Preprocessing
 import logging
 
 
@@ -286,7 +286,7 @@ class DatabaseFile:
                 meta = self.page.meta()
                 c_hr = Image.open(self.page.local_file_path('color_highres_preproc.jpg'))
                 if meta.preprocessing.auto_line_distance:
-                    from omr.preprocessing.scale.scale import LineDistanceComputer
+                    from omr.steps.preprocessing.scale.scale import LineDistanceComputer
                     ldc = LineDistanceComputer()
                     low_binary = Image.open(self.page.local_file_path('binary_highres_preproc.png'))
                     line_distance = ldc.get_line_distance(np.array(low_binary) / 255).line_distance
@@ -340,7 +340,7 @@ class DatabaseFile:
                 self._save_and_thumbnail(b_hr, 2)
             elif self.definition.id == 'connected_components_norm':
                 import pickle
-                from omr.preprocessing.util.connected_compontents import connected_compontents_with_stats
+                from omr.steps.preprocessing.util.connected_compontents import connected_compontents_with_stats
                 binary = np.array(Image.open(DatabaseFile(self.page, 'binary_norm').local_path()))
                 with open(self.local_path(), 'wb') as f:
                     pickle.dump(connected_compontents_with_stats(binary), f)

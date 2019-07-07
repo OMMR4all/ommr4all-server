@@ -2,7 +2,6 @@ from omr.stafflines.staffline import Staffs
 import numpy as np
 import json
 import cv2
-import matplotlib.pyplot as plt
 
 
 def extract_text(binary: np.ndarray, staffs: Staffs):
@@ -138,11 +137,13 @@ def extract_text(binary: np.ndarray, staffs: Staffs):
 
 if __name__ == '__main__':
     from ommr4all.settings import PRIVATE_MEDIA_ROOT
+    import matplotlib.pyplot as plt
     import os
     from PIL import Image
     binary = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_binary.png'))
     gray = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'deskewed_gray.jpg'))
-    staffs_json = json.load(open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'detected_staffs.json'), 'r'))
+    with open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000001', 'detected_staffs.json'), 'r') as f:
+        staffs_json = json.load(f)
     staffs = Staffs.from_json(staffs_json)
     sure_text, text, no_text, text_blocks, lines = extract_text(np.array(binary), staffs)
     f, ax = plt.subplots(len(lines), 1)
