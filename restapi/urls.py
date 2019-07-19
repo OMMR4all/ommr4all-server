@@ -12,6 +12,7 @@ from restapi.api.bookcomments import BookCommentsView, BookCommentsCountView
 from restapi.api.bookpermissions import BookPermissionsView, BookUserPermissionsView, BookGroupPermissionsView, BookDefaultPermissionsView
 from restapi.api.pageaccess import PageRenameView
 from restapi.api.user import UserBookPermissionsView
+from restapi.api.bookstyles import BookStyleView, BookStylesView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token, verify_jwt_token
@@ -54,6 +55,10 @@ urlpatterns = \
 
         # user
         re_path(r'^user/book/(?P<book>\w+)/permissions$', UserBookPermissionsView.as_view()),
+
+        # styles
+        re_path(r'^book-styles/(?P<id>.+)$', BookStyleView.as_view()),
+        path('book-styles', BookStylesView.as_view()),
 
         # single book
         re_path(r'^book/(?P<book>\w+)/permissions/user/(?P<username>.+)$', BookUserPermissionsView.as_view()),

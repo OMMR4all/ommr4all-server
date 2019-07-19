@@ -5,6 +5,12 @@ from dataclasses import dataclass
 
 
 class ErrorCodes(IntEnum):
+    # Global permissions
+    GLOBAL_INSUFFICIENT_RIGHTS = 21003
+
+    # book style related
+    BOOK_STYLE_INVALID_REQUEST = 23001
+
     # Book related
     BOOK_EXISTS = 41001
     BOOK_INVALID_NAME = 41002

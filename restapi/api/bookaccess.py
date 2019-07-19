@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.http import FileResponse
 from database import *
-from database.database_permissions import BookPermissionFlags
+from database.database_permissions import BookPermissionFlags, DatabasePermissionFlag
 from restapi.api.error import APIError, ErrorCodes
 import json
 import logging
@@ -25,10 +25,10 @@ class require_permissions(object):
                 return func(view, request, book.book, *args, **kwargs)
             else:
                 return APIError(status=status.HTTP_401_UNAUTHORIZED,
-                                developer_message='User {} has insufficient rights on book {}. Requested flags {} on {}.'.format(
+                                developerMessage='User {} has insufficient rights on book {}. Requested flags {} on {}.'.format(
                                     request.user.username, book.book, self.flags, user_permissions),
-                                user_message='Insufficient permissions to access book {}'.format(book.book),
-                                error_code=ErrorCodes.BOOK_INSUFFICIENT_RIGHTS,
+                                userMessage='Insufficient permissions to access book {}'.format(book.book),
+                                errorCode=ErrorCodes.BOOK_INSUFFICIENT_RIGHTS,
                                 ).response()
 
         return wrapper_require_permissions
