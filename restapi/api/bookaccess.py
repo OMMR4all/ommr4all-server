@@ -44,7 +44,7 @@ class BookMetaView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.EDIT_BOOK_META])
     def put(self, request, book):
         book = DatabaseBook(book)
-        meta = DatabaseBookMeta.from_book_dict(book, json.loads(request.body, encoding='utf-8'))
+        meta = DatabaseBookMeta.from_book_json(book, request.body)
         book.save_json_to_meta(meta.to_dict())
         return Response()
 

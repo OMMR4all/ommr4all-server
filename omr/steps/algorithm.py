@@ -212,6 +212,14 @@ class AlgorithmMeta(ABC):
         return Model(book.local_default_models_path(cls.model_dir()))
 
     @classmethod
+    def default_model_for_style(cls, style: str) -> Optional[Model]:
+        from database.database_available_models import DatabaseAvailableModels
+        model = Model(DatabaseAvailableModels.local_default_model_path_for_style(style, cls.model_dir()))
+        if model.exists():
+            return model
+        return None
+
+    @classmethod
     def model_path(cls, book: DatabaseBook, s: str):
         return book.local_models_path(os.path.join(cls.model_dir(), s))
 
@@ -221,7 +229,7 @@ class AlgorithmMeta(ABC):
             return None
 
         best_model = cls.models_for_book(book).newest_model()
-        if best_model:
+        if best_model and best_model.exists():
             return best_model
 
         return None
@@ -229,7 +237,7 @@ class AlgorithmMeta(ABC):
     @classmethod
     def best_model_for_book(cls, book: Optional[DatabaseBook]) -> Optional[Model]:
         newest_model = cls.newest_model_for_book(book)
-        if newest_model:
+        if newest_model and newest_model.exists():
             return newest_model
 
         return cls.default_model_for_book(book)
@@ -241,16 +249,27 @@ class AlgorithmMeta(ABC):
 
         selected_model_id = book.get_meta().defaultModels.get(cls.group().value, None)
         if selected_model_id:
-            return Model.from_id(selected_model_id)
+            model = Model.from_id(selected_model_id)
+            if model and model.exists():
+                return model
 
-        return cls.best_model_for_book(book)
+        best = cls.best_model_for_book(book)
+        if best and best.exists():
+            return best
+
+        # fallback: french14 must exist
+        return cls.default_model_for_style('french14')
 
     @classmethod
     def model_of_book_style(cls, book: Optional[DatabaseBook]) -> Optional[Model]:
         if not book:
             return None
 
-        return cls.default_model_for_book(book)
+        model = cls.default_model_for_book(book)
+        if model and model.exists():
+            return model
+
+        return None
 
     @classmethod
     def create_new_model(cls, book: DatabaseBook, id: Optional[str] = None) -> Model:

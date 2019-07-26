@@ -11,13 +11,15 @@ logger = logging.getLogger(__name__)
 
 
 class Model:
+    META_FILE = 'meta.json'
+
     @staticmethod
     def from_id(id: str, meta: Optional[ModelMeta] = None):
         return Model(os.path.join(BASE_DIR, id), meta)
 
     def __init__(self, path: str, meta: Optional[ModelMeta] = None):
         self.path = path
-        self.meta_path = os.path.join(path, "meta.json")
+        self.meta_path = os.path.join(path, Model.META_FILE)
         self.name = self.path.split()[-1]
 
         self._meta: Optional[ModelMeta] = meta
@@ -52,8 +54,8 @@ class Model:
     def local_file(self, file: str) -> str:
         return os.path.join(self.path, file)
 
-    def exists(self, file: str = '') -> bool:
-        return os.path.exists(self.local_file(file))
+    def exists(self, file: str = None) -> bool:
+        return os.path.exists(self.local_file(file if file else Model.META_FILE))
 
     def delete(self):
         if self.exists():

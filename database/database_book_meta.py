@@ -12,7 +12,7 @@ from typing import Optional, Dict
 class DatabaseBookMeta(DataClassJSONMixin):
     id: str
     name: str
-    created: str = str(datetime.now())
+    created: datetime = field(default_factory=lambda: datetime.now())
     last_opened: str = ''
     notationStyle: str = 'french14'
     defaultModels: Dict[str, str] = field(default_factory=lambda: {})
@@ -38,6 +38,13 @@ class DatabaseBookMeta(DataClassJSONMixin):
         meta = DatabaseBookMeta.load(book)
         for key, value in json.items():
             setattr(meta, key, value)
+
+        return meta
+
+    @staticmethod
+    def from_book_json(book: DatabaseBook, json: str):
+        meta = DatabaseBookMeta.from_json(json)
+        meta.id = book.book
 
         return meta
 

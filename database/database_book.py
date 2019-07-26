@@ -133,10 +133,8 @@ class DatabaseBook:
         return DatabaseBookMeta.load(self)
 
     def save_json_to_meta(self, obj: dict):
-        meta = self.get_meta()
-        for key, value in obj.items():
-            setattr(meta, key, value)
-
+        from database.database_book_meta import DatabaseBookMeta
+        meta = DatabaseBookMeta.from_dict(obj)
         meta.to_file(self)
 
     def page_names(self) -> List[str]:

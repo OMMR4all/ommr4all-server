@@ -3,8 +3,9 @@ from typing import Set, Tuple, Type
 from multiprocessing import Queue
 from ..task import Task
 from ..taskworkergroup import TaskWorkerGroup
-from database.database_available_models import DatabaseAvailableModels
+from database.database_available_models import DatabaseAvailableModels, DefaultModel
 from database.database_page import DatabasePage, DatabaseBook
+from database.models.bookstyles import BookStyle
 from omr.steps.step import Step, AlgorithmTypes, AlgorithmMeta
 
 
@@ -37,5 +38,6 @@ class TaskRunner(ABC):
             selected_model=meta.selected_model_for_book(book).meta() if meta.selected_model_for_book(book) else None,
             book_models=[m.meta() for m in meta.models_for_book(book).list_models()],
             default_book_style_model=meta.model_of_book_style(book).meta() if meta.model_of_book_style(book) else None,
-            models_of_same_book_style=[(b.get_meta(), meta.newest_model_for_book(b).meta()) for b in DatabaseBook.list_available_of_style(book.get_meta().notationStyle) if b.book != book.book and meta.newest_model_for_book(b)]
+            models_of_same_book_style=[(b.get_meta(), meta.newest_model_for_book(b).meta()) for b in DatabaseBook.list_available_of_style(book.get_meta().notationStyle) if b.book != book.book and meta.newest_model_for_book(b)],
+            default_models=[DefaultModel(o.id, meta.default_model_for_style(o.id).meta()) for o in BookStyle.objects.all() if meta.default_model_for_style(o.id)],
         )
