@@ -60,3 +60,17 @@ class Model:
     def delete(self):
         if self.exists():
             shutil.rmtree(self.path)
+
+    def copy_to(self, target_model: 'Model', override=True):
+        if not self.exists():
+            raise FileNotFoundError()
+
+        if not override and target_model.exists():
+            raise FileExistsError()
+
+        copyied_model = Model(target_model.path, meta=self.meta())
+        self._meta = None
+        shutil.rmtree(target_model.path)
+        shutil.copytree(self.path, target_model.path)
+        copyied_model.save_meta()
+

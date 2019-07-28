@@ -3,7 +3,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.http import FileResponse
 from database import *
-from database.database_permissions import BookPermissionFlags, DatabasePermissionFlag
+from database.database_permissions import BookPermissionFlags
+from database.models.permissions import DatabasePermissionFlag
 from restapi.api.error import APIError, ErrorCodes
 import json
 import logging

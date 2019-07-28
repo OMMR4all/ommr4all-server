@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from typing import List, Dict, NamedTuple, TYPE_CHECKING, Union
-from enum import IntEnum, IntFlag
+from typing import Dict, NamedTuple, TYPE_CHECKING, Union
+from enum import IntEnum
 import pickle
 
 if TYPE_CHECKING:
@@ -8,14 +8,6 @@ if TYPE_CHECKING:
     from django.contrib.auth.models import User, Group
 
 _permissions_file = '.permissions.pkl'
-
-
-class DatabasePermissionFlag(IntFlag):
-    NONE = 0
-
-    ADD_BOOK_STYLE = 8
-    DELETE_BOOK_STYLE = 16
-    EDIT_BOOK_STYLE = 32
 
 
 class DatabaseBookPermissionFlag(IntEnum):

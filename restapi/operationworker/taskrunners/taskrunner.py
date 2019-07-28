@@ -7,6 +7,7 @@ from database.database_available_models import DatabaseAvailableModels, DefaultM
 from database.database_page import DatabasePage, DatabaseBook
 from database.models.bookstyles import BookStyle
 from omr.steps.step import Step, AlgorithmTypes, AlgorithmMeta
+from omr.steps.algorithmtypes import AlgorithmGroups
 
 
 class TaskRunner(ABC):
@@ -41,3 +42,21 @@ class TaskRunner(ABC):
             models_of_same_book_style=[(b.get_meta(), meta.newest_model_for_book(b).meta()) for b in DatabaseBook.list_available_of_style(book.get_meta().notationStyle) if b.book != book.book and meta.newest_model_for_book(b)],
             default_models=[DefaultModel(o.id, meta.default_model_for_style(o.id).meta()) for o in BookStyle.objects.all() if meta.default_model_for_style(o.id)],
         )
+
+
+def task_runner_by_group(group: AlgorithmGroups) -> Type[TaskRunner]:
+    # check if operation is linked to a task
+    if group == AlgorithmGroups.PREPROCESSING:
+        from .taskrunnerpreprocessing import TaskRunnerPreprocessing
+        return TaskRunnerPreprocessing
+    elif group == AlgorithmGroups.STAFF_LINES:
+        from .taskrunnerstafflinedetection import TaskRunnerStaffLineDetection
+        return TaskRunnerStaffLineDetection
+    elif group == AlgorithmGroups.LAYOUT:
+        from .taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis
+        return TaskRunnerLayoutAnalysis
+    elif group == AlgorithmGroups.SYMBOLS:
+        from .taskrunnersymboldetection import TaskRunnerSymbolDetection
+        return TaskRunnerSymbolDetection
+    else:
+        raise NotImplementedError()

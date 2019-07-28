@@ -144,7 +144,13 @@ REST_FRAMEWORK = {
     ),
 }
 
-# JWT AUTH
+
+def jwt_response_payload_handler(token, user=None, request=None):
+    return {
+        'token': token,
+        'permissions': user.get_all_permissions(),
+    }
+
 
 JWT_AUTH = {
     'JWT_ENCODE_HANDLER':
@@ -160,7 +166,7 @@ JWT_AUTH = {
     'rest_framework_jwt.utils.jwt_get_user_id_from_payload_handler',
 
     'JWT_RESPONSE_PAYLOAD_HANDLER':
-    'rest_framework_jwt.utils.jwt_response_payload_handler',
+    jwt_response_payload_handler,
 
     'JWT_SECRET_KEY': SECRET_KEY,
     'JWT_GET_USER_SECRET_KEY': None,

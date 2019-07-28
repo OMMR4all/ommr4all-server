@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from mashumaro import DataClassDictMixin
-from typing import List, Optional, Tuple, NamedTuple
+from typing import List, Optional, Tuple
 from database.model import ModelMeta
 from database.database_book_meta import DatabaseBookMeta
 from ommr4all.settings import BASE_DIR
@@ -13,7 +13,7 @@ class DefaultModel(DataClassDictMixin):
 
 @dataclass
 class DatabaseAvailableModels(DataClassDictMixin):
-    book: str
+    book: Optional[str] = None
     book_meta: Optional[DatabaseBookMeta] = None
     newest_model: Optional[ModelMeta] = None
     selected_model: Optional[ModelMeta] = None

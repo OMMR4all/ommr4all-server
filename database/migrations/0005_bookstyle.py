@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='BookStyle',
             fields=[
-                ('id', models.CharField(max_length=255, primary_key=True, verbose_name='ID')),
+                ('id', models.CharField(max_length=255, primary_key=True, serialize=False)),
                 ('name', models.CharField(max_length=255, unique=True)),
             ],
         ),

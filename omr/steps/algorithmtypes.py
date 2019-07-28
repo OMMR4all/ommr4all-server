@@ -37,4 +37,4 @@ class AlgorithmGroups(Enum):
         }
 
     def types(self) -> List[AlgorithmTypes]:
-        return AlgorithmGroups.group_types_mapping()[self.value]
+        return AlgorithmGroups.group_types_mapping()[self]

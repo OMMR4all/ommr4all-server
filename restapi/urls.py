@@ -13,6 +13,7 @@ from restapi.api.bookpermissions import BookPermissionsView, BookUserPermissions
 from restapi.api.pageaccess import PageRenameView
 from restapi.api.user import UserBookPermissionsView
 from restapi.api.bookstyles import BookStyleView, BookStylesView
+from restapi.api.administrativedefaultmodels import AdministrativeDefaultModelsView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token, verify_jwt_token
@@ -55,6 +56,9 @@ urlpatterns = \
 
         # user
         re_path(r'^user/book/(?P<book>\w+)/permissions$', UserBookPermissionsView.as_view()),
+
+        # administrative
+        re_path(r'^administrative/default_models/group/(?P<group>\w+)/style/(?P<style>.+)$', AdministrativeDefaultModelsView.as_view()),
 
         # styles
         re_path(r'^book-styles/(?P<id>.+)$', BookStyleView.as_view()),

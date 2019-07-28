@@ -6,6 +6,7 @@ from typing import Optional, List, Type, Union
 from .algorithmtrainerparams import AlgorithmTrainerSettings, AlgorithmTrainerParams, DatasetParams
 from .algorithmpreditorparams import AlgorithmPredictorSettings, AlgorithmPredictorParams
 from database.model import Models, Model, ModelMeta
+from database.database_available_models import DatabaseAvailableModels
 import os
 import uuid
 from .algorithmtypes import AlgorithmTypes, AlgorithmGroups
@@ -281,4 +282,13 @@ class AlgorithmMeta(ABC):
                      ModelMeta(id,
                                time)
                      )
+
+    @classmethod
+    def list_available_models_for_style(cls, style: str) -> DatabaseAvailableModels:
+        default_style_model = cls.default_model_for_style(style).meta() if cls.default_model_for_style(style) else None
+        return DatabaseAvailableModels(
+            selected_model=default_style_model,
+            default_book_style_model=default_style_model,
+            models_of_same_book_style=[(b.get_meta(), cls.newest_model_for_book(b).meta()) for b in DatabaseBook.list_available_of_style(style) if cls.newest_model_for_book(b)]
+        )
 

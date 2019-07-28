@@ -1,4 +1,5 @@
 {
+  "id": "internal_storage/default_models/french14/pc_symbol_detection",
   "created": "2019-07-17T08:26:09.154619",
   "accuracy": 0.9952506503543338,
   "iters": 0
