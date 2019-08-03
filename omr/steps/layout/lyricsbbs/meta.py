@@ -18,7 +18,7 @@ class Meta(AlgorithmMeta):
 
     @staticmethod
     def model_dir() -> str:
-        return "preprocessing_lyricsbbs"
+        return "layout_lyricsbbs"
 
 
 Step.register(Meta)

@@ -2,6 +2,7 @@ import numpy as np
 from skimage.measure import approximate_polygon
 import cv2
 from typing import Type, Union
+from mashumaro.types import SerializableType
 
 
 class Point:
@@ -126,7 +127,7 @@ class Size:
         return self.to_string()
 
 
-class Coords:
+class Coords(SerializableType):
     def __init__(self, points: np.ndarray = np.zeros((0, 2), dtype=float)):
         self.points = np.array(points, dtype=float)
 
@@ -150,7 +151,14 @@ class Coords:
     def from_json(json):
         return Coords.from_string(json)
 
+    @classmethod
+    def _deserialize(cls, value):
+        return cls.from_json(value)
+
     def to_json(self):
+        return self.to_string()
+
+    def _serialize(self):
         return self.to_string()
 
     def center_y(self):

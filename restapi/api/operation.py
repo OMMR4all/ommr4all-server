@@ -99,27 +99,19 @@ class OperationView(APIView):
     @staticmethod
     def op_to_task_runner(operation, page: DatabasePage, body: dict):
         # check if operation is linked to a task
-        if operation == 'staffs':
-            from restapi.operationworker.taskrunners.taskrunnerstafflinedetection import TaskRunnerStaffLineDetection, Settings
-            r = OperationView.AlgorithmRequest.from_dict(body)
-            return TaskRunnerStaffLineDetection(PageSelection.from_page(page), Settings(r.params))
-        elif operation == 'preprocessing':
-            from restapi.operationworker.taskrunners.taskrunnerpreprocessing import TaskRunnerPreprocessing, AlgorithmPredictorParams
-            return TaskRunnerPreprocessing(PageSelection.from_page(page), AlgorithmPredictorParams.from_dict(body))
-        elif operation == 'layout':
-            from restapi.operationworker.taskrunners.taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis, Settings
-            r = OperationView.AlgorithmRequest.from_dict(body)
-            return TaskRunnerLayoutAnalysis(PageSelection.from_pcgts(PcGts.from_json(body['pcgts'], page)), Settings(r.params))
-        elif operation == 'symbols':
-            from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection, Settings
-            r = OperationView.AlgorithmRequest.from_dict(body)
-            return TaskRunnerSymbolDetection(PageSelection.from_pcgts(PcGts.from_json(body['pcgts'], page)), Settings(r.params))
-        elif operation == 'layout_extract_cc_by_line':
-            selection = PageSelection.from_page(page) if 'pcgts' not in body else PageSelection.from_pcgts(PcGts.from_json(body['pcgts'], page))
-            from restapi.operationworker.taskrunners.taskrunnerlayoutextractconnectedcomponentsbyline import TaskRunnerLayoutExtractConnectedComponentsByLine
-            return TaskRunnerLayoutExtractConnectedComponentsByLine(selection.get_pcgts()[0], Coords.from_json(body['points']))
-        else:
-            return None
+        from omr.steps.algorithmtypes import AlgorithmTypes
+        for at in AlgorithmTypes:
+            if at.value == operation:
+                from restapi.operationworker.taskrunners.taskrunnerprediction import TaskRunnerPrediction, AlgorithmPredictorParams, Settings
+                r = OperationView.AlgorithmRequest.from_dict(body)
+                if 'pcgts' in body:
+                    page.pcgts_from_dict(body['pcgts'])
+                return TaskRunnerPrediction(at,
+                                            PageSelection.from_page(page),
+                                            Settings(r.params, store_to_pcgts=True)
+                                            )
+
+        return None
 
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     @require_lock

@@ -21,11 +21,6 @@ class TaskRunner(ABC):
     def identifier(self) -> Tuple:
         return ()
 
-    @staticmethod
-    @abstractmethod
-    def unprocessed(page: DatabasePage) -> bool:
-        return True
-
     @abstractmethod
     def run(self, task: Task, com_queue: Queue) -> dict:
         return {}

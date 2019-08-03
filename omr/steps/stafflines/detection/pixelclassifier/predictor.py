@@ -1,4 +1,4 @@
-from omr.steps.stafflines.detection.predictor import PredictionType, PredictionResult, RegionLineMaskData, DatasetParams, LineDetectionPredictorCallback
+from omr.steps.stafflines.detection.predictor import AlgorithmPredictionResultGenerator, PredictionResult, RegionLineMaskData, LineDetectionPredictorCallback, StaffLinePredictor
 from database import DatabasePage, DatabaseBook
 from database.file_formats.pcgts import *
 import numpy as np
@@ -36,7 +36,7 @@ class PCPredictionCallback(LineDetectionCallback):
         )
 
 
-class BasicStaffLinePredictor(AlgorithmPredictor):
+class BasicStaffLinePredictor(StaffLinePredictor):
     @staticmethod
     def meta() -> Meta.__class__:
         return Meta
@@ -62,7 +62,8 @@ class BasicStaffLinePredictor(AlgorithmPredictor):
         )
         self.line_detection = LineDetection(self.settings)
 
-    def predict(self, pcgts_files: List[PcGts], callback: Optional[LineDetectionPredictorCallback] = None) -> PredictionType:
+    def predict(self, pages: List[DatabasePage], callback: Optional[LineDetectionPredictorCallback] = None) -> AlgorithmPredictionResultGenerator:
+        pcgts_files = [p.pcgts() for p in pages]
         pc_dataset = PCDataset(pcgts_files, self.dataset_params)
         dataset = pc_dataset.to_line_detection_dataset()
         gray_images = [(255 - data.line_image).astype(np.uint8) for data in dataset]

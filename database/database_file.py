@@ -5,7 +5,6 @@ from locked_dict.locked_dict import LockedDict
 import numpy as np
 import os
 from database.database_page import DatabasePage
-from omr.steps.preprocessing.preprocessing import Preprocessing
 import logging
 
 
@@ -221,6 +220,8 @@ class DatabaseFile:
             # check again if exists since the requirements might have created that file!
             if self.exists():
                 return
+
+            from omr.steps.preprocessing.preprocessing import Preprocessing
 
             # create local file
             logger.info('Creating local file {}'.format(self.local_path()))

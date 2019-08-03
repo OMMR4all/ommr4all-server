@@ -68,7 +68,7 @@ class TextDataset:
     def _generator(self) -> Generator[RegionLineMaskData, None, None]:
         for f in tqdm(self.files, total=len(self.files), desc="Loading music lines"):
             try:
-                input = ImageOperationData([], self.params.scale_reference, page=f.page)
+                input = ImageOperationData([], self.params.scale_reference, page=f.page, pcgts=f)
                 for outputs in self.line_and_mask_operations.apply_single(input):
                     yield RegionLineMaskData(outputs)
             except Exception as e:

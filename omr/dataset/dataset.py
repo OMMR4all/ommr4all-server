@@ -142,7 +142,7 @@ class Dataset(ABC):
 
         for f in tqdm(wrapper(self.files), total=len(self.files), desc="Loading Dataset"):
             try:
-                input = ImageOperationData([], self.params.page_scale_reference, page=f.page)
+                input = ImageOperationData([], self.params.page_scale_reference, page=f.page, pcgts=f)
                 for outputs in self.image_ops.apply_single(input):
                     yield RegionLineMaskData(outputs)
             except (NoStaffsAvailable, NoStaffLinesAvailable):

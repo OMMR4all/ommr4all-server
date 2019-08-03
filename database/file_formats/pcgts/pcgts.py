@@ -1,11 +1,11 @@
 from database.file_formats.pcgts.meta import Meta
 from database.file_formats.pcgts.page import Page
-from database import DatabaseFile, DatabasePage
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import logging
-
 from PIL import Image
 
+if TYPE_CHECKING:
+    from database import DatabaseFile, DatabasePage
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +19,12 @@ class PcGts:
         self.version = version
         assert(version == PcGts.VERSION)
 
+    def dataset_page(self) -> 'DatabasePage':
+        return self.page.location
+
     @staticmethod
-    def from_file(file: DatabaseFile):
+    def from_file(file: 'DatabaseFile'):
+        from database import DatabaseFile
         filename = file.local_path()
         try:
             if filename.endswith(".json"):
@@ -48,7 +52,7 @@ class PcGts:
             raise Exception("Invalid file extension of file '{}'".format(filename))
 
     @staticmethod
-    def from_json(json: dict, location: Optional[DatabasePage]):
+    def from_json(json: dict, location: Optional['DatabasePage']):
         from database.file_formats.pcgts.jsonloader import update_pcgts
         if update_pcgts(json):
             logger.warning("PcGts file at {} was upgraded. Maybe new migrations were not applied, yet?".format(location.local_path()))

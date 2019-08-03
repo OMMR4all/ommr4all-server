@@ -5,7 +5,7 @@ from omr.steps.step import Step
 class Meta(AlgorithmMeta):
     @staticmethod
     def type() -> AlgorithmTypes:
-        return AlgorithmTypes.LAYOUT_COMPLEX_STANDARD
+        return AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION
 
     @classmethod
     def predictor(cls) -> Type[AlgorithmPredictor]:
@@ -18,7 +18,7 @@ class Meta(AlgorithmMeta):
 
     @staticmethod
     def model_dir() -> str:
-        return "layout_standard"
+        return "tools_layout_connected_components_selection"
 
 
 Step.register(Meta)

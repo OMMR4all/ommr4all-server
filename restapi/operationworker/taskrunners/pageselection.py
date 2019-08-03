@@ -77,6 +77,8 @@ class PageSelection:
         return isinstance(other, type(self)) and self.identifier() == other.identifier()
 
     def get_pages(self, unprocessed: Optional[Callable[[DatabasePage], bool]] = None) -> List[DatabasePage]:
+        if self.pcgts:
+            return [DatabasePage(self.book, 'in_memory', skip_validation=True, pcgts=pcgts) for pcgts in self.pcgts]
         if self.page_count == PageCount.ALL:
             return self.book.pages()
         elif self.page_count == PageCount.UNPROCESSED:

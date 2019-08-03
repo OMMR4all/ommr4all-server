@@ -1,20 +1,9 @@
 from dataclasses import dataclass, field
 from database.model import Model
 from mashumaro import DataClassJSONMixin
-from typing import Optional
-from enum import Enum
+from typing import Optional, TYPE_CHECKING
 from .algorithmtypes import AlgorithmTypes
-
-
-class LayoutModes(Enum):
-    SIMPLE = 'simple'
-    COMPLEX = 'complex'
-
-    def to_predictor_type(self) -> AlgorithmTypes:
-        return {
-            LayoutModes.SIMPLE: AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES,
-            LayoutModes.COMPLEX: AlgorithmTypes.LAYOUT_COMPLEX_STANDARD,
-        }[self]
+from database.file_formats.pcgts import Coords
 
 
 @dataclass()
@@ -26,8 +15,9 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
     automaticLd: bool = True
     avgLd: int = 10
 
-    # layout
-    layoutMode: LayoutModes = LayoutModes.COMPLEX
+    # tools
+    # layout connected components
+    initialLine: Optional['Coords'] = None
 
 
 @dataclass()

@@ -1,9 +1,13 @@
 from abc import abstractmethod
 from typing import List, Generator, NamedTuple, Dict, Optional
 from database.file_formats.pcgts import *
+from database import DatabasePage
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset
-from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorParams, AlgorithmPredictorSettings
+from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorParams, AlgorithmPredictorSettings, AlgorithmPredictionResult, AlgorithmPredictionResultGenerator
 from database.file_formats.pcgts import PageScaleReference
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PredictionResult(NamedTuple):
@@ -24,8 +28,13 @@ class IdCoordsPair(NamedTuple):
         }
 
 
-class FinalPredictionResult(NamedTuple):
+class FinalPredictionResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__class__):
+    pass
+
+
+class FinalPredictionResult(NamedTuple, AlgorithmPredictionResult, metaclass=FinalPredictionResultMeta):
     blocks: Dict[BlockType, List[IdCoordsPair]]
+    pcgts: PcGts
 
     def to_dict(self):
         return {
@@ -34,15 +43,37 @@ class FinalPredictionResult(NamedTuple):
             }
         }
 
+    def store_to_page(self):
+        pcgts = self.pcgts
+        page = self.pcgts.dataset_page()
+        pcgts.page.clear_text_blocks()
+        for type, id_coords in self.blocks.items():
+            for ic in id_coords:
+                if type == BlockType.MUSIC:
+                    ml = pcgts.page.music_line_by_id(ic.id)
+                    if not ml:
+                        logger.warning('Music line with id "{}" not found'.format(ic.id))
+                        continue
 
-FinalPrediction = Generator[FinalPredictionResult, None, None]
+                    ml.coords = ic.coords
+                else:
+                    pcgts.page.blocks.append(
+                        Block(type, ic.id, lines=[Line(coords=ic.coords)])
+                    )
+
+        pcgts.to_file(page.file('pcgts').local_path())
 
 
 class LayoutAnalysisPredictor(AlgorithmPredictor):
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
 
-    def predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> FinalPrediction:
+    @classmethod
+    def unprocessed(cls, page: DatabasePage) -> bool:
+        return len(page.pcgts().page.text_blocks()) == 0
+
+    def predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
+        pcgts_files = [p.pcgts() for p in pages]
         for r, pcgts in zip(self._predict(pcgts_files, callback=callback), pcgts_files):
             music_lines = pcgts.page.all_music_lines()
 
@@ -53,14 +84,15 @@ class LayoutAnalysisPredictor(AlgorithmPredictor):
                 ml.coords = coords
 
             yield FinalPredictionResult(
-                {
+                blocks={
                     **{
                         k: [IdCoordsPair(c) for c in coords] for k, coords in r.blocks.items() if k != BlockType.MUSIC
                     },
                     **{
                         BlockType.MUSIC: [IdCoordsPair(coords, str(ml.id)) for ml, coords in zip(music_lines, r.blocks[BlockType.MUSIC])],
                     }
-                 }
+                },
+                pcgts=pcgts
             )
 
     @abstractmethod

@@ -1,19 +1,19 @@
-from enum import Enum
+from enum import Enum, Enum
 from typing import Dict, List
 
 
 class AlgorithmTypes(Enum):
-    PREPROCESSING = 1000
+    PREPROCESSING = "preprocessing"
 
-    STAFF_LINES_PC = 2000
+    STAFF_LINES_PC = "staff_lines_pc"
 
-    LAYOUT_SIMPLE_BOUNDING_BOXES = 3000
-    LAYOUT_COMPLEX_STANDARD = 3001
+    LAYOUT_SIMPLE_BOUNDING_BOXES = "layout_simple_bounding_boxes"
+    LAYOUT_COMPLEX_STANDARD = "layout_complex_standard"
 
-    SYMBOLS_PC = 4000
+    SYMBOLS_PC = "symbols_pc"
 
     # Tools
-    LAYOUT_CONNECTED_COMPONENTS_SELECTION = 8001
+    LAYOUT_CONNECTED_COMPONENTS_SELECTION = "layout_connected_components_selection"
 
     def group(self) -> 'AlgorithmGroups':
         return [k for k, v in AlgorithmGroups.group_types_mapping().items() if self in v][0]

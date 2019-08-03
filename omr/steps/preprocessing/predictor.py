@@ -3,7 +3,7 @@ from database.file_formats.pcgts import *
 import logging
 from typing import List, Optional, Tuple
 from omr.steps.preprocessing.meta import Meta
-from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorSettings, AlgorithmPredictorParams
+from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorSettings, AlgorithmPredictorParams, AlgorithmPredictionResult, AlgorithmPredictionResultGenerator
 import multiprocessing
 
 
@@ -30,6 +30,14 @@ def _process_single(args: Tuple[DatabasePage, AlgorithmPredictorParams]):
         file.create()
 
 
+class PreprocessingResult(AlgorithmPredictionResult):
+    def to_dict(self):
+        return {}
+
+    def store_to_page(self):
+        pass
+
+
 class PreprocessingPredictor(AlgorithmPredictor):
     @staticmethod
     def meta() -> Meta.__class__:
@@ -38,7 +46,7 @@ class PreprocessingPredictor(AlgorithmPredictor):
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
 
-    def predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None):
+    def predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
         if callback:
             callback.progress_updated(0, len(pages), 0)
 
@@ -47,3 +55,8 @@ class PreprocessingPredictor(AlgorithmPredictor):
                 percentage = (i + 1) / len(pages)
                 if callback:
                     callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len(pages))
+                yield PreprocessingResult()
+
+    @classmethod
+    def unprocessed(cls, page: DatabasePage) -> bool:
+        return any([not page.file(f).exists() for f in files])

@@ -8,17 +8,22 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from django.contrib.auth.models import User
+    from database.file_formats.pcgts import PcGts
+    from database.database_page_meta import DatabasePageMeta
 
 
 class DatabasePage:
-    def __init__(self, book: DatabaseBook, page: str, skip_validation=False):
+    def __init__(self, book: DatabaseBook, page: str, skip_validation=False,
+                 pcgts: Optional['PcGts'] = None,
+                 meta: Optional['DatabasePageMeta'] = None,
+                 ):
         self.book = book
         self.page = page.strip("/")
         if not skip_validation and not file_name_validator.fullmatch(self.page):
             raise InvalidFileNameException(self.page)
 
-        from database.database_page_meta import DatabasePageMeta
-        self._meta: Optional[DatabasePageMeta] = None
+        self._meta: Optional['DatabasePageMeta'] = meta
+        self._pcgts: Optional['PcGts'] = pcgts
 
     def __eq__(self, other):
         return isinstance(other, DatabasePage) and self.book == other.book and self.page == other.page
@@ -56,13 +61,21 @@ class DatabasePage:
     def remote_path(self):
         return os.path.join(self.book.remote_path(), self.page)
 
-    def pcgts(self, create_if_not_existing=True):
-        from database.file_formats.pcgts import PcGts
-        return PcGts.from_file(self.file('pcgts', create_if_not_existing))
+    def pcgts(self, create_if_not_existing=True) -> 'PcGts':
+        if not self._pcgts:
+            from database.file_formats.pcgts import PcGts
+            self._pcgts = PcGts.from_file(self.file('pcgts', create_if_not_existing))
+        return self._pcgts
 
-    def meta(self):
-        from database.database_page_meta import DatabasePageMeta
-        self._meta = DatabasePageMeta.load(self)
+    def pcgts_from_dict(self, d: dict) -> 'PcGts':
+        from database.file_formats.pcgts import PcGts
+        self._pcgts = PcGts.from_json(d, self)
+        return self._pcgts
+
+    def meta(self) -> 'DatabasePageMeta':
+        if not self._meta:
+            from database.database_page_meta import DatabasePageMeta
+            self._meta = DatabasePageMeta.load(self)
         return self._meta
 
     def save_meta(self):

@@ -6,16 +6,17 @@ from database.database_internal import DEFAULT_MODELS
 from datetime import datetime
 from mashumaro import DataClassJSONMixin
 from typing import Optional, Dict
+from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmTypes
 
 
 @dataclass
 class DatabaseBookMeta(DataClassJSONMixin):
-    id: str
-    name: str
+    id: str = ''
+    name: str = ''
     created: datetime = field(default_factory=lambda: datetime.now())
     last_opened: str = ''
     notationStyle: str = 'french14'
-    defaultModels: Dict[str, str] = field(default_factory=lambda: {})
+    algorithmPredictorParams: Dict[AlgorithmTypes, AlgorithmPredictorParams] = field(default_factory=lambda: {})
 
     def default_models_path(self):
         return os.path.join(DEFAULT_MODELS, self.notationStyle)
@@ -25,13 +26,11 @@ class DatabaseBookMeta(DataClassJSONMixin):
         path = book.local_path('book_meta.json')
         try:
             with open(path) as f:
-                d = json.load(f)
-        except FileNotFoundError as e:
-            d = {'name': book.book}
+                d = DatabaseBookMeta.from_book_json(book, f.read())
+        except FileNotFoundError:
+            d = DatabaseBookMeta(id=book.book, name=book.book)
 
-        d['id'] = book.book
-
-        return DatabaseBookMeta.from_dict(d)
+        return d
 
     @staticmethod
     def from_book_dict(book: DatabaseBook, json: dict):
@@ -45,6 +44,8 @@ class DatabaseBookMeta(DataClassJSONMixin):
     def from_book_json(book: DatabaseBook, json: str):
         meta = DatabaseBookMeta.from_json(json)
         meta.id = book.book
+        if len(meta.name) == 0:
+            meta.name = book.book
 
         return meta
 

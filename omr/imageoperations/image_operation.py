@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Any, Optional
 import numpy as np
-from database.file_formats.pcgts import Point, Line, Page, Block, PageScaleReference
+from database.file_formats.pcgts import Point, Line, Page, Block, PageScaleReference, PcGts
 from dataclasses import dataclass
 from copy import copy
 
@@ -18,6 +18,7 @@ class ImageOperationData:
     scale_reference: PageScaleReference
     params: Any = None
 
+    pcgts: Optional[PcGts] = None
     page: Optional[Page] = None
     page_image: np.ndarray = None
     music_region: Optional[Block] = None

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from database import DatabaseBook, DatabasePage
 from database.file_formats import PcGts
 from omr.dataset import DatasetCallback, Dataset
-from typing import Optional, List, Type, Union
+from typing import Optional, List, Type, Union, Generator
 from .algorithmtrainerparams import AlgorithmTrainerSettings, AlgorithmTrainerParams, DatasetParams
 from .algorithmpreditorparams import AlgorithmPredictorSettings, AlgorithmPredictorParams
 from database.model import Models, Model, ModelMeta
@@ -140,6 +140,19 @@ class AlgorithmTrainer(ABC):
         pass
 
 
+class AlgorithmPredictionResult(ABC):
+    @abstractmethod
+    def to_dict(self):
+        pass
+
+    @abstractmethod
+    def store_to_page(self):
+        pass
+
+
+AlgorithmPredictionResultGenerator = Generator[AlgorithmPredictionResult, None, None]
+
+
 class AlgorithmPredictor(ABC):
     @staticmethod
     @abstractmethod
@@ -156,13 +169,21 @@ class AlgorithmPredictor(ABC):
             self.settings.model = Model.from_id(self.params.modelId)
 
         try:
+            if not settings.model:
+                raise ValueError("Model may not be None")
             with open(settings.model.local_file('dataset_params.json'), 'r') as f:
                 self.dataset_params = DatasetParams.from_json(f.read())
         except FileNotFoundError:
             self.dataset_params = DatasetParams()
 
     @abstractmethod
-    def predict(self, pages: Union[List[PcGts], List[DatabasePage]], callback: Optional[PredictionCallback] = None):
+    def predict(self, pages: List[DatabasePage],
+                callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def unprocessed(cls, page: DatabasePage) -> bool:
         pass
 
 
@@ -244,13 +265,14 @@ class AlgorithmMeta(ABC):
         return cls.default_model_for_book(book)
 
     @classmethod
-    def selected_model_for_book(cls, book: Optional[DatabaseBook]) -> Optional[Model]:
-        if not book:
-            return None
+    def selected_algorithm_params_for_book(cls, book: Optional[DatabaseBook]) -> Optional[AlgorithmPredictorParams]:
+        return None if not book else book.get_meta().algorithmPredictorParams.get(cls.type(), None)
 
-        selected_model_id = book.get_meta().defaultModels.get(cls.group().value, None)
-        if selected_model_id:
-            model = Model.from_id(selected_model_id)
+    @classmethod
+    def selected_model_for_book(cls, book: Optional[DatabaseBook]) -> Optional[Model]:
+        selected_params = cls.selected_algorithm_params_for_book(book)
+        if selected_params and selected_params.modelId:
+            model = Model.from_id(selected_params.modelId)
             if model and model.exists():
                 return model
 

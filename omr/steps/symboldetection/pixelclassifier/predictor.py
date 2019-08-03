@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Generator
 from pagesegmentation.lib.predictor import Predictor, PredictSettings
 import os
 from database.file_formats.pcgts import *
@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 from omr.steps.symboldetection.pixelclassifier.meta import Meta
 from omr.imageoperations.music_line_operations import SymbolLabel
-from omr.steps.symboldetection.predictor import PredictionResult
+from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePredictionResult
 
 
 def render_prediction_labels(labels, img=None):
@@ -37,7 +37,7 @@ def render_prediction_labels(labels, img=None):
     return out
 
 
-class PCPredictor(AlgorithmPredictor):
+class PCPredictor(SymbolsPredictor):
     @staticmethod
     def meta() -> Meta.__class__:
         return Meta
@@ -49,11 +49,11 @@ class PCPredictor(AlgorithmPredictor):
         )
         self.predictor = Predictor(settings)
 
-    def predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None):
+    def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[SingleLinePredictionResult, None, None]:
         dataset = SymbolDetectionDataset(pcgts_files, self.dataset_params)
         for p in self.predictor.predict(dataset.to_page_segmentation_dataset()):
             m: RegionLineMaskData = p.data.user_data
-            symbols = PredictionResult(self.exract_symbols(p.labels, m, dataset), p.data.user_data)
+            symbols = SingleLinePredictionResult(self.exract_symbols(p.labels, m, dataset), p.data.user_data)
             if False:
                 import matplotlib.pyplot as plt
                 f, ax = plt.subplots(5, 1, sharey='all', sharex='all')

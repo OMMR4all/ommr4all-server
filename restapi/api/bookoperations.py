@@ -12,6 +12,7 @@ from restapi.operationworker.taskrunners.taskrunner import TaskRunner
 from restapi.operationworker.taskrunners.pageselection import PageSelection, PageSelectionParams
 from omr.dataset.datafiles import EmptyDataSetException
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
+from omr.steps.step import Step, AlgorithmTypes
 from dataclasses import field, dataclass
 
 logger = logging.getLogger(__name__)
@@ -22,9 +23,9 @@ class BookPageSelectionView(APIView):
     def post(self, request, book, operation):
         body = json.loads(request.body, encoding='utf-8')
         book = DatabaseBook(book)
-        task_runner = BookOperationView.op_to_task_runner(operation, book, body)
+        algorithm = Step.predictor(AlgorithmTypes(operation))
         page_selection = PageSelection.from_params(PageSelectionParams.from_dict(body), book)
-        pages = page_selection.get_pages(task_runner.unprocessed)
+        pages = page_selection.get_pages(algorithm.unprocessed)
         return Response({
             'pages': [p.page for p in pages],
             'pageCount': page_selection.page_count.value,
@@ -124,7 +125,16 @@ class AlgorithmRequest(DataClassDictMixin):
 
 class BookOperationView(APIView):
     @staticmethod
-    def op_to_task_runner(operation, book: DatabaseBook, body: dict) -> TaskRunner:
+    def op_to_task_runner(operation: str, book: DatabaseBook, body: dict) -> TaskRunner:
+        from omr.steps.algorithmtypes import AlgorithmTypes
+        for at in AlgorithmTypes:
+            if at.value == operation:
+                from restapi.operationworker.taskrunners.taskrunnerprediction import TaskRunnerPrediction, AlgorithmPredictorParams, Settings
+                r = AlgorithmRequest.from_dict(body)
+                return TaskRunnerPrediction(at,
+                                            PageSelection.from_params(r.selection, book),
+                                            Settings(r.params, store_to_pcgts=True)
+                                            )
         # check if operation is linked to a task
         if operation == 'train_symbols':
             from restapi.operationworker.taskrunners.taskrunnersymboldetectiontrainer import TaskRunnerSymbolDetectionTrainer, TaskTrainerParams
@@ -132,43 +142,6 @@ class BookOperationView(APIView):
         elif operation == 'train_staff_line_detector':
             from restapi.operationworker.taskrunners.taskrunnerstafflinedetectiontrainer import TaskRunnerStaffLineDetectionTrainer, TaskTrainerParams
             return TaskRunnerStaffLineDetectionTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})))
-        elif operation == 'preprocessing':
-            from restapi.operationworker.taskrunners.taskrunnerpreprocessing import TaskRunnerPreprocessing, AlgorithmPredictorParams
-            r = AlgorithmRequest.from_dict(body)
-            return TaskRunnerPreprocessing(
-                PageSelection.from_params(r.selection, book),
-                r.params,
-            )
-        elif operation == 'stafflines':
-            from restapi.operationworker.taskrunners.taskrunnerstafflinedetection import TaskRunnerStaffLineDetection, Settings
-            r = AlgorithmRequest.from_dict(body)
-            return TaskRunnerStaffLineDetection(
-                PageSelection.from_params(r.selection, book),
-                Settings(
-                    r.params,
-                    store_to_pcgts=True,
-                )
-            )
-        elif operation == 'layout':
-            from restapi.operationworker.taskrunners.taskrunnerlayoutanalysis import TaskRunnerLayoutAnalysis, Settings
-            r = AlgorithmRequest.from_dict(body)
-            return TaskRunnerLayoutAnalysis(
-                PageSelection.from_params(r.selection, book),
-                Settings(
-                    r.params,
-                    store_to_pcgts=True,
-                )
-            )
-        elif operation == 'symbols':
-            from restapi.operationworker.taskrunners.taskrunnersymboldetection import TaskRunnerSymbolDetection, Settings
-            r = AlgorithmRequest.from_dict(body)
-            return TaskRunnerSymbolDetection(
-                PageSelection.from_params(r.selection, book),
-                Settings(
-                    r.params,
-                    store_to_pcgts=True,
-                )
-            )
         else:
             raise NotImplementedError()
 
