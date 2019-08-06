@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 script_search = re.compile(r"<script src=\"(\S*)\" (\S*)></script>")
 styles_search = re.compile(r"<link rel=\"stylesheet\" href=\"(\S*)\">")
+index_files = None
 
 
 def extract_content(language_code):
@@ -32,21 +33,22 @@ def extract_content(language_code):
     return scripts, styles
 
 
-try:
-    files = {lc: extract_content(lc) for lc, _ in settings.LANGUAGES}
-except FileNotFoundError as e:
-    logger.info("Could not find index.html files of the deployed webapp."
-                " Possibly running tests and not deployment.")
-    files = None
+def parse_index_files():
+    try:
+        return {lc: extract_content(lc) for lc, _ in settings.LANGUAGES}
+    except FileNotFoundError as e:
+        logger.warning("Could not find index.html files of the deployed webapp.")
+        raise e
 
 
 def index(request, path=''):
-    if not files:
-        raise Exception("index.html files not parsed properly!")
+    global index_files
+    if not index_files:
+        index_files = parse_index_files()
 
     language = get_language()
     postfix = '-' + language if language != 'en' and language in [code for code, _ in settings.LANGUAGES] else ''
-    scripts, styles = files[language]
+    scripts, styles = index_files[language]
 
     return render(request, 'index.html', {
         'ommr4all_client': 'ommr4all-client' + postfix + '/',
