@@ -1,10 +1,18 @@
-from typing import Optional, NamedTuple, Set
+from typing import Optional, NamedTuple, Set, Dict, List
 from .taskqueue import TaskQueue, TaskStatus
 from .taskcommunicator import TaskCommunicator
 from uuid import uuid4
 from .taskworkerthread import TaskWorkerThread, TaskWorkerGroup
 from .taskrunners.taskrunner import TaskRunner
 from django.conf import settings
+import threading
+from multiprocessing import Queue
+from queue import Empty
+from dataclasses import dataclass
+import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class TaskIDGenerator:
@@ -12,37 +20,116 @@ class TaskIDGenerator:
         return str(uuid4())
 
 
-class TaskSettings(NamedTuple):
-    num_threads: int
-    groups: Set[TaskWorkerGroup]
+@dataclass
+class TaskResource:
+    group: TaskWorkerGroup
+    gpu_id: int = -1
+    used: bool = False
 
 
-task_settings = [
-    # GPU tasks, but add also threads if no GPU can be used
-    TaskSettings(max(1, len(settings.GPU_SETTINGS.available_gpus)), {TaskWorkerGroup.LONG_TASKS_GPU}),
+Resources = List[TaskResource]
 
-    # CPU only tasks
-    TaskSettings(2, {TaskWorkerGroup.LONG_TASKS_CPU, TaskWorkerGroup.NORMAL_TASKS_CPU, TaskWorkerGroup.SHORT_TASKS_CPU}),
-    TaskSettings(2, {TaskWorkerGroup.NORMAL_TASKS_CPU, TaskWorkerGroup.SHORT_TASKS_CPU}),
-    TaskSettings(4, {TaskWorkerGroup.SHORT_TASKS_CPU}),
-]
+
+class IntraComData(NamedTuple):
+    op: int
+    data: any
+
+
+class TaskCreator:
+    OP_STOP = 0
+
+    def __init__(self, task_queue: TaskQueue, task_communicator: TaskCommunicator):
+        self.task_queue: TaskQueue = task_queue
+        self.task_communicator: TaskCommunicator = task_communicator
+        self.sleep = 0.1
+        self.intra_com = Queue()
+        self.thread = threading.Thread(target=self.run, args=(), name='task_communicator')
+        self.thread.daemon = True       # daemon thread to stop automatically on shutdown
+        self.thread.start()
+
+    def is_alive(self):
+        return self.thread.is_alive()
+
+    def stop(self, task):
+        self.intra_com.put(IntraComData(TaskCreator.OP_STOP, task.task_id))
+
+    def run(self):
+        from .task import TaskStatusCodes
+        class TaskList:
+            def __init__(self):
+                self.tasks: List[TaskWorkerThread] = []
+
+            def cleanup(self):
+                for task in self.tasks[:]:
+                    if task.finished():
+                        self.remove(task)
+
+            def cancel(self, task_id: str):
+                for task in self.tasks:
+                    if task.task.task_id == task_id:
+                        task.cancel()
+                        logger.debug("Canceled task with id {} of type {}".format(task.task.task_id, type(task.task.task_runner)))
+                        self.remove(task)
+                        return True
+
+                return False
+
+            def remove(self, task: TaskWorkerThread):
+                if task not in self.tasks:
+                    raise ValueError()
+
+                task.resource.used = False
+                self.tasks.remove(task)
+                logger.debug("Removed task with id {} of type {}".format(task.task.task_id, type(task.task.task_runner)))
+
+            def append(self, task: TaskWorkerThread):
+                assert(not task.resource.used)
+                task.resource.used = True
+                self.tasks.append(task)
+                logger.debug("Appended new task with id {} of type {}".format(task.task.task_id, type(task.task.task_runner)))
+
+        logger.info("THREAD TaskCreator: Started")
+        resources: Resources = [
+                                    TaskResource(TaskWorkerGroup.LONG_TASKS_GPU, i) for i in settings.GPU_SETTINGS.available_gpus
+                                ] + [
+                                    TaskResource(g) for g in ([TaskWorkerGroup.LONG_TASKS_CPU] * 2 +
+                                                              [TaskWorkerGroup.NORMAL_TASKS_CPU] * 2 +
+                                                              [TaskWorkerGroup.SHORT_TASKS_CPU] * 4)
+                                ]
+
+        tasks = TaskList()
+
+        while True:
+            # check for tasks
+            try:
+                data: IntraComData = self.intra_com.get_nowait()
+                if data.op == TaskCreator.OP_STOP:
+                    tasks.cancel(data.data)
+            except Empty:
+                pass
+
+            # cleanup threads that are stopped
+            tasks.cleanup()
+
+            # check if new tasks are available
+            queued = self.task_queue.list_queued()
+            for task in queued:
+                for tg in task.task_runner.task_group:
+                    available_resources_for_group = [r for r in resources if r.group == tg and r.used == False]
+                    if len(available_resources_for_group) > 0:
+                        task.task_status.code = TaskStatusCodes.RUNNING
+                        r = available_resources_for_group[0]
+                        tasks.append(TaskWorkerThread(r, task, self.task_communicator.queue))
+                        break
+
+            time.sleep(self.sleep)
 
 
 class OperationWorker:
     def __init__(self):
         self.queue = TaskQueue()
         self.task_communicator = TaskCommunicator(self.queue)
-        self.threads = sum(
-            [
-                [
-                    TaskWorkerThread("g{}-s{}".format(g, i),
-                                     self.queue,
-                                     self.task_communicator.queue,
-                                     s.groups) for i in range(s.num_threads)
-                ] for g, s in enumerate(task_settings)
-            ],
-            [])
-
+        self.task_creator: Optional[TaskCreator] = None
         self.id_generator = TaskIDGenerator()
 
     def id_by_task_runner(self, task_runner: TaskRunner):
@@ -51,11 +138,12 @@ class OperationWorker:
     def stop(self, task_id: str):
         task = self.queue.remove(task_id)
         if task is not None:
-            for i, t in enumerate(self.threads):
-                if t.cancel_if_current_task(task):
-                    break
+            self.task_creator.stop(task)
 
     def put(self, task_runner: TaskRunner) -> str:
+        if not self.task_creator or not self.task_creator.is_alive():
+            self.task_creator = TaskCreator(self.queue, self.task_communicator)
+
         task_id = self.id_generator.gen()
         self.queue.put(task_id, task_runner)
         return task_id

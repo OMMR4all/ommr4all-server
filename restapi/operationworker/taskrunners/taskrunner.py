@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Set, Tuple, Type
+from typing import List, Tuple, Type
 from multiprocessing import Queue
 from ..task import Task
 from ..taskworkergroup import TaskWorkerGroup
@@ -11,7 +11,7 @@ from omr.steps.algorithmtypes import AlgorithmGroups
 
 
 class TaskRunner(ABC):
-    def __init__(self, algorithm_type: AlgorithmTypes, task_group: Set[TaskWorkerGroup]):
+    def __init__(self, algorithm_type: AlgorithmTypes, task_group: List[TaskWorkerGroup]):
         self.algorithm_type = algorithm_type
         self.task_group = task_group
 

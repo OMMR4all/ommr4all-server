@@ -2,6 +2,9 @@ from . import *
 
 from database.file_formats.pcgts.page import page as dt_page
 from typing import List
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SyllableConnector:
@@ -45,6 +48,10 @@ class Connection:
     def from_json(json: dict, page: dt_page.Page):
         mr = page.music_region_by_id(json['musicID'])
         tr = page.text_region_by_id(json['textID'])
+        if not mr or not tr:
+            logger.warning("Invalid music or text region ({}/{})".format(mr, tr))
+            return
+
         return Connection(
             mr, tr,
             [SyllableConnector.from_json(s, mr, tr) for s in json['syllableConnectors']]
@@ -67,7 +74,7 @@ class Annotations:
     @staticmethod
     def from_json(json: dict, page: dt_page.Page):
         return Annotations(page,
-                           [Connection.from_json(c, page) for c in json['connections']]
+                           [c for c in [Connection.from_json(c, page) for c in json['connections']] if c]
                            )
 
     def to_json(self) -> dict:

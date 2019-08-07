@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 class TaskCommunicationData(NamedTuple):
     task: Task
     status: TaskStatus
+    data: dict = None
 
 
 class TaskCommunicator:
@@ -26,8 +27,10 @@ class TaskCommunicator:
         while True:
             try:
                 com: TaskCommunicationData = self.queue.get()
-                self.task_queue.update_status(com.task.task_id, com.status)
+                self.task_queue.update_status(com.task.task_id, com.status, com.data)
             except TaskNotFoundException:
+                pass
+            except EOFError:
                 pass
             except Exception as e:
                 raise e

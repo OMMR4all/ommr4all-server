@@ -22,12 +22,12 @@ class TaskRunnerPrediction(TaskRunner):
                  selection: PageSelection,
                  settings: Settings,
                  ):
-        super().__init__(algorithm_type, {TaskWorkerGroup.NORMAL_TASKS_CPU})
+        super().__init__(algorithm_type, [TaskWorkerGroup.NORMAL_TASKS_CPU])
         self.selection = selection
         self.settings = settings
 
     def identifier(self) -> Tuple:
-        return self.selection.identifier(),
+        return self.selection.identifier(), self.algorithm_type
 
     def run(self, task: Task, com_queue: Queue) -> dict:
         from omr.steps.algorithm import PredictionCallback, AlgorithmPredictor, AlgorithmPredictorSettings

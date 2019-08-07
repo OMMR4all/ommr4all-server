@@ -27,6 +27,7 @@ class ErrorCodes(IntEnum):
 
     # Operation related
     OPERATION_INVALID_GET = 50001
+    OPERATION_UNKNOWN_SERVER_ERROR = 50002
 
     # Task related
     OPERATION_TASK_NOT_FOUND = 51001

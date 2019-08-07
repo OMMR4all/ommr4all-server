@@ -12,7 +12,7 @@ class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
                  book: DatabaseBook,
                  params: TaskTrainerParams,
                  ):
-        super().__init__(AlgorithmTypes.STAFF_LINES_PC, {TaskWorkerGroup.LONG_TASKS_GPU})
+        super().__init__(AlgorithmTypes.STAFF_LINES_PC, [TaskWorkerGroup.LONG_TASKS_GPU, TaskWorkerGroup.LONG_TASKS_CPU])
         self.book = book
         self.params = params
 

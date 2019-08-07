@@ -1,11 +1,9 @@
-from typing import List, Optional, Set, TYPE_CHECKING
+from typing import List, Optional
 from .task import Task, \
     TaskAlreadyQueuedException, TaskNotFinishedException, TaskNotFoundException, \
     TaskStatusCodes, TaskStatus
 from .taskrunners.taskrunner import TaskRunner
 from multiprocessing import Lock
-import time
-from .taskworkergroup import TaskWorkerGroup
 
 
 class TaskQueue:
@@ -21,6 +19,14 @@ class TaskQueue:
                     return t
 
             return None
+
+    def has(self, task_id: str, task_runner: TaskRunner):
+        with self.mutex:
+            for task in self.tasks:
+                if task.task_id == task_id or self._id_by_runner(task_runner) == task.task_id:
+                    return True
+
+        return False
 
     def put(self, task_id: str, task_runner: TaskRunner):
         with self.mutex:
@@ -50,26 +56,20 @@ class TaskQueue:
 
             raise TaskNotFoundException()
 
-    def update_status(self, task_id: str, status: TaskStatus):
+    def update_status(self, task_id: str, status: TaskStatus, result: dict = None):
         with self.mutex:
             for task in self.tasks:
                 if task.task_id == task_id:
                     task.task_status = status
+                    if result:
+                        task.task_result = result
                     return
 
             raise TaskNotFoundException()
 
-    def next_unprocessed(self, groups: Set[TaskWorkerGroup], sleep_secs=1.0) -> Task:
-        while True:
-            with self.mutex:
-                queued_tasks = [task for task in self.tasks if task.task_status.code == TaskStatusCodes.QUEUED]
-                for task in queued_tasks:
-                    if any([g in groups for g in task.task_runner.task_group]):
-                        # found valid group
-                        task.task_status.code = TaskStatusCodes.RUNNING
-                        return task
-
-            time.sleep(sleep_secs)
+    def list_queued(self) -> List[Task]:
+        with self.mutex:
+            return [task for task in self.tasks if task.task_status.code == TaskStatusCodes.QUEUED]
 
     def _id_by_runner(self, task_runner: TaskRunner) -> Optional[str]:
         for task in self.tasks:
@@ -80,13 +80,3 @@ class TaskQueue:
     def id_by_runner(self, task_runner: TaskRunner) -> Optional[str]:
         with self.mutex:
             return self._id_by_runner(task_runner)
-
-    def task_finished(self, task: Task, result):
-        with self.mutex:
-            task.task_status.code = TaskStatusCodes.FINISHED
-            task.task_result = result
-
-    def task_error(self, task: Task, result):
-        with self.mutex:
-            task.task_status.code = TaskStatusCodes.ERROR
-            task.task_result = result

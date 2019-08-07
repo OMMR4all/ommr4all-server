@@ -97,7 +97,11 @@ class BookOperationTaskView(APIView):
                             ).response()
         except Exception as e:
             logging.exception(e)
-            return Response({'error': 'unknown'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return APIError(status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            str(e),
+                            "Unknown server error",
+                            ErrorCodes.OPERATION_UNKNOWN_SERVER_ERROR,
+                            ).response()
 
 
 class BookOperationStatusView(APIView):
