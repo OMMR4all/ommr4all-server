@@ -2,9 +2,9 @@ from typing import Optional, NamedTuple, Set, Dict, List
 from .taskqueue import TaskQueue, TaskStatus
 from .taskcommunicator import TaskCommunicator
 from uuid import uuid4
-from .taskworkerthread import TaskWorkerThread, TaskWorkerGroup
+from .taskworkergroup import TaskWorkerGroup
+from .taskworkerthread import TaskWorkerThread
 from .taskrunners.taskrunner import TaskRunner
-from django.conf import settings
 import threading
 from multiprocessing import Queue
 from queue import Empty
@@ -38,9 +38,10 @@ class IntraComData(NamedTuple):
 class TaskCreator:
     OP_STOP = 0
 
-    def __init__(self, task_queue: TaskQueue, task_communicator: TaskCommunicator):
+    def __init__(self, task_queue: TaskQueue, task_communicator: TaskCommunicator, resources: Resources):
         self.task_queue: TaskQueue = task_queue
         self.task_communicator: TaskCommunicator = task_communicator
+        self.resources = resources
         self.sleep = 0.1
         self.intra_com = Queue()
         self.thread = threading.Thread(target=self.run, args=(), name='task_communicator')
@@ -89,14 +90,7 @@ class TaskCreator:
                 logger.debug("Appended new task with id {} of type {}".format(task.task.task_id, type(task.task.task_runner)))
 
         logger.info("THREAD TaskCreator: Started")
-        resources: Resources = [
-                                    TaskResource(TaskWorkerGroup.LONG_TASKS_GPU, i) for i in settings.GPU_SETTINGS.available_gpus
-                                ] + [
-                                    TaskResource(g) for g in ([TaskWorkerGroup.LONG_TASKS_CPU] * 2 +
-                                                              [TaskWorkerGroup.NORMAL_TASKS_CPU] * 2 +
-                                                              [TaskWorkerGroup.SHORT_TASKS_CPU] * 4)
-                                ]
-
+        resources = self.resources
         tasks = TaskList()
 
         while True:
@@ -125,12 +119,34 @@ class TaskCreator:
             time.sleep(self.sleep)
 
 
+def default_resources() -> Resources:
+    import ommr4all.settings as settings
+    return [
+               TaskResource(TaskWorkerGroup.LONG_TASKS_GPU, i) for i in settings.GPU_SETTINGS.available_gpus
+           ] + [
+               TaskResource(g) for g in ([TaskWorkerGroup.LONG_TASKS_CPU] * 2 +
+                                         [TaskWorkerGroup.NORMAL_TASKS_CPU] * 2 +
+                                         [TaskWorkerGroup.SHORT_TASKS_CPU] * 4)
+           ]
+
+
 class OperationWorker:
-    def __init__(self):
+    def __init__(self, resources: Resources = None):
         self.queue = TaskQueue()
-        self.task_communicator = TaskCommunicator(self.queue)
-        self.task_creator: Optional[TaskCreator] = None
+        self.resources = resources if resources else default_resources()
+        self._task_communicator: Optional[TaskCommunicator] = None
+        self._task_creator: Optional[TaskCreator] = None
         self.id_generator = TaskIDGenerator()
+
+    def task_communicator(self) -> TaskCommunicator:
+        if not self._task_communicator:
+            self._task_communicator = TaskCommunicator(self.queue)
+        return self._task_communicator
+
+    def task_creator(self) -> TaskCreator:
+        if not self._task_creator:
+            self._task_creator = TaskCreator(self.queue, self.task_communicator(), self.resources)
+        return self._task_creator
 
     def id_by_task_runner(self, task_runner: TaskRunner):
         return self.queue.id_by_runner(task_runner)
@@ -138,12 +154,10 @@ class OperationWorker:
     def stop(self, task_id: str):
         task = self.queue.remove(task_id)
         if task is not None:
-            self.task_creator.stop(task)
+            self.task_creator().stop(task)
 
     def put(self, task_runner: TaskRunner) -> str:
-        if not self.task_creator or not self.task_creator.is_alive():
-            self.task_creator = TaskCreator(self.queue, self.task_communicator)
-
+        self.task_creator()  # require creation
         task_id = self.id_generator.gen()
         self.queue.put(task_id, task_runner)
         return task_id

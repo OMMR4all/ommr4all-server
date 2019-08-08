@@ -5,7 +5,6 @@ from ..task import Task
 from ..taskworkergroup import TaskWorkerGroup
 from database.database_available_models import DatabaseAvailableModels, DefaultModel
 from database.database_page import DatabasePage, DatabaseBook
-from database.models.bookstyles import BookStyle
 from omr.steps.step import Step, AlgorithmTypes, AlgorithmMeta
 from omr.steps.algorithmtypes import AlgorithmGroups
 
@@ -26,6 +25,7 @@ class TaskRunner(ABC):
         return {}
 
     def list_available_models_for_book(self, book: DatabaseBook) -> DatabaseAvailableModels:
+        from database.models.bookstyles import BookStyle
         meta = self.algorithm_meta()
         return DatabaseAvailableModels(
             book=book.book,
