@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, NamedTuple, Dict
 from .task import Task, \
     TaskAlreadyQueuedException, TaskNotFinishedException, TaskNotFoundException, \
     TaskStatusCodes, TaskStatus
@@ -6,10 +6,22 @@ from .taskrunners.taskrunner import TaskRunner
 from multiprocessing import Lock
 
 
+class TaskQueueStatus(NamedTuple):
+    n_total: int
+    n_in_state: Dict[TaskStatusCodes, int]
+
+
 class TaskQueue:
     def __init__(self):
         self.tasks: List[Task] = []
         self.mutex = Lock()
+        
+    def status(self) -> TaskQueueStatus:
+        with self.mutex:
+            return TaskQueueStatus(
+                len(self.tasks),
+                {c: len([t for t in self.tasks if t.task_status.code == c]) for c in TaskStatusCodes}
+            )
 
     def remove(self, task_id: str) -> Optional[Task]:
         with self.mutex:
@@ -48,7 +60,7 @@ class TaskQueue:
 
             raise TaskNotFoundException()
 
-    def status(self, task_id: str) -> TaskStatus:
+    def status_of_task(self, task_id: str) -> TaskStatus:
         with self.mutex:
             for task in self.tasks:
                 if task.task_id == task_id:

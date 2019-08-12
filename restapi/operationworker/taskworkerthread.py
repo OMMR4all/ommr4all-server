@@ -5,17 +5,14 @@ from multiprocessing import Queue, Lock, Process
 import threading
 from queue import Empty as QueueEmptyException
 import time
-from typing import TYPE_CHECKING
 from omr.dataset.datafiles import EmptyDataSetException
 import logging
+from .taskresources import TaskResource
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from .operationworker import TaskResource
 
 
 class TaskWorkerThread:
-    def __init__(self, resource: 'TaskResource', task: Task, com_queue: Queue):
+    def __init__(self, resource: TaskResource, task: Task, com_queue: Queue):
         self.resource = resource
         self.task = task
         self.com_queue = com_queue
