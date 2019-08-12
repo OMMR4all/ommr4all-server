@@ -206,11 +206,15 @@ class OperationTests(APITestCase):
         url = '/api/book/{}/page/{}/operation/{}/task/{}'.format(page.book.book, page.page, operation, taskid)
         response = self.client.post(url, '{}', format='json')
         data = response.data
+        timeout = 0
         while data['status']['code'] == 1 or data['status']['code'] == 0:
             time.sleep(1)
             response = self.client.post(url, '{}', format='json')
             self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
             data = response.data
+            timeout += 1
+            if timeout > 10:
+                self.failureException("Timeout ({}s) when calling book operation at {}".format(timeout, url))
         self.unlock_page(page.page)
         return data
 
@@ -285,11 +289,16 @@ class OperationTests(APITestCase):
         url = '/api/book/{}/operation/{}/task/{}'.format(book.book, operation.value, taskid)
         response = self.client.post(url, '{}', format='json')
         data = response.data
+        timeout = 0
         while data['status']['code'] == 1 or data['status']['code'] == 0:
             time.sleep(1)
             response = self.client.post(url, '{}', format='json')
             self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
             data = response.data
+            timeout += 1
+            if timeout > 10:
+                self.failureException("Timeout ({}s) when calling book operation at {}".format(timeout, url))
+
         return data
 
 
