@@ -170,14 +170,16 @@ class OperationTests(APITestCase):
 
     def _test_list_models(self, operation: AlgorithmTypes):
         from database.database_available_models import DatabaseAvailableModels
+        from database.model import ModelsId, MetaId
         book = DatabaseBook('demo')
         response = self.client.get('/api/book/{}/operation/{}/models'.format(book.book, operation.value))
         self.assertEqual(response.status_code, status.HTTP_200_OK, response)
 
+        models_id = ModelsId.from_internal('french14', AlgorithmTypes.STAFF_LINES_PC)
         models = DatabaseAvailableModels.from_dict(response.data)
         self.assertEqual(models.newest_model, None)
-        self.assertEqual(models.selected_model.id, 'internal_storage/default_models/french14/pc_staff_lines')
-        self.assertEqual(models.default_book_style_model.id, 'internal_storage/default_models/french14/pc_staff_lines')
+        self.assertEqual(models.selected_model.id, str(MetaId(models_id, models_id.algorithm_type.value)))
+        self.assertEqual(models.default_book_style_model.id, str(MetaId(models_id, models_id.algorithm_type.value)))
         self.assertListEqual(models.book_models, [])
         self.assertListEqual(models.models_of_same_book_style, [])
 

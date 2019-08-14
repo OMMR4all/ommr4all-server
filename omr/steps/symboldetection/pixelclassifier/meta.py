@@ -22,9 +22,5 @@ class Meta(AlgorithmMeta):
     def dataset_class() -> Type[Dataset]:
         return SymbolDetectionDataset
 
-    @staticmethod
-    def model_dir() -> str:
-        return "pc_symbol_detection"
-
 
 Step.register(Meta)

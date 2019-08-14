@@ -16,9 +16,5 @@ class Meta(AlgorithmMeta):
     def trainer(cls) -> Type[AlgorithmTrainer]:
         raise NotImplementedError()
 
-    @staticmethod
-    def model_dir() -> str:
-        return "tools_layout_connected_components_selection"
-
 
 Step.register(Meta)

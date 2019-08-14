@@ -1,4 +1,4 @@
-from typing import NamedTuple
+from typing import NamedTuple, Union
 from .task import Task, TaskStatus, TaskNotFoundException
 from .taskqueue import TaskQueue
 from multiprocessing import Queue
@@ -11,13 +11,14 @@ logger = logging.getLogger(__name__)
 class TaskCommunicationData(NamedTuple):
     task: Task
     status: TaskStatus
-    data: dict = None
+    data: Union[dict, Exception] = None
 
 
 class TaskCommunicator:
     def __init__(self, task_queue: TaskQueue):
         self.task_queue: TaskQueue = task_queue
         self.queue = Queue()
+        # use thread to be in same memory pool as task queue
         self.thread = threading.Thread(target=self.run, args=(), name='task_communicator')
         self.thread.daemon = True       # daemon thread to stop automatically on shutdown
         self.thread.start()

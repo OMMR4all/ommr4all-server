@@ -1,5 +1,3 @@
-from typing import NamedTuple
-from .task import Task, TaskStatus, TaskNotFoundException
 from .taskqueue import TaskQueue
 from .taskresources import Resources
 import threading

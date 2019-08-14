@@ -1,6 +1,6 @@
 from enum import IntEnum
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from .taskrunners.taskrunner import TaskRunner
@@ -65,5 +65,5 @@ class Task:
     task_id: str
     task_runner: 'TaskRunner'
     task_status: TaskStatus
-    task_result: dict
+    task_result: Union[dict, Exception]
 

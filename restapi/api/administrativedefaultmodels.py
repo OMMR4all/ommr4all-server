@@ -14,7 +14,7 @@ class AdministrativeDefaultModelsView(APIView):
     def put(self, request, group, style):
         meta = ModelMeta.from_json(request.body)
         default_type = AlgorithmGroups(group).types()[0]
-        model = Model.from_id(meta.id)
+        model = Model.from_id_str(meta.id)
         target_model = Model(DatabaseAvailableModels.local_default_model_path_for_style(style, Step.meta(default_type).model_dir()))
         model.copy_to(target_model, override=True)
         return Response()

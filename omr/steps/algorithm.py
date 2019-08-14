@@ -5,7 +5,7 @@ from omr.dataset import DatasetCallback, Dataset
 from typing import Optional, List, Type, Union, Generator
 from .algorithmtrainerparams import AlgorithmTrainerSettings, AlgorithmTrainerParams, DatasetParams
 from .algorithmpreditorparams import AlgorithmPredictorSettings, AlgorithmPredictorParams
-from database.model import Models, Model, ModelMeta
+from database.model import Models, Model, ModelMeta, MetaId, ModelsId, Storage
 from database.database_available_models import DatabaseAvailableModels
 import os
 import uuid
@@ -166,7 +166,7 @@ class AlgorithmPredictor(ABC):
 
         if self.params.modelId:
             # override model if an id is given
-            self.settings.model = Model.from_id(self.params.modelId)
+            self.settings.model = Model.from_id_str(self.params.modelId)
 
         try:
             if not settings.model:
@@ -220,30 +220,26 @@ class AlgorithmMeta(ABC):
     def dataset_class() -> Type[Dataset]:
         pass
 
-    @staticmethod
-    @abstractmethod
-    def model_dir() -> str:
-        pass
+    @classmethod
+    def model_dir(cls) -> str:
+        return cls.type().value
 
     @classmethod
     def models_for_book(cls, book: DatabaseBook) -> Models:
-        return Models(book.local_models_path(cls.model_dir()))
+        return Models(ModelsId.from_external(book.book, cls.type()))
 
     @classmethod
     def default_model_for_book(cls, book: DatabaseBook) -> Model:
-        return Model(book.local_default_models_path(cls.model_dir()))
+        models = ModelsId.from_internal(book.get_meta().notationStyle, cls.type())
+        return Model(MetaId(models, cls.model_dir()))
 
     @classmethod
     def default_model_for_style(cls, style: str) -> Optional[Model]:
-        from database.database_available_models import DatabaseAvailableModels
-        model = Model(DatabaseAvailableModels.local_default_model_path_for_style(style, cls.model_dir()))
+        models = ModelsId.from_internal(style, cls.type())
+        model = Model(MetaId(models, cls.model_dir()))
         if model.exists():
             return model
         return None
-
-    @classmethod
-    def model_path(cls, book: DatabaseBook, s: str):
-        return book.local_models_path(os.path.join(cls.model_dir(), s))
 
     @classmethod
     def newest_model_for_book(cls, book: Optional[DatabaseBook]) -> Optional[Model]:
@@ -272,7 +268,7 @@ class AlgorithmMeta(ABC):
     def selected_model_for_book(cls, book: Optional[DatabaseBook]) -> Optional[Model]:
         selected_params = cls.selected_algorithm_params_for_book(book)
         if selected_params and selected_params.modelId:
-            model = Model.from_id(selected_params.modelId)
+            model = Model.from_id_str(selected_params.modelId)
             if model and model.exists():
                 return model
 
@@ -300,7 +296,8 @@ class AlgorithmMeta(ABC):
 
         id = id if id else str(uuid.uuid4())
         time = datetime.datetime.now()
-        return Model(cls.model_path(book, time.strftime("%Y-%m-%dT%H:%M:%S")),
+        models = ModelsId.from_external(book.book, cls.type())
+        return Model(MetaId(models, time.strftime("%Y-%m-%dT%H:%M:%S")),
                      ModelMeta(id,
                                time)
                      )

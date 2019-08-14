@@ -87,7 +87,7 @@ class TaskCreator:
             except Empty:
                 pass
 
-            # cleanup threads that are stopped
+            # cleanup threads that are stopped or do not exist anymore to free resources
             tasks.cleanup()
 
             # check if new tasks are available

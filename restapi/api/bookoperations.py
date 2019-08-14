@@ -66,7 +66,10 @@ class BookOperationTaskView(APIView):
                 return Response(result)
             elif op_status.code == TaskStatusCodes.ERROR:
                 error = operation_worker.pop_result(task_id)
-                raise error
+                if isinstance(error, Exception):
+                    raise error
+                logger.error("Error in task: {} (status: )".format(error, op_status))
+                return Response(error, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             else:
                 return Response({'status': op_status.to_json()})
         except TaskNotFoundException as e:

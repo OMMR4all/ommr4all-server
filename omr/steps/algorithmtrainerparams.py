@@ -22,7 +22,7 @@ class AlgorithmTrainerParams(DataClassJSONMixin):
         if not self.load:
             return None
 
-        return Model.from_id(self.load)
+        return Model.from_id_str(self.load)
 
 
 @dataclass()

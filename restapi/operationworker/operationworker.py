@@ -7,6 +7,7 @@ from .taskrunners.taskrunner import TaskRunner
 import logging
 from .taskcreator import TaskCreator
 from .taskwatcher import TaskWatcher
+from ommr4all.settings import TASK_OPERATION_WATCHER_SETTINGS
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class TaskIDGenerator:
 
 
 class OperationWorker:
-    def __init__(self, resources: Resources = None, watcher_interval=5):
+    def __init__(self, resources: Resources = None, watcher_interval=TASK_OPERATION_WATCHER_SETTINGS.interval):
         self.queue = TaskQueue()
         self.resources = resources if resources else default_resources()
         self._task_communicator: Optional[TaskCommunicator] = None

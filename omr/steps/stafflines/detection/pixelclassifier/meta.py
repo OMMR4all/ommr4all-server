@@ -23,10 +23,6 @@ class Meta(AlgorithmMeta):
         return PCDataset
 
     @staticmethod
-    def model_dir() -> str:
-        return "pc_staff_lines"
-
-    @staticmethod
     def best_model_name() -> str:
         return "model"
 

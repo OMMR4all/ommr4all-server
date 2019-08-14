@@ -234,3 +234,12 @@ class GPUSettings(NamedTuple):
 
 
 GPU_SETTINGS = GPUSettings([0])
+
+
+class TaskOperationWatcherSettings(NamedTuple):
+    interval: int
+
+
+TASK_OPERATION_WATCHER_SETTINGS = TaskOperationWatcherSettings(
+    -1,  # Default off, set to time > 0 to enable
+)

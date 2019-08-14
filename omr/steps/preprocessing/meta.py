@@ -21,10 +21,6 @@ class Meta(AlgorithmMeta):
         return None
 
     @staticmethod
-    def model_dir() -> str:
-        return "preprocessing"
-
-    @staticmethod
     def best_model_name() -> str:
         return "model"
 

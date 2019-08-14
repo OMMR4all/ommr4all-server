@@ -59,10 +59,10 @@ class TaskWorkerThread:
                 raise result
         except (BrokenPipeError, TaskNotFinishedException, EmptyDataSetException) as e:
             logger.info("THREAD {}: Task canceled".format(name))
-            com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.ERROR)))
+            com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.ERROR), e))
         except Exception as e:
             logger.exception("THREAD {}: Error in thread: {}".format(name, e))
-            com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.ERROR), e))
+            com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.ERROR), Exception("Internal error")))
         else:  # Successfully finished!
             logger.debug('THREAD {}: Task finished successfully'.format(name))
             com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.FINISHED), result))
