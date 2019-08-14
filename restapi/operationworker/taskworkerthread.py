@@ -1,9 +1,7 @@
 from .taskqueue import TaskNotFinishedException
 from .taskcommunicator import TaskCommunicationData
 from .task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
-from multiprocessing import Queue, Lock, Process
-import threading
-from queue import Empty as QueueEmptyException
+from multiprocessing import Queue, Process
 import time
 from omr.dataset.datafiles import EmptyDataSetException
 import logging

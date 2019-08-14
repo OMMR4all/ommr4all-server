@@ -108,7 +108,7 @@ class BookUploadView(APIView):
 
 class BooksView(APIView):
     def put(self, request, format=None):
-        from database import DatabaseBookMeta
+        from database.database_book_meta import DatabaseBookMeta
         book = json.loads(request.body, encoding='utf-8')
         if 'name' not in book:
             return Response(status=status.HTTP_400_BAD_REQUEST)
@@ -118,18 +118,26 @@ class BooksView(APIView):
         try:
             b = DatabaseBook(book_id)
             if b.exists():
-                return Response(status=status.HTTP_304_NOT_MODIFIED)
+                return APIError(status.HTTP_409_CONFLICT,
+                                "A book with the id {} already exists (requested name {})".format(book_id, book['name']),
+                                "A book with the name {} already exists".format(book['name']),
+                                ErrorCodes.BOOK_EXISTS
+                                ).response()
 
             if b.create(DatabaseBookMeta(id=b.book, name=book['name'])):
                 # creator is administrator of book
                 b.get_or_add_user_permissions(request.user, BookPermissionFlags.full_access_flags())
                 b.get_permissions().write()
                 return Response(b.get_meta().to_json())
+            else:
+                raise InvalidFileNameException(book_id)
         except InvalidFileNameException as e:
-            logging.error(e)
-            return Response(str(e), status=status.HTTP_406_NOT_ACCEPTABLE)
-
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+            logging.exception(e)
+            return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                            "Invalid filename for book (id={}, name={})".format(book_id, book['name']),
+                            "Invalid book name: {}".format(book['name']),
+                            ErrorCodes.BOOK_INVALID_NAME,
+                            ).response()
 
     def get(self, request, format=None):
         # TODO: sort by in request
