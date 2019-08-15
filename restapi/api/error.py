@@ -5,6 +5,11 @@ from dataclasses import dataclass
 
 
 class ErrorCodes(IntEnum):
+    # Global
+    UNKNOWN_ERROR = 1000
+
+    CONNECTION_TO_SERVER_TIMED_OUT = 100001
+
     # Global permissions
     GLOBAL_INSUFFICIENT_RIGHTS = 21003
 
