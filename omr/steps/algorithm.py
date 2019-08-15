@@ -239,7 +239,9 @@ class AlgorithmMeta(ABC):
         model = Model(MetaId(models, cls.model_dir()))
         if model.exists():
             return model
-        return None
+
+        # fallback: french14 must exist
+        return cls.default_model_for_style('french14')
 
     @classmethod
     def newest_model_for_book(cls, book: Optional[DatabaseBook]) -> Optional[Model]:
@@ -284,7 +286,7 @@ class AlgorithmMeta(ABC):
         if not book:
             return None
 
-        model = cls.default_model_for_book(book)
+        model = cls.default_model_for_style(book.get_meta().notationStyle)
         if model and model.exists():
             return model
 
@@ -299,7 +301,8 @@ class AlgorithmMeta(ABC):
         models = ModelsId.from_external(book.book, cls.type())
         return Model(MetaId(models, time.strftime("%Y-%m-%dT%H:%M:%S")),
                      ModelMeta(id,
-                               time)
+                               time,
+                               style=book.get_meta().notationStyle)
                      )
 
     @classmethod

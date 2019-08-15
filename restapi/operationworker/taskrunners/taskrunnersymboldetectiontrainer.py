@@ -85,6 +85,12 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
         train_pcgts, val_pcgts = dataset_by_locked_pages(
             self.params.nTrain, [LockState('Symbols', True)],
             datasets=[self.book] if not self.params.includeAllTrainingData else [])
+        if len(train_pcgts) + len(val_pcgts) < 10:
+            # only very few files, use all for training and evaluate on training aswell
+            train_pcgts = train_pcgts + val_pcgts
+            val_pcgts = train_pcgts
+            logger.info("Combining training and validation files because n<10")
+
         logger.info("Starting training with {} training and {} validation files".format(len(train_pcgts), len(val_pcgts)))
         logger.debug("Training files: {}".format([p.page.location.local_path() for p in train_pcgts]))
         logger.debug("Validation files: {}".format([p.page.location.local_path() for p in val_pcgts]))
