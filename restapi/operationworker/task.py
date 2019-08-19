@@ -1,6 +1,8 @@
 from enum import IntEnum
 from dataclasses import dataclass
+from django.contrib.auth.models import User
 from typing import TYPE_CHECKING, Union
+from mashumaro import DataClassDictMixin
 
 if TYPE_CHECKING:
     from .taskrunners.taskrunner import TaskRunner
@@ -37,7 +39,7 @@ class TaskProgressCodes(IntEnum):
 
 
 @dataclass
-class TaskStatus:
+class TaskStatus(DataClassDictMixin):
     code: TaskStatusCodes = TaskStatusCodes.NOT_FOUND
     progress_code: TaskProgressCodes = TaskProgressCodes.INITIALIZING
     progress: float = -1
@@ -47,18 +49,6 @@ class TaskStatus:
     n_processed: int = 0
     n_total: int = 0
 
-    def to_json(self):
-        return {
-            'code': self.code.value,
-            'progress_code': self.progress_code.value,
-            'progress': self.progress,
-            'accuracy': self.accuracy,
-            'early_stopping_progress': self.early_stopping_progress,
-            'loss': self.loss,
-            'n_processed': self.n_processed,
-            'n_total': self.n_total,
-        }
-
 
 @dataclass
 class Task:
@@ -66,4 +56,4 @@ class Task:
     task_runner: 'TaskRunner'
     task_status: TaskStatus
     task_result: Union[dict, Exception]
-
+    creator: User

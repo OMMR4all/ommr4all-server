@@ -1,4 +1,4 @@
-from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, DatabaseAvailableModels, AlgorithmTypes
+from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, DatabaseAvailableModels, AlgorithmTypes, PageSelection
 from database import DatabaseBook, DatabasePage
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
@@ -12,18 +12,20 @@ class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
                  book: DatabaseBook,
                  params: TaskTrainerParams,
                  ):
-        super().__init__(AlgorithmTypes.STAFF_LINES_PC, [TaskWorkerGroup.LONG_TASKS_GPU, TaskWorkerGroup.LONG_TASKS_CPU])
-        self.book = book
+        super().__init__(AlgorithmTypes.STAFF_LINES_PC,
+                         PageSelection.from_book(book),
+                         [TaskWorkerGroup.LONG_TASKS_GPU, TaskWorkerGroup.LONG_TASKS_CPU])
         self.params = params
 
     def identifier(self) -> Tuple:
-        return self.book,
+        return self.selection.identifier(),
 
     @staticmethod
     def unprocessed(page: DatabasePage) -> bool:
         return True
 
     def run(self, task: Task, com_queue: Queue) -> dict:
+        book = self.selection.book
         meta = self.algorithm_meta()
 
         class Callback(TrainerCallback):
@@ -76,7 +78,7 @@ class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
                     TaskProgressCodes.RESOLVING_DATA,
                 )))
 
-        train, val = self.params.to_train_val(locks=[LockState('StaffLines', True)], books=[self.book])
+        train, val = self.params.to_train_val(locks=[LockState('StaffLines', True)], books=[book])
 
         settings = AlgorithmTrainerSettings(
             train_data=train,
@@ -98,5 +100,5 @@ class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
         trainer = meta.create_trainer(settings)
         if self.params.pretrainedModel:
             trainer.settings.params.load = self.params.pretrainedModel.id
-        trainer.train(self.book, callback=Callback())
+        trainer.train(book, callback=Callback())
         return {}

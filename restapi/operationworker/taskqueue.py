@@ -1,4 +1,5 @@
 from typing import List, Optional, NamedTuple, Dict
+from django.contrib.auth.models import User
 from .task import Task, \
     TaskAlreadyQueuedException, TaskNotFinishedException, TaskNotFoundException, \
     TaskStatusCodes, TaskStatus
@@ -40,13 +41,16 @@ class TaskQueue:
 
         return False
 
-    def put(self, task_id: str, task_runner: TaskRunner):
+    def put(self, task_id: str, task_runner: TaskRunner, creator: User):
         with self.mutex:
             for task in self.tasks:
                 if task.task_id == task_id or self._id_by_runner(task_runner) == task.task_id:
                     raise TaskAlreadyQueuedException(task.task_id)
 
-            self.tasks.append(Task(task_id, task_runner, TaskStatus(code=TaskStatusCodes.QUEUED), {}))
+            self.tasks.append(Task(task_id, task_runner, TaskStatus(code=TaskStatusCodes.QUEUED),
+                                   task_result={},
+                                   creator=creator,
+                                   ))
 
     def pop_result(self, task_id: str) -> dict:
         with self.mutex:

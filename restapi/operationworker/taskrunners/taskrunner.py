@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Type
 from multiprocessing import Queue
+from restapi.operationworker.taskrunners.pageselection import PageSelection
 from ..task import Task
 from ..taskworkergroup import TaskWorkerGroup
 from database.database_available_models import DatabaseAvailableModels, DefaultModel
@@ -10,8 +11,12 @@ from omr.steps.algorithmtypes import AlgorithmGroups
 
 
 class TaskRunner(ABC):
-    def __init__(self, algorithm_type: AlgorithmTypes, task_group: List[TaskWorkerGroup]):
+    def __init__(self,
+                 algorithm_type: AlgorithmTypes,
+                 selection: PageSelection,
+                 task_group: List[TaskWorkerGroup]):
         self.algorithm_type = algorithm_type
+        self.selection: PageSelection = selection
         self.task_group = task_group
 
     def algorithm_meta(self) -> Type[AlgorithmMeta]:

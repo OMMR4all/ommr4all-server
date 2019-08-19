@@ -165,7 +165,7 @@ class OperationView(APIView):
         task_runner = OperationView.op_to_task_runner(operation, page, body)
         if task_runner:
             try:
-                id = operation_worker.put(task_runner)
+                id = operation_worker.put(task_runner, request.user)
                 return Response({'task_id': id}, status=status.HTTP_202_ACCEPTED)
             except TaskAlreadyQueuedException as e:
                 return Response({'task_id': e.task_id}, status=status.HTTP_303_SEE_OTHER)

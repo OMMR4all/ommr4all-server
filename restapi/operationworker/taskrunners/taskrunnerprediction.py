@@ -22,8 +22,7 @@ class TaskRunnerPrediction(TaskRunner):
                  selection: PageSelection,
                  settings: Settings,
                  ):
-        super().__init__(algorithm_type, [TaskWorkerGroup.NORMAL_TASKS_CPU])
-        self.selection = selection
+        super().__init__(algorithm_type, selection, [TaskWorkerGroup.NORMAL_TASKS_CPU])
         self.settings = settings
 
     def identifier(self) -> Tuple:

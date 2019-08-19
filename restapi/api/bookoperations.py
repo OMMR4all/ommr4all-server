@@ -40,7 +40,7 @@ class BookOperationTaskView(APIView):
     def get(self, request, book, operation, task_id):
         op_status = operation_worker.status(task_id)
         if op_status:
-            return Response({'status': op_status.to_json()})
+            return Response({'status': op_status.to_dict()})
         else:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -71,7 +71,7 @@ class BookOperationTaskView(APIView):
                 logger.error("Error in task: {} (status: )".format(error, op_status))
                 return Response(error, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             else:
-                return Response({'status': op_status.to_json()})
+                return Response({'status': op_status.to_dict()})
         except TaskNotFoundException as e:
             return APIError(status.HTTP_404_NOT_FOUND,
                             "Task was not found.",
@@ -159,7 +159,7 @@ class BookOperationView(APIView):
         task_runner = BookOperationView.op_to_task_runner(operation, book, body)
         if task_runner:
             try:
-                id = operation_worker.put(task_runner)
+                id = operation_worker.put(task_runner, request.user)
                 return Response({'task_id': id}, status=status.HTTP_202_ACCEPTED)
             except TaskAlreadyQueuedException as e:
                 return Response({'task_id': e.task_id}, status=status.HTTP_303_SEE_OTHER)

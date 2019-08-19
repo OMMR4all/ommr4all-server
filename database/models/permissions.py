@@ -9,6 +9,9 @@ class DatabasePermissionFlag(Enum):
 
     CHANGE_DEFAULT_MODEL_FOR_BOOK_STYLE = 'change_default_model_for_book_style'
 
+    TASKS_LIST = 'tasks_list'
+    TASKS_CANCEL = 'tasks_cancel'
+
 
 class GlobalPermissions(models.Model):
     class Meta:
@@ -17,5 +20,7 @@ class GlobalPermissions(models.Model):
             (DatabasePermissionFlag.DELETE_BOOK_STYLE.value, 'Delete book style'),
             (DatabasePermissionFlag.EDIT_BOOK_STYLE.value, 'Edit book style'),
             (DatabasePermissionFlag.CHANGE_DEFAULT_MODEL_FOR_BOOK_STYLE.value, 'Change default model for book style'),
+            (DatabasePermissionFlag.TASKS_LIST, 'List tasks'),
+            (DatabasePermissionFlag.TASKS_CANCEL, 'Cancel a running task'),
         ]
 

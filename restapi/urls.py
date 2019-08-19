@@ -14,6 +14,7 @@ from restapi.api.pageaccess import PageRenameView
 from restapi.api.user import UserBookPermissionsView
 from restapi.api.bookstyles import BookStyleView, BookStylesView
 from restapi.api.administrativedefaultmodels import AdministrativeDefaultModelsView
+from restapi.api.tasks import TasksView, TaskView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token, verify_jwt_token
@@ -63,6 +64,10 @@ urlpatterns = \
         # styles
         re_path(r'^book-styles/(?P<id>.+)$', BookStyleView.as_view()),
         path('book-styles', BookStylesView.as_view()),
+
+        # tasks
+        path('tasks', TasksView.as_view()),
+        re_path(r'^tasks/(?P<task_id>.+)$', TaskView.as_view()),
 
         # single book
         re_path(r'^book/(?P<book>\w+)/permissions/user/(?P<username>.+)$', BookUserPermissionsView.as_view()),

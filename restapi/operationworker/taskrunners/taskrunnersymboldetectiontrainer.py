@@ -1,4 +1,4 @@
-from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, AlgorithmTypes
+from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, AlgorithmTypes, PageSelection
 from database import DatabaseBook, DatabasePage
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
@@ -16,12 +16,13 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
                  book: DatabaseBook,
                  params: TaskTrainerParams,
                  ):
-        super().__init__(AlgorithmTypes.SYMBOLS_PC, [TaskWorkerGroup.LONG_TASKS_GPU, TaskWorkerGroup.LONG_TASKS_CPU])
-        self.book = book
+        super().__init__(AlgorithmTypes.SYMBOLS_PC,
+                         PageSelection.from_book(book),
+                         [TaskWorkerGroup.LONG_TASKS_GPU, TaskWorkerGroup.LONG_TASKS_CPU])
         self.params = params
 
     def identifier(self) -> Tuple:
-        return self.book,
+        return self.selection.identifier(),
 
     @staticmethod
     def unprocessed(page: DatabasePage) -> bool:
@@ -84,7 +85,7 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
         callback.resolving_files()
         train_pcgts, val_pcgts = dataset_by_locked_pages(
             self.params.nTrain, [LockState('Symbols', True)],
-            datasets=[self.book] if not self.params.includeAllTrainingData else [])
+            datasets=[self.selection.book] if not self.params.includeAllTrainingData else [])
         if len(train_pcgts) + len(val_pcgts) < 10:
             # only very few files, use all for training and evaluate on training aswell
             train_pcgts = train_pcgts + val_pcgts
@@ -96,7 +97,7 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
         logger.debug("Validation files: {}".format([p.page.location.local_path() for p in val_pcgts]))
 
         meta = self.algorithm_meta()
-        train, val = self.params.to_train_val(locks=[LockState('StaffLines', True)], books=[self.book])
+        train, val = self.params.to_train_val(locks=[LockState('StaffLines', True)], books=[self.selection.book])
 
         settings = AlgorithmTrainerSettings(
             train_data=train,
@@ -116,6 +117,6 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
         trainer = meta.create_trainer(settings)
         if self.params.pretrainedModel:
             trainer.settings.params.load = self.params.pretrainedModel.id
-        trainer.train(self.book, callback=callback)
-        logger.info("Training finished for book {}".format(self.book.local_path()))
+        trainer.train(self.selection.book, callback=callback)
+        logger.info("Training finished for book {}".format(self.selection.book.local_path()))
         return {}

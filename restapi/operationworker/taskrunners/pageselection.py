@@ -37,6 +37,10 @@ class PageSelection:
             self.pages = [p.page.location for p in pcgts]
 
     @staticmethod
+    def from_book(book: DatabaseBook):
+        return PageSelection(book, PageCount.ALL)
+
+    @staticmethod
     def from_params(params: PageSelectionParams, book: DatabaseBook):
         return PageSelection(
             book,

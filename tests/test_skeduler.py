@@ -16,7 +16,7 @@ from restapi.operationworker.taskworkergroup import TaskWorkerGroup
 
 class SleepyTaskRunner(TaskRunner):
     def __init__(self, task_group: List[TaskWorkerGroup], time_s: float):
-        super().__init__(None, task_group)
+        super().__init__(None, None, task_group)
         self.id = uuid.uuid4()
         self.time_s = time_s
 
