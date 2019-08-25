@@ -24,6 +24,8 @@ class DatabaseBookPermissionFlag(IntEnum):
     DELETE_BOOK = 64
     EDIT_BOOK_META = 128
 
+    VERIFY_PAGE = 256
+
     READ_WRITE = READ | WRITE
     ALLOWED_OTHER_PERMISSIONS = READ_WRITE
 

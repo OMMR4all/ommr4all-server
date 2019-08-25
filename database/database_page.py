@@ -5,17 +5,22 @@ from typing import Optional
 import os
 import shutil
 from typing import TYPE_CHECKING
+import logging
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from django.contrib.auth.models import User
     from database.file_formats.pcgts import PcGts
     from database.database_page_meta import DatabasePageMeta
+    from database.file_formats.performance.pageprogress import PageProgress
 
 
 class DatabasePage:
     def __init__(self, book: DatabaseBook, page: str, skip_validation=False,
                  pcgts: Optional['PcGts'] = None,
                  meta: Optional['DatabasePageMeta'] = None,
+                 page_progress: Optional['PageProgress'] = None,
                  ):
         self.book = book
         self.page = page.strip("/")
@@ -24,6 +29,7 @@ class DatabasePage:
 
         self._meta: Optional['DatabasePageMeta'] = meta
         self._pcgts: Optional['PcGts'] = pcgts
+        self._page_progress: Optional['PageProgress'] = page_progress
 
     def __eq__(self, other):
         return isinstance(other, DatabasePage) and self.book == other.book and self.page == other.page
@@ -60,6 +66,24 @@ class DatabasePage:
 
     def remote_path(self):
         return os.path.join(self.book.remote_path(), self.page)
+
+    def page_progress(self) -> 'PageProgress':
+        if not self._page_progress:
+            from database.file_formats.performance.pageprogress import PageProgress
+            self._page_progress = PageProgress.from_json_file(
+                self.file('page_progress', create_if_not_existing=True).local_path())
+
+        return self._page_progress
+
+    def set_page_progress(self, page_progress: 'PageProgress'):
+        self._page_progress = page_progress
+
+    def save_page_progress(self):
+        if not self._page_progress:
+            return
+
+        self._page_progress.to_json_file(self.file('page_progress').local_path())
+        logger.debug('Successfully saved page progress file to {}'.format(self.file('page_progress').local_path()))
 
     def pcgts(self, create_if_not_existing=True) -> 'PcGts':
         if not self._pcgts:

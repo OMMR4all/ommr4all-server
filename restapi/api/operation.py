@@ -120,14 +120,14 @@ class OperationView(APIView):
 
         if operation == 'save_page_progress':
             obj = json.loads(request.body, encoding='utf-8')
-            pp = PageProgress.from_json(obj)
-            pp.to_json_file(page.file('page_progress').local_path())
+            pp = PageProgress.from_dict(obj)
+            page.set_page_progress(pp)
+            page.save_page_progress()
 
             # add to backup archive
             with zipfile.ZipFile(page.file('page_progress_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
                 zf.writestr('page_progress_{}.json'.format(datetime.datetime.now()), json.dumps(pp.to_json(), indent=2))
 
-            logger.info('Successfully saved page progress file to {}'.format(page.file('page_progress').local_path()))
 
             return Response()
         elif operation == 'save_statistics':

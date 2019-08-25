@@ -10,7 +10,7 @@ from restapi.api.bookoperations import BookOperationStatusView, BookOperationTas
 from restapi.api.auth import AuthView
 from restapi.api.bookcomments import BookCommentsView, BookCommentsCountView
 from restapi.api.bookpermissions import BookPermissionsView, BookUserPermissionsView, BookGroupPermissionsView, BookDefaultPermissionsView
-from restapi.api.pageaccess import PageRenameView
+from restapi.api.pageaccess import PageRenameView, PageProgressVerifyView
 from restapi.api.user import UserBookPermissionsView
 from restapi.api.bookstyles import BookStyleView, BookStylesView
 from restapi.api.administrativedefaultmodels import AdministrativeDefaultModelsView
@@ -89,6 +89,7 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/operation/(?P<operation>\w+)/model/(?P<model>.+)$', BookOperationModelView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/pcgts$', PagePcGtsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/statistics$', PageStatisticsView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/page_progress/verify$', PageProgressVerifyView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/page_progress$', PageProgressView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/lock$', PageLockView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
