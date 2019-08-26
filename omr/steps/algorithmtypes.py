@@ -12,6 +12,10 @@ class AlgorithmTypes(Enum):
 
     SYMBOLS_PC = "symbols_pc"
 
+    OCR_CALAMARI = "text_calamari"
+
+    SYLLABLES_FROM_TEXT = 'syllables_from_text'
+
     # Tools
     LAYOUT_CONNECTED_COMPONENTS_SELECTION = "layout_connected_components_selection"
 
@@ -24,6 +28,8 @@ class AlgorithmGroups(Enum):
     STAFF_LINES = 'stafflines'
     LAYOUT = 'layout'
     SYMBOLS = 'symbols'
+    TEXT = 'text'
+    SYLLABLES = 'syllables'
     TOOLS = 'tools'
 
     @staticmethod
@@ -33,6 +39,8 @@ class AlgorithmGroups(Enum):
             AlgorithmGroups.STAFF_LINES: [AlgorithmTypes.STAFF_LINES_PC, ],
             AlgorithmGroups.LAYOUT: [AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES, AlgorithmTypes.LAYOUT_COMPLEX_STANDARD],
             AlgorithmGroups.SYMBOLS: [AlgorithmTypes.SYMBOLS_PC],
+            AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_CALAMARI],
+            AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_FROM_TEXT],
             AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION],
         }
 

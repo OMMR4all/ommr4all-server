@@ -13,7 +13,6 @@ class Step(ABC):
 
     @staticmethod
     def register(meta: Type[AlgorithmMeta]):
-        assert(meta.type() not in Step.METAS)
         Step.METAS[meta.type()] = meta
 
     @staticmethod
@@ -54,3 +53,4 @@ import omr.steps.layout.lyricsbbs.meta
 import omr.steps.layout.standard.meta
 import omr.steps.symboldetection.pixelclassifier.meta
 import omr.steps.layout.correction_tools.connectedcomponentsselector.meta
+import omr.steps.text.calamari.meta

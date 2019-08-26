@@ -45,6 +45,11 @@ class ImageInput(Enum):
     REGION_IMAGE = 'region_image'
 
 
+class LyricsNormalization(Enum):
+    SYLLABLES = 'syllables'     # a-le-lu-ya vir-ga
+    ONE_STRING = 'one_string'   # aleluyavirga
+
+
 @dataclass
 class DatasetParams(DataClassJSONMixin):
     # general
@@ -73,6 +78,9 @@ class DatasetParams(DataClassJSONMixin):
     apply_fcn_model: Optional[str] = None
     apply_fcn_height: Optional[int] = None
     neume_types_only: bool = False
+
+    # text
+    lyrics_normalization: LyricsNormalization = LyricsNormalization.SYLLABLES
 
 
 class Dataset(ABC):
@@ -126,6 +134,26 @@ class Dataset(ABC):
             gts = [d.calamari_sequence().calamari_neume_types_str for d in marked_symbols]
         else:
             gts = [d.calamari_sequence().calamari_str for d in marked_symbols]
+        return RawDataSet(DataSetMode.TRAIN if train else DataSetMode.PREDICT, images=images, texts=gts)
+
+    def to_text_line_calamari_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
+        from calamari_ocr.ocr.datasets.dataset import RawDataSet, DataSetMode
+        lines = self.load(callback)
+
+        def get_input_image(d: RegionLineMaskData):
+            if self.params.cut_region:
+                return d.line_image
+            else:
+                return d.region
+
+        def extract_text(data: RegionLineMaskData):
+            text = data.operation.text_line.text(with_drop_capital=False)
+            if self.params.lyrics_normalization == LyricsNormalization.ONE_STRING:
+                text = text.replace('-', '').replace(' ', '')
+            return text
+
+        images = [255 - get_input_image(d).astype(np.uint8) for d in lines]
+        gts = [extract_text(d) for d in lines]
         return RawDataSet(DataSetMode.TRAIN if train else DataSetMode.PREDICT, images=images, texts=gts)
 
     def load(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:

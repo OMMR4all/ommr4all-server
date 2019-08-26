@@ -1,7 +1,7 @@
 from omr.imageoperations.image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point, ImageOperationList
 from omr.imageoperations.image_crop import ImageCropToSmallestBoxOperation
 from typing import Tuple, List, NamedTuple, Any, Optional, Set
-from database.file_formats.pcgts import TextLine, TextRegion, TextRegionType
+from database.file_formats.pcgts.page import BlockType, Block, Line
 import numpy as np
 from PIL import Image
 from copy import copy
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # extract image of a text from the binary image
 class ImageExtractTextLineImages(ImageOperation):
-    def __init__(self, text_region_types: Set[TextRegionType], pad=0, extract_region_only=True):
+    def __init__(self, text_region_types: Set[BlockType], pad=0, extract_region_only=True):
         super().__init__()
         self.text_region_types = text_region_types
         self.pad = pad
@@ -25,20 +25,21 @@ class ImageExtractTextLineImages(ImageOperation):
         image = data.images[0].image
         marked_regions = np.zeros(image.shape, dtype=np.uint8)
         i = 1
-        text_regions = [tr for tr in data.page.text_regions if tr.region_type in self.text_region_types]
+        text_blocks = [tr for tr in data.page.blocks_of_type(self.text_region_types)]
+
         def p2i(p):
             return data.page.page_to_image_scale(p, data.scale_reference)
 
-        for tr in text_regions:
-            for tl in tr.text_lines:
+        for tr in text_blocks:
+            for tl in tr.lines:
                 p2i(tl.coords).draw(marked_regions, i, 0, fill=True)
                 i += 1
 
         out = []
 
         i = 1
-        for tr in text_regions:
-            for tl in tr.text_lines:
+        for tr in text_blocks:
+            for tl in tr.lines:
                 mask = marked_regions == i
                 if len(tl.text()) == 0:
                     continue
