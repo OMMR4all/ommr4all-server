@@ -116,18 +116,21 @@ class OperationView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     @require_lock
     def post(self, request, book, page, operation, format=None):
-        page = DatabasePage(DatabaseBook(book), page)
+        book = DatabaseBook(book)
+        page = DatabasePage(book, page)
 
         if operation == 'save_page_progress':
             obj = json.loads(request.body, encoding='utf-8')
-            pp = PageProgress.from_dict(obj)
+            pp = page.page_progress()
+            user_permissions = book.resolve_user_permissions(request.user)
+            verify_allowed = user_permissions.has(DatabaseBookPermissionFlag.VERIFY_PAGE)
+            pp.merge_local(PageProgress.from_dict(obj), locks=True, verified=verify_allowed)
             page.set_page_progress(pp)
             page.save_page_progress()
 
             # add to backup archive
             with zipfile.ZipFile(page.file('page_progress_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
                 zf.writestr('page_progress_{}.json'.format(datetime.datetime.now()), json.dumps(pp.to_json(), indent=2))
-
 
             return Response()
         elif operation == 'save_statistics':

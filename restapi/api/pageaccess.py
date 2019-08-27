@@ -61,14 +61,14 @@ class PageProgressVerifyView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, page):
         pp = DatabasePage(DatabaseBook(book), page).page_progress()
-        return Response(pp.locked[Locks.VERIFIED])
+        return Response(pp.verified)
 
     @require_permissions([DatabaseBookPermissionFlag.VERIFY_PAGE])
     def put(self, request, book, page):
         page = DatabasePage(DatabaseBook(book), page)
         pp = page.page_progress()
         if pp.verified_allowed():
-            pp.locked[Locks.VERIFIED] = True
+            pp.verified = True
         else:
             return APIError(status.HTTP_406_NOT_ACCEPTABLE,
                             "All user locks must be set in order to allow verification.",
@@ -82,7 +82,7 @@ class PageProgressVerifyView(APIView):
     def delete(self, request, book, page):
         page = DatabasePage(DatabaseBook(book), page)
         pp = page.page_progress()
-        pp.locked[Locks.VERIFIED] = False
+        pp.verified = False
         page.save_page_progress()
         return Response()
 
