@@ -108,7 +108,7 @@ class Dataset(ABC):
                                        mask=d.mask,
                                        line_height_px=self.params.origin_staff_line_distance if self.params.origin_staff_line_distance is not None else d.operation.page.avg_staff_line_distance(),
                                        original_shape=d.line_image.shape,
-                                       user_data=d) for d in self.load(callback)])
+                                       user_data=d) for d in self.load(callback)], {})
         else:
             raise NotImplementedError()
 

@@ -1,22 +1,22 @@
 from django.urls import path, re_path
 
-from restapi.api.bookaccess import BooksImportView
-from . import views
+from restapi.views.bookaccess import BooksImportView
 from django.http import HttpResponse
-from database import *
-from restapi.api import OperationStatusView, OperationView, BookView, BooksView, \
-    PageProgressView, PageStatisticsView, PagePcGtsView, BookDownloaderView, BookUploadView, BookMetaView, \
-    BookVirtualKeyboardView, PageLockView, OperationTaskView, BookRenamePagesView
-from restapi.api.bookoperations import BookOperationStatusView, BookOperationTaskView, BookOperationView, BookPageSelectionView, BookOperationModelsView, BookOperationModelView
-from restapi.api.auth import AuthView
-from restapi.api.bookcomments import BookCommentsView, BookCommentsCountView
-from restapi.api.bookpermissions import BookPermissionsView, BookUserPermissionsView, BookGroupPermissionsView, BookDefaultPermissionsView
-from restapi.api.pageaccess import PageRenameView, PageProgressVerifyView, PageContentView
-from restapi.api.user import UserBookPermissionsView
-from restapi.api.bookstyles import BookStyleView, BookStylesView
-from restapi.api.administrativedefaultmodels import AdministrativeDefaultModelsView
-from restapi.api.tasks import TasksView, TaskView
-from rest_framework.decorators import api_view, permission_classes
+
+from restapi.views.operation import OperationStatusView, OperationView, OperationTaskView
+from restapi.views.bookaccess import BookView, BooksView, BookDownloaderView, BookUploadView, BookMetaView, \
+    BookRenamePagesView
+from restapi.views.pageaccess import PagePcGtsView, PageProgressView, PageStatisticsView, PageLockView
+from restapi.views.virtualkeyboards import BookVirtualKeyboardView
+from restapi.views.bookoperations import BookOperationStatusView, BookOperationTaskView, BookOperationView, BookPageSelectionView, BookOperationModelsView, BookOperationModelView
+from restapi.views.auth import AuthView
+from restapi.views.bookcomments import BookCommentsView, BookCommentsCountView
+from restapi.views.bookpermissions import BookPermissionsView, BookUserPermissionsView, BookGroupPermissionsView, BookDefaultPermissionsView
+from restapi.views.pageaccess import PageRenameView, PageProgressVerifyView, PageContentView
+from restapi.views.user import UserBookPermissionsView
+from restapi.views.bookstyles import BookStyleView, BookStylesView
+from restapi.views.administrativedefaultmodels import AdministrativeDefaultModelsView
+from restapi.views.tasks import TasksView, TaskView
 from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token, verify_jwt_token
 
 

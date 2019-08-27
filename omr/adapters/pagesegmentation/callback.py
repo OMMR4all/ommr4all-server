@@ -1,4 +1,4 @@
-from pagesegmentation.lib.trainer import TrainProgressCallback
+from pagesegmentation.lib.callback import TrainProgressCallback
 from omr.steps.algorithm import TrainerCallback
 
 
@@ -10,11 +10,9 @@ class PCTrainerCallback(TrainProgressCallback):
     def init(self, total_iters, early_stopping_iters):
         self.callback.init(total_iters, early_stopping_iters)
 
-    def next_iteration(self, iter: int, loss: float, acc: float, fgpa: float):
-        self.callback.next_iteration(iter, loss, acc)
+    def update_loss(self, batch: int, loss: float, acc: float):
+        self.callback.next_iteration(batch, loss, acc)
 
-    def next_best_model(self, best_iter: int, best_acc: float, best_iters: int):
-        self.callback.next_best_model(best_iter, best_acc, best_iters)
+    def next_best(self, epoch, acc, n_best):
+        self.callback.next_best_model(epoch, acc, n_best)
 
-    def early_stopping(self):
-        self.callback.early_stopping()

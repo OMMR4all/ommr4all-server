@@ -14,7 +14,7 @@ import logging
 import json
 from database.database_page import DatabaseBook, DatabasePage
 from shared.jsonparsing import drop_all_attributes
-from restapi.api.bookoperations import AlgorithmRequest, AlgorithmPredictorParams, AlgorithmTypes
+from restapi.views.bookoperations import AlgorithmRequest, AlgorithmPredictorParams, AlgorithmTypes
 from restapi.operationworker.taskrunners.pageselection import PageCount, PageSelectionParams
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', stream=sys.stdout)

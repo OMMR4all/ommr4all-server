@@ -1,6 +1,5 @@
-from typing import NamedTuple, Optional
-from pagesegmentation.lib.data_augmenter import DataAugmenterBase
+from typing import NamedTuple
 
 
 class PageSegmentationTrainerParams(NamedTuple):
-    data_augmenter: Optional[DataAugmenterBase] = None
+    data_augmentation: bool = False

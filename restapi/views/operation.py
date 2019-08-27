@@ -4,18 +4,11 @@ from database import DatabasePage, DatabaseBook, DatabaseFile
 from restapi.operationworker import operation_worker, TaskStatusCodes, \
     TaskNotFoundException, TaskAlreadyQueuedException, TaskStatus
 import logging
-import datetime
 import json
-import zipfile
-import re
-from database.file_formats.pcgts import PcGts
-from database.file_formats.performance.pageprogress import PageProgress
-from database.file_formats.performance.statistics import Statistics
 from restapi.operationworker.taskrunners.pageselection import PageSelection
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
-from restapi.api.error import *
-from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
-from restapi.api.pageaccess import require_lock, require_page_verification
+from restapi.models.error import *
+from restapi.views.bookaccess import require_permissions, DatabaseBookPermissionFlag
 from dataclasses import field
 
 logger = logging.getLogger(__name__)

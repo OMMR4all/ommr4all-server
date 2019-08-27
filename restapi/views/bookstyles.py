@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework import permissions
 from .auth import require_global_permissions, DatabasePermissionFlag
-from .error import APIError, ErrorCodes
+from restapi.models.error import APIError, ErrorCodes
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser

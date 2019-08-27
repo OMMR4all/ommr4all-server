@@ -5,9 +5,9 @@ from restapi.operationworker import operation_worker, TaskStatusCodes, \
     TaskNotFoundException, TaskAlreadyQueuedException
 import logging
 import json
-from restapi.api.error import *
-from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
-from restapi.api.pageaccess import require_lock
+from restapi.models.error import *
+from restapi.views.bookaccess import require_permissions, DatabaseBookPermissionFlag
+from restapi.views.pageaccess import require_lock
 from restapi.operationworker.taskrunners.taskrunner import TaskRunner
 from restapi.operationworker.taskrunners.pageselection import PageSelection, PageSelectionParams
 from omr.dataset.datafiles import EmptyDataSetException

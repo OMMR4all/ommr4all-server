@@ -1,6 +1,11 @@
+import os
+if __name__ == '__main__':
+    import django
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
+    django.setup()
+
 from typing import List, Optional, Generator
 from pagesegmentation.lib.predictor import Predictor, PredictSettings
-import os
 from database.file_formats.pcgts import *
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset
 from omr.dataset import RegionLineMaskData
@@ -45,7 +50,8 @@ class PCPredictor(SymbolsPredictor):
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
         settings = PredictSettings(
-            network=os.path.join(settings.model.local_file('model'))
+            n_classes=len(SymbolLabel),
+            network=os.path.join(settings.model.local_file('model.h5'))
         )
         self.predictor = Predictor(settings)
 
@@ -141,10 +147,10 @@ if __name__ == '__main__':
     b = DatabaseBook('Graduel_Fully_Annotated')
     val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[0:1]]
     pred = PCPredictor(AlgorithmPredictorSettings(Meta.best_model_for_book(b)))
-    ps = list(pred.predict(val_pcgts))
+    ps = list(pred.predict([p.page.location for p in val_pcgts]))
     import matplotlib.pyplot as plt
-    orig = np.array(ps[0].line.operation.page_image)
-    for p in ps:
+    orig = np.array(ps[0].music_lines[0].line.operation.page_image)
+    for p in ps[0].music_lines:
         for s in p.symbols:
             if s.symbol_type == SymbolType.NOTE:
                 c = p.line.operation.page.page_to_image_scale(s.coord, ref=PageScaleReference.NORMALIZED_X2).round().astype(int)

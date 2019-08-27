@@ -4,8 +4,8 @@ from database import *
 from database.file_formats.performance.pageprogress import PageProgress
 from database.file_formats.performance.statistics import Statistics
 from database.file_formats.pcgts import PcGts
-from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
-from restapi.api.error import *
+from restapi.views.bookaccess import require_permissions, DatabaseBookPermissionFlag
+from restapi.models.error import *
 from django.views.static import serve
 from json import JSONDecodeError
 import logging

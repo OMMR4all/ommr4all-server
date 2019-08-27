@@ -5,8 +5,8 @@ from django.http import FileResponse
 from database import *
 from database.database_permissions import BookPermissionFlags
 from database.models.permissions import DatabasePermissionFlag
-from restapi.api.auth import RestAPIUser
-from restapi.api.error import APIError, ErrorCodes
+from restapi.models.auth import RestAPIUser
+from restapi.models.error import APIError, ErrorCodes
 import json
 import logging
 import re
@@ -156,22 +156,32 @@ class BooksView(APIView):
 
     def put(self, request, format=None):
         from database.database_book_meta import DatabaseBookMeta
-        book = json.loads(request.body, encoding='utf-8')
-        if 'name' not in book:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+        import datetime
+        meta = DatabaseBookMeta.from_json(request.body, dict_params={'use_datetime': True})
 
-        book_id = re.sub(r'[^\w]', '_', book['name'])
+        if not meta.name or len(meta.name) == 0:
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            "Received an empty book name",
+                            "No book name provided",
+                            ErrorCodes.BOOK_INVALID_NAME,
+                            ).response()
+
+        book_id = re.sub(r'[^\w]', '_', meta.name)
 
         try:
             b = DatabaseBook(book_id)
             if b.exists():
                 return APIError(status.HTTP_409_CONFLICT,
-                                "A book with the id {} already exists (requested name {})".format(book_id, book['name']),
-                                "A book with the name {} already exists".format(book['name']),
+                                "A book with the id {} already exists (requested name {})".format(book_id, meta.name),
+                                "A book with the name {} already exists".format(meta.name),
                                 ErrorCodes.BOOK_EXISTS
                                 ).response()
 
-            if b.create(DatabaseBookMeta(id=b.book, name=book['name'], creator=RestAPIUser.from_user(request.user))):
+            meta.id = b.book
+            meta.creator = RestAPIUser.from_user(request.user)
+            meta.created = datetime.datetime.now()
+
+            if b.create(meta):
                 # creator is administrator of book
                 b.get_or_add_user_permissions(request.user, BookPermissionFlags.full_access_flags())
                 b.get_permissions().write()
@@ -181,8 +191,8 @@ class BooksView(APIView):
         except InvalidFileNameException as e:
             logging.exception(e)
             return APIError(status.HTTP_406_NOT_ACCEPTABLE,
-                            "Invalid filename for book (id={}, name={})".format(book_id, book['name']),
-                            "Invalid book name: {}".format(book['name']),
+                            "Invalid filename for book (id={}, name={})".format(book_id, meta.name),
+                            "Invalid book name: {}".format(meta.name),
                             ErrorCodes.BOOK_INVALID_NAME,
                             ).response()
 

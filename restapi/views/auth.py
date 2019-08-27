@@ -1,16 +1,14 @@
-from typing import Union, Iterable, Optional
+from typing import Union, Iterable
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from dataclasses import dataclass
-from mashumaro import DataClassDictMixin
 
-from rest_framework.authtoken.models import Token
 
 from django.contrib.auth.models import User, Group
 
 from database.models.permissions import DatabasePermissionFlag
-from .error import APIError, ErrorCodes
+from restapi.models.error import APIError, ErrorCodes
+from restapi.models.auth import RestAPIGroup, RestAPIUser
 
 
 class require_global_permissions(object):
@@ -33,26 +31,6 @@ class require_global_permissions(object):
                                 ).response()
 
         return wrapper_require_permissions
-
-
-@dataclass
-class RestAPIUser(DataClassDictMixin):
-    username: Optional[str] = None     # If None, the user is unknown or invalid
-    firstName: Optional[str] = ''
-    lastName: Optional[str] = ''
-
-    @staticmethod
-    def from_user(user: User):
-        return RestAPIUser(user.username, user.first_name, user.last_name)
-
-
-@dataclass
-class RestAPIGroup(DataClassDictMixin):
-    name: str
-
-    @staticmethod
-    def from_group(group: Group):
-        return RestAPIGroup(group.name)
 
 
 class AuthView(APIView):

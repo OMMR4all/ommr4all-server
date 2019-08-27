@@ -1,15 +1,17 @@
+import os
+if __name__ == '__main__':
+    import django
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
+    django.setup()
 from database.file_formats.performance.pageprogress import Locks
-from omr.dataset.datafiles import dataset_by_locked_pages, EmptyDataSetException, LockState
 from database import DatabaseBook
 import logging
-from omr.steps.stafflines.detection.dataset import PCDataset, DatasetParams
+from omr.steps.stafflines.detection.dataset import DatasetParams
 from omr.adapters.pagesegmentation.callback import PCTrainerCallback
-from pagesegmentation.lib.data_augmenter import DefaultAugmenter
 from pagesegmentation.lib.trainer import TrainSettings, Trainer
-from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings, Dataset
-from omr.steps.stafflines.detection.pixelclassifier.meta import Meta, AlgorithmMeta
-from typing import Optional, Type
-import os
+from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
+from omr.steps.stafflines.detection.pixelclassifier.meta import Meta
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -38,21 +40,20 @@ class BasicStaffLinesTrainer(AlgorithmTrainer):
         if callback:
             callback.resolving_files()
 
+        train_data = self.train_dataset.to_page_segmentation_dataset(callback)
         settings = TrainSettings(
-            n_iter=self.params.n_iter,
+            n_epoch=max(1, self.settings.params.n_iter // len(train_data)),
             n_classes=2,
             l_rate=self.params.l_rate,
-            train_data=self.train_dataset.to_page_segmentation_dataset(callback=callback),
+            train_data=train_data,
             validation_data=self.validation_dataset.to_page_segmentation_dataset(callback=callback),
             load=None if not self.params.model_to_load() else self.params.model_to_load().local_file('model'),
             display=self.params.display,
-            output=self.settings.model.local_file('model'),
-            early_stopping_test_interval=self.params.early_stopping_test_interval,
-            early_stopping_max_keep=self.params.early_stopping_max_keep,
-            early_stopping_on_accuracy=True,
-            threads=8,
-            data_augmentation=DefaultAugmenter(angle=(-2, 2), flip=(0.5, 0.5), contrast=0.2, brightness=5),
-            checkpoint_iter_delta=None,
+            output_dir=self.settings.model.path,
+            best_model_name='model',
+            early_stopping_max_l_rate_drops=self.params.early_stopping_max_keep,
+            threads=self.params.processes,
+            data_augmentation=False,
         )
         trainer = Trainer(settings)
         trainer.train(callback=pc_callback)

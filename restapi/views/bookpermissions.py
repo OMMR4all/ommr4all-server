@@ -1,6 +1,6 @@
 from rest_framework.views import APIView
-from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
-from restapi.api.error import ErrorCodes, APIError
+from restapi.views.bookaccess import require_permissions, DatabaseBookPermissionFlag
+from restapi.models.error import ErrorCodes, APIError
 from rest_framework.response import Response
 import rest_framework.status as status
 from database import DatabaseBook

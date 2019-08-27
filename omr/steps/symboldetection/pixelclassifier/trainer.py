@@ -1,6 +1,11 @@
+import os
+if __name__ == '__main__':
+    import django
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
+    django.setup()
+
 from typing import Optional, Type
 from database import DatabaseBook
-import os
 
 from database.file_formats.performance.pageprogress import Locks
 from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings, Dataset, Model
@@ -32,26 +37,27 @@ class PCTrainer(AlgorithmTrainer):
 
     def _train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
         pc_callback = PCTrainerCallback(callback) if callback else None
+        if callback:
+            callback.resolving_files()
+
+        train_data = self.train_dataset.to_page_segmentation_dataset(callback)
         settings = TrainSettings(
-            n_iter=self.settings.params.n_iter,
+            n_epoch=max(1, self.settings.params.n_iter // len(train_data)),
             n_classes=len(SymbolLabel),
             l_rate=self.params.l_rate,
-            train_data=self.train_dataset.to_page_segmentation_dataset(callback),
+            train_data=train_data,
             validation_data=self.validation_dataset.to_page_segmentation_dataset(callback),
             load=None if not self.params.model_to_load() else self.params.model_to_load().local_file('model'),
             display=self.params.display,
-            output=self.settings.model.local_file('model'),
-            early_stopping_test_interval=self.params.early_stopping_test_interval,
-            early_stopping_max_keep=self.params.early_stopping_max_keep,
-            early_stopping_on_accuracy=True,
+            output_dir=self.settings.model.path,
+            best_model_name='model',
+            early_stopping_max_l_rate_drops=self.params.early_stopping_max_keep,
             threads=self.params.processes,
-            checkpoint_iter_delta=None,
             compute_baseline=True,
-            data_augmentation=self.settings.page_segmentation_params.data_augmenter,
+            data_augmentation=not not self.settings.page_segmentation_params.data_augmentation,
         )
 
-        if not os.path.exists(os.path.dirname(settings.output)):
-            os.makedirs(os.path.dirname(settings.output))
+        os.makedirs(os.path.dirname(settings.output_dir), exist_ok=True)
 
         trainer = Trainer(settings)
         trainer.train(callback=pc_callback)

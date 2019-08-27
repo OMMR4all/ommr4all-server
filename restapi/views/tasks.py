@@ -1,9 +1,7 @@
 from rest_framework.views import APIView
 from .auth import require_global_permissions, DatabasePermissionFlag, RestAPIUser
-from .error import APIError, ErrorCodes
-from rest_framework import status
+from restapi.models.error import APIError, ErrorCodes
 from rest_framework.response import Response
-from database.models.bookstyles import BookStyle, BookStyleSerializer
 from restapi.operationworker.operationworker import operation_worker
 import logging
 logger = logging.getLogger(__name__)

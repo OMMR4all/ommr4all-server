@@ -1,12 +1,9 @@
 from rest_framework.views import APIView
-from restapi.api.bookaccess import require_permissions
-from restapi.api.error import ErrorCodes, APIError
 from rest_framework.response import Response
 import rest_framework.status as status
 from database import DatabaseBook
-from database.database_permissions import BookPermissionFlags, DatabaseBookPermissionFlag
+from database.database_permissions import DatabaseBookPermissionFlag
 import logging
-import json
 logger = logging.getLogger(__name__)
 
 

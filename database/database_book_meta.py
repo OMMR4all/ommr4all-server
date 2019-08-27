@@ -1,13 +1,12 @@
 from dataclasses import dataclass, field
 from database.database_book import DatabaseBook
-import json
 import os
 from database.database_internal import DEFAULT_MODELS
 from datetime import datetime
 from mashumaro import DataClassJSONMixin
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmTypes
-from restapi.api.auth import RestAPIUser
+from restapi.models.auth import RestAPIUser
 from database.models.bookstyles import BookStyle, DEFAULT_BOOK_STYLE
 
 
