@@ -83,15 +83,19 @@ class PageSelection:
     def get_pages(self, unprocessed: Optional[Callable[[DatabasePage], bool]] = None) -> List[DatabasePage]:
         if self.pcgts:
             return [DatabasePage(self.book, 'in_memory', skip_validation=True, pcgts=pcgts) for pcgts in self.pcgts]
-        if self.page_count == PageCount.ALL:
-            return self.book.pages()
-        elif self.page_count == PageCount.UNPROCESSED:
-            if unprocessed:
-                return [p for p in self.book.pages() if unprocessed(p)]
-            else:
+
+        def page_count_pages() -> List[DatabasePage]:
+            if self.page_count == PageCount.ALL:
                 return self.book.pages()
-        else:
-            return self.pages
+            elif self.page_count == PageCount.UNPROCESSED:
+                if unprocessed:
+                    return [p for p in self.book.pages() if unprocessed(p)]
+                else:
+                    return self.book.pages()
+            else:
+                return self.pages
+
+        return [page for page in page_count_pages() if not page.page_progress().verified]
 
     def get_pcgts(self, unprocessed: Optional[Callable[[DatabasePage], bool]] = None) -> List[PcGts]:
         if self.pcgts:

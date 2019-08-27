@@ -26,12 +26,36 @@ def require_lock(func):
     return wrapper
 
 
+class require_page_verification(object):
+    def __init__(self, verified = True):
+        self.verified = verified
+
+    def __call__(self, func):
+        def wrapper_require_permissions(view, request, book, page, *args, **kwargs):
+            book = DatabaseBook(book)
+            page = book.page(page)
+            pp = page.page_progress()
+            if pp.verified == self.verified:
+                return func(view, request, book.book, page.page, *args, **kwargs)
+            else:
+                return APIError(status=status.HTTP_403_FORBIDDEN,
+                                developerMessage='Page ({}/{}) verification mismatch. Required {} but got {}.'.format(
+                                    book.book, page.page, self.verified, pp.verified),
+                                userMessage='Verification mismatch in page {} of book {}'.format(
+                                    page.page, book.book),
+                                errorCode=ErrorCodes.PAGE_VERIFICATION_REQUIRED if self.verified else ErrorCodes.PAGE_IS_VERIFIED,
+                                ).response()
+
+        return wrapper_require_permissions
+
+
 class PageLockView(APIView):
     def get(self, request, book, page):
         page = DatabasePage(DatabaseBook(book), page)
         return Response({'locked': page.is_locked_by_user(request.user)})
 
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
+    @require_page_verification(False)
     def put(self, request, book, page):
         body: dict = json.loads(request.body)
         page = DatabasePage(DatabaseBook(book), page)

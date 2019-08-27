@@ -1,22 +1,21 @@
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework import status
-from database import DatabasePage, DatabaseBook, DatabaseFile, InvalidFileNameException, FileExistsException
+from database import DatabasePage, DatabaseBook, DatabaseFile
 from restapi.operationworker import operation_worker, TaskStatusCodes, \
-    TaskNotFoundException, TaskAlreadyQueuedException, TaskNotFinishedException, TaskStatus
+    TaskNotFoundException, TaskAlreadyQueuedException, TaskStatus
 import logging
 import datetime
 import json
 import zipfile
 import re
-from database.file_formats.pcgts import PcGts, Coords
+from database.file_formats.pcgts import PcGts
 from database.file_formats.performance.pageprogress import PageProgress
 from database.file_formats.performance.statistics import Statistics
-from restapi.operationworker.taskrunners.pageselection import PageSelection, PageSelectionParams
+from restapi.operationworker.taskrunners.pageselection import PageSelection
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from restapi.api.error import *
 from restapi.api.bookaccess import require_permissions, DatabaseBookPermissionFlag
-from restapi.api.pageaccess import require_lock
+from restapi.api.pageaccess import require_lock, require_page_verification
 from dataclasses import field
 
 logger = logging.getLogger(__name__)
@@ -115,6 +114,7 @@ class OperationView(APIView):
 
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     @require_lock
+    @require_page_verification(False)
     def post(self, request, book, page, operation, format=None):
         book = DatabaseBook(book)
         page = DatabasePage(book, page)
