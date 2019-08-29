@@ -33,6 +33,7 @@ class SleepyTaskRunner(TaskRunner):
 
 class TestSkeduler(unittest.TestCase):
     def test_skeduler(self):
+        user = None
         default_resources: Resources = Resources([
             TaskResource(g) for g in (
                     [TaskWorkerGroup.LONG_TASKS_GPU] * 3 +
@@ -43,7 +44,7 @@ class TestSkeduler(unittest.TestCase):
         worker = OperationWorker(resources=default_resources, watcher_interval=1)
 
         full_gpu_tasks = [SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU], 8) for i in range(3)]
-        full_gpu_task_ids = [worker.put(task) for task in full_gpu_tasks]
+        full_gpu_task_ids = [worker.put(task, user) for task in full_gpu_tasks]
 
         time.sleep(0.5)
         self.assertEqual(3, worker.resources.n_used())
@@ -53,7 +54,7 @@ class TestSkeduler(unittest.TestCase):
             self.assertEqual(worker.status(task).code, TaskStatusCodes.RUNNING)
 
         # add two other ones, which must be queued
-        queued_task = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU], 2))
+        queued_task = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU], 2), user)
         time.sleep(0.5)
         self.assertEqual(3, worker.resources.n_used())
         self.assertEqual(worker.status(queued_task).code, TaskStatusCodes.QUEUED)
@@ -67,13 +68,13 @@ class TestSkeduler(unittest.TestCase):
             worker.status(full_gpu_task_ids[0])
 
         # add a job that can also run on CPU, this must be skeduled aswell
-        job_id = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU, TaskWorkerGroup.LONG_TASKS_CPU], 8))
+        job_id = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU, TaskWorkerGroup.LONG_TASKS_CPU], 8), user)
         time.sleep(0.5)
         self.assertEqual(4, worker.resources.n_used())
         self.assertEqual(worker.status(job_id).code, TaskStatusCodes.RUNNING)
 
         # add a new queued job to GPU, this must be queued until old queued job stops
-        job_id = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU], 8))
+        job_id = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU], 8), user)
         time.sleep(0.5)
         self.assertEqual(4, worker.resources.n_used())
         self.assertEqual(worker.status(job_id).code, TaskStatusCodes.QUEUED)
