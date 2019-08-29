@@ -131,6 +131,8 @@ STATIC_ROOT = os.path.join(BASE_DIR, "static")
 PRIVATE_MEDIA_URL = '/storage/'
 PRIVATE_MEDIA_ROOT = os.path.join(BASE_DIR, 'storage')
 
+DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
+
 
 # REST API
 REST_FRAMEWORK = {

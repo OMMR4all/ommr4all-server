@@ -50,7 +50,7 @@ class PageProgress(DataClassJSONMixin):
         return self
 
     def verified_allowed(self):
-        return all([self.locked[l] for l in Locks])
+        return all([self.locked.get(l, False) for l in Locks])
 
     def consistency_check(self):
         if not self.verified_allowed():
