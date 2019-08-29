@@ -5,8 +5,8 @@ import os
 import tempfile
 from typing import NamedTuple, List
 
-from ommr4all.settings import BASE_DIR
-
+this_dir = os.path.dirname(os.path.realpath(__file__))
+root_dir = os.path.abspath(os.path.join(this_dir, '..'))
 python = sys.executable
 pip = os.path.join(os.path.dirname(python), 'pip')
 CI_JOB_TOKEN = os.environ.get('CI_JOB_TOKEN')
@@ -51,7 +51,7 @@ def main():
 
     args = parser.parse_args()
 
-    os.chdir(BASE_DIR)
+    os.chdir(root_dir)
 
     if args.mode == 'setup':
         subprocess.check_call([pip, 'install', 'tensorflow' if not args.gpu else 'tensorflow_gpu'])
