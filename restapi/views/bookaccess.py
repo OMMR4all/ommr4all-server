@@ -253,7 +253,7 @@ class BookDownloaderView(APIView):
             s.seek(0)
             return FileResponse(s, as_attachment=True, filename=book.book + '.backup.zip')
         elif type == 'monodiplus.json':
-            from database.file_formats.pcgts.monodi2_exporter import PcgtsToMonodiConverter
+            from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
             from database.file_formats import PcGts
             pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
             obj = PcgtsToMonodiConverter(pcgts).root.to_json()
@@ -263,7 +263,7 @@ class BookDownloaderView(APIView):
             s.seek(0)
             return FileResponse(s, as_attachment=True, filename=book.book + '.json')
         elif type == 'monodiplus.zip':
-            from database.file_formats.pcgts.monodi2_exporter import PcgtsToMonodiConverter
+            from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
             from database.file_formats import PcGts
             pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
             obj = PcgtsToMonodiConverter(pcgts).root.to_json()
@@ -275,6 +275,19 @@ class BookDownloaderView(APIView):
 
             s.seek(0)
             return FileResponse(s, as_attachment=True, filename=book.book + '.monodi2.zip')
+        elif type == 'mei4.zip':
+            from database.file_formats.exporter.mei.pcgts_to_mei4_exporter import PcgtsToMeiConverter
+            from database.file_formats import PcGts
+            pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
+
+            s = io.BytesIO()
+            with zipfile.ZipFile(s, 'w') as zf:
+                for p in pcgts:
+                    with zf.open(os.path.join(book.book, p.page.location.page + '.xml'), 'w') as f:
+                        PcgtsToMeiConverter(p).write(f)
+
+            s.seek(0)
+            return FileResponse(s, as_attachment=True, filename=book.book + '.mei.zip')
 
         return Response(status=status.HTTP_400_BAD_REQUEST)
 

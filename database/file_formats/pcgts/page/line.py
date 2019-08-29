@@ -96,7 +96,7 @@ class Line(Region):
         return self.staff_lines.compute_position_in_staff(coord)
 
     def update_note_names(self, initial_clef: MusicSymbol = None):
-        current_clef = initial_clef if initial_clef else create_clef(ClefType.F)
+        current_clef = initial_clef if initial_clef else create_clef(ClefType.F, position_in_staff=MusicSymbolPositionInStaff.LINE_0)
 
         for s in self.symbols:
             if s.symbol_type == SymbolType.CLEF:

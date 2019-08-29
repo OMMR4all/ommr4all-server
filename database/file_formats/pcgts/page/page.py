@@ -45,6 +45,8 @@ class Page:
         self.location = location
         self.page_scale_ratios = {}
 
+        self.update_note_names()
+
     def syllable_by_id(self, syllable_id):
         for b in self.blocks:
             r = b.syllable_by_id(syllable_id)
@@ -71,6 +73,7 @@ class Page:
         if 'readingOrder' in json:
             page.reading_order = ReadingOrder.from_json(json['readingOrder'], page)
 
+        page.update_note_names()
         return page
 
     def to_json(self):
@@ -208,4 +211,9 @@ class Page:
 
     def sort_blocks(self):
         self.blocks.sort(key=lambda block: block.aabb.top())
+
+    def update_note_names(self):
+        current_clef = None
+        for b in sorted(self.music_blocks(), key=lambda b: b.aabb.top()):
+            current_clef = b.update_note_names(current_clef)
 
