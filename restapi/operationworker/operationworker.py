@@ -1,5 +1,4 @@
-from typing import Optional
-from django.contrib.auth.models import User
+from typing import Optional, TYPE_CHECKING
 from .taskqueue import TaskQueue, TaskStatus
 from .taskcommunicator import TaskCommunicator
 from uuid import uuid4
@@ -11,6 +10,9 @@ from .taskwatcher import TaskWatcher
 from ommr4all.settings import TASK_OPERATION_WATCHER_SETTINGS
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from django.contrib.auth.models import User
 
 
 class TaskIDGenerator:
@@ -46,7 +48,7 @@ class OperationWorker:
         if task is not None:
             self.task_creator().stop(task)
 
-    def put(self, task_runner: TaskRunner, creator: User) -> str:
+    def put(self, task_runner: TaskRunner, creator: 'User') -> str:
         self.task_creator()  # require creation
         task_id = self.id_generator.gen()
         self.queue.put(task_id, task_runner, creator)

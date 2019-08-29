@@ -17,6 +17,7 @@ class Model:
         try:
             return Model(MetaId.from_str(id), meta)
         except Exception as e:
+            logger.error('Error parsing id {}'.format(id))
             logger.exception(e)
             return None
 

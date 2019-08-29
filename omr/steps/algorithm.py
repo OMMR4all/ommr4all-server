@@ -166,7 +166,7 @@ class AlgorithmPredictor(ABC):
 
         if self.params.modelId:
             # override model if an id is given
-            self.settings.model = Model.from_id_str(self.params.modelId)
+            self.settings.model = Model(self.params.modelId)
 
         try:
             if not settings.model:
@@ -270,7 +270,7 @@ class AlgorithmMeta(ABC):
     def selected_model_for_book(cls, book: Optional[DatabaseBook]) -> Optional[Model]:
         selected_params = cls.selected_algorithm_params_for_book(book)
         if selected_params and selected_params.modelId:
-            model = Model.from_id_str(selected_params.modelId)
+            model = Model(selected_params.modelId)
             if model and model.exists():
                 return model
 

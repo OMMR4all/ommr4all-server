@@ -1,8 +1,14 @@
 from enum import Enum
 import os
 from ommr4all.settings import BASE_DIR, PRIVATE_MEDIA_ROOT
-from typing import Optional, NamedTuple, List
+from typing import Optional, NamedTuple, List, Mapping
 from omr.steps.algorithmtypes import AlgorithmTypes
+from mashumaro.types import SerializableType
+from mashumaro import DataClassDictMixin
+import logging
+from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 class Storage(Enum):
@@ -54,7 +60,8 @@ class ModelsId(NamedTuple):
         return '/'.join([self.storage.value, self.book if self.storage == Storage.EXTERNAL else self.notation_style, self.algorithm_type.value])
 
 
-class MetaId(NamedTuple):
+@dataclass
+class MetaId(SerializableType):
     models: ModelsId
     name: str
 
@@ -65,12 +72,41 @@ class MetaId(NamedTuple):
         return '/'.join([str(self.models), self.name])
 
     @staticmethod
-    def from_str(s: str):
+    def from_str(s: str) -> 'MetaId':
         remaining = []
         models = ModelsId.parse(s, remaining)
         return MetaId(
             models,
             remaining[0],
         )
+
+    def _serialize(self) -> str:
+        return str(self)
+
+    @classmethod
+    def _deserialize(cls, value: str) -> Optional['MetaId']:
+        try:
+            return MetaId.from_str(value)
+        except Exception as e:
+            logger.error('Could not parse MetaId from {}'.format(value))
+            logger.exception(e)
+            return None
+
+    def to_dict(
+            self,
+            use_bytes: bool = False,
+            use_enum: bool = False,
+            use_datetime: bool = False):
+        return self._serialize()
+
+    @classmethod
+    def from_dict(
+            cls,
+            d: Mapping,
+            use_bytes: bool = False,
+            use_enum: bool = False,
+            use_datetime: bool = False):
+        return cls._deserialize(d)
+
 
 

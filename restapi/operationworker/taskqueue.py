@@ -1,10 +1,12 @@
-from typing import List, Optional, NamedTuple, Dict
-from django.contrib.auth.models import User
+from typing import List, Optional, NamedTuple, Dict, TYPE_CHECKING
 from .task import Task, \
     TaskAlreadyQueuedException, TaskNotFinishedException, TaskNotFoundException, \
     TaskStatusCodes, TaskStatus
 from .taskrunners.taskrunner import TaskRunner
 from multiprocessing import Lock
+
+if TYPE_CHECKING:
+    from django.contrib.auth.models import User
 
 
 class TaskQueueStatus(NamedTuple):
@@ -41,7 +43,7 @@ class TaskQueue:
 
         return False
 
-    def put(self, task_id: str, task_runner: TaskRunner, creator: User):
+    def put(self, task_id: str, task_runner: TaskRunner, creator: 'User'):
         with self.mutex:
             for task in self.tasks:
                 if task.task_id == task_id or self._id_by_runner(task_runner) == task.task_id:

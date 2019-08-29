@@ -85,7 +85,7 @@ class BookOperationTaskView(APIView):
                             "Invalid request",
                             ErrorCodes.OPERATION_INVALID_GET,
                             ).response()
-        except (FileNotFoundError, OSError) as e:
+        except (FileNotFoundError, OSError, IOError) as e:
             logger.exception(e)
             return APIError(status.HTTP_400_BAD_REQUEST,
                             "Model not found",

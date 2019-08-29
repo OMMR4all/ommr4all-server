@@ -66,10 +66,11 @@ class DatabaseBook:
         return [p for p in pages if p.is_valid()]
 
     def pages_with_lock(self, locks: List['LockState']) -> List['DatabasePage']:
+        from database.file_formats.performance.pageprogress import Locks
         out = []
         for p in self.pages():
             pp = p.page_progress()
-            if all([pp.locked.get(lock.label, False).value == lock.lock for lock in locks]):
+            if all([pp.locked.get(Locks(lock.label), False) == lock.lock for lock in locks]):
                 out.append(p)
 
         return out

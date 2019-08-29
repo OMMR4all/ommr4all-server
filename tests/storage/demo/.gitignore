@@ -7,4 +7,5 @@ pages/*/*
 !pages/*symbol*/pcgts.json
 !pages/*upgrade*/pcgts.json
 !pages/*monodi*/*.json
+!pages/*lock*/page_progress.json
 !/.permissions.pkl

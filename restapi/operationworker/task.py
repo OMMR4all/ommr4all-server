@@ -1,11 +1,11 @@
 from enum import IntEnum
 from dataclasses import dataclass
-from django.contrib.auth.models import User
 from typing import TYPE_CHECKING, Union
 from mashumaro import DataClassDictMixin
 
 if TYPE_CHECKING:
     from .taskrunners.taskrunner import TaskRunner
+    from django.contrib.auth.models import User
 
 
 class TaskNotFoundException(Exception):
@@ -56,4 +56,4 @@ class Task:
     task_runner: 'TaskRunner'
     task_status: TaskStatus
     task_result: Union[dict, Exception]
-    creator: User
+    creator: 'User'
