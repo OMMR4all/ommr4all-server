@@ -26,7 +26,7 @@ class OperationTaskView(APIView):
     def get(self, request, book, page, operation, task_id):
         op_status = operation_worker.status(task_id)
         if op_status:
-            return Response({'status': op_status.to_json()})
+            return Response({'status': op_status.to_dict()})
         else:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -49,15 +49,15 @@ class OperationTaskView(APIView):
             op_status = operation_worker.status(task_id)
             if op_status.code == TaskStatusCodes.FINISHED:
                 result = operation_worker.pop_result(task_id)
-                result['status'] = op_status.to_json()
+                result['status'] = op_status.to_dict()
                 return Response(result)
             elif op_status.code == TaskStatusCodes.ERROR:
                 error = operation_worker.pop_result(task_id)
                 raise error
             else:
-                return Response({'status': op_status.to_json()})
+                return Response({'status': op_status.to_dict()})
         except TaskNotFoundException:
-            return Response({'status': TaskStatus().to_json()})
+            return Response({'status': TaskStatus().to_dict()})
         except KeyError as e:
             logger.exception(e)
             return APIError(status.HTTP_400_BAD_REQUEST,
@@ -83,7 +83,7 @@ class OperationStatusView(APIView):
             task_id = operation_worker.id_by_task_runner(task_runner)
             op_status = operation_worker.status(task_id)
             if op_status:
-                return Response({'status': op_status.to_json()})
+                return Response({'status': op_status.to_dict()})
             else:
                 return Response(status.HTTP_204_NO_CONTENT)
 
