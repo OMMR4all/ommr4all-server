@@ -3,6 +3,9 @@ import json
 from enum import Enum
 from dataclasses import dataclass, field
 from mashumaro import DataClassJSONMixin
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Locks(Enum):
@@ -28,8 +31,14 @@ class PageProgress(DataClassJSONMixin):
     @staticmethod
     def from_json_file(file: str):
         with open(file) as f:
-            pp = PageProgress.from_json(f.read())
-            pp.consistency_check();
+            try:
+               pp = PageProgress.from_json(f.read())
+            except Exception as e:
+                logger.error("Exception when parsing file {}. Creating empty page progress".format(file))
+                logging.exception(e)
+                pp = PageProgress()
+
+            pp.consistency_check()
             return pp
 
     def to_json_file(self, filename: str):
