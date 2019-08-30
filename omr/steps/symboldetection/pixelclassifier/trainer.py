@@ -1,6 +1,8 @@
 from typing import Optional, Type
 from database import DatabaseBook
 import os
+
+from database.file_formats.performance.pageprogress import Locks
 from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings, Dataset, Model
 from omr.imageoperations.music_line_operations import SymbolLabel
 from pagesegmentation.lib.trainer import Trainer, TrainSettings
@@ -59,7 +61,7 @@ if __name__ == '__main__':
     from omr.dataset import DatasetParams
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
     b = DatabaseBook('Graduel_Fully_Annotated')
-    train, val = dataset_by_locked_pages(0.8, [LockState('StaffLines', True)], datasets=[b])
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b])
     settings = AlgorithmTrainerSettings(
         DatasetParams(),
         train,

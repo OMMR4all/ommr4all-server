@@ -4,6 +4,7 @@ from calamari_ocr.ocr.cross_fold_trainer import CrossFoldTrainer
 from calamari_ocr.ocr.augmentation import SimpleDataAugmenter
 from typing import Optional, Type
 
+from database.file_formats.performance.pageprogress import Locks
 from omr.dataset import DatasetParams, LyricsNormalization
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 from database import DatabaseBook
@@ -111,7 +112,7 @@ if __name__ == '__main__':
     np.random.seed(1)
     b = DatabaseBook('Graduel_Fully_Annotated')
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
-    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState("Layout", True)], True, [b])
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.LAYOUT, True)], True, [b])
 
     trainer_params = CalamariTrainer.default_params()
     trainer_params.l_rate = 1e-3

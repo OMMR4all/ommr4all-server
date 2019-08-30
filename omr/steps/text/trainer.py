@@ -1,5 +1,6 @@
 from database import DatabaseBook
 from database.file_formats.pcgts import PcGts
+from database.file_formats.performance.pageprogress import Locks
 from omr.dataset.datafiles import dataset_by_locked_pages, LockState
 import logging
 from abc import ABC, abstractmethod
@@ -74,7 +75,7 @@ class TextTrainer:
 
         from omr.text.calamari.trainer import CalamariTrainer
         logger.info("Finding PcGts files with valid ground truth")
-        train_pcgts, val_pcgts = dataset_by_locked_pages(n_train, [LockState('Symbols', True)])
+        train_pcgts, val_pcgts = dataset_by_locked_pages(n_train, [LockState(Locks.SYMBOLS, True)])
         logger.info("Starting training with {} training and {} validation files".format(len(train_pcgts), len(val_pcgts)))
         logger.debug("Training files: {}".format([p.page.location.local_path() for p in train_pcgts]))
         logger.debug("Validation files: {}".format([p.page.location.local_path() for p in val_pcgts]))

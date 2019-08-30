@@ -1,3 +1,4 @@
+from database.file_formats.performance.pageprogress import Locks
 from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, DatabaseAvailableModels, AlgorithmTypes, PageSelection
 from database import DatabaseBook, DatabasePage
 from ..taskcommunicator import TaskCommunicationData
@@ -78,7 +79,7 @@ class TaskRunnerStaffLineDetectionTrainer(TaskRunner):
                     TaskProgressCodes.RESOLVING_DATA,
                 )))
 
-        train, val = self.params.to_train_val(locks=[LockState('StaffLines', True)], books=[book])
+        train, val = self.params.to_train_val(locks=[LockState(Locks.STAFF_LINES, True)], books=[book])
 
         settings = AlgorithmTrainerSettings(
             train_data=train,

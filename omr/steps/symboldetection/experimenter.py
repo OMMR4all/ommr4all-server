@@ -1,5 +1,6 @@
 import logging
 from database import DatabaseBook, DatabaseBookMeta
+from database.file_formats.performance.pageprogress import Locks
 from omr.dataset.datafiles import LockState, generate_dataset
 from omr.symboldetection.dataset import SymbolDetectionDatasetParams, SymbolDetectionDataset, PcGts
 from omr.symboldetection.evaluator import SymbolDetectionEvaluator, Counts, precision_recall_f1, AccCounts, SymbolDetectionEvaluatorParams
@@ -213,7 +214,7 @@ class Experimenter:
         global_args = self.global_args
         logger.info("Finding PcGts files with valid ground truth")
         train_args = generate_dataset(
-            lock_states=[LockState('StaffLines', True), LockState('Layout', True)],
+            lock_states=[LockState(Locks.STAFF_LINES, True), LockState(Locks.LAYOUT, True)],
             n_train=n_train,
             val_amount=val_amount,
             cross_folds=cross_folds,

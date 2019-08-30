@@ -1,3 +1,4 @@
+from database.file_formats.performance.pageprogress import Locks
 from omr.dataset.datafiles import dataset_by_locked_pages, EmptyDataSetException, LockState
 from database import DatabaseBook
 import logging
@@ -61,7 +62,7 @@ if __name__ == "__main__":
     from database import DatabaseBook
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
     book = DatabaseBook('Graduel_Fully_Annotated')
-    train, val = dataset_by_locked_pages(0.8, [LockState('StaffLines', True)], datasets=[book])
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[book])
     trainer = BasicStaffLinesTrainer(AlgorithmTrainerSettings(
         dataset_params=DatasetParams(),
         train_data=train,

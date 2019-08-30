@@ -6,6 +6,8 @@ from omr.symboldetection.sequencetosequence.trainer import OMRTrainer
 from database import DatabaseBook
 import os
 
+from database.file_formats.performance.pageprogress import Locks
+
 
 class PCS2STrainer(SymbolDetectionTrainerBase):
     def __init__(self, params: SymbolDetectionTrainerParams):
@@ -54,7 +56,7 @@ if __name__ == '__main__':
     np.random.seed(1)
     b = DatabaseBook('demo')
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
-    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState("Symbols", True), LockState("Layout", True)], True, [b])
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True), LockState(Locks.LAYOUT, True)], True, [b])
     output = 'models_out/test_pcs2s'
     params = SymbolDetectionDatasetParams(
         gt_required=True,

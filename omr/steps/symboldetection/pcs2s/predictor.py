@@ -2,6 +2,8 @@ from calamari_ocr.ocr.predictor import Predictor, MultiPredictor
 from calamari_ocr.ocr.voting import voter_from_proto
 from calamari_ocr.proto import VoterParams, Predictions
 from typing import List
+
+from database.file_formats.performance.pageprogress import Locks
 from omr.dataset.datastructs import CalamariSequence
 from database.file_formats import PcGts
 from database import DatabaseBook
@@ -50,7 +52,7 @@ if __name__ == '__main__':
     import os
     random.seed(1)
     np.random.seed(1)
-    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState("StaffLines", True), LockState("Layout", True)], True, [
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True), LockState(Locks.LAYOUT, True)], True, [
         # DatabaseBook('Graduel_Part_1'),
         # DatabaseBook('Graduel_Part_2'),
         # DatabaseBook('Graduel_Part_3'),

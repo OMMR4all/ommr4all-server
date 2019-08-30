@@ -16,7 +16,7 @@ class Locks(Enum):
 
 
 class LockState(NamedTuple):
-    label: str
+    label: Locks
     lock: bool
 
 

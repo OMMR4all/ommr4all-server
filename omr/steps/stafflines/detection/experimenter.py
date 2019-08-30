@@ -5,6 +5,8 @@ from database.file_formats.pcgts import MusicRegion, MusicLine, MusicLines
 from database.file_formats.performance import LockState
 from pagesegmentation.lib.trainer import TrainSettings, Trainer
 from pagesegmentation.lib.data_augmenter import DefaultAugmenter
+
+from database.file_formats.performance.pageprogress import Locks
 from omr.dataset.datafiles import dataset_by_locked_pages, generate_dataset, GeneratedData
 from omr.stafflines.detection.dataset import PCDataset, StaffLineDetectionDatasetParams
 from omr.stafflines.detection.predictor import create_staff_line_predictor, StaffLinesModelType, StaffLinePredictorParameters
@@ -265,7 +267,7 @@ class Experimenter:
 
     def run(self, global_args: GlobalArgs, train_books: Optional[List[str]], test_books: Optional[List[str]], train_books_extend: Optional[List[str]]):
         train_args = generate_dataset(
-            lock_states=[LockState('StaffLines', True), LockState('Layout', True)],
+            lock_states=[LockState(Locks.STAFF_LINES, True), LockState(Locks.LAYOUT, True)],
             n_train=global_args.n_train,
             val_amount=global_args.val_amount,
             cross_folds=global_args.cross_folds,
