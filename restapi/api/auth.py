@@ -60,10 +60,10 @@ class AuthView(APIView):
         if auth == 'users':
             users = User.objects.all()
             return Response(
-                {'users': [RestAPIUser.from_user(u) for u in users]})
+                {'users': [RestAPIUser.from_user(u).to_dict() for u in users]})
         elif auth == 'groups':
             groups = Group.objects.all()
             return Response(
-                {'groups': [RestAPIGroup.from_group(g) for g in groups]})
+                {'groups': [RestAPIGroup.from_group(g).to_dict() for g in groups]})
         else:
             return Response(status.HTTP_404_NOT_FOUND)
