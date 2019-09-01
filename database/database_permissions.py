@@ -13,7 +13,8 @@ _permissions_file = '.permissions.pkl'
 class DatabaseBookPermissionFlag(IntEnum):
     NONE = 0
     READ = 1
-    WRITE = 2
+    SAVE = 2        # Save specifies if the user may save content
+    EDIT = 512      # Edit specifies if the user may edit content on the client (e.g. demo user)
 
     EDIT_PERMISSIONS = 4
 
@@ -26,7 +27,9 @@ class DatabaseBookPermissionFlag(IntEnum):
 
     VERIFY_PAGE = 256
 
-    READ_WRITE = READ | WRITE
+    WRITE = EDIT | SAVE
+    READ_EDIT = READ | EDIT
+    READ_WRITE = READ | SAVE | EDIT
     ALLOWED_OTHER_PERMISSIONS = READ_WRITE
 
 

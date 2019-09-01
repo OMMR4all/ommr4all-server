@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import permissions
 from database import *
 from database.file_formats import PcGts
 import logging
@@ -7,6 +8,8 @@ logger = logging.getLogger(__name__)
 
 
 class BookCommentsView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
     def get(self, request, book):
         book = DatabaseBook(book)
 
@@ -22,6 +25,8 @@ class BookCommentsView(APIView):
 
 
 class BookCommentsCountView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
     def get(self, request, book):
         book = DatabaseBook(book)
         return Response({'count': sum([len(PcGts.from_file(page.file('pcgts', create_if_not_existing=True)).page.comments.comments) for page in book.pages()])})

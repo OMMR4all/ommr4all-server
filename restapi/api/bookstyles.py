@@ -1,4 +1,5 @@
 from rest_framework.views import APIView
+from rest_framework import permissions
 from .auth import require_global_permissions, DatabasePermissionFlag
 from .error import APIError, ErrorCodes
 from rest_framework import status
@@ -9,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 class BookStylesView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
     @require_global_permissions(DatabasePermissionFlag.ADD_BOOK_STYLE)
     def put(self, request):
         serializer = BookStyleSerializer(request.body)

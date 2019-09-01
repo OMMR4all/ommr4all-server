@@ -1,5 +1,5 @@
 from rest_framework.views import APIView
-from rest_framework import status
+from rest_framework import status, permissions
 from database import DatabasePage, DatabaseBook, DatabaseFile
 from restapi.operationworker import operation_worker, TaskStatusCodes, \
     TaskNotFoundException, TaskAlreadyQueuedException, TaskStatus
@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 
 
 class OperationTaskView(APIView):
+    permission_classes = [permissions.AllowAny]
+
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, page, operation, task_id):
         op_status = operation_worker.status(task_id)
@@ -30,7 +32,7 @@ class OperationTaskView(APIView):
         else:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
+    @require_permissions([DatabaseBookPermissionFlag.READ_EDIT])
     def delete(self, request, book, page, operation, task_id):
         try:
             operation_worker.stop(task_id)
@@ -42,8 +44,7 @@ class OperationTaskView(APIView):
             logging.error(e)
             return Response({'error': 'unknown'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
-    @require_lock
+    @require_permissions([DatabaseBookPermissionFlag.READ_EDIT])
     def post(self, request, book, page, operation, task_id):
         try:
             op_status = operation_worker.status(task_id)
@@ -91,6 +92,8 @@ class OperationStatusView(APIView):
 
 
 class OperationView(APIView):
+    permission_classes = [permissions.AllowAny]
+
     @dataclass()
     class AlgorithmRequest(DataClassDictMixin):
         params: AlgorithmPredictorParams = field(default_factory=lambda: AlgorithmPredictorParams())
@@ -107,61 +110,27 @@ class OperationView(APIView):
                     page.pcgts_from_dict(body['pcgts'])
                 return TaskRunnerPrediction(at,
                                             PageSelection.from_page(page),
-                                            Settings(r.params, store_to_pcgts=True)
+                                            Settings(r.params, store_to_pcgts=False)
                                             )
 
         return None
 
-    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
-    @require_lock
-    @require_page_verification(False)
-    def post(self, request, book, page, operation, format=None):
-        book = DatabaseBook(book)
-        page = DatabasePage(book, page)
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def post(self, request, book, page, operation):
+        body = json.loads(request.body, encoding='utf-8')
+        page = DatabasePage(DatabaseBook(book), page)
+        task_runner = OperationView.op_to_task_runner(operation, page, body)
+        if task_runner:
+            try:
+                id = operation_worker.id_by_task_runner(task_runner)
+                return Response({'task_id': id}, status=status.HTTP_202_ACCEPTED)
+            except Exception as e:
+                logger.error(e)
+                return Response(str(e), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        if operation == 'save_page_progress':
-            obj = json.loads(request.body, encoding='utf-8')
-            pp = page.page_progress()
-            user_permissions = book.resolve_user_permissions(request.user)
-            verify_allowed = user_permissions.has(DatabaseBookPermissionFlag.VERIFY_PAGE)
-            pp.merge_local(PageProgress.from_dict(obj), locks=True, verified=verify_allowed)
-            page.set_page_progress(pp)
-            page.save_page_progress()
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-            # add to backup archive
-            with zipfile.ZipFile(page.file('page_progress_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
-                zf.writestr('page_progress_{}.json'.format(datetime.datetime.now()), json.dumps(pp.to_json(), indent=2))
-
-            return Response()
-        elif operation == 'save_statistics':
-            obj = json.loads(request.body, encoding='utf-8')
-            total_stats = Statistics.from_json(obj)
-            total_stats.to_json_file(page.file('statistics').local_path())
-
-            # add to backup archive
-            with zipfile.ZipFile(page.file('statistics_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
-                zf.writestr('statistics_{}.json'.format(datetime.datetime.now()), json.dumps(total_stats.to_json(), indent=2))
-
-            logger.info('Successfully saved statistics file to {}'.format(page.file('statistics').local_path()))
-
-            return Response()
-        elif operation == 'save':
-            obj = json.loads(request.body, encoding='utf-8')
-
-            pcgts = PcGts.from_json(obj, page)
-            pcgts.to_file(page.file('pcgts').local_path())
-
-            # add to backup archive
-            with zipfile.ZipFile(page.file('pcgts_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
-                zf.writestr('pcgts_{}.json'.format(datetime.datetime.now()), json.dumps(pcgts.to_json(), indent=2))
-
-            logger.info('Successfully saved pcgts file to {}'.format(page.file('pcgts').local_path()))
-
-            return Response()
-
-        return Response(status=status.HTTP_400_BAD_REQUEST)
-
-    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
+    @require_permissions([DatabaseBookPermissionFlag.EDIT])
     def put(self, request, book, page, operation):
         body = json.loads(request.body, encoding='utf-8')
         page = DatabasePage(DatabaseBook(book), page)

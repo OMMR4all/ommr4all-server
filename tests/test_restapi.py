@@ -92,6 +92,32 @@ class OperationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response)
         self.unlock_page(page)
 
+    def test_save_statistics_without_lock(self):
+        page = 'page_test_lock'
+
+        def save_statistics():
+            return self.client.put('/api/book/demo/page/{}/content/statistics'.format(page), {}, format='json')
+
+        response = save_statistics()
+        self.assertEqual(response.status_code, status.HTTP_423_LOCKED, response)
+        self.lock_page(page)
+        response = save_statistics()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response)
+        self.unlock_page(page)
+
+    def test_save_page_progress_without_lock(self):
+        page = 'page_test_lock'
+
+        def save():
+            return self.client.put('/api/book/demo/page/{}/content/page_progress'.format(page), {}, format='json')
+
+        response = save()
+        self.assertEqual(response.status_code, status.HTTP_423_LOCKED, response)
+        self.lock_page(page)
+        response = save()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response)
+        self.unlock_page(page)
+
     def test_get_preview_page(self):
         response = self.client.get('/api/book/demo/page/page00000001/content/page_progress', format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response)
@@ -187,7 +213,7 @@ class OperationTests(APITestCase):
         self._test_list_models(AlgorithmTypes.STAFF_LINES_PC)
 
     def save_page(self, page, data):
-        return self.client.post('/api/book/demo/page/{}/operation/save/'.format(page), data, format='json')
+        return self.client.put('/api/book/demo/page/{}/content/pcgts'.format(page), data, format='json')
 
     def lock_page(self, page):
         payload = {}

@@ -219,13 +219,17 @@ LOGGING = {
             'handlers': ['console'],
             'level': 'WARNING',
         },
+        'database': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
         'omr': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'INFO',
         },
         'restapi': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'INFO',
         },
     },
 }

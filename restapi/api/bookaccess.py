@@ -1,6 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, permissions
 from django.http import FileResponse
 from database import *
 from database.database_permissions import BookPermissionFlags
@@ -36,6 +36,8 @@ class require_permissions(object):
 
 
 class BookMetaView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book):
         book = DatabaseBook(book)
@@ -52,6 +54,8 @@ class BookMetaView(APIView):
 
 
 class BookView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book):
         book = DatabaseBook(book)
@@ -107,6 +111,9 @@ class BookUploadView(APIView):
 
 
 class BooksView(APIView):
+    # allow get access to any user, but prevent put
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
     def put(self, request, format=None):
         from database.database_book_meta import DatabaseBookMeta
         book = json.loads(request.body, encoding='utf-8')
@@ -160,8 +167,10 @@ class BooksView(APIView):
 
 
 class BookDownloaderView(APIView):
+    permission_classes = [permissions.AllowAny]
+
     @require_permissions([DatabaseBookPermissionFlag.READ])
-    def post(self, request, book, type, format=None):
+    def post(self, request, book, type):
         import json, zipfile, io, os
         pages = json.loads(request.body, encoding='utf-8').get('pages', [])
         book = DatabaseBook(book)

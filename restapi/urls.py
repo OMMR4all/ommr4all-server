@@ -1,5 +1,4 @@
 from django.urls import path, re_path
-from django.views.static import serve
 from . import views
 from django.http import HttpResponse
 from database import *
@@ -10,32 +9,13 @@ from restapi.api.bookoperations import BookOperationStatusView, BookOperationTas
 from restapi.api.auth import AuthView
 from restapi.api.bookcomments import BookCommentsView, BookCommentsCountView
 from restapi.api.bookpermissions import BookPermissionsView, BookUserPermissionsView, BookGroupPermissionsView, BookDefaultPermissionsView
-from restapi.api.pageaccess import PageRenameView, PageProgressVerifyView
+from restapi.api.pageaccess import PageRenameView, PageProgressVerifyView, PageContentView
 from restapi.api.user import UserBookPermissionsView
 from restapi.api.bookstyles import BookStyleView, BookStylesView
 from restapi.api.administrativedefaultmodels import AdministrativeDefaultModelsView
 from restapi.api.tasks import TasksView, TaskView
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token, verify_jwt_token
-
-
-@api_view(['GET'])
-@permission_classes((IsAuthenticated, ))
-def protected_serve(request, path, document_root=None, show_indexes=False):
-    return serve(request._request, path, document_root, show_indexes)
-
-
-@api_view(['GET'])
-@permission_classes((IsAuthenticated, ))
-def get_content(request, book, page, content):
-    page = DatabasePage(DatabaseBook(book), page)
-    file = DatabaseFile(page, content)
-
-    if not file.exists():
-        file.create()
-
-    return protected_serve(request._request, file.local_request_path(), "/", False)
 
 
 def ping(request):
@@ -92,7 +72,7 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/page_progress/verify$', PageProgressVerifyView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/page_progress$', PageProgressView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/lock$', PageLockView.as_view()),
-        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/(?P<content>\w+)$', get_content),
+        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/(?P<content>\w+)$', PageContentView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/operation/(?P<operation>\w+)/$', OperationView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/operation/(?P<operation>\w+)/task/(?P<task_id>[\w\-]+)$', OperationTaskView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/rename$', PageRenameView.as_view()),

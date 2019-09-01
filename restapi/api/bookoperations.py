@@ -1,5 +1,5 @@
 from rest_framework.views import APIView
-from rest_framework import status
+from rest_framework import status, permissions
 from database import DatabaseBook
 from restapi.operationworker import operation_worker, TaskStatusCodes, \
     TaskNotFoundException, TaskAlreadyQueuedException
@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 
 class BookPageSelectionView(APIView):
+    permission_classes = [permissions.AllowAny]
+
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def post(self, request, book, operation):
         body = json.loads(request.body, encoding='utf-8')
@@ -44,6 +46,7 @@ class BookOperationTaskView(APIView):
         else:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+    # enforce WRITE here, since this ops will overwrite the files locally (workflow)
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     def delete(self, request, book, operation, task_id):
         try:
@@ -56,6 +59,7 @@ class BookOperationTaskView(APIView):
             logging.error(e)
             return Response({'error': 'unknown'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    # enforce WRITE here, since this ops will overwrite the files locally (workflow)
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     def post(self, request, book, operation, task_id):
         try:
@@ -108,6 +112,8 @@ class BookOperationTaskView(APIView):
 
 
 class BookOperationStatusView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, operation):
         book = DatabaseBook(book)
@@ -131,6 +137,8 @@ class AlgorithmRequest(DataClassDictMixin):
 
 
 class BookOperationView(APIView):
+    permission_classes = [permissions.AllowAny]
+
     @staticmethod
     def op_to_task_runner(operation: str, book: DatabaseBook, body: dict) -> TaskRunner:
         from omr.steps.algorithmtypes import AlgorithmTypes
@@ -152,6 +160,7 @@ class BookOperationView(APIView):
         else:
             raise NotImplementedError()
 
+    # enforce WRITE here, since this ops will overwrite the files locally (workflow)
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     def put(self, request, book, operation):
         body = json.loads(request.body, encoding='utf-8')
@@ -183,6 +192,8 @@ class BookOperationView(APIView):
 
 
 class BookOperationModelsView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, operation):
         book = DatabaseBook(book)
