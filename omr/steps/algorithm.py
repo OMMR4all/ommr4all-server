@@ -67,6 +67,8 @@ class AlgorithmTrainer(ABC):
         self.settings: AlgorithmTrainerSettings = settings
         if not self.settings.params:
             self.settings.params = self.__class__.default_params()
+        else:
+            self.settings.params.mix_default(self.__class__.default_params())
 
         self.params: AlgorithmTrainerParams = self.settings.params
         self.train_dataset = self.meta().dataset_class()(self.settings.train_data, self.settings.dataset_params)

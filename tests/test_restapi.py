@@ -36,7 +36,10 @@ class PermissionTests(APITestCase):
 
     def test_books(self):
         response = self.client.get('/api/books', format='json')
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        body = json.loads(response.content)
+        self.assertListEqual(body['books'], [])
+        self.assertEqual(body['totalPages'], 0)
 
     def test_get_preview_page(self):
         response = self.client.get('/api/book/demo/page/page00000001/content/page_progress', format='json')

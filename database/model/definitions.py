@@ -11,36 +11,53 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 
-class Storage(Enum):
+class StorageType(Enum):
     INTERNAL = 'i'
     EXTERNAL = 'e'
+    CUSTOM = 'c'
 
     def path(self):
         return {
-            Storage.INTERNAL: os.path.join(BASE_DIR, 'internal_storage'),
-            Storage.EXTERNAL: PRIVATE_MEDIA_ROOT,
+            StorageType.INTERNAL: os.path.join(BASE_DIR, 'internal_storage'),
+            StorageType.EXTERNAL: PRIVATE_MEDIA_ROOT,
+            StorageType.CUSTOM: '',
         }[self]
+
+
+class Storage(NamedTuple):
+    type: StorageType
+    custom_path: Optional[str] = None
+    
+    def path(self) -> str:
+        if self.type == StorageType.CUSTOM:
+            return self.custom_path
+        
+        return self.type.path()
+    
+    @staticmethod
+    def custom(custom_path: str):
+        return Storage(StorageType.CUSTOM, custom_path)
 
 
 class ModelsId(NamedTuple):
     @staticmethod
     def from_internal(notation_style: str, algorithm_type: AlgorithmTypes):
-        return ModelsId(Storage.INTERNAL, None, notation_style, algorithm_type)
+        return ModelsId(Storage(StorageType.INTERNAL), None, notation_style, algorithm_type)
 
     @staticmethod
     def from_external(book: str, algorithm_type: AlgorithmTypes):
-        return ModelsId(Storage.EXTERNAL, book, None, algorithm_type)
+        return ModelsId(Storage(StorageType.EXTERNAL), book, None, algorithm_type)
 
     @staticmethod
     def parse(s: str, remaining: Optional[List[str]]) -> 'ModelsId':
         s = s.split('/')
         if remaining is not None:
             remaining += s[3:]
-        storage = Storage(s[0])
+        storage_type = StorageType(s[0])
         return ModelsId(
-            storage,
-            s[1] if storage == Storage.EXTERNAL else None,
-            s[1] if storage == Storage.INTERNAL else None,
+            Storage(storage_type),
+            s[1] if storage_type == StorageType.EXTERNAL else None,
+            s[1] if storage_type == StorageType.INTERNAL else None,
             AlgorithmTypes(s[2]),
         )
 
@@ -51,13 +68,20 @@ class ModelsId(NamedTuple):
 
     def path(self):
         from omr.steps.step import Step
-        if self.storage == Storage.EXTERNAL:
+        if self.storage.type == StorageType.EXTERNAL:
             return os.path.join(self.storage.path(), self.book, 'models', Step.create_meta(self.algorithm_type).model_dir())
-        else:
+        elif self.storage.type == StorageType.INTERNAL:
             return os.path.join(self.storage.path(), 'default_models', self.notation_style)
+        else:
+            return self.storage.path()
 
     def __str__(self):
-        return '/'.join([self.storage.value, self.book if self.storage == Storage.EXTERNAL else self.notation_style, self.algorithm_type.value])
+        if self.storage.type == StorageType.EXTERNAL:
+            return '/'.join([self.storage.type.value, self.book, self.algorithm_type.value])
+        elif self.storage.type == StorageType.INTERNAL:
+            return '/'.join([self.storage.type.value, self.notation_style, self.algorithm_type.value])
+        else:
+            return self.storage.custom_path
 
 
 @dataclass
@@ -79,6 +103,11 @@ class MetaId(SerializableType):
             models,
             remaining[0],
         )
+    
+    @staticmethod
+    def from_custom_path(s: str, algorithm_type: AlgorithmTypes) -> 'MetaId':
+        base, name = os.path.split(s)
+        return MetaId(ModelsId(Storage.custom(base), None, None, algorithm_type), name)
 
     def _serialize(self) -> str:
         return str(self)

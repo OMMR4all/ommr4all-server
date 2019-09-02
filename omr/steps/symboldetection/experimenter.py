@@ -1,18 +1,23 @@
 import logging
-from database import DatabaseBook, DatabaseBookMeta
+from database import DatabaseBook
+from database.database_book_meta import DatabaseBookMeta
 from database.file_formats.performance.pageprogress import Locks
+from database.model import MetaId, Model
 from omr.dataset.datafiles import LockState, generate_dataset
-from omr.symboldetection.dataset import SymbolDetectionDatasetParams, SymbolDetectionDataset, PcGts
-from omr.symboldetection.evaluator import SymbolDetectionEvaluator, Counts, precision_recall_f1, AccCounts, SymbolDetectionEvaluatorParams
-from omr.symboldetection.predictor import create_predictor, SymbolDetectionPredictorParameters, PredictorTypes
-from omr.imageoperations.music_line_operations import SymbolLabel
-from omr.symboldetection.trainer import create_symbol_detection_trainer, SymbolDetectionTrainerParams, SymbolDetectionPCParams, CalamariParams
+from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
+from omr.steps.symboldetection.dataset import DatasetParams, PcGts
+from omr.steps.symboldetection.evaluator import SymbolDetectionEvaluator, Counts, precision_recall_f1, AccCounts, SymbolDetectionEvaluatorParams
+from omr.steps.step import Step, AlgorithmPredictor
+from omr.steps.algorithm import AlgorithmPredictorSettings, AlgorithmTrainerSettings, AlgorithmTypes, AlgorithmTrainerParams
+from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
 from typing import NamedTuple, List, Optional
 import shutil
 import os
 import pickle
 from prettytable import PrettyTable
 import numpy as np
+
+from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +31,13 @@ class GlobalDataArgs(NamedTuple):
     skip_predict: bool
     skip_eval: bool
     skip_cleanup: bool
-    symbol_detection_params: SymbolDetectionDatasetParams
+    symbol_detection_params: DatasetParams
     symbol_evaluation_params: SymbolDetectionEvaluatorParams
     n_iter: int
     pretrained_model: Optional[str]
     data_augmentation: bool
     output_book: Optional[str]
-    symbol_detection_type: PredictorTypes
+    symbol_detection_type: AlgorithmTypes
     calamari_network: str
     calamari_n_folds: int
     calamari_single_folds: Optional[List[int]]
@@ -73,18 +78,20 @@ def run_single(args: SingleDataArgs):
     if not global_args.skip_train:
         from pagesegmentation.lib.data_augmenter import DefaultAugmenter
         fold_log.info("Starting training")
-        trainer = create_symbol_detection_trainer(
+        trainer = Step.create_trainer(
             global_args.symbol_detection_type,
-            SymbolDetectionTrainerParams(
+            AlgorithmTrainerSettings(
                 dataset_params=args.global_args.symbol_detection_params,
                 train_data=args.train_pcgts_files,
                 validation_data=args.validation_pcgts_files if args.validation_pcgts_files else args.train_pcgts_files,
-                n_iter=global_args.n_iter,
-                display=100,
-                load=args.global_args.pretrained_model,
-                processes=8,
-                output=model_path,
-                page_segmentation_params=SymbolDetectionPCParams(
+                model=Model(MetaId.from_custom_path(model_path, global_args.symbol_detection_type)),
+                params=AlgorithmTrainerParams(
+                    n_iter=global_args.n_iter,
+                    display=100,
+                    load=args.global_args.pretrained_model,
+                    processes=8,
+                ),
+                page_segmentation_params=PageSegmentationTrainerParams(
                     data_augmenter=DefaultAugmenter(contrast=0.1, brightness=10, scale=(-0.1, 0.1, -0.1, 0.1)) if args.global_args.data_augmentation else None,
                 ),
                 calamari_params=CalamariParams(
@@ -95,14 +102,15 @@ def run_single(args: SingleDataArgs):
                 ),
             )
         )
-        trainer.run()
+        trainer.train()
 
     if not global_args.skip_predict:
         fold_log.info("Starting prediction")
-        pred = create_predictor(global_args.symbol_detection_type,
-                                SymbolDetectionPredictorParameters([model_path], args.global_args.symbol_detection_params))
-        full_predictions = list(pred.predict(args.test_pcgts_files))
-        predictions = zip(*[(p.line.operation.music_line.symbols, p.symbols) for p in full_predictions])
+        pred = Step.create_predictor(
+            global_args.symbol_detection_type,
+            AlgorithmPredictorSettings(None, AlgorithmPredictorParams(MetaId.from_custom_path(model_path, global_args.symbol_detection_type))))
+        full_predictions = list(pred.predict([f.page.location for f in args.test_pcgts_files]))
+        predictions = zip(*[(p.line.operation.music_line.symbols, p.symbols) for p in sum([p.music_lines for p in full_predictions], [])])
         with open(prediction_path, 'wb') as f:
             pickle.dump(predictions, f)
 
@@ -161,7 +169,7 @@ def run_single(args: SingleDataArgs):
         fold_log.debug(at.get_string())
 
         at = PrettyTable()
-        at.add_column("Type", ["Note all", "Note GC", "Note NS", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence", "Sequence NC"])
+        at.add_column("Type", ["Note all", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence", "Sequence NC"])
         at.add_column("True", acc_counts[:, AccCounts.TRUE])
         at.add_column("False", acc_counts[:, AccCounts.FALSE])
         at.add_column("Total", acc_counts[:, AccCounts.TOTAL])
@@ -178,9 +186,9 @@ def run_single(args: SingleDataArgs):
         acc_acc = None
         total_diffs = None
 
-    if not global_args.skip_cleanup:
-        fold_log.info("Cleanup")
-        shutil.rmtree(args.model_dir)
+    # if not global_args.skip_cleanup:
+    #    fold_log.info("Cleanup")
+    #    shutil.rmtree(args.model_dir)
 
     return prec_rec_f1, acc_acc, total_diffs
 
@@ -261,7 +269,7 @@ class Experimenter:
         logger.info("\n" + at.get_string())
 
         at = PrettyTable()
-        at.add_column("Type", ["Note all", "Note GC", "Note NS", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence", "Sequence NC"])
+        at.add_column("Type", ["Note all", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence", "Sequence NC"])
         at.add_column("Accuracy [%]", acc_mean[:, 0] * 100)
         at.add_column("+- [%]", acc_std[:, 0] * 100)
 
@@ -304,9 +312,9 @@ if __name__ == "__main__":
     parser.add_argument("--pretrained_model", default=None, type=str)
     parser.add_argument("--data_augmentation", action="store_true")
     parser.add_argument("--output_book", default=None, type=str)
-    parser.add_argument("--type", type=lambda t: PredictorTypes[t],
-                        choices=list(PredictorTypes),
-                        default=PredictorTypes.PIXEL_CLASSIFIER)
+    parser.add_argument("--type", type=lambda t: AlgorithmTypes[t],
+                        choices=list(AlgorithmTypes),
+                        default=AlgorithmTypes.SYMBOLS_PC)
 
     parser.add_argument("--height", type=int, default=80)
     parser.add_argument("--pad", type=int, default=[0], nargs="+")
@@ -346,10 +354,10 @@ if __name__ == "__main__":
         args.skip_predict,
         args.skip_eval,
         not args.cleanup,
-        SymbolDetectionDatasetParams(
+        DatasetParams(
             gt_required=True,
             height=args.height,
-            pad=tuple(args.pad),
+            pad=list(args.pad),
             center=args.center,
             cut_region=args.cut_region,
             dewarp=args.dewarp,

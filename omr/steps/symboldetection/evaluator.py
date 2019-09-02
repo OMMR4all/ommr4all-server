@@ -11,15 +11,13 @@ class PRF2Metrics(IntEnum):
     SYMBOL = 0
     NOTE = 1
     NOTE_ALL = 2
-    NOTE_GC = 3
-    NOTE_NS = 5
-    NOTE_PIS = 6
-    CLEF = 7
-    CLEF_ALL = 8
-    CLEF_PIS = 9
-    ACCID = 10
+    NOTE_PIS = 3
+    CLEF = 4
+    CLEF_ALL = 5
+    CLEF_PIS = 6
+    ACCID = 7
 
-    COUNT = 11
+    COUNT = 8
 
 
 class PRF2Index(IntEnum):
@@ -86,22 +84,15 @@ class Codec:
         self.codec.append(v)
         return len(self.codec) - 1
 
-    def symbols_to_label_sequence(self, symbols: List[Symbol], note_connection_type: bool):
+    def symbols_to_label_sequence(self, symbols: List[MusicSymbol], note_connection_type: bool):
         sequence = []
         for symbol in symbols:
             if symbol.symbol_type == SymbolType.ACCID:
-                a: Accidental = symbol
-                sequence.append((a.symbol_type, a.accidental))
+                sequence.append((symbol.symbol_type, symbol.accid_type))
             elif symbol.symbol_type == SymbolType.CLEF:
-                c: Clef = symbol
-                sequence.append((c.symbol_type, c.clef_type, c.position_in_staff))
-            elif symbol.symbol_type == SymbolType.NEUME:
-                n: Neume = symbol
-                for nc in n.notes:
-                    if not note_connection_type:
-                        sequence.append((n.symbol_type, nc.note_type, nc.position_in_staff))
-                    else:
-                        sequence.append((n.symbol_type, nc.note_type, nc.position_in_staff, nc.graphical_connection))
+                sequence.append((symbol.symbol_type, symbol.clef_type, symbol.position_in_staff))
+            elif symbol.symbol_type == SymbolType.NOTE:
+                sequence.append((symbol.symbol_type, symbol.note_type, symbol.position_in_staff, symbol.graphical_connection))
             else:
                 raise Exception('Unknown symbol type')
 
@@ -135,7 +126,7 @@ class Codec:
                     symbol_type = entry[0]
                     if symbol_type == SymbolType.ACCID:
                         missing_accids += 1
-                    elif symbol_type == SymbolType.NEUME:
+                    elif symbol_type == SymbolType.NOTE:
                         if opcode == 'replace' and pred_end > pred_start + i:
                             # check for wrong connection
                             p = self.codec[pred[pred_start + i]]
@@ -158,7 +149,7 @@ class Codec:
                     symbol_type = entry[0]
                     if symbol_type == SymbolType.ACCID:
                         additional_accid += 1
-                    elif symbol_type == SymbolType.NEUME:
+                    elif symbol_type == SymbolType.NOTE:
                         if opcode == 'replace' and gt_end > gt_start + i:
                             # check for wrong connection
                             p = self.codec[gt[gt_start + i]]
@@ -194,31 +185,13 @@ class SymbolDetectionEvaluator:
         self.params = params if params else SymbolDetectionEvaluatorParams()
         self.codec = Codec()
 
-    def evaluate(self, gt_symbols: List[List[Symbol]], pred_symbols: List[List[Symbol]]):
+    def evaluate(self, gt_symbols: List[List[MusicSymbol]], pred_symbols: List[List[MusicSymbol]]):
 
         min_distance_sqr = self.params.symbol_detected_min_distance ** 2
-        def extract_symbol_coord(s: Symbol) -> List[Tuple[Point, Symbol]]:
-            if s.symbol_type == SymbolType.NEUME:
-                n: Neume = s
-                out = [(nc.coord, nc) for nc in n.notes]
-                out[0][1].neume_start = True
-                out[0][1].graphical_connection = GraphicalConnectionType.GAPED
-                for _, nc in out[1:]:
-                    nc.neume_start = False
-                return out
-            elif s.symbol_type == SymbolType.NOTE_COMPONENT:
-                nc: NoteComponent = s
-                return [(nc.coord, nc)]
-            elif s.symbol_type == SymbolType.CLEF:
-                c: Clef = s
-                return [(c.coord, c)]
-            elif s.symbol_type == SymbolType.ACCID:
-                a: Accidental = s
-                return [(a.coord, a)]
-            else:
-                raise Exception('Unknown symbol type {}'.format(s.symbol_type))
+        def extract_symbol_coord(s: MusicSymbol) -> List[Tuple[Point, MusicSymbol]]:
+            return [(s.coord, s)]
 
-        def extract_coords_of_symbols(symbols: List[Symbol]) -> List[Tuple[Point, Symbol]]:
+        def extract_coords_of_symbols(symbols: List[MusicSymbol]) -> List[Tuple[Point, MusicSymbol]]:
             l = []
             for s in symbols:
                 l += extract_symbol_coord(s)
@@ -226,10 +199,10 @@ class SymbolDetectionEvaluator:
             return l
 
         f_metrics = np.zeros((0, PRF2Metrics.COUNT, PRF2Metrics.COUNT), dtype=float)
-        acc_metrics = np.zeros((0, 6), dtype=float)
+        acc_metrics = np.zeros((0, 4), dtype=float)
         counts = np.zeros((0, 5, Counts.COUNT), dtype=int)
 
-        acc_counts = np.zeros((0, 9, AccCounts.COUNT), dtype=int)
+        acc_counts = np.zeros((0, 7, AccCounts.COUNT), dtype=int)
 
         total_diffs = np.zeros(12, dtype=int)
 
@@ -296,14 +269,8 @@ class SymbolDetectionEvaluator:
             def note_sub_group(lists, prf2metric: PRF2Metrics):
                 l_tp, _, _ = lists
                 if prf2metric == PRF2Metrics.NOTE_ALL:
-                    l_true = [(p, gt) for p, gt in l_tp if p.graphical_connection == gt.graphical_connection and p.neume_start == gt.neume_start]
-                    l_false = [(p, gt) for p, gt in l_tp if p.neume_start != gt.neume_start or gt.graphical_connection != p.graphical_connection]
-                elif prf2metric == PRF2Metrics.NOTE_GC:
                     l_true = [(p, gt) for p, gt in l_tp if p.graphical_connection == gt.graphical_connection]
-                    l_false = [(p, gt) for p, gt in l_tp if p.graphical_connection != gt.graphical_connection]
-                elif prf2metric == PRF2Metrics.NOTE_NS:
-                    l_true = [(p, gt) for p, gt in l_tp if p.neume_start == gt.neume_start]
-                    l_false = [(p, gt) for p, gt in l_tp if p.neume_start != gt.neume_start]
+                    l_false = [(p, gt) for p, gt in l_tp if gt.graphical_connection != p.graphical_connection]
                 elif prf2metric == PRF2Metrics.NOTE_PIS:
                     l_true = [(p, gt) for p, gt in l_tp if p.position_in_staff == gt.position_in_staff]
                     l_false = [(p, gt) for p, gt in l_tp if p.position_in_staff != gt.position_in_staff]
@@ -339,14 +306,12 @@ class SymbolDetectionEvaluator:
                 except ZeroDivisionError:
                     return (true, false, true + false), None, (l_true, l_false, [])
 
-            all_counts, all_metrics, all_ = sub_group([SymbolType.NOTE_COMPONENT, SymbolType.ACCID, SymbolType.CLEF])
-            note_counts, note_metrics, notes = sub_group([SymbolType.NOTE_COMPONENT])
+            all_counts, all_metrics, all_ = sub_group([SymbolType.NOTE, SymbolType.ACCID, SymbolType.CLEF])
+            note_counts, note_metrics, notes = sub_group([SymbolType.NOTE])
             clef_counts, clef_metrics, clefs = sub_group([SymbolType.CLEF])
             accid_counts, accid_metrics, accids = sub_group([SymbolType.ACCID])
 
             note_all_counts, note_all_metrics, note_all = note_sub_group(notes, PRF2Metrics.NOTE_ALL)
-            note_gc_counts, note_gc_metrics, note_gc = note_sub_group(notes, PRF2Metrics.NOTE_GC)
-            note_ns_counts, note_ns_metrics, note_ns = note_sub_group(notes, PRF2Metrics.NOTE_NS)
             note_pis_counts, note_pis_metrics, note_pis = note_sub_group(notes, PRF2Metrics.NOTE_PIS)
 
             clef_all_counts, clef_all_metrics, clefs_all = clef_sub_group(clefs, PRF2Metrics.CLEF_ALL)
@@ -363,8 +328,6 @@ class SymbolDetectionEvaluator:
 
             acc_counts = np.concatenate((acc_counts, [[
                 note_all_counts,
-                note_gc_counts,
-                note_ns_counts,
                 note_pis_counts,
                 clef_all_counts,
                 clef_pis_counts,
@@ -375,8 +338,6 @@ class SymbolDetectionEvaluator:
 
             acc_metrics = np.concatenate((acc_metrics, [[
                 note_all_metrics,
-                note_gc_metrics,
-                note_ns_metrics,
                 note_pis_metrics,
                 clef_all_metrics,
                 clef_pis_metrics,

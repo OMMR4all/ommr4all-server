@@ -39,6 +39,12 @@ class DatabaseBook:
     @staticmethod
     def list_available_book_metas():
         return [b.get_meta() for b in DatabaseBook.list_available()]
+    
+    @staticmethod
+    def list_available_book_metas_for_user(user, flag):
+        def user_access(b):
+            return b.resolve_user_permissions(user).has(flag)
+        return [b.get_meta() for b in DatabaseBook.list_available() if user_access(b)]
 
     @staticmethod
     def list_all_pages_with_lock(locks: List['LockState']) -> List['DatabasePage']:

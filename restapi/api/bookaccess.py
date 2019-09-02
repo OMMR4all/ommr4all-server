@@ -148,22 +148,18 @@ class BooksView(APIView):
 
     def get(self, request, format=None):
         # TODO: sort by in request
-        books = DatabaseBook.list_available_book_metas()
+        books = DatabaseBook.list_available_book_metas_for_user(request.user, DatabaseBookPermissionFlag.READ)
 
         pageIndex = request.query_params.get("pageIndex", 0)
         pageSize = request.query_params.get("pageSize", len(books))  # by default all books
 
         paginatedBooks = books[pageIndex:pageIndex + pageSize]
 
-        def user_access(b):
-            b = DatabaseBook(b)
-            return b.resolve_user_permissions(request.user).has(DatabaseBookPermissionFlag.READ)
-
         return Response({
             'totalPages': len(books),
             'books': sorted([{
                 **book.to_dict(), **{'permissions': DatabaseBook(book.id).resolve_user_permissions(request.user).flags}
-        } for book in paginatedBooks if user_access(book.id)], key=lambda b: b['name'])})
+        } for book in paginatedBooks], key=lambda b: b['name'])})
 
 
 class BookDownloaderView(APIView):
