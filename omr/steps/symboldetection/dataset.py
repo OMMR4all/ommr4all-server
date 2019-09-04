@@ -40,9 +40,9 @@ class SymbolDetectionDataset(Dataset):
         return ImageOperationList(operations)
 
     def __init__(self, pcgts: List[PcGts], params: DatasetParams):
-        params.pad = (0, 40, 0, 80)
+        params.pad = (0, 10, 0, 40)
         params.dewarp = False
-        params.center = True
+        params.center = False
         params.staff_lines_only = True
         params.cut_region = False
         super().__init__(pcgts, params)
@@ -52,11 +52,12 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from omr.dewarping.dummy_dewarper import dewarp
     from imageio import imsave
-    pages = [p for p in DatabaseBook('Graduel').pages()]
+    pages = [p for p in DatabaseBook('Graduel_Part_1').pages()]
+    pages = [DatabaseBook('Graduel_Part_1').page('Graduel_de_leglise_de_Nevers_025')]
     params = DatasetParams(
-        pad=(0, 10, 0, 40),
-        dewarp=True,
-        center=True,
+        pad=[0, 10, 0, 40],
+        dewarp=False,
+        center=False,
         staff_lines_only=True,
         cut_region=False,
     )
@@ -87,7 +88,7 @@ if __name__ == '__main__':
                 print(img.shape, img.dtype, img.min(), img.max())
                 print(mask.shape, mask.dtype, mask.min(), mask.max())
                 ax[i, 0].imshow(img)
-                ax[i, 1].imshow(region)
+                ax[i, 1].imshow(np.minimum(region + mask * 10000, 255))
                 ax[i, 2].imshow(mask)
                 # imsave("/home/wick/line0.jpg", 255 - (mask / mask.max() * 255))
     if not True:

@@ -258,6 +258,7 @@ class DatabaseFile:
                 img.thumbnail(thumbnail_size)
                 img.save(self.local_thumbnail_path())
             elif self.definition.id == 'color_highres_preproc':
+                meta = self.page.meta()
                 preproc = Preprocessing()
                 img = Image.open(self.page.local_file_path('color_original.jpg'))
                 w, h = img.size
@@ -265,6 +266,8 @@ class DatabaseFile:
                 out_h = (out_w * h) // w
                 c_hr = img.resize((out_w, out_h), Image.BILINEAR)
                 c_hr, g_hr, b_hr = preproc.preprocess(c_hr)
+                meta.preprocessing.deskewing_degrees = preproc.deskewed_angle
+                meta.save(self.page)
                 self._save_and_thumbnail(c_hr, 0)
                 self._save_and_thumbnail(g_hr, 1)
                 self._save_and_thumbnail(b_hr, 2)

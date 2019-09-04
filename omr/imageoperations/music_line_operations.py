@@ -240,9 +240,9 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
         radius = max(1, p2i(ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 8)
 
-        def set(coord, label: SymbolLabel):
+        def set(coord, label: SymbolLabel, dx=radius, dy=radius):
             coord = p2i(coord)
-            img[int(coord.y - radius):int(coord.y + radius * 2), int(coord.x - radius): int(coord.x + radius * 2)] = label.value
+            img[int(coord.y - dy):int(coord.y + dy * 2), int(coord.x - dx): int(coord.x + dx * 2)] = label.value
 
         for s in ml.symbols:
             if s.symbol_type == SymbolType.NOTE:
@@ -255,9 +255,9 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
             elif s.symbol_type == SymbolType.CLEF:
                 if s.clef_type == ClefType.F:
-                    set(s.coord, SymbolLabel.CLEF_F)
+                    set(s.coord, SymbolLabel.CLEF_F, dy=4 * radius)
                 else:
-                    set(s.coord, SymbolLabel.CLEF_C)
+                    set(s.coord, SymbolLabel.CLEF_C, dy=4 * radius)
             elif s.symbol_type == SymbolType.ACCID:
                 if s.accid_type == AccidType.NATURAL:
                     set(s.coord, SymbolLabel.ACCID_NATURAL)

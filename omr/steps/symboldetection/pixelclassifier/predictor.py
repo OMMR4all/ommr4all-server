@@ -53,7 +53,7 @@ class PCPredictor(SymbolsPredictor):
         dataset = SymbolDetectionDataset(pcgts_files, self.dataset_params)
         for p in self.predictor.predict(dataset.to_page_segmentation_dataset()):
             m: RegionLineMaskData = p.data.user_data
-            symbols = SingleLinePredictionResult(self.exract_symbols(p.labels, m, dataset), p.data.user_data)
+            symbols = SingleLinePredictionResult(self.exract_symbols(p.probabilities, p.labels, m, dataset), p.data.user_data)
             if False:
                 import matplotlib.pyplot as plt
                 f, ax = plt.subplots(5, 1, sharey='all', sharex='all')
@@ -65,7 +65,9 @@ class PCPredictor(SymbolsPredictor):
                 plt.show()
             yield symbols
 
-    def exract_symbols(self, p: np.ndarray, m: RegionLineMaskData, dataset: SymbolDetectionDataset) -> List[MusicSymbol]:
+    def exract_symbols(self, probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData, dataset: SymbolDetectionDataset) -> List[MusicSymbol]:
+        # n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(((probs[:, :, 0] < 0.5) | (p > 0)).astype(np.uint8))
+        p = (np.argmax(probs[:,:,1:], axis=-1) + 1) * (probs[:,:,0] < 0.8)
         n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
         symbols = []
         sorted_labels = sorted(range(1, n_labels), key=lambda i: (centroids[i, 0], -centroids[i, 1]))
@@ -74,6 +76,8 @@ class PCPredictor(SymbolsPredictor):
             w = stats[i, cv2.CC_STAT_WIDTH]
             h = stats[i, cv2.CC_STAT_HEIGHT]
             a = stats[i, cv2.CC_STAT_AREA]
+            if a <= 4:
+                continue
             y = stats[i, cv2.CC_STAT_TOP]
             x = stats[i, cv2.CC_STAT_LEFT]
             c = Point(x=centroids[i, 0], y=centroids[i, 1])
@@ -122,7 +126,11 @@ class PCPredictor(SymbolsPredictor):
 
         if False:
             import matplotlib.pyplot as plt
-            plt.imshow(render_prediction_labels(centroids_canvas, m.line_image))
+            f, ax = plt.subplots(3, 1, sharex='all', sharey='all')
+            ax[0].imshow(p)
+            ax[1].imshow(render_prediction_labels(centroids_canvas, m.line_image))
+            labels = render_prediction_labels(p)
+            ax[2].imshow(labels)
             plt.show()
 
         return symbols

@@ -169,7 +169,7 @@ class Page:
     def avg_staff_line_distance(self):
         staffs = self.all_music_lines()
         avg = np.mean([v for v in [d.avg_line_distance(default=-1) for d in staffs] if v > 0])
-        return max([5, avg])
+        return max([0.001, avg])
 
     def draw(self, canvas, color=(0, 255, 0), thickness=-1):
         avg = self.avg_staff_line_distance()
@@ -201,3 +201,11 @@ class Page:
 
     def page_to_image_scale(self, p: Union[Coords, Point, float, int], ref: PageScaleReference = PageScaleReference.ORIGINAL):
         return self._scale(p, self.page_scale_size(ref)[1])
+
+    def rotate(self, degrees: float):
+        for block in self.blocks:
+            block.rotate(degrees, origin=(0.5 * self.image_width / self.image_height, 0.5))
+
+    def sort_blocks(self):
+        self.blocks.sort(key=lambda block: block.aabb.top())
+

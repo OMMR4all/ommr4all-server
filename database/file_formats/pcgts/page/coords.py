@@ -14,6 +14,19 @@ class Point:
         else:
             self.p = np.array([x, y])
 
+    def rotate(self, degree, origin):
+        def rotate_point(xy, radians, origin=(0, 0)):
+            x, y = xy
+            offset_x, offset_y = origin
+            adjusted_x, adjusted_y = (x - offset_x), (y - offset_y)
+            cos_rad, sin_rad = np.cos(radians), np.sin(radians)
+            qx = offset_x + cos_rad * adjusted_x + sin_rad * adjusted_y
+            qy = offset_y + -sin_rad * adjusted_x + cos_rad * adjusted_y
+
+            return qx, qy
+
+        self.p = np.array(rotate_point(self.p, degree / 180 * np.pi, origin))
+
     @property
     def x(self):
         return self.p[0]
@@ -136,6 +149,19 @@ class Coords(SerializableType):
 
     def scale(self, factor):
         return Coords(self.points * factor)
+
+    def rotate(self, degree, origin):
+        def rotate_point(xy, radians, origin=(0, 0)):
+            x, y = xy
+            offset_x, offset_y = origin
+            adjusted_x, adjusted_y = (x - offset_x), (y - offset_y)
+            cos_rad, sin_rad = np.cos(radians), np.sin(radians)
+            qx = offset_x + cos_rad * adjusted_x + sin_rad * adjusted_y
+            qy = offset_y + -sin_rad * adjusted_x + cos_rad * adjusted_y
+
+            return qx, qy
+
+        self.points = np.array([rotate_point(p, degree / 180 * np.pi, origin) for p in self.points])
 
     @staticmethod
     def from_string(s):

@@ -4,6 +4,7 @@ from database import DatabasePage
 from database.file_formats.pcgts import *
 from omr.dataset import RegionLineMaskData
 from omr.steps.algorithm import AlgorithmPredictor, AlgorithmPredictorSettings, AlgorithmPredictionResultGenerator, AlgorithmPredictionResult, PredictionCallback
+from shared.pcgtscanvas import PcGtsCanvas
 
 
 class SingleLinePredictionResult(NamedTuple):
@@ -45,12 +46,32 @@ class SymbolsPredictor(AlgorithmPredictor, ABC):
 
     def predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
         pcgts_files = [p.pcgts() for p in pages]
-        page_results = [PredictionResult(pcgts, pcgts.page.location, []) for  pcgts in pcgts_files]
+        page_results = [PredictionResult(pcgts, pcgts.page.location, []) for pcgts in pcgts_files]
         for line_results in self._predict(pcgts_files, callback):
             page_result = [p for p in page_results if p.pcgts == line_results.line.operation.pcgts][0]
             page_result.music_lines.append(line_results)
 
         for page_result in page_results:
+            if False:
+                from .evaluator import SymbolDetectionEvaluator, Codec
+                evaluator = SymbolDetectionEvaluator()
+                canvas = PcGtsCanvas(page_result.music_lines[0].line.operation.page, PageScaleReference.NORMALIZED_X2)
+                for i, ml in enumerate(page_result.music_lines):
+                    canvas.draw(ml.line.operation.music_line.staff_lines)
+                    for s in ml.symbols:
+                        canvas.draw_music_symbol_position_in_line(ml.line.operation.music_line.staff_lines, s, color=(255, 255, 0), thickness=2)
+
+                    for s in ml.line.operation.music_line.symbols:
+                        canvas.draw_music_symbol_position_in_line(ml.line.operation.music_line.staff_lines, s, color=(0,0, 255))
+
+                    c = Codec()
+                    gt = c.symbols_to_label_sequence(ml.line.operation.music_line.symbols, False)
+                    pred = c.symbols_to_label_sequence(ml.symbols, False)
+                    r = c.compute_sequence_diffs(gt, pred)
+                    print(i + 1, r)
+                    print(i + 1, evaluator.evaluate([ml.line.operation.music_line.symbols], [ml.symbols])[-3])
+
+                canvas.show()
             yield page_result
 
     @abstractmethod

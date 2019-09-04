@@ -28,7 +28,7 @@ class Line(Region):
 
         # music line
         self.staff_lines = staff_lines if staff_lines else StaffLines()
-        self.symbols = symbols if symbols else []
+        self.symbols: List[MusicSymbol] = symbols if symbols else []
 
     @staticmethod
     def from_json(d: dict) -> 'Line':
@@ -61,6 +61,14 @@ class Line(Region):
             d['sentence'] = self.sentence.to_json()
 
         return d
+
+    def rotate(self, degree, origin):
+        self.coords.rotate(degree, origin)
+        for sl in self.staff_lines:
+            sl.coords.rotate(degree, origin)
+
+        for s in self.symbols:
+            s.coord.rotate(degree, origin)
 
     def center_y(self):
         if len(self.staff_lines) == 0:

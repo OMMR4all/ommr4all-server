@@ -58,11 +58,11 @@ def precision_recall_f1(tp, fp, fn) -> Tuple[float, float, float]:
 
 
 class SequenceDiffs(NamedTuple):
-    missing_accids: int = 0
     missing_notes: int = 0
-    missing_clefs: int = 0
     wrong_note_connections: int = 0
     wrong_position_in_staff: int = 0
+    missing_clefs: int = 0
+    missing_accids: int = 0
 
     additional_note: int = 0
     add_wrong_note_con: int = 0
@@ -92,7 +92,10 @@ class Codec:
             elif symbol.symbol_type == SymbolType.CLEF:
                 sequence.append((symbol.symbol_type, symbol.clef_type, symbol.position_in_staff))
             elif symbol.symbol_type == SymbolType.NOTE:
-                sequence.append((symbol.symbol_type, symbol.note_type, symbol.position_in_staff, symbol.graphical_connection))
+                if note_connection_type:
+                    sequence.append((symbol.symbol_type, symbol.note_type, symbol.position_in_staff, symbol.graphical_connection))
+                else:
+                    sequence.append((symbol.symbol_type, symbol.note_type, symbol.position_in_staff, True))
             else:
                 raise Exception('Unknown symbol type')
 
@@ -116,6 +119,9 @@ class Codec:
 
         total_errors = 0
         true_positives = 0
+        # print(list(map(self.codec.__getitem__, pred)))
+        # print(list(map(self.codec.__getitem__, gt)))
+        # print(sm.get_opcodes())
         for opcode, pred_start, pred_end, gt_start, gt_end in sm.get_opcodes():
             if opcode == 'equal':
                 true_positives += gt_end - gt_start
@@ -188,15 +194,9 @@ class SymbolDetectionEvaluator:
     def evaluate(self, gt_symbols: List[List[MusicSymbol]], pred_symbols: List[List[MusicSymbol]]):
 
         min_distance_sqr = self.params.symbol_detected_min_distance ** 2
-        def extract_symbol_coord(s: MusicSymbol) -> List[Tuple[Point, MusicSymbol]]:
-            return [(s.coord, s)]
 
         def extract_coords_of_symbols(symbols: List[MusicSymbol]) -> List[Tuple[Point, MusicSymbol]]:
-            l = []
-            for s in symbols:
-                l += extract_symbol_coord(s)
-
-            return l
+            return [(s.coord, s) for s in symbols]
 
         f_metrics = np.zeros((0, PRF2Metrics.COUNT, PRF2Metrics.COUNT), dtype=float)
         acc_metrics = np.zeros((0, 4), dtype=float)

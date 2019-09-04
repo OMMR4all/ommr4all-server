@@ -104,12 +104,14 @@ def run_single(args: SingleDataArgs):
         )
         trainer.train()
 
+    #test_pcgts_files = [DatabaseBook('Graduel_Part_1').page('Graduel_de_leglise_de_Nevers_025').pcgts()]
+    test_pcgts_files = args.test_pcgts_files
     if not global_args.skip_predict:
         fold_log.info("Starting prediction")
         pred = Step.create_predictor(
             global_args.symbol_detection_type,
             AlgorithmPredictorSettings(None, AlgorithmPredictorParams(MetaId.from_custom_path(model_path, global_args.symbol_detection_type))))
-        full_predictions = list(pred.predict([f.page.location for f in args.test_pcgts_files]))
+        full_predictions = list(pred.predict([f.page.location for f in test_pcgts_files]))
         predictions = zip(*[(p.line.operation.music_line.symbols, p.symbols) for p in sum([p.music_lines for p in full_predictions], [])])
         with open(prediction_path, 'wb') as f:
             pickle.dump(predictions, f)

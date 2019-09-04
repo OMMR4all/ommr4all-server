@@ -5,10 +5,11 @@ from omr.steps.preprocessing.deskewer import default_deskewer
 
 
 class Preprocessing:
-    def __init__(self, operation_width=500):
-        self.operation_width = operation_width
+    def __init__(self, operation_max_width=1000):
+        self.operation_max_width = operation_max_width
         self.binarizer = default_binarizer()
         self.deskewer = default_deskewer(self.binarizer)
+        self.deskewed_angle = -1
 
     def binarize(self, color: Image):
         return self.binarizer.binarize(color)
@@ -18,8 +19,8 @@ class Preprocessing:
 
     def preprocess(self, original: Image):
         o_w, o_h = original.size
-        scale = self.operation_width / o_w
-        if self.operation_width < o_w:
+        scale = self.operation_max_width / o_w
+        if self.operation_max_width < o_w:
             working_image = original.resize((int(scale * o_w), int(scale * o_h)), Image.BILINEAR)
         else:
             working_image = original
@@ -27,8 +28,8 @@ class Preprocessing:
         working_bin = self.binarize(working_image)
         working_gray = self.im2gray(working_image)
 
-        angle = self.deskewer.estimate_skew_angle(working_image, working_gray, working_bin)
-        working_image = original.rotate(angle)
+        self.deskewed_angle = self.deskewer.estimate_skew_angle(working_image, working_gray, working_bin)
+        working_image = original.rotate(self.deskewed_angle)
         working_gray = self.im2gray(working_image)
         working_bin = self.binarizer.binarize(working_image)
 

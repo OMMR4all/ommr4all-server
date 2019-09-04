@@ -7,6 +7,7 @@ from mashumaro import DataClassJSONMixin
 class Preprocessing(DataClassJSONMixin):
     auto_line_distance: bool = True
     average_line_distance: int = -1
+    deskewing_degrees: float = 0
 
 
 @dataclass

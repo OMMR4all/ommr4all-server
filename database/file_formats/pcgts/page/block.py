@@ -70,3 +70,8 @@ class Block(Region):
         for line in self.lines:
             current_clef = line.update_note_names(current_clef)
 
+    def rotate(self, degree, origin):
+        for line in self.lines:
+            self.coords.rotate(degree, origin)
+            line.rotate(degree, origin)
+
