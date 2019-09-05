@@ -128,10 +128,10 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                 if self.staff_lines_only:
                     # draw staff lines instead of full area, however add an average line distance to top and bottom
                     avg_d = data.page.page_to_image_scale(ml.avg_line_distance(), data.scale_reference)
-                    top = int(coords[0].points[:, 1].min() - avg_d)
-                    bot = int(coords[-1].points[:, 1].max() + avg_d)
-                    left = int(coords[0].points[:, 0].min())
-                    right = int(coords[0].points[:, 0].max())
+                    top = max(0, int(coords[0].points[:, 1].min() - avg_d))
+                    bot = min(labels.shape[0], int(coords[-1].points[:, 1].max() + avg_d))
+                    left = max(0, int(coords[0].points[:, 0].min()))
+                    right = min(labels.shape[1], int(coords[0].points[:, 0].max()))
                     labels[top:bot, left:right] = i
                 else:
                     data.page.page_to_image_scale(ml.coords, data.scale_reference).draw(labels, i, 0, fill=True)
