@@ -110,6 +110,45 @@ class BookUploadView(APIView):
         return Response()
 
 
+class BooksImportView(APIView):
+    # allow get access to any user, but prevent put
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def post(self, request):
+        import zipfile
+        for type, file in request.FILES.items():
+            logger.debug('Received import of content type {}'.format(file.content_type))
+            try:
+                zf = zipfile.ZipFile(file.file, 'r')
+                files = zf.filelist
+                if len(files) == 0:
+                    return
+
+                base_dir = files[0].filename.split(os.sep)[0]
+                if not all([f.filename.startswith(base_dir + os.sep) for f in files]):
+                    return APIError(status=status.HTTP_400_BAD_REQUEST,
+                                    developerMessage='Invalid zip file, not all names lie in the same subdir "{}"'.format(base_dir),
+                                    userMessage='Invalid zip file. All files must be in a directory named "{}"'.format(base_dir),
+                                    errorCode=ErrorCodes.BOOK_IMPORT_FAILED_INVALID_STRUCTURE,
+                                    ).response()
+
+                book = DatabaseBook(base_dir)
+                if book.exists():
+                    return APIError(status=status.HTTP_400_BAD_REQUEST,
+                                    developerMessage='Book at {} with name already exists'.format(book, book.get_meta().name),
+                                    userMessage='Book {} already exists'.format(book.get_meta().name),
+                                    errorCode=ErrorCodes.BOOK_IMPORT_FAILED_BOOK_EXISTS,
+                                    ).response()
+
+                logger.info("Extracting imported file to {}".format(book.local_path(os.pardir)))
+                zf.extractall(book.local_path(os.pardir))
+
+            except Exception as e:
+                logger.exception(e)
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response()
+
+
 class BooksView(APIView):
     # allow get access to any user, but prevent put
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]

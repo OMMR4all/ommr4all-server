@@ -1,4 +1,6 @@
 from django.urls import path, re_path
+
+from restapi.api.bookaccess import BooksImportView
 from . import views
 from django.http import HttpResponse
 from database import *
@@ -80,5 +82,6 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)$', BookView.as_view()),
 
         # all books
+        path('books/import', BooksImportView.as_view()),
         path('books', BooksView.as_view(), name='books'),
     ] \
