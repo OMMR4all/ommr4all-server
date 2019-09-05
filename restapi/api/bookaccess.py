@@ -190,15 +190,14 @@ class BookDownloaderView(APIView):
         elif type == 'backup.zip':
             s = io.BytesIO()
             zf = zipfile.ZipFile(s, 'w')
-            for page in pages:
-                file_names = ['color_original', 'pcgts', 'page_progress', 'statistics']
-                files = [page.file(f) for f in file_names]
-
+            files_to_ignore = [re.compile(r".*\.zip$")]
+            for root, dirs, files in os.walk(book.local_path()):
                 for file in files:
-                    if not file.exists():
+                    if any([f.match(file) for f in files_to_ignore]):
                         continue
 
-                    zf.write(file.local_path(), os.path.join(page.page, file.filename()))
+                    f = os.path.join(root, file)
+                    zf.write(f, os.path.join(book.book, os.path.relpath(f, book.local_path())))
 
             zf.close()
             s.seek(0)
