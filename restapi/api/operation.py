@@ -108,9 +108,12 @@ class OperationView(APIView):
                 r = OperationView.AlgorithmRequest.from_dict(body)
                 if 'pcgts' in body:
                     page.pcgts_from_dict(body['pcgts'])
+
+                meta = page.book.get_meta()
+                meta.algorithmPredictorParams[at] = r.params
                 return TaskRunnerPrediction(at,
                                             PageSelection.from_page(page),
-                                            Settings(r.params, store_to_pcgts=False)
+                                            Settings(meta.algorithm_predictor_params(at), store_to_pcgts=False)
                                             )
 
         return None

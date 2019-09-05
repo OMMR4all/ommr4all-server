@@ -54,6 +54,7 @@ if __name__ == '__main__':
     from imageio import imsave
     pages = [p for p in DatabaseBook('Graduel_Part_1').pages()]
     pages = [DatabaseBook('Graduel_Part_1').page('Graduel_de_leglise_de_Nevers_025')]
+    pages = [DatabaseBook('Paper_New_York').page('21v')]
     params = DatasetParams(
         pad=[0, 10, 0, 40],
         dewarp=False,

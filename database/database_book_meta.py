@@ -5,7 +5,7 @@ import os
 from database.database_internal import DEFAULT_MODELS
 from datetime import datetime
 from mashumaro import DataClassJSONMixin
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmTypes
 
 
@@ -16,7 +16,20 @@ class DatabaseBookMeta(DataClassJSONMixin):
     created: datetime = field(default_factory=lambda: datetime.now())
     last_opened: str = ''
     notationStyle: str = 'french14'
+    numberOfStaffLines: int = 4
     algorithmPredictorParams: Dict[AlgorithmTypes, AlgorithmPredictorParams] = field(default_factory=lambda: {})
+
+    def algorithm_predictor_params(self, algorithm_type: AlgorithmTypes) -> AlgorithmPredictorParams:
+        params = self.algorithmPredictorParams.get(algorithm_type, AlgorithmPredictorParams())
+
+        # default values
+        min_sl = params.minNumberOfStaffLines if params.minNumberOfStaffLines else self.numberOfStaffLines
+        max_sl = params.maxNumberOfStaffLines if params.maxNumberOfStaffLines else self.numberOfStaffLines
+
+        params.maxNumberOfStaffLines = max(min_sl, max_sl)
+        params.minNumberOfStaffLines = min(min_sl, max_sl)
+
+        return params
 
     def default_models_path(self):
         return os.path.join(DEFAULT_MODELS, self.notationStyle)

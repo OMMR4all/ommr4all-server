@@ -16,6 +16,10 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
     automaticLd: bool = True
     avgLd: int = 10
 
+    # staff line detection
+    minNumberOfStaffLines: Optional[int] = None
+    maxNumberOfStaffLines: Optional[int] = None
+
     # tools
     # layout connected components
     initialLine: Optional['Coords'] = None

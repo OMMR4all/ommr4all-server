@@ -146,9 +146,11 @@ class BookOperationView(APIView):
             if at.value == operation:
                 from restapi.operationworker.taskrunners.taskrunnerprediction import TaskRunnerPrediction, AlgorithmPredictorParams, Settings
                 r = AlgorithmRequest.from_dict(body)
+                meta = book.get_meta()
+                meta.algorithmPredictorParams[at] = r.params
                 return TaskRunnerPrediction(at,
                                             PageSelection.from_params(r.selection, book),
-                                            Settings(r.params, store_to_pcgts=True)
+                                            Settings(meta.algorithm_predictor_params(at), store_to_pcgts=True)
                                             )
         # check if operation is linked to a task
         if operation == 'train_symbols':

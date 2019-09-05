@@ -19,9 +19,6 @@ class StaffLinePredictorParameters(NamedTuple):
     post_processing: PostProcess = PostProcess.BESTFIT
     best_fit_scale = 4.0
 
-    num_staff_lines: int = 4
-    min_num_staff_lines: int = 3
-
 
 class PCPredictionCallback(LineDetectionCallback):
     def __init__(self, callback: LineDetectionPredictorCallback):
@@ -48,8 +45,8 @@ class BasicStaffLinePredictor(StaffLinePredictor):
 
         from linesegmentation.detection import LineDetectionSettings, LineDetection
         self.settings = LineDetectionSettings(
-            min_lines_per_system=params.min_num_staff_lines,
-            line_number=params.num_staff_lines,
+            min_lines_per_system=self.params.minNumberOfStaffLines,
+            line_number=self.params.maxNumberOfStaffLines,
             horizontal_min_length=6,
             line_interpolation=True,
             line_space_height=self.dataset_params.origin_staff_line_distance,

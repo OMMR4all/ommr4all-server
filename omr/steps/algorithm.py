@@ -266,7 +266,7 @@ class AlgorithmMeta(ABC):
 
     @classmethod
     def selected_algorithm_params_for_book(cls, book: Optional[DatabaseBook]) -> Optional[AlgorithmPredictorParams]:
-        return None if not book else book.get_meta().algorithmPredictorParams.get(cls.type(), None)
+        return None if not book else book.get_meta().algorithm_predictor_params(cls.type())
 
     @classmethod
     def selected_model_for_book(cls, book: Optional[DatabaseBook]) -> Optional[Model]:
