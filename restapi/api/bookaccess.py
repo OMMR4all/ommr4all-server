@@ -5,6 +5,7 @@ from django.http import FileResponse
 from database import *
 from database.database_permissions import BookPermissionFlags
 from database.models.permissions import DatabasePermissionFlag
+from restapi.api.auth import RestAPIUser
 from restapi.api.error import APIError, ErrorCodes
 import json
 import logging
@@ -170,7 +171,7 @@ class BooksView(APIView):
                                 ErrorCodes.BOOK_EXISTS
                                 ).response()
 
-            if b.create(DatabaseBookMeta(id=b.book, name=book['name'])):
+            if b.create(DatabaseBookMeta(id=b.book, name=book['name'], creator=RestAPIUser.from_user(request.user))):
                 # creator is administrator of book
                 b.get_or_add_user_permissions(request.user, BookPermissionFlags.full_access_flags())
                 b.get_permissions().write()

@@ -7,6 +7,7 @@ from datetime import datetime
 from mashumaro import DataClassJSONMixin
 from typing import Optional, Dict, Tuple
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmTypes
+from restapi.api.auth import RestAPIUser
 
 
 @dataclass
@@ -14,6 +15,7 @@ class DatabaseBookMeta(DataClassJSONMixin):
     id: str = ''
     name: str = ''
     created: datetime = field(default_factory=lambda: datetime.now())
+    creator: Optional[RestAPIUser] = None
     last_opened: str = ''
     notationStyle: str = 'french14'
     numberOfStaffLines: int = 4
