@@ -1,10 +1,13 @@
 from dataclasses import dataclass, field
 from mashumaro import DataClassDictMixin
 from typing import List, Optional, Tuple
-from database.model import ModelMeta
+from database.model import ModelMeta, ModelsId
 from database.database_book_meta import DatabaseBookMeta
 from ommr4all.settings import BASE_DIR
 import os
+
+from omr.steps.algorithmtypes import AlgorithmTypes
+
 
 @dataclass
 class DefaultModel(DataClassDictMixin):
@@ -26,3 +29,6 @@ class DatabaseAvailableModels(DataClassDictMixin):
     def local_default_model_path_for_style(style: str, sub=''):
         return os.path.join(BASE_DIR, 'internal_storage', 'default_models', style, sub)
 
+    @staticmethod
+    def local_default_models(style: str, algorithm: AlgorithmTypes) -> ModelsId:
+        return ModelsId.from_internal(style, algorithm)

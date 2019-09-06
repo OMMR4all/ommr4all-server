@@ -73,7 +73,7 @@ class Model:
 
         copyied_model = Model(target_model.meta_id, meta=self.meta())
         self._meta = None
-        shutil.rmtree(target_model.path)
+        shutil.rmtree(target_model.path, ignore_errors=True)
         shutil.copytree(self.path, target_model.path)
         copyied_model.save_meta()
 
