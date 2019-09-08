@@ -15,6 +15,8 @@ class ErrorCodes(IntEnum):
 
     # book style related
     BOOK_STYLE_INVALID_REQUEST = 23001
+    BOOK_STYLE_INVALID_NAME = 23002
+    BOOK_STYLE_EXISTS = 23003
 
     # Book related
     BOOK_EXISTS = 41001
