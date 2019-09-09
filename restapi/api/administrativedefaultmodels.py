@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from .auth import require_global_permissions, DatabasePermissionFlag
 from rest_framework.response import Response
+from rest_framework import permissions
 from omr.steps.step import Step
 from omr.steps.algorithmtypes import AlgorithmGroups
 from database.model import ModelMeta, Model, MetaId, ModelsId
@@ -10,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 class AdministrativeDefaultModelsView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
     @require_global_permissions([DatabasePermissionFlag.CHANGE_DEFAULT_MODEL_FOR_BOOK_STYLE])
     def put(self, request, group, style):
         meta = ModelMeta.from_json(request.body)

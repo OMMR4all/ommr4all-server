@@ -1,6 +1,9 @@
 from django.db import models
 from rest_framework import serializers
 
+DEFAULT_BOOK_STYLE = 'french14'
+
+
 class BookStyle(models.Model):
     id = models.CharField(max_length=255, primary_key=True)
     name = models.CharField(max_length=255, unique=True)

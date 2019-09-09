@@ -1,4 +1,4 @@
-from typing import Union, Iterable
+from typing import Union, Iterable, Optional
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -37,9 +37,9 @@ class require_global_permissions(object):
 
 @dataclass
 class RestAPIUser(DataClassDictMixin):
-    username: str
-    firstName: str
-    lastName: str
+    username: Optional[str] = None     # If None, the user is unknown or invalid
+    firstName: Optional[str] = ''
+    lastName: Optional[str] = ''
 
     @staticmethod
     def from_user(user: User):
