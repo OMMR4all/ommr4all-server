@@ -20,7 +20,7 @@ class GlobalPermissions(models.Model):
             (DatabasePermissionFlag.DELETE_BOOK_STYLE.value, 'Delete book style'),
             (DatabasePermissionFlag.EDIT_BOOK_STYLE.value, 'Edit book style'),
             (DatabasePermissionFlag.CHANGE_DEFAULT_MODEL_FOR_BOOK_STYLE.value, 'Change default model for book style'),
-            (DatabasePermissionFlag.TASKS_LIST, 'List tasks'),
-            (DatabasePermissionFlag.TASKS_CANCEL, 'Cancel a running task'),
+            (DatabasePermissionFlag.TASKS_LIST.value, 'List tasks'),
+            (DatabasePermissionFlag.TASKS_CANCEL.value, 'Cancel a running task'),
         ]
 

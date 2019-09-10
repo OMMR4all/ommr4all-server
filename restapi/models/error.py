@@ -7,6 +7,7 @@ from dataclasses import dataclass
 class ErrorCodes(IntEnum):
     # Global
     UNKNOWN_ERROR = 1000
+    INVALID_CREDENTIALS = 1001
 
     CONNECTION_TO_SERVER_TIMED_OUT = 10001
 
