@@ -27,17 +27,17 @@ repos: List[Repo] = [
     ),
     Repo(
         'ommr4all-line-detection',
-        'https://gitlab-ci-token:{}@gitlab2.informatik.uni-wuerzburg.de/OMMR4all/ommr4all-line-detection.git'.format(CI_JOB_TOKEN),
+        'https://github.com/OMMR4all/ommr4all-line-detection.git',
         '762d18b890efee5ddd7d8038ae8981378acf6a6a'
     ),
     Repo(
         'ommr4all-layout-analysis',
-        'https://gitlab-ci-token:{}@gitlab2.informatik.uni-wuerzburg.de/OMMR4all/ommr4all-layout-analysis.git'.format(CI_JOB_TOKEN),
+        'https://github.com/OMMR4all/ommr4all-layout-analysis.git',
         '0783057e13d1891aeb015c29c93247952c000e92',
     ),
     Repo(
-        'page-segmentation',
-        'https://gitlab-ci-token:{}@gitlab2.informatik.uni-wuerzburg.de/ls6/page-segmentation.git'.format(CI_JOB_TOKEN),
+        'ommr4all-page-segmentation',
+        'https://github.com/OMMR4all/ommr4all-page-segmentation.git',
         '1289df8b536395368b044b07d019ce5faebe2ea1',
         fetch=False,
     ),
