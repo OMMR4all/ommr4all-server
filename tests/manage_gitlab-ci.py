@@ -39,7 +39,6 @@ repos: List[Repo] = [
         'ommr4all-page-segmentation',
         'https://github.com/OMMR4all/ommr4all-page-segmentation.git',
         '47102157aa506760f7f19d9c365968a32a435b6e',
-        fetch=False,
     ),
 ]
 
@@ -56,7 +55,6 @@ def main():
     if args.mode == 'setup':
         subprocess.check_call([pip, 'install', 'tensorflow' if not args.gpu else 'tensorflow_gpu'])
         subprocess.check_call([pip, 'install', '-r', 'requirements.txt'])
-        subprocess.check_call([python, 'manage.py', 'migrate'])
 
         with tempfile.TemporaryDirectory() as d:
             for repo, url, hash, fetch in repos:
@@ -72,6 +70,8 @@ def main():
                     subprocess.check_call(['git', 'fetch', 'origin'])
                     subprocess.check_call(['git', 'reset', '--hard', hash])
                 subprocess.check_call([python, 'setup.py', 'install'])
+
+        subprocess.check_call([python, 'manage.py', 'migrate'])
     elif args.mode == 'run':
         subprocess.check_call([python, '-u', 'manage.py', 'test'])
     else:
