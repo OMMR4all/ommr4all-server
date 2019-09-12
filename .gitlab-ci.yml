@@ -1,11 +1,3 @@
-variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-
-cache:
-  paths:
-    - .cache/pip
-    - venv/
-
 before_script:
   - export PYTHONPATH=$PWD
   - virtualenv -p python3.7 venv
