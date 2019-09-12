@@ -1,6 +1,7 @@
 {
-  "id": "internal_storage/default_models/french14/pc_staff_lines",
-  "created": "2019-07-17T08:23:44.741359",
-  "accuracy": 0.9506228625774383,
-  "iters": 5
+  "id": "i/french14/staff_lines_pc/staff_lines_pc",
+  "created": "2019-09-12T13:20:04.673341",
+  "accuracy": 0.9699983596801758,
+  "iters": 999,
+  "style": "french14"
 }

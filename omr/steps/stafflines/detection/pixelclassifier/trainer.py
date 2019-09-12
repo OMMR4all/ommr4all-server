@@ -8,7 +8,7 @@ from database import DatabaseBook
 import logging
 from omr.steps.stafflines.detection.dataset import DatasetParams
 from omr.adapters.pagesegmentation.callback import PCTrainerCallback
-from pagesegmentation.lib.trainer import TrainSettings, Trainer
+from pagesegmentation.lib.trainer import TrainSettings, Trainer, Loss, Monitor
 from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
 from omr.steps.stafflines.detection.pixelclassifier.meta import Meta
 from typing import Optional
@@ -50,10 +50,12 @@ class BasicStaffLinesTrainer(AlgorithmTrainer):
             load=None if not self.params.model_to_load() else self.params.model_to_load().local_file('model'),
             display=self.params.display,
             output_dir=self.settings.model.path,
-            best_model_name='model',
+            model_name='model',
             early_stopping_max_l_rate_drops=self.params.early_stopping_max_keep,
             threads=self.params.processes,
             data_augmentation=False,
+            loss=Loss.CATEGORICAL_CROSSENTROPY,
+            monitor=Monitor.VAL_ACCURACY,
         )
         trainer = Trainer(settings)
         trainer.train(callback=pc_callback)

@@ -2,9 +2,9 @@
   "gt_required": true,
   "pad": [
     0,
-    40,
+    10,
     0,
-    80
+    40
   ],
   "pad_power_of_2": 3,
   "image_input": "region_image",
@@ -18,11 +18,12 @@
   "height": 80,
   "dewarp": false,
   "cut_region": false,
-  "center": true,
+  "center": false,
   "staff_lines_only": true,
   "masks_as_input": false,
   "apply_fcn_pad_power_of_2": 3,
   "apply_fcn_model": null,
   "apply_fcn_height": null,
-  "neume_types_only": false
+  "neume_types_only": false,
+  "lyrics_normalization": "syllables"
 }

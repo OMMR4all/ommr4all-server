@@ -19,5 +19,6 @@
   "apply_fcn_pad_power_of_2": 3,
   "apply_fcn_model": null,
   "apply_fcn_height": null,
-  "neume_types_only": false
+  "neume_types_only": false,
+  "lyrics_normalization": "syllables"
 }
