@@ -71,6 +71,7 @@ def main():
                     subprocess.check_call(['git', 'reset', '--hard', hash])
                 subprocess.check_call([python, 'setup.py', 'install'])
 
+        os.chdir(root_dir)
         subprocess.check_call([python, 'manage.py', 'migrate'])
     elif args.mode == 'run':
         subprocess.check_call([python, '-u', 'manage.py', 'test'])
