@@ -20,9 +20,5 @@ class Meta(AlgorithmMeta):
     def dataset_class() -> Type[Dataset]:
         return None
 
-    @staticmethod
-    def best_model_name() -> str:
-        return "model"
-
 
 Step.register(Meta)

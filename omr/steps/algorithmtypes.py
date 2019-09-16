@@ -8,6 +8,7 @@ class AlgorithmTypes(Enum):
     STAFF_LINES_PC = "staff_lines_pc"
 
     LAYOUT_SIMPLE_BOUNDING_BOXES = "layout_simple_bounding_boxes"
+    LAYOUT_SIMPLE_LYRICS = "layout_simple_lyrics"
     LAYOUT_COMPLEX_STANDARD = "layout_complex_standard"
 
     SYMBOLS_PC = "symbols_pc"
