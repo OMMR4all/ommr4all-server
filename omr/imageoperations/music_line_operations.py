@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 from copy import copy
 from enum import IntEnum
-from omr.dewarping.dummy_dewarper import dewarp, transform
+from omr.dewarping.dummy_dewarper import Dewarper, transform
 import logging
 
 logger = logging.getLogger(__name__)
@@ -139,8 +139,11 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                 i += 1
 
         if self.dewarp:
-            dew_page, dew_labels, dew_symbols = tuple(map(np.array, dewarp([Image.fromarray(image), Image.fromarray(labels), Image.fromarray(marked_symbols)], s, None)))
+            images = [Image.fromarray(image), Image.fromarray(labels), Image.fromarray(marked_symbols)]
+            dewarper = Dewarper(images[0].size, s)
+            dew_page, dew_labels, dew_symbols = tuple(map(np.array, dewarper.dewarp(images, None)))
         else:
+            dewarper = None
             dew_page, dew_labels, dew_symbols = image, labels, marked_symbols
 
         if debug:
@@ -168,10 +171,10 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                         r = self._resize_to_height(cropped.images, coords, rect=cropped.params)
                         if r is not None:  # Invalid resize (probably no staff lines present)
                             img_data.images, r_params = r
-                            img_data.params = (i, cropped.params, r_params, s)
+                            img_data.params = (i, cropped.params, r_params, s, dewarper)
                             out.append(img_data)
                     else:
-                        img_data.params = (i, cropped.params, (0, ), s)
+                        img_data.params = (i, cropped.params, (0, ), s, dewarper)
                         out.append(img_data)
 
                 i += 1
@@ -269,7 +272,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         return img
 
     def local_to_global_pos(self, p: Point, params: Any):
-        i, (t, b, l, r), (top, ), mls = params
+        i, (t, b, l, r), (top, ), mls, dewarper = params
         # default operations
         p = Point(p.x + l, t + p.y - top)
         # dewarp

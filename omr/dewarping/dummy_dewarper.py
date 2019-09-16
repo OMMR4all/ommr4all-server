@@ -126,40 +126,72 @@ def grid_to_mesh(src_grid, dst_grid):
     return mesh
 
 
-def dewarp(images, staves: List[List[Coords]], resamples: List[int] = None):
-    if resamples is None:
-        resamples = [0] * len(images)
+class Dewarper:
+    def __init__(self, shape, staves: List[List[Coords]]):
+        logger.info("Creating dewarper based on {} staves with shape {}".format(len(staves), shape))
+        self.shape = shape
+        self.dst_grid = griddify(shape_to_rect(self.shape), 10, 30)
+        logger.debug("Transforming grid)")
+        self.src_grid = transform_grid(self.dst_grid, staves, self.shape)
+        logger.debug("Creating mesh")
+        self.mesh = grid_to_mesh(self.src_grid, self.dst_grid)
 
-    logger.info("Dewarping {} images based on {} staves".format(len(images), len(staves)))
-    shape = images[0].size
-    dst_grid = griddify(shape_to_rect(shape), 10, 30)
-    logger.debug("Transforming grid)")
-    src_grid = transform_grid(dst_grid, staves, shape)
-    logger.debug("Creating mesh")
-    mesh = grid_to_mesh(src_grid, dst_grid)
-    logger.debug("Transforming images based on mesh")
-    images = [im.transform(im.size, Image.MESH, mesh, res) for im, res in zip(images, resamples)]
-    logger.info("Finished")
-    return images
+    def dewarp(self, images, resamples: List[int] = None):
+        if resamples is None:
+            resamples = [0] * len(images)
+
+        logger.debug("Transforming images based on mesh")
+        out = [im.transform(im.size, Image.MESH, self.mesh, res) for im, res in zip(images, resamples)]
+        logger.info("Finished")
+        return out
+
+    def transform_point(self, p):
+        p = np.asarray(p)
+        for i, row in enumerate(self.src_grid):
+            for j, cell in enumerate(row):
+                if (cell > p).all():
+                    cell_origin = self.src_grid[i - 1, j - 1]
+                    rel = (p - cell_origin) / (cell - cell_origin)
+
+                    target_cell_origin = self.dst_grid[i - 1, j - 1]
+                    target_cell_extend = self.dst_grid[i, j] - target_cell_origin
+
+                    return target_cell_origin + rel * target_cell_extend
+
+        return p
+
+    def transform_points(self, ps):
+        return np.array([self.transform_point(p) for p in ps])
 
 
 if __name__ == '__main__':
     from database import DatabaseBook
     from database.file_formats.pcgts import PageScaleReference
     import matplotlib.pyplot as plt
-    page = DatabaseBook('demo').pages()[0]
+    page = DatabaseBook('Gothic_Test').pages()[0]
     binary = Image.open(page.file('binary_highres_preproc', create_if_not_existing=True).local_path())
     gray = Image.open(page.file('gray_highres_preproc').local_path())
     pcgts = PcGts.from_file(page.file('pcgts', create_if_not_existing=True))
     overlay = np.array(gray)
+
+    points_to_transform = np.array([(100, 50), (200, 50), (300, 50), (400, 50), (600, 50), (800, 50), (100, 100), (200, 150), (300, 200)], dtype=int)
+
     # staffs.draw(overlay)
     images = [binary, gray, Image.fromarray(overlay)]
     f, ax = plt.subplots(2, len(images), True, True)
     for a, l in enumerate(images):
+        l = np.array(l)
+        for p in points_to_transform:
+            l[p[1]-5:p[1]+5, p[0]-5:p[0]+5] = 255
         ax[0, a].imshow(l)
 
-    images = dewarp(images, pcgts.page.all_staves_staff_line_coords(scale=PageScaleReference.HIGHRES))
+    dewarper = Dewarper(images[0].size, pcgts.page.all_staves_staff_line_coords(scale=PageScaleReference.HIGHRES))
+    images = dewarper.dewarp(images)
+    transformed_points = dewarper.transform_points(points_to_transform).astype(int)
     for a, l in enumerate(images):
+        l = np.array(l)
+        for p in transformed_points:
+            l[p[1]-5:p[1]+5, p[0]-5:p[0]+5] = 255
         ax[1, a].imshow(l)
 
     plt.show()

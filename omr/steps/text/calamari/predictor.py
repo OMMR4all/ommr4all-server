@@ -65,7 +65,7 @@ if __name__ == '__main__':
             # DatabaseBook('Graduel_Part_2'),
             # DatabaseBook('Graduel_Part_3'),
         ])
-    book = DatabaseBook('New_York')
+    book = DatabaseBook('Gothic_Test')
     meta = Step.meta(AlgorithmTypes.OCR_CALAMARI)
     # model = meta.newest_model_for_book(book)
     model = Model(MetaId.from_custom_path(BASE_DIR + '/internal_storage/pretrained_models/text_calamari/fraktur_historical', meta.type()))
@@ -73,11 +73,11 @@ if __name__ == '__main__':
         model=model,
     )
     pred = meta.create_predictor(settings)
-    ps: List[PredictionResult] = list(pred.predict(book.pages()))
-    orig = np.array(ps[0].text_lines[0].line.line_image)
-    f, ax = plt.subplots(len(ps), 1)
+    ps: List[PredictionResult] = list(pred.predict(book.pages()[0:3]))
+    f, ax = plt.subplots(max([len(s.text_lines) for s in ps]), len(ps))
     for i, p in enumerate(ps):
-        ax[i].imshow(p.text_lines[0].line.line_image)
-        print("".join([t[0] for t in p.text_lines[0].text]))
+        for j, s in enumerate(p.text_lines):
+            ax[j, i].imshow(s.line.line_image)
+            ax[j, i].title.set_text("".join([t[0] for t in s.text]))
 
     plt.show()
