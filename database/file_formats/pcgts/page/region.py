@@ -10,7 +10,10 @@ class Region:
                  ):
         self.id = id if id else str(uuid4())
         self.coords: Coords = coords if coords else Coords()
-        self.aabb: Rect = self.coords.aabb()
+        self.aabb: Rect = self._compute_aabb()
+
+    def _compute_aabb(self):
+        return self.coords.aabb()
 
     def to_json(self):
         return {

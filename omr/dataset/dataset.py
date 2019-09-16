@@ -147,6 +147,9 @@ class Dataset(ABC):
                 return d.region
 
         def extract_text(data: RegionLineMaskData):
+            if not data.operation.text_line:
+                return None
+
             text = data.operation.text_line.text(with_drop_capital=False)
             if self.params.lyrics_normalization == LyricsNormalization.ONE_STRING:
                 text = text.replace('-', '').replace(' ', '')

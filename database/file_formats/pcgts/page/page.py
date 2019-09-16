@@ -196,6 +196,8 @@ class Page:
             return p.scale(scale)
         elif isinstance(p, Point):
             return p.scale(scale)
+        elif isinstance(p, Iterable):
+            return np.array(p) * scale
         else:
             return p * scale
 

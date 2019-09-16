@@ -34,7 +34,7 @@ class StaffLine:
 
     def update(self):
         self._center_y = np.mean(self.coords.points[:, 1])
-        self._dewarped_y = int(self._center_y)
+        self._dewarped_y = self._center_y
 
     def approximate(self, distance):
         self.coords.approximate(distance)

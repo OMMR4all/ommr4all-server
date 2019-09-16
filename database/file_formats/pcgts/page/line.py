@@ -20,7 +20,6 @@ class Line(Region):
                  symbols: List[MusicSymbol] = None,
                  ):
         # general
-        super().__init__(id, coords)
         self.reconstructed = reconstructed
 
         # text line
@@ -29,6 +28,13 @@ class Line(Region):
         # music line
         self.staff_lines = staff_lines if staff_lines else StaffLines()
         self.symbols: List[MusicSymbol] = symbols if symbols else []
+
+        # init parent
+        super().__init__(id, coords)
+
+    def _compute_aabb(self):
+        aabb = super()._compute_aabb()
+        return aabb.union(self.staff_lines.aabb())
 
     @staticmethod
     def from_json(d: dict) -> 'Line':

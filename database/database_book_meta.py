@@ -7,7 +7,11 @@ from mashumaro import DataClassJSONMixin
 from typing import Optional, Dict
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmTypes
 from restapi.models.auth import RestAPIUser
-from database.models.bookstyles import BookStyle, DEFAULT_BOOK_STYLE
+
+
+def get_default_book_style():
+    from database.models.bookstyles import DEFAULT_BOOK_STYLE
+    return DEFAULT_BOOK_STYLE
 
 
 @dataclass
@@ -17,7 +21,7 @@ class DatabaseBookMeta(DataClassJSONMixin):
     created: datetime = field(default_factory=lambda: datetime.now())
     creator: Optional[RestAPIUser] = None
     last_opened: str = ''
-    notationStyle: str = DEFAULT_BOOK_STYLE
+    notationStyle: str = field(default_factory=lambda: get_default_book_style())
     numberOfStaffLines: int = 4
     algorithmPredictorParams: Dict[AlgorithmTypes, AlgorithmPredictorParams] = field(default_factory=lambda: {})
 
@@ -49,6 +53,7 @@ class DatabaseBookMeta(DataClassJSONMixin):
 
     @staticmethod
     def from_book_json(book: DatabaseBook, json: str):
+        from database.models.bookstyles import BookStyle, DEFAULT_BOOK_STYLE
         meta = DatabaseBookMeta.from_json(json)
         meta.id = book.book
         if len(meta.name) == 0:

@@ -240,6 +240,11 @@ class Rect:
                                 self.origin.p + self.size.p, self.origin.p + (0, self.size.h)]))
 
     def union(self, aabb: 'Rect') -> 'Rect':
+        if aabb.area() == 0:
+            return self
+        elif self.area() == 0:
+            return aabb
+
         top = min(aabb.top(), self.top())
         left = min(aabb.left(), self.left())
         bottom = max(aabb.bottom(), self.bottom())
@@ -265,6 +270,9 @@ class Rect:
 
     def bottom(self):
         return self.origin.y + self.size.h
+
+    def area(self):
+        return self.size.h * self.size.w
 
     @property
     def center(self):

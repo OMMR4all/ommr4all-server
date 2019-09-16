@@ -3,7 +3,7 @@ import numpy as np
 
 from omr.imageoperations import ImageExtractDewarpedStaffLineImages, ImageOperationList, ImageLoadFromPageOperation, \
     ImageOperationData, ImageRescaleToHeightOperation
-from omr.imageoperations.textlineoperations import ImageExtractTextLineImages
+from omr.imageoperations.textlineoperations import ImageExtractTextLineImages, ImageExtractLyricsBasedOnStaffLines
 
 from database.file_formats.pcgts import PcGts, PageScaleReference
 from database.file_formats.pcgts.page.block import BlockType
@@ -22,7 +22,8 @@ class TextDataset(Dataset):
 
         operations = [
             ImageLoadFromPageOperation(invert=True, files=[(params.page_scale_reference.file('binary'), True)]),
-            ImageExtractTextLineImages({BlockType.LYRICS}, params.cut_region, params.pad),
+            # ImageExtractTextLineImages({BlockType.LYRICS}, params.cut_region, params.pad),
+            ImageExtractLyricsBasedOnStaffLines(),
             ImageRescaleToHeightOperation(height=params.height),
         ]
         return ImageOperationList(operations)
@@ -38,7 +39,7 @@ class TextDataset(Dataset):
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from database.database_book import DatabaseBook
-    pages = [p for p in DatabaseBook('Graduel_Fully_Annotated').pages()]
+    pages = [p for p in DatabaseBook('New_York').pages()]
     params = DatasetParams(
         height=60,
         gt_required=True,

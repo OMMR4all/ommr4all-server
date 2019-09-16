@@ -55,3 +55,4 @@ import omr.steps.layout.standard.meta
 import omr.steps.symboldetection.pixelclassifier.meta
 import omr.steps.layout.correction_tools.connectedcomponentsselector.meta
 import omr.steps.text.calamari.meta
+import omr.steps.syllables.syllablesfromtext.meta
