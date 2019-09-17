@@ -13,9 +13,16 @@ class Block(Region):
                  coords: Optional[Coords] = None,
                  lines: Optional[List[Line]] = None,
                  ):
-        super().__init__(id, coords)
         self.block_type = block_type
         self.lines = lines if lines else []
+        super().__init__(id, coords)
+
+    def _compute_aabb(self):
+        aabb = super()._compute_aabb()
+        for l in self.lines:
+            aabb = aabb.union(l.aabb)
+
+        return aabb
 
     @staticmethod
     def from_json(d: dict) -> 'Block':

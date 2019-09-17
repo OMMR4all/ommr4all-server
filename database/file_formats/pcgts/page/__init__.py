@@ -1,4 +1,4 @@
-from .coords import Coords, Point
+from .coords import Coords, Point, Rect, Size
 from .syllable import Syllable, SyllableConnection
 from .sentence import Sentence
 from .block import BlockType, Block

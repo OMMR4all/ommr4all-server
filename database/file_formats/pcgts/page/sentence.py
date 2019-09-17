@@ -35,7 +35,7 @@ class Sentence:
     @staticmethod
     def from_json(json: dict):
         return Sentence(
-            [Syllable.from_json(s) for s in json.get('syllables', [])]
+            [s for s in [Syllable.from_json(s) for s in json.get('syllables', [])] if len(s.text) > 0]
         )
 
     def to_json(self) -> dict:

@@ -1,4 +1,4 @@
-from database.file_formats.pcgts.page import Coords, Point, Block, BlockType, Line
+from database.file_formats.pcgts.page import Coords, Point, Block, BlockType, Line, Rect, Size
 from database.file_formats.pcgts.page import annotations as annotations
 from database.file_formats.pcgts.page.usercomment import UserComments
 from database.file_formats.pcgts.page.readingorder import ReadingOrder
@@ -109,6 +109,13 @@ class Page:
     def music_blocks(self):
         return self.blocks_of_type(BlockType.MUSIC)
 
+    def block_of_line(self, l: Line):
+        for b in self.blocks:
+            if l in b.lines:
+                return b
+
+        return None
+
     def text_blocks(self):
         return [b for b in self.blocks if b.block_type != BlockType.MUSIC]
 
@@ -174,6 +181,19 @@ class Page:
         avg = np.mean([v for v in [d.avg_line_distance(default=-1) for d in staffs] if v > 0])
         return max([0.001, avg])
 
+    def closest_music_line_to_text_line(self, tl: Line):
+        closest = None
+        d = 10000000000
+        for ml in self.all_music_lines():
+            dp = tl.aabb.top() - ml.aabb.top()
+            if dp < 0:
+                continue
+            elif d > dp:
+                d = dp
+                closest = ml
+
+        return closest
+
     def draw(self, canvas, color=(0, 255, 0), thickness=-1):
         avg = self.avg_staff_line_distance()
 
@@ -196,6 +216,10 @@ class Page:
             return p.scale(scale)
         elif isinstance(p, Point):
             return p.scale(scale)
+        elif isinstance(p, Size):
+            return p.scale(scale)
+        elif isinstance(p, Rect):
+            return Rect(self._scale(p.origin, scale), self._scale(p.size, scale))
         elif isinstance(p, Iterable):
             return np.array(p) * scale
         else:

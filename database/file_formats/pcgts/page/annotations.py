@@ -90,3 +90,11 @@ class Annotations:
             if connection.music_region == mr:
                 return connection.text_region
 
+    def get_or_create_connection(self, m: Block, t: Block) -> Connection:
+        for c in self.connections:
+            if c.music_region == m and c.text_region == t:
+                return c
+
+        c = Connection(m, t)
+        self.connections.append(c)
+        return c

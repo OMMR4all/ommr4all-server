@@ -46,7 +46,7 @@ class CalamariPredictor(TextPredictor):
 
     def extract_symbols(self, dataset: TextDataset, p, m: RegionLineMaskData) -> List[Tuple[str, Point]]:
         sentence = [(pos.chars[0].char,
-                     dataset.local_to_global_pos(Point((pos.global_start + pos.global_end) / 2, 40), m.operation.params).x)
+                     dataset.local_to_global_pos(Point((pos.global_start + pos.global_end) / 2, m.operation.text_line.aabb.bottom()), m.operation.params).x)
                     for pos in p.positions]
         return sentence
 
@@ -55,7 +55,9 @@ if __name__ == '__main__':
     from omr.steps.step import Step, AlgorithmTypes
     from ommr4all.settings import BASE_DIR
     import random
+    import cv2
     import matplotlib.pyplot as plt
+    from shared.pcgtscanvas import PcGtsCanvas
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
     random.seed(1)
     np.random.seed(1)
@@ -73,11 +75,11 @@ if __name__ == '__main__':
         model=model,
     )
     pred = meta.create_predictor(settings)
-    ps: List[PredictionResult] = list(pred.predict(book.pages()[0:3]))
-    f, ax = plt.subplots(max([len(s.text_lines) for s in ps]), len(ps))
+    ps: List[PredictionResult] = list(pred.predict(book.pages()[0:1]))
     for i, p in enumerate(ps):
+        canvas = PcGtsCanvas(p.pcgts.page, p.text_lines[0].line.operation.scale_reference)
         for j, s in enumerate(p.text_lines):
-            ax[j, i].imshow(s.line.line_image)
-            ax[j, i].title.set_text("".join([t[0] for t in s.text]))
+            canvas.draw(s)
 
-    plt.show()
+        canvas.show()
+

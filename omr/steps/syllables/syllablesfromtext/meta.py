@@ -5,12 +5,12 @@ from omr.steps.step import Step
 class Meta(AlgorithmMeta):
     @staticmethod
     def type() -> AlgorithmTypes:
-        return AlgorithmTypes.PREPROCESSING
+        return AlgorithmTypes.SYLLABLES_FROM_TEXT
 
     @classmethod
     def predictor(cls) -> Type[AlgorithmPredictor]:
-        from .predictor import PreprocessingPredictor
-        return PreprocessingPredictor
+        from .predictor import SyllablesFromTextPredictor
+        return SyllablesFromTextPredictor
 
     @classmethod
     def trainer(cls) -> Type[AlgorithmTrainer]:

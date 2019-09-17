@@ -145,6 +145,24 @@ class Dewarper:
         logger.info("Finished")
         return out
 
+    def inv_transform_point(self, p):
+        p = np.asarray(p)
+        for i, row in enumerate(self.dst_grid):
+            for j, cell in enumerate(row):
+                if (cell > p).all():
+                    cell_origin = self.dst_grid[i - 1, j - 1]
+                    rel = (p - cell_origin) / (cell - cell_origin)
+
+                    target_cell_origin = self.src_grid[i - 1, j - 1]
+                    target_cell_extend = self.src_grid[i, j] - target_cell_origin
+
+                    return target_cell_origin + rel * target_cell_extend
+
+        return p
+
+    def inv_transform_points(self, ps):
+        return np.array([self.inv_transform_point(p) for p in ps])
+
     def transform_point(self, p):
         p = np.asarray(p)
         for i, row in enumerate(self.src_grid):

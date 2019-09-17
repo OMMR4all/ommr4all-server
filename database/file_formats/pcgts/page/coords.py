@@ -108,13 +108,16 @@ class Size:
         return Size(self.p.astype(dtype))
 
     def round(self, decimals=0, out=None):
-        return Size(np.round(self, decimals, out))
+        return Size(np.round(self.p, decimals, out))
 
     def wh(self):
         return self.w, self.h
 
     def hw(self):
         return self.h, self.w
+
+    def scale(self, scale):
+        return Size(self.p * scale)
 
     def __str__(self):
         return self.to_string()
