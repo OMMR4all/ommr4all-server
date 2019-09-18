@@ -123,7 +123,6 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
                 xpos=r.line.operation.page.image_to_page_scale(x, r.line.operation.scale_reference),
                 syllable=match['s'],
             ) for match, x in zip(out_matches, x_pos)],
-            text_prediction=r,
             text_line=r.line.operation.text_line,
             music_line=r.line.operation.page.closest_music_line_to_text_line(r.line.operation.text_line),
         )

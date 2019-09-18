@@ -7,6 +7,9 @@ from edit_distance import edit_distance
 from difflib import SequenceMatcher
 from dataclasses import dataclass
 
+from omr.experimenter.experimenter import EvaluatorParams
+
+
 class PRF2Metrics(IntEnum):
     SYMBOL = 0
     NOTE = 1
@@ -182,13 +185,9 @@ class Codec:
                              total, total_errors)
 
 
-class SymbolDetectionEvaluatorParams(NamedTuple):
-    symbol_detected_min_distance: int = 5
-
-
 class SymbolDetectionEvaluator:
-    def __init__(self, params: SymbolDetectionEvaluatorParams = None):
-        self.params = params if params else SymbolDetectionEvaluatorParams()
+    def __init__(self, params: EvaluatorParams = None):
+        self.params = params if params else EvaluatorParams()
         self.codec = Codec()
 
     def evaluate(self, gt_symbols: List[List[MusicSymbol]], pred_symbols: List[List[MusicSymbol]]):

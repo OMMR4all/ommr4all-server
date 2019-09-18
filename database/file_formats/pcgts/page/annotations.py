@@ -20,10 +20,14 @@ class SyllableConnector:
 
     @staticmethod
     def from_json(json: dict, mr: Block, tr: Block):
-        return SyllableConnector(
-            tr.syllable_by_id(json['syllableID'], True),
-            mr.note_by_id(json['noteID'], True)
-        )
+        try:
+            return SyllableConnector(
+                tr.syllable_by_id(json['syllableID'], True),
+                mr.note_by_id(json['noteID'], True)
+            )
+        except ValueError as e:
+            logger.exception(e)
+            return None
 
     def to_json(self):
         return {
@@ -54,7 +58,7 @@ class Connection:
 
         return Connection(
             mr, tr,
-            [SyllableConnector.from_json(s, mr, tr) for s in json['syllableConnectors']]
+            [s for s in [SyllableConnector.from_json(s, mr, tr) for s in json['syllableConnectors']] if s]
         )
 
     def to_json(self):

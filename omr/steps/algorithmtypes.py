@@ -16,6 +16,7 @@ class AlgorithmTypes(Enum):
     OCR_CALAMARI = "text_calamari"
 
     SYLLABLES_FROM_TEXT = 'syllables_from_text'
+    SYLLABLES_IN_ORDER = 'syllables_in_order'
 
     # Tools
     LAYOUT_CONNECTED_COMPONENTS_SELECTION = "layout_connected_components_selection"
@@ -41,7 +42,7 @@ class AlgorithmGroups(Enum):
             AlgorithmGroups.LAYOUT: [AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES, AlgorithmTypes.LAYOUT_COMPLEX_STANDARD],
             AlgorithmGroups.SYMBOLS: [AlgorithmTypes.SYMBOLS_PC],
             AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_CALAMARI],
-            AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_FROM_TEXT],
+            AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_FROM_TEXT, AlgorithmTypes.SYLLABLES_IN_ORDER],
             AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION],
         }
 

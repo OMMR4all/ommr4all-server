@@ -27,7 +27,6 @@ class SyllableMatchResult(NamedTuple):
 
 class MatchResult(NamedTuple):
     syllables: List[SyllableMatchResult]
-    text_prediction: TextSingleLinePredictionResult
     text_line: Line
     music_line: Line
 
@@ -53,7 +52,7 @@ class PredictionResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__cla
 
 
 class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=PredictionResultMeta):
-    annotations: List[Annotations]
+    annotations: Annotations
     page_match_result: PageMatchResult
 
     def pcgts(self):
@@ -67,7 +66,7 @@ class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=Predicti
 
     def to_dict(self):
         return {
-            'annotations': [m.to_json() for m in self.annotations],
+            'annotations': self.annotations.to_json(),
             'page': self.ds_page().page,
             'book': self.ds_page().book.book,
         }
@@ -90,18 +89,19 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
 
     def predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
         for pr in self._predict(pages, callback):
+            annotations = Annotations(pr.page())
+            for mr in pr.match_results:
+                self._match_syllables_to_symbols(mr, pr.page(), annotations)
             yield PredictionResult(
                 page_match_result=pr,
-                annotations=[self._match_syllables_to_symbols(mr, pr.page()) for mr in pr.match_results]
+                annotations=annotations,
             )
 
     @abstractmethod
     def _predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> Generator[PageMatchResult, None, None]:
         pass
 
-    def _match_syllables_to_symbols(self, mr: MatchResult, page: Page) -> Annotations:
-        annotations = Annotations(page)
-
+    def _match_syllables_to_symbols(self, mr: MatchResult, page: Page, annotations: Annotations):
         max_d = np.mean([s2.xpos - s1.xpos for s1, s2 in zip(mr.syllables, mr.syllables[1:])])
 
         neumes = [s for s in mr.music_line.symbols if s.symbol_type == SymbolType.NOTE and s.graphical_connection == GraphicalConnectionType.NEUME_START]
@@ -157,4 +157,3 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
         ).syllable_connections.extend(
             sum([[SyllableConnector(s.syllable, n) for s in sn] for n, sn in zip(neumes, syllables_of_neumes)], [])
         )
-        return annotations

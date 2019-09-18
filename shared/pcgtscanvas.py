@@ -28,7 +28,7 @@ class PcGtsCanvas:
         cv2.circle(self.img, tuple(scale(c.p)), self.avg_line_distance // 5, color=tuple(map(int, color)), thickness=thickness)
         return self
 
-    def draw(self, elem: Union[MusicSymbol, StaffLine, Iterable]) -> 'PcGtsCanvas':
+    def draw(self, elem: Union[MusicSymbol, StaffLine, Iterable, Annotations]) -> 'PcGtsCanvas':
         from omr.steps.text.predictor import SingleLinePredictionResult as TextPredictionResult
         from omr.steps.syllables.syllablesfromtext.predictor import MatchResult
         from omr.steps.syllables.predictor import PredictionResult as SyllablesPredictionResult
@@ -54,7 +54,7 @@ class PcGtsCanvas:
                             fontScale=4, color=(255, 0, 0), thickness=2)
         elif isinstance(elem, MatchResult):
             r: MatchResult = elem
-            aabb = scale(r.text_prediction.line.operation.text_line.aabb)
+            aabb = scale(r.text_line.aabb)
             t, b = int(aabb.top()), int(aabb.bottom())
             for syl in r.syllables:
                 pos = int(scale(syl.xpos))

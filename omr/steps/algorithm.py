@@ -3,6 +3,7 @@ from database import DatabaseBook, DatabasePage
 from database.file_formats import PcGts
 from omr.dataset import DatasetCallback, Dataset
 from typing import Optional, List, Type, Union, Generator
+from omr.experimenter.experimenter import Experimenter
 from .algorithmtrainerparams import AlgorithmTrainerSettings, AlgorithmTrainerParams, DatasetParams
 from .algorithmpreditorparams import AlgorithmPredictorSettings, AlgorithmPredictorParams
 from database.model import Models, Model, ModelMeta, MetaId, ModelsId, Storage
@@ -207,6 +208,10 @@ class AlgorithmMeta(ABC):
     @classmethod
     @abstractmethod
     def predictor(cls) -> Type[AlgorithmPredictor]:
+        pass
+
+    @classmethod
+    def experimenter(cls) -> Type[Experimenter]:
         pass
 
     @classmethod
