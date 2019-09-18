@@ -105,12 +105,16 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
         max_d = np.mean([s2.xpos - s1.xpos for s1, s2 in zip(mr.syllables, mr.syllables[1:])])
 
         neumes = [s for s in mr.music_line.symbols if s.symbol_type == SymbolType.NOTE and s.graphical_connection == GraphicalConnectionType.NEUME_START]
+        avg_neume_distance = mr.music_line.avg_neume_distance(None)
+        if avg_neume_distance is None:
+            return
+
         syllables_of_neumes = [[] for _ in neumes]
 
-        def find_closest_neume(pos):
+        def find_closest_neume(pos, search_list=None):
             closest = None
             d = 100000
-            for s in neumes:
+            for s in (search_list if search_list else neumes):
                 dn = abs(pos - s.coord.x)
                 if dn < d or not closest:
                     d = dn
@@ -118,8 +122,45 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
 
             return closest
 
-        for s in mr.syllables:
-            syllables_of_neumes[neumes.index(find_closest_neume(s.xpos))].append(s)
+        def find_closest_syllable(pos):
+            closest = None
+            d = 100000
+            for s in mr.syllables:
+                dn = abs(pos - s.xpos)
+                if dn < d or not closest:
+                    d = dn
+                    closest = s
+
+            return closest
+
+        neumes_of_syllables = [[] for _ in mr.syllables]
+        for n in neumes:
+            neumes_of_syllables[mr.syllables.index(find_closest_syllable(n.coord.x))].append(n)
+
+        for nos, syl in zip(neumes_of_syllables, mr.syllables):
+            if len(nos) == 0:
+                continue
+
+            nos.sort(key=lambda n: n.coord.x)
+
+            neumes_to_keep = [find_closest_neume(syl.xpos, nos)]
+
+            # check how many prev neumes to keep (notes after the following are irrelevant)
+            idx = nos.index(neumes_to_keep[0])
+            for i in reversed(range(0, idx)):
+                n = nos[i]
+                next = nos[i + 1]
+                last_n = mr.music_line.last_note_of_neume(n)
+                if abs(last_n.coord.x - next.coord.x) > avg_neume_distance:
+                    break
+
+                neumes_to_keep.insert(0, n)
+
+            best_n = neumes_to_keep[0]
+            syllables_of_neumes[neumes.index(best_n)].append(syl)
+
+        for unassigned in [s for s in mr.syllables if not any([s in sylls for sylls in syllables_of_neumes])]:
+            syllables_of_neumes[neumes.index(find_closest_neume(unassigned.xpos))].append(unassigned)
 
         for i, (n, sylls) in enumerate(zip(neumes, syllables_of_neumes)):
             if len(sylls) <= 1:
@@ -130,26 +171,36 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
             left = sylls[0]
             right = sylls[-1]
 
-            # check if we can move a syllable to the left or right
-            left_neume = neumes[i - 1] if i > 0 and len(syllables_of_neumes[i - 1]) == 0 else None
-            right_neume = neumes[i + 1] if i < len(neumes) - 1 and len(syllables_of_neumes[i + 1]) == 0 else None
+            def try_move(n_i, direction):
+                if len(syllables_of_neumes[n_i]) == 0:
+                    return n_i
 
-            if left_neume and right_neume:
-                d_left = abs(left_neume.coord.x - left.xpos)
-                d_right = abs(right_neume.coord.x - right.xpos)
-                if d_left > d_right:
-                    left_neume = None
-                else:
-                    right_neume = None
+                try:
+                    next_syllables = syllables_of_neumes[n_i + direction]
+                except IndexError:
+                    return -1
+                if len(next_syllables) == 0:
+                    return n_i
 
-            if left_neume is None and right_neume is None:
-                continue
-            elif left_neume is None:
-                syllables_of_neumes[i + 1].append(right)
-                sylls.remove(right)
-            elif right_neume is None:
-                syllables_of_neumes[i - 1].append(left)
-                sylls.remove(left)
+                return try_move(n_i + direction, direction)
+
+            def move(syll, start, until, direction):
+                if start < until:
+                    cur = syllables_of_neumes[start + 1][0]
+                    move(cur, start + 1, until, direction)
+
+                next = syllables_of_neumes[start + direction]
+                cur = syllables_of_neumes[start]
+                cur.remove(syll)
+                next.append(syll)
+
+            r = try_move(i, +1)
+            if r >= 0:
+                move(right, i, r, +1)
+            else:
+                l = try_move(i, -1)
+                if l >= 0:
+                    move(left, i, r, -1)
 
         annotations.get_or_create_connection(
             page.block_of_line(mr.music_line),

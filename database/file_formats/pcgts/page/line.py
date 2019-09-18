@@ -4,7 +4,8 @@ from .definitions import BlockType
 from .coords import Point
 from .sentence import Sentence
 from .staffline import StaffLines
-from .musicsymbol import MusicSymbol, MusicSymbolPositionInStaff, create_clef, ClefType, SymbolType
+from .musicsymbol import MusicSymbol, MusicSymbolPositionInStaff, create_clef, ClefType, SymbolType, \
+    GraphicalConnectionType
 from uuid import uuid4
 
 
@@ -31,6 +32,8 @@ class Line(Region):
 
         # init parent
         super().__init__(id, coords)
+
+        self.fix_start_of_neumes()
 
     def _compute_aabb(self):
         aabb = super()._compute_aabb()
@@ -95,6 +98,41 @@ class Line(Region):
     def avg_line_distance(self, default=-1):
         return self.staff_lines.avg_line_distance(default)
 
+    def avg_neume_distance(self, default=None):
+        notes = [n for n in self.symbols if n.symbol_type == SymbolType.NOTE]
+        if len(notes) == 0:
+            return default
+
+        notes.sort(key=lambda n: n.coord.x)
+
+        distances = []
+        last = notes[0]
+        for n in notes[1:]:
+            if n.graphical_connection == GraphicalConnectionType.NEUME_START:
+                distances.append(abs(last.coord.x - n.coord.x))
+
+            last = n
+
+        if len(distances) == 0:
+            return default
+
+        return sum(distances) / len(distances)
+
+    def last_note_of_neume(self, note):
+        if len(self.symbols) == 0:
+            return self.symbols
+
+        first = self.symbols.index(note)
+        last = note
+        for s in self.symbols[first:]:
+            if s.symbol_type != SymbolType.NOTE or s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                return last
+            last = s
+
+        return last
+
+
+
     def draw(self, canvas, color=(0, 255, 0), thickness=1, scale=None):
         self.staff_lines.draw(canvas, color, thickness, scale)
 
@@ -114,5 +152,15 @@ class Line(Region):
                 s.update_note_name(current_clef, self.staff_lines)
 
         return current_clef
+
+    def fix_start_of_neumes(self):
+        last_no_note = True
+        for s in self.symbols:
+            if s.symbol_type == SymbolType.NOTE:
+                if last_no_note:
+                    s.graphical_connection = GraphicalConnectionType.NEUME_START
+                last_no_note = False
+            else:
+                last_no_note = True
 
 
