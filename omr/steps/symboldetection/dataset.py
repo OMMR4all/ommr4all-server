@@ -40,43 +40,39 @@ class SymbolDetectionDataset(Dataset):
         return ImageOperationList(operations)
 
     def __init__(self, pcgts: List[PcGts], params: DatasetParams):
-        params.pad = (0, 10, 0, 40)
-        params.dewarp = False
-        params.center = False
-        params.staff_lines_only = True
-        params.cut_region = False
         super().__init__(pcgts, params)
 
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
-    from omr.dewarping.dummy_dewarper import dewarp
     from imageio import imsave
-    pages = [p for p in DatabaseBook('Graduel_Part_1').pages()]
-    pages = [DatabaseBook('Graduel_Part_1').page('Graduel_de_leglise_de_Nevers_025')]
-    pages = [DatabaseBook('Paper_New_York').page('21v')]
+    from omr.steps.algorithmtypes import AlgorithmTypes
+    pages = [p for p in DatabaseBook('Graduel_Fully_Annotated').pages()]
+    # pages = [DatabaseBook('Graduel_Part_1').page('Graduel_de_leglise_de_Nevers_025')]
+    pages = [DatabaseBook('New_York').page('21v')]
     params = DatasetParams(
         pad=[0, 10, 0, 40],
-        dewarp=False,
-        center=False,
+        dewarp=True,
+        center=True,
         staff_lines_only=True,
         cut_region=False,
     )
 
     print(params.to_json())
 
-    if not True:
-        pages = pages[0:5]
-        f, ax = plt.subplots(len(pages), 9, sharex='all', sharey='all')
+    at = AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE
+
+    if at == AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE:
+        f, ax = plt.subplots(9, max(2, len(pages)), sharex='all', sharey='all')
         for i, p in enumerate(pages):
             pcgts = PcGts.from_file(p.file('pcgts'))
             dataset = SymbolDetectionDataset([pcgts], params)
-            calamari_dataset = dataset.to_music_line_calamari_dataset()
-            for a, (sample, out) in enumerate(zip(calamari_dataset.samples(), dataset.marked_symbols())):
+            calamari_dataset = dataset.to_calamari_dataset(train=True)
+            for a, (sample, out) in enumerate(zip(calamari_dataset.samples(), dataset.load())):
                 img, region, mask = out.line_image, out.region, out.mask
-                img = sample['image']
-                ax[i, a].imshow(img)
-    if True:
+                img = sample['image'].transpose()
+                ax[a, i].imshow(img)
+    elif at == AlgorithmTypes.SYMBOLS_PC:
         page = pages[0]
         pcgts = PcGts.from_file(page.file('pcgts'))
         dataset = SymbolDetectionDataset([pcgts], params)
@@ -91,22 +87,5 @@ if __name__ == '__main__':
                 ax[i, 0].imshow(img)
                 ax[i, 1].imshow(np.minimum(region + mask * 10000, 255))
                 ax[i, 2].imshow(mask)
-                # imsave("/home/wick/line0.jpg", 255 - (mask / mask.max() * 255))
-    if not True:
-        page = pages[0]
-        pcgts = PcGts.from_file(page.file('pcgts'))
-        dataset = SymbolDetectionDataset([pcgts], params)
-        calamari_dataset = dataset.to_music_line_calamari_dataset()
-        f, ax = plt.subplots(len(calamari_dataset.samples()), 3, sharex='all', sharey='all')
-        for i, (sample, out) in enumerate(zip(calamari_dataset.samples(), dataset.marked_symbols())):
-            img, region, mask = out.line_image, out.region, out.mask
-            # img = sample['image'][:,:,1:4].transpose([1,0,2])
-            if np.min(img.shape) > 0:
-                print(img.shape, img.dtype, img.min(), img.max())
-                ax[i, 0].imshow(img)
-                ax[i, 1].imshow(sample['image'][:,:].transpose([1, 0]))
-                ax[i, 2].imshow(mask)
-                ax[i, 1].set_title(sample['text'])
-                # imsave("/home/wick/line0.jpg", 255 - (mask / mask.max() * 255))
 
     plt.show()

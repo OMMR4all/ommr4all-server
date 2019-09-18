@@ -12,6 +12,7 @@ class AlgorithmTypes(Enum):
     LAYOUT_COMPLEX_STANDARD = "layout_complex_standard"
 
     SYMBOLS_PC = "symbols_pc"
+    SYMBOLS_SEQUENCE_TO_SEQUENCE = 'symbols_sequence_to_sequence'
 
     OCR_CALAMARI = "text_calamari"
 
@@ -40,7 +41,7 @@ class AlgorithmGroups(Enum):
             AlgorithmGroups.PREPROCESSING: [AlgorithmTypes.PREPROCESSING, ],
             AlgorithmGroups.STAFF_LINES: [AlgorithmTypes.STAFF_LINES_PC, ],
             AlgorithmGroups.LAYOUT: [AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES, AlgorithmTypes.LAYOUT_COMPLEX_STANDARD],
-            AlgorithmGroups.SYMBOLS: [AlgorithmTypes.SYMBOLS_PC],
+            AlgorithmGroups.SYMBOLS: [AlgorithmTypes.SYMBOLS_PC, AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE],
             AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_CALAMARI],
             AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_FROM_TEXT, AlgorithmTypes.SYLLABLES_IN_ORDER],
             AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION],

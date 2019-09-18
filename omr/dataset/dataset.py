@@ -82,6 +82,16 @@ class DatasetParams(DataClassJSONMixin):
     # text
     lyrics_normalization: LyricsNormalization = LyricsNormalization.SYLLABLES
 
+    def mix_default(self, default_params: 'DatasetParams'):
+        for key, value in default_params.to_dict().items():
+            if getattr(self, key, None) is None:
+                setattr(self, key, getattr(default_params, key))
+            try:
+                if getattr(self, key, -1) < 0:
+                    setattr(self, key, getattr(default_params, key))
+            except TypeError:
+                pass
+
 
 class Dataset(ABC):
     @staticmethod

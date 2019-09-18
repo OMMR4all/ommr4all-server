@@ -146,7 +146,6 @@ class Experimenter(ABC):
                     validation_data=args.validation_pcgts_files if args.validation_pcgts_files else args.train_pcgts_files,
                     model=Model(MetaId.from_custom_path(model_path, global_args.algorithm_type)),
                     params=AlgorithmTrainerParams(
-                        l_rate=1e-4,
                         n_iter=global_args.n_iter,
                         display=100,
                         load=args.global_args.pretrained_model,

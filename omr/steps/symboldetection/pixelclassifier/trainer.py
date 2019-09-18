@@ -1,4 +1,7 @@
 import os
+
+from omr.dataset import DatasetParams
+
 if __name__ == '__main__':
     import django
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
@@ -30,6 +33,20 @@ class PCTrainer(AlgorithmTrainer):
             early_stopping_max_keep=5,
             processes=1,
         )
+
+    @staticmethod
+    def default_dataset_params() -> DatasetParams:
+        return DatasetParams(
+            pad=[0, 10, 0, 40],
+            dewarp=False,
+            center=False,
+            staff_lines_only=True,
+            cut_region=False,
+        )
+
+    @staticmethod
+    def force_dataset_params(params: DatasetParams):
+        params.pad_power_of_2 = True
 
     def __init__(self, settings: AlgorithmTrainerSettings):
         super().__init__(settings)

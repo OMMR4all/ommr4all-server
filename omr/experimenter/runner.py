@@ -34,7 +34,7 @@ if __name__ == "__main__":
     parser.add_argument("--skip_eval", action="store_true")
     parser.add_argument("--cleanup", action="store_true", default=False)
     parser.add_argument("--n_train", default=-1, type=int)
-    parser.add_argument("--n_iter", default=10000, type=int)
+    parser.add_argument("--n_iter", default=-1, type=int)
     parser.add_argument("--val_amount", default=0.2, type=float)
     parser.add_argument("--pretrained_model", default=None, type=str)
     parser.add_argument("--data_augmentation", action="store_true")

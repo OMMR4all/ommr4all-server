@@ -214,16 +214,17 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         bot_to_add = pre_out_height - top_to_add - height
 
         def single(t: ImageData) -> ImageData:
+            fill_value = t.image.mean()
             out = copy(t)
             if top_to_add < 0:
                 out.image = out.image[-top_to_add:, :]
             elif top_to_add > 0:
-                out.image = np.vstack((np.zeros((top_to_add, width), dtype=out.image.dtype), out.image))
+                out.image = np.vstack((np.full((top_to_add, width), fill_value, dtype=out.image.dtype), out.image))
 
             if bot_to_add < 0:
                 out.image = out.image[:bot_to_add, :]
             elif bot_to_add > 0:
-                out.image = np.vstack((out.image, np.zeros((bot_to_add, width), dtype=out.image.dtype)))
+                out.image = np.vstack((out.image, np.full((bot_to_add, width), fill_value, dtype=out.image.dtype)))
 
             if out.image.shape[0] != pre_out_height:
                 raise Exception('Shape mismatch: {} != {}'.format(out.image.shape[0], pre_out_height))

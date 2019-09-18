@@ -63,6 +63,14 @@ class AlgorithmTrainer(ABC):
     def default_params() -> AlgorithmTrainerParams:
         pass
 
+    @staticmethod
+    def default_dataset_params() -> DatasetParams:
+        return DatasetParams()
+
+    @staticmethod
+    def force_dataset_params(params: DatasetParams):
+        pass
+
     def __init__(self, settings: AlgorithmTrainerSettings):
         super().__init__()
         self.settings: AlgorithmTrainerSettings = settings
@@ -70,6 +78,9 @@ class AlgorithmTrainer(ABC):
             self.settings.params = self.__class__.default_params()
         else:
             self.settings.params.mix_default(self.__class__.default_params())
+
+        self.settings.dataset_params.mix_default(self.__class__.default_dataset_params())
+        self.__class__.force_dataset_params(self.settings.dataset_params)
 
         self.params: AlgorithmTrainerParams = self.settings.params
         self.train_dataset = self.meta().dataset_class()(self.settings.train_data, self.settings.dataset_params)
