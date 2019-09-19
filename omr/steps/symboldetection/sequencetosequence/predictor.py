@@ -1,81 +1,71 @@
-from calamari_ocr.ocr.predictor import Predictor, MultiPredictor
+from calamari_ocr.ocr.predictor import MultiPredictor
 from calamari_ocr.ocr.voting import voter_from_proto
-from calamari_ocr.proto import VoterParams, Predictions
-from typing import List
+from calamari_ocr.proto import VoterParams
+from typing import List, Optional, Generator
 
+from database.file_formats.pcgts import MusicSymbol, Point
 from database.file_formats.performance.pageprogress import Locks
-from omr.dataset.datastructs import CalamariSequence
+from omr.dataset.datastructs import CalamariSequence, RegionLineMaskData
 from database.file_formats import PcGts
 from database import DatabaseBook
-from omr.symboldetection.predictor import SymbolDetectionPredictor, SymbolDetectionPredictorParameters, \
-    SymbolDetectionDataset, PredictionType, SymbolDetectionDatasetParams, \
-    RegionLineMaskData, Symbol, PredictionResult, Point
 import numpy as np
 from calamari_ocr.utils import glob_all
 
+from omr.steps.symboldetection.dataset import SymbolDetectionDataset
+from omr.steps.symboldetection.predictor import SymbolsPredictor, AlgorithmPredictorSettings, PredictionCallback, \
+    SingleLinePredictionResult, PredictionResult
+from omr.steps.symboldetection.sequencetosequence.meta import Meta
 
-class OMRPredictor(SymbolDetectionPredictor):
-    def __init__(self, params: SymbolDetectionPredictorParameters):
-        super().__init__(params)
-        self.predictor = MultiPredictor(glob_all([s + '/omr_best*.ckpt.json' for s in params.checkpoints]))
+
+class OMRPredictor(SymbolsPredictor):
+    @staticmethod
+    def meta() -> Meta.__class__:
+        return Meta
+
+    def __init__(self, settings: AlgorithmPredictorSettings):
+        super().__init__(settings)
+        self.predictor = MultiPredictor(glob_all([s + '/omr_best*.ckpt.json' for s in [settings.model.path]]))
         self.height = self.predictor.predictors[0].network_params.features
         voter_params = VoterParams()
         voter_params.type = VoterParams.CONFIDENCE_VOTER_DEFAULT_CTC
         self.voter = voter_from_proto(voter_params)
 
-    def _predict(self, dataset: SymbolDetectionDataset) -> PredictionType:
-        for marked_symbols, (r, sample) in zip(dataset.marked_symbols(), self.predictor.predict_dataset(dataset.to_music_line_calamari_dataset())):
+    def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[SingleLinePredictionResult, None, None]:
+        dataset = SymbolDetectionDataset(pcgts_files, self.dataset_params)
+        for marked_symbols, (r, sample) in zip(dataset.load(callback), self.predictor.predict_dataset(dataset.to_calamari_dataset())):
             prediction = self.voter.vote_prediction_result(r)
-            yield PredictionResult(self.extract_symbols(prediction, marked_symbols), marked_symbols)
+            yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, marked_symbols), marked_symbols)
 
-    def extract_symbols(self, p, m: RegionLineMaskData) -> List[Symbol]:
+    def extract_symbols(self, dataset, p, m: RegionLineMaskData) -> List[MusicSymbol]:
         sentence = [(pos.chars[0].char,
-                     self.dataset.line_and_mask_operations.local_to_global_pos(Point((pos.global_start + pos.global_end) / 2, 40), m.operation.params).x)
+                     m.operation.page.image_to_page_scale(
+                         dataset.local_to_global_pos(Point((pos.global_start + pos.global_end) / 2, 40), m.operation.params).x,
+                         m.operation.scale_reference
+                     ))
                     for pos in p.positions]
-        return CalamariSequence.to_symbols(sentence, m.operation.music_line.staff_lines)
+        return CalamariSequence.to_symbols(dataset.params.calamari_codec, sentence, m.operation.music_line.staff_lines)
 
 
 if __name__ == '__main__':
     import random
-    from database.file_formats.pcgts.page.musicregion.musicline import Neume, SymbolType, GraphicalConnectionType
-    import matplotlib.pyplot as plt
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
+    from shared.pcgtscanvas import PcGtsCanvas, PageScaleReference
     random.seed(1)
     np.random.seed(1)
+    b = DatabaseBook('Graduel_Fully_Annotated')
     train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True), LockState(Locks.LAYOUT, True)], True, [
         DatabaseBook('Graduel_Part_1'),
         DatabaseBook('Graduel_Part_2'),
         DatabaseBook('Graduel_Part_3'),
     ])
-    params = SymbolDetectionDatasetParams(
-        gt_required=True,
-        height=136,
-        dewarp=True,
-        cut_region=False,
-        pad=(0, 10, 0, 20),
-        center=True,
-        staff_lines_only=True,
-    )
-    pred = OMRPredictor(SymbolDetectionPredictorParameters(
-        #checkpoints=['models_out/all_s2s/symbol_detection_0/best'],
-        #checkpoints=['storage/Graduel_Fully_Annotated/omr_models/'],
-        checkpoints=['calamari_models_out/pretraining/net_cnn=40:3x3,pool=2x2,cnn=60:3x3,pool=1x2,cnn=80:3x3,pool=1x2,cnn=100:3x3,lstm=200,dropout=0.5/h136_folds0_center1_dewarp1/symbol_detection_0/best'],
-        symbol_detection_params=params,
+    pred = OMRPredictor(AlgorithmPredictorSettings(
+        model=Meta.best_model_for_book(b),
     ))
-    ps = list(pred.predict(val_pcgts[7:8]))
-    orig = np.array(ps[0].line.operation.page_image)
+    ps = list(pred.predict([p.page.location for p in val_pcgts[7:8]]))
     for p in ps:
-        for s in p.symbols:
-            if s.symbol_type == SymbolType.NEUME:
-                n: Neume = s
-                for i, nc in enumerate(n.notes):
-                    c = nc.coord.round().astype(int)
-                    t, l = c.y, c.x
-                    orig[t - 2:t + 2, l-2:l+2] = 255 * (i != 0) if nc.graphical_connection == GraphicalConnectionType.LOOPED else 250
-            else:
-                c = s.coord.round().astype(int)
-                t, l = c.y, c.x
-                orig[t - 2:t + 2, l-2:l+2] = 0
+        p: PredictionResult = p
+        canvas = PcGtsCanvas(p.pcgts.page, PageScaleReference.NORMALIZED_X2)
+        for sp in p.music_lines:
+            canvas.draw(sp.symbols)
 
-    plt.imshow(orig)
-    plt.show()
+        canvas.show()

@@ -5,7 +5,7 @@ import cv2
 
 from database.file_formats.pcgts import MusicSymbol, StaffLine, Page, PageScaleReference, StaffLines, SymbolType, \
     GraphicalConnectionType, Rect
-from database.file_formats.pcgts.page import Annotations
+from database.file_formats.pcgts.page import Annotations, ClefType
 
 
 class PcGtsCanvas:
@@ -39,7 +39,7 @@ class PcGtsCanvas:
             return np.round(self.page.page_to_image_scale(x, self.scale_reference)).astype(int)
 
         if isinstance(elem, MusicSymbol):
-            cv2.circle(self.img, tuple(scale(elem.coord.p)), self.avg_line_distance // 8, color=(255, 0, 0), thickness=-1)
+            cv2.circle(self.img, tuple(scale(elem.coord.p)), self.avg_line_distance // 8, color=self._color_for_music_symbol(elem), thickness=-1)
         elif isinstance(elem, StaffLine):
             sl: StaffLine = elem
             sl.draw(self.img, thickness=self.avg_line_distance // 10, scale=scale)
@@ -79,6 +79,26 @@ class PcGtsCanvas:
                 self.draw(e)
 
         return self
+
+    def _color_for_music_symbol(self, ms: MusicSymbol):
+        if ms.symbol_type == SymbolType.CLEF:
+            if ms.clef_type == ClefType.C:
+                return 255, 50, 50
+            elif ms.clef_type == ClefType.F:
+                return 160, 0, 0
+
+        elif ms.symbol_type == SymbolType.NOTE:
+            if ms.graphical_connection == GraphicalConnectionType.NEUME_START:
+                return 0, 100, 255
+            elif ms.graphical_connection == GraphicalConnectionType.LOOPED:
+                return 0, 0, 255
+            elif ms.graphical_connection == GraphicalConnectionType.GAPED:
+                return 100, 0, 255
+
+        elif ms.symbol_type == SymbolType.ACCID:
+            return 0, 255, 0
+
+        return 255, 255, 255
 
     def show(self):
         import matplotlib.pyplot as plt

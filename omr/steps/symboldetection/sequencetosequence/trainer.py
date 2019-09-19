@@ -1,4 +1,7 @@
 import os
+
+from omr.dataset.datastructs import CalamariCodec
+
 if __name__ == '__main__':
     import django
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
@@ -49,6 +52,7 @@ class OMRTrainer(AlgorithmTrainer):
         params.center = True
         params.staff_lines_only = True
         params.pad_power_of_2 = False
+        params.calamari_codec = CalamariCodec()
 
     def __init__(self, params: AlgorithmTrainerSettings):
         super().__init__(params)
@@ -125,7 +129,7 @@ class OMRTrainer(AlgorithmTrainer):
                 checkpoint_params=params,
                 dataset=train_dataset,
                 validation_dataset=val_dataset,
-                n_augmentations=0,
+                n_augmentations=self.settings.page_segmentation_params.data_augmentation * 10,
                 data_augmenter=SimpleDataAugmenter(),
                 weights=self.params.load,
                 preload_training=True,

@@ -297,8 +297,8 @@ class SymbolDetectionEvaluator:
 
             def accid_sub_group(lists, prf2metric: PRF2Metrics):
                 l_tp, _, _ = lists
-                l_true = [(p, gt) for p, gt in l_tp if gt.accidental == p.accidental]
-                l_false = [(p, gt) for p, gt in l_tp if gt.accidental != p.accidental]
+                l_true = [(p, gt) for p, gt in l_tp if gt.accid_type == p.accid_type]
+                l_false = [(p, gt) for p, gt in l_tp if gt.accid_type != p.accid_type]
                 true, false = tuple(list(map(len, (l_true, l_false))))
                 try:
                     return (true, false, true + false), true / (false + true), (l_true, l_false, [])

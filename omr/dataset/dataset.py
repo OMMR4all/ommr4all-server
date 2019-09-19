@@ -5,6 +5,8 @@ from typing import List, Tuple, Generator, Union, Optional, Any
 from omr.dataset import RegionLineMaskData
 from tqdm import tqdm
 import logging
+
+from omr.dataset.datastructs import CalamariCodec
 from omr.imageoperations import ImageOperationList, ImageOperationData
 from omr.dewarping.dummy_dewarper import NoStaffLinesAvailable, NoStaffsAvailable
 from dataclasses import dataclass
@@ -78,6 +80,7 @@ class DatasetParams(DataClassJSONMixin):
     apply_fcn_model: Optional[str] = None
     apply_fcn_height: Optional[int] = None
     neume_types_only: bool = False
+    calamari_codec: Optional[CalamariCodec] = None
 
     # text
     lyrics_normalization: LyricsNormalization = LyricsNormalization.SYLLABLES
@@ -141,9 +144,9 @@ class Dataset(ABC):
 
         images = [get_input_image(d).astype(np.uint8) for d in marked_symbols]
         if self.params.neume_types_only:
-            gts = [d.calamari_sequence().calamari_neume_types_str for d in marked_symbols]
+            gts = [d.calamari_sequence(self.params.calamari_codec).calamari_neume_types_str for d in marked_symbols]
         else:
-            gts = [d.calamari_sequence().calamari_str for d in marked_symbols]
+            gts = [d.calamari_sequence(self.params.calamari_codec).calamari_str for d in marked_symbols]
         return RawDataSet(DataSetMode.TRAIN if train else DataSetMode.PREDICT, images=images, texts=gts)
 
     def to_text_line_calamari_dataset(self, train=False, callback: Optional[DatasetCallback] = None):

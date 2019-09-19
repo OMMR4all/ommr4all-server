@@ -1,18 +1,15 @@
-from database.file_formats.pcgts import PcGts, PageScaleReference, BlockType
+from database.file_formats.pcgts import PcGts, PageScaleReference
 from typing import List
-from database import DatabaseBook
-import numpy as np
 
-from omr.imageoperations import ImageExtractDewarpedStaffLineImages, ImageOperationList, ImageLoadFromPageOperation, \
-    ImageRescaleToHeightOperation, ImagePadToPowerOf2, ImageDrawRegions, ImageApplyFCN
+from omr.imageoperations import ImageOperationList
 
-from omr.dataset import DatasetParams, Dataset, ImageInput
+from omr.dataset import DatasetParams, Dataset
 
 import logging
 logger = logging.getLogger(__name__)
 
 
-class SymbolDetectionDataset(Dataset):
+class LayoutDetectionDataset(Dataset):
     @staticmethod
     def create_image_operation_list(params: DatasetParams) -> ImageOperationList:
         return ImageOperationList([])

@@ -2,9 +2,7 @@ from abc import abstractmethod
 from typing import List, Generator, NamedTuple, Dict, Optional
 from database.file_formats.pcgts import *
 from database import DatabasePage
-from omr.steps.symboldetection.dataset import SymbolDetectionDataset
-from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorParams, AlgorithmPredictorSettings, AlgorithmPredictionResult, AlgorithmPredictionResultGenerator
-from database.file_formats.pcgts import PageScaleReference
+from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorSettings, AlgorithmPredictionResult, AlgorithmPredictionResultGenerator
 import logging
 
 logger = logging.getLogger(__name__)
