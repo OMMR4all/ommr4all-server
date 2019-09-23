@@ -4,6 +4,7 @@ from database.database_book_meta import DatabaseBookMeta
 from database.file_formats import PcGts
 from omr.dataset import DatasetParams
 from omr.steps.algorithmtypes import AlgorithmTypes
+from copy import deepcopy
 
 if __name__ == '__main__':
     import django
@@ -28,7 +29,14 @@ logger = logging.getLogger(__name__)
 
 
 class EvaluatorParams(NamedTuple):
-    symbol_detected_min_distance: int = 5
+    debug: bool = False
+
+    symbol_detected_min_distance: int = 0.005
+
+    line_hit_overlap_threshold: float = 0.5
+    staff_n_lines_threshold: int = 2
+    staff_line_found_distance: int = 3
+
 
 
 class GlobalDataArgs(NamedTuple):
@@ -42,6 +50,7 @@ class GlobalDataArgs(NamedTuple):
     skip_cleanup: bool
     dataset_params: DatasetParams
     evaluation_params: EvaluatorParams
+    predictor_params: AlgorithmPredictorParams
     n_iter: int
     pretrained_model: Optional[str]
     data_augmentation: bool
@@ -167,9 +176,14 @@ class Experimenter(ABC):
         test_pcgts_files = args.test_pcgts_files
         if not global_args.skip_predict:
             fold_log.info("Starting prediction")
+            pred_params = deepcopy(global_args.predictor_params)
+            pred_params.modelId = MetaId.from_custom_path(model_path, global_args.algorithm_type)
             pred = Step.create_predictor(
                 global_args.algorithm_type,
-                AlgorithmPredictorSettings(None, AlgorithmPredictorParams(MetaId.from_custom_path(model_path, global_args.algorithm_type))))
+                AlgorithmPredictorSettings(
+                    None,
+                    pred_params,
+                ))
             full_predictions = list(pred.predict([f.page.location for f in test_pcgts_files]))
             predictions = cls.extract_gt_prediction(full_predictions)
             with open(prediction_path, 'wb') as f:

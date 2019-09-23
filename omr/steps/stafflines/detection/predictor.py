@@ -42,7 +42,6 @@ class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=Predicti
         self.pcgts().to_file(self.ds_page().file('pcgts').local_path())
 
 
-
 class LineDetectionPredictorCallback(ABC):
     def __init__(self):
         super().__init__()

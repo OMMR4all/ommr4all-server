@@ -17,8 +17,8 @@ class SymbolsExperimenter(Experimenter):
         output_pcgts_by_page_name = {}
         for o_pcgts in output_pcgts:
             output_pcgts_by_page_name[o_pcgts.page.location.page] = o_pcgts
-            for mr in o_pcgts.page.music_regions:
-                for ml in mr.staffs:
+            for mr in o_pcgts.page.music_blocks():
+                for ml in mr.lines:
                     ml.symbols = []  # clear all symbols
 
             # clear all annotations

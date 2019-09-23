@@ -2,6 +2,8 @@ import logging
 import sys
 import os
 
+from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
+
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                     stream=sys.stdout)
 
@@ -49,16 +51,26 @@ if __name__ == "__main__":
     parser.add_argument("--dewarp", action='store_true')
     parser.add_argument("--use_regions", action="store_true", default=False)
     parser.add_argument("--neume_types", action="store_true", default=False)
+    parser.add_argument("--gray", action="store_true")
+    parser.add_argument("--full_page", action="store_true")
+    parser.add_argument("--extract_region_only", action="store_true")
+    parser.add_argument("--gt_line_thickness", default=3, type=int)
+    parser.add_argument("--min_number_of_staff_lines", default=4, type=int)
+    parser.add_argument("--max_number_of_staff_lines", default=4, type=int)
 
     parser.add_argument("--calamari_n_folds", type=int, default=0)
     parser.add_argument("--calamari_single_folds", type=int, nargs='+')
     parser.add_argument("--calamari_network", type=str, default='cnn=32:3x3,pool=2x2,cnn=64:3x3,pool=1x2,cnn=64:3x3,lstm=100,dropout=0.5')
     parser.add_argument("--calamari_channels", type=int, default=1)
 
+    # evaluation parameters
     parser.add_argument("--seed", type=int, default=1)
 
     # evaluation params
-    parser.add_argument("--symbol_detected_min_distance", type=int, default=5)
+    parser.add_argument("--symbol_detected_min_distance", type=int, default=EvaluatorParams().symbol_detected_min_distance)
+    parser.add_argument("--staff_line_found_distance", default=EvaluatorParams().staff_line_found_distance, type=int)
+    parser.add_argument("--line_hit_overlap_threshold", default=EvaluatorParams().line_hit_overlap_threshold, type=float)
+    parser.add_argument("--staff_n_lines_threshold", default=EvaluatorParams().staff_line_found_distance, type=int)
 
     args = parser.parse_args()
 
@@ -89,9 +101,22 @@ if __name__ == "__main__":
             staff_lines_only=not args.use_regions,
             pad_power_of_2=args.pad_to_power_of_2,
             neume_types_only=args.neume_types,
+
+            full_page=args.full_page,
+            gray=args.gray,
+            extract_region_only=args.extract_region_only,
+            gt_line_thickness=args.gt_line_thickness,
         ),
         evaluation_params=EvaluatorParams(
             symbol_detected_min_distance=args.symbol_detected_min_distance,
+
+            staff_line_found_distance=args.staff_line_found_distance,
+            line_hit_overlap_threshold=args.line_hit_overlap_threshold,
+            staff_n_lines_threshold=args.staff_n_lines_threshold,
+        ),
+        predictor_params=AlgorithmPredictorParams(
+            minNumberOfStaffLines=args.min_number_of_staff_lines,
+            maxNumberOfStaffLines=args.max_number_of_staff_lines,
         ),
         n_iter=args.n_iter,
         pretrained_model=args.pretrained_model,

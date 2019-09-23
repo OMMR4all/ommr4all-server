@@ -1,80 +1,99 @@
-from omr.stafflines.detection.predictor import StaffLinesPredictor, StaffLinePredictorParameters, StaffLineDetectionDatasetParams
-from database.file_formats.pcgts import PcGts, StaffLines, StaffLine, MusicLines, MusicLine
-from typing import List, NamedTuple, Tuple
+from database.file_formats.pcgts import StaffLines, Line, Point, Coords, Size, Rect
+from typing import List, NamedTuple, Tuple, Union, Iterable
 import numpy as np
-from omr.symboldetection.evaluator import precision_recall_f1
 
 import logging
+
+from omr.experimenter.experimenter import EvaluatorParams
+from omr.steps.symboldetection.evaluator import precision_recall_f1
 
 logger = logging.getLogger(__name__)
 
 
 class EvaluationData(NamedTuple):
     label: str
-    gt: MusicLines
-    pred: MusicLines
+    gt: List[Line]
+    pred: List[Line]
     shape: Tuple[int, int]
 
     @staticmethod
     def from_json(d: dict):
-        return EvaluationData(d['label'], MusicLines.from_json(d['gt']), MusicLines.from_json(d['pred']), tuple(d['shape']))
+        return EvaluationData(d['label'],
+                              [Line.from_json(l) for l in d['gt']],
+                              [Line.from_json(l) for l in d['pred']],
+                              tuple(d['shape']))
 
     def to_json(self):
         return {
             'label': self.label,
-            'gt': self.gt.to_json(),
-            'pred': self.pred.to_json(),
+            'gt': [l.to_json() for l in self.gt],
+            'pred': [l.to_json() for l in self.pred],
             'shape': list(self.shape)
         }
 
+    def _scale(self, p: Union[Coords, Point, float, int], scale: float):
+        if isinstance(p, Coords):
+            return p.scale(scale)
+        elif isinstance(p, Point):
+            return p.scale(scale)
+        elif isinstance(p, Size):
+            return p.scale(scale)
+        elif isinstance(p, Rect):
+            return Rect(self._scale(p.origin, scale), self._scale(p.size, scale))
+        elif isinstance(p, Iterable):
+            return np.array(p) * scale
+        else:
+            return p * scale
 
-class EvaluationParams(NamedTuple):
-    line_hit_overlap_threshold: float = 0.5
-    staff_n_lines_threshold: int = 2
-    staff_line_found_distance: int = 5
-    debug: bool = False
+    def page_to_eval_scale(self, p: Union[Coords, Point, float, int]):
+        return self._scale(p, self.shape[0])
 
 
 class StaffLineDetectionEvaluator:
     def __init__(self, params=None):
-        self.params = params if params else EvaluationParams()
+        self.params = params if params else EvaluatorParams()
 
     def evaluate(self, data: List[EvaluationData]) \
             -> Tuple[np.ndarray, np.ndarray,
                      Tuple[
-                         List[List[Tuple[MusicLine, MusicLine, np.ndarray]]],
-                         List[List[MusicLine]],
-                         List[List[MusicLine]]
+                         List[List[Tuple[Line, Line, np.ndarray]]],
+                         List[List[Line]],
+                         List[List[Line]]
                          ]]:
+        def all_staff_lines(line: List[Line]):
+            return sum([l.staff_lines for l in line], [])
+
         all_counts = np.zeros([0, 4, 4])
         all_prf1 = np.zeros([0, 4, 3])
         all_staff_prf1 = np.zeros([0, 3])
-        all_tp_staves: List[Tuple[MusicLine, MusicLine, np.ndarray]] = []
-        all_fp_staves: List[List[MusicLine]] = []
-        all_fn_staves: List[List[MusicLine]] = []
+        all_tp_staves: List[Tuple[Line, Line, np.ndarray]] = []
+        all_fp_staves: List[List[Line]] = []
+        all_fn_staves: List[List[Line]] = []
         line_thickness = (self.params.staff_line_found_distance - 1) // 2 + 1
         for single_data in data:
-            pred_lines: StaffLines = StaffLines(single_data.pred.all_staff_lines())
-            gt_lines: StaffLines = StaffLines(single_data.gt.all_staff_lines())
+            pred_lines: StaffLines = StaffLines(all_staff_lines(single_data.pred))
+            gt_lines: StaffLines = StaffLines(all_staff_lines(single_data.gt))
 
             pred_img = np.zeros(single_data.shape, dtype=np.int32)
             gt_img = np.zeros(single_data.shape, dtype=np.int32)
-            pred_lines.draw(pred_img, 1, thickness=line_thickness)
-            gt_lines.draw(gt_img, 1, thickness=line_thickness)
+            for l in pred_lines:
+                single_data.page_to_eval_scale(l.coords).draw(pred_img, 1, thickness=line_thickness)
+            for l in gt_lines:
+                single_data.page_to_eval_scale(l.coords).draw(gt_img, 1, thickness=line_thickness)
+
 
             # detect the closest lines
-
             def found_lines(from_lines: StaffLines, target_lines: StaffLines):
                 target_label_img = np.zeros(single_data.shape, dtype=np.int32)
                 for i, line in enumerate(target_lines):
-                    line.draw(target_label_img, i + 1, thickness=line_thickness)
+                    single_data.page_to_eval_scale(line.coords).draw(target_label_img, i + 1, thickness=line_thickness)
 
                 target_img = (target_label_img > 0).astype(np.int32)
 
                 hit_lines, single_lines = [], []
                 for line in from_lines:
                     canvas = np.zeros(single_data.shape, dtype=np.int32)
-                    line.draw(canvas, 3, thickness=line_thickness)
+                    single_data.page_to_eval_scale(line.coords).draw(canvas, 3, thickness=line_thickness)
                     sum_img = canvas + target_img
                     if sum_img.max() == 4:
                         target_line_idx = (canvas * 1000 + target_label_img).max() - 3 * 1000 - 1
@@ -87,7 +106,7 @@ class StaffLineDetectionEvaluator:
                             plt.show()
                         target_line = target_lines[target_line_idx]
                         target_canvas = np.zeros(canvas.shape, dtype=np.int32)
-                        target_line.draw(target_canvas, 10, thickness=line_thickness)
+                        single_data.page_to_eval_scale(target_line.coords).draw(target_canvas, 10, thickness=line_thickness)
                         canvas += target_canvas
                         total_line_hit = canvas.max(axis=0)
                         tp = (total_line_hit == 13).sum()
@@ -99,7 +118,6 @@ class StaffLineDetectionEvaluator:
                             hit_lines.append((line, target_line, precision_recall_f1(tp, fp, fn)))
                         else:
                             single_lines.append(line)
-
 
                     else:
                         single_lines.append(line)
@@ -132,8 +150,8 @@ class StaffLineDetectionEvaluator:
             line_found_counts.append(np.sum(line_found_counts))
 
             # staves detection
-            pred_staves: List[MusicLine] = single_data.pred[:]
-            gt_staves: List[MusicLine] = single_data.gt[:]
+            pred_staves: List[Line] = single_data.pred[:]
+            gt_staves: List[Line] = single_data.gt[:]
 
             tp_staves = []
             fp_staves = []
@@ -191,36 +209,3 @@ class StaffLineDetectionEvaluator:
         mean_prf1[3] = mean_staff_prf1
 
         return sum_counts, mean_prf1, (all_tp_staves, all_fp_staves, all_fn_staves)
-
-
-if __name__ == "__main__":
-    from omr.stafflines.detection.pixelclassifier.predictor import BasicStaffLinePredictor
-    from database import DatabaseBook
-    import sys
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s', stream=sys.stdout)
-
-    book = DatabaseBook('Graduel')
-    pcgts = PcGts.from_file(book.page('Graduel_de_leglise_de_Nevers_521').file('pcgts'))
-
-    pred = BasicStaffLinePredictor(
-        StaffLinePredictorParameters(
-            None,
-            StaffLineDetectionDatasetParams(
-                full_page=False,
-                gray=False,
-            )
-        )
-    )
-    predictions = []
-    for p in pred.predict([pcgts]):
-        predictions.append(
-            EvaluationData(
-                p.line.operation.page.location.local_path(),
-                p.line.operation.music_lines,
-                p.music_lines,
-                p.line.operation.page_image.shape,
-            )
-        )
-
-    evaluator = StaffLineDetectionEvaluator()
-    evaluator.evaluate(predictions)

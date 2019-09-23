@@ -369,7 +369,7 @@ if __name__ == '__main__':
         gt_symbols.append(p.line.operation.music_line.symbols)
 
     evaluator = SymbolDetectionEvaluator()
-    metrics, counts, acc_counts, acc_acc = evaluator.evaluate(gt_symbols, pred_symbols)
+    metrics, counts, acc_counts, acc_acc, diffs = evaluator.evaluate(gt_symbols, pred_symbols)
 
     at = PrettyTable()
 
