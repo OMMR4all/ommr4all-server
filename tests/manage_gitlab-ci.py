@@ -28,7 +28,7 @@ repos: List[Repo] = [
     Repo(
         'ommr4all-line-detection',
         'https://github.com/OMMR4all/ommr4all-line-detection.git',
-        '762d18b890efee5ddd7d8038ae8981378acf6a6a'
+        'aea65969da729f727ac6415c7d2c90f4f9ebc7ff'
     ),
     Repo(
         'ommr4all-layout-analysis',

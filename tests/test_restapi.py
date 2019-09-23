@@ -1,4 +1,6 @@
 import unittest
+import django
+django.setup()
 
 from django.contrib.auth.models import User
 from django.http import FileResponse
@@ -132,42 +134,45 @@ class OperationTests(APITestCase):
         page = DatabaseBook('demo').page('page_test_preprocessing_001')
         self._test_preprocessing_of_page(page)
 
-    def _test_line_detection_of_page(self, page: str, n_lines):
-        page = DatabaseBook('demo').page(page)
-        data = self.call_operation(page, AlgorithmTypes.STAFF_LINES_PC.value, {})
+    def _test_line_detection_of_page(self, page: str, n_lines, algorithm: AlgorithmTypes):
+        data = self._test_predictor(page, algorithm)
         self.assertEqual(len(data['staffs']), n_lines)
 
     def test_line_detection_001(self):
-        self._test_line_detection_of_page('page_test_staff_line_detection_001', 9)
+        self._test_line_detection_of_page('page_test_staff_line_detection_001', 9, AlgorithmTypes.STAFF_LINES_PC)
 
     def test_line_detection_002(self):
-        self._test_line_detection_of_page('page_test_staff_line_detection_002', 9)
+        self._test_line_detection_of_page('page_test_staff_line_detection_002', 9, AlgorithmTypes.STAFF_LINES_PC)
 
-    def _test_layout_detection_of_page(self, page: str):
-        page = DatabaseBook('demo').page(page)
-        data = self.call_operation(page, AlgorithmTypes.LAYOUT_COMPLEX_STANDARD.value, {
-            'pcgts': page.pcgts().to_json(),
-        })
-        # TODO check data
+    def test_layout_detection_complex_standard_001(self):
+        self._test_predictor('page_test_layout_detection_001', AlgorithmTypes.LAYOUT_COMPLEX_STANDARD)
 
-    def test_layout_detection_001(self):
-        self._test_layout_detection_of_page('page_test_layout_detection_001')
+    def test_layout_detection_simple_bounding_boxes_001(self):
+        self._test_predictor('page_test_layout_detection_001', AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES)
 
-    def test_layout_detection_002(self):
-        self._test_layout_detection_of_page('page_test_layout_detection_002')
+    def test_layout_detection_simple_lyrics_001(self):
+        self._test_predictor('page_test_layout_detection_001', AlgorithmTypes.LAYOUT_SIMPLE_LYRICS)
 
-    def _test_symbol_detection_of_page(self, page: str):
-        page = DatabaseBook('demo').page(page)
-        data = self.call_operation(page, AlgorithmTypes.SYMBOLS_PC.value, {
-            'pcgts': page.pcgts().to_json(),
-        })
-        # TODO check data
+    def test_layout_detection_complex_standard_002(self):
+        self._test_predictor('page_test_layout_detection_002', AlgorithmTypes.LAYOUT_COMPLEX_STANDARD)
+
+    def test_layout_detection_simple_bounding_boxes_002(self):
+        self._test_predictor('page_test_layout_detection_002', AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES)
+
+    def test_layout_detection_simple_lyrics_002(self):
+        self._test_predictor('page_test_layout_detection_002', AlgorithmTypes.LAYOUT_SIMPLE_LYRICS)
 
     def test_symbol_detection_001(self):
-        self._test_symbol_detection_of_page('page_test_symbol_detection_001')
+        self._test_predictor('page_test_symbol_detection_001', AlgorithmTypes.SYMBOLS_PC)
 
     def test_symbol_detection_002(self):
-        self._test_symbol_detection_of_page('page_test_symbol_detection_002')
+        self._test_predictor('page_test_symbol_detection_002', AlgorithmTypes.SYMBOLS_PC)
+
+    def test_syllable_detection_from_text_001(self):
+        self._test_predictor('page_test_syllable_detection_001', AlgorithmTypes.SYLLABLES_FROM_TEXT)
+
+    def test_syllable_detection_in_order_001(self):
+        self._test_predictor('page_test_syllable_detection_001', AlgorithmTypes.SYLLABLES_IN_ORDER)
 
     def test_export_monodi(self):
         page = DatabaseBook('demo').page('page_test_monodi_export_001')
@@ -228,6 +233,13 @@ class OperationTests(APITestCase):
         response = self.client.delete('/api/book/demo/page/{}/lock'.format(page), payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
 
+    def _test_predictor(self, page, algorithm: AlgorithmTypes):
+        page = DatabaseBook('demo').page(page)
+        data = self.call_operation(page, algorithm.value, {
+            'pcgts': page.pcgts().to_json(),
+        })
+        return data
+
     def call_operation(self, page: DatabasePage, operation: str, data=None):
         data = data if data else {}
         self.lock_page(page.page)
@@ -255,6 +267,7 @@ class OperationTests(APITestCase):
     def test_book_preprocessing(self):
         book = DatabaseBook('demo')
         params = AlgorithmRequest(
+            store_to_pcgts=False,
             params=AlgorithmPredictorParams(
                 automaticLd=True
             ),
@@ -268,6 +281,7 @@ class OperationTests(APITestCase):
     def test_book_line_detection(self):
         book = DatabaseBook('demo')
         params = AlgorithmRequest(
+            store_to_pcgts=False,
             params=AlgorithmPredictorParams(),
             selection=PageSelectionParams(
                 count=PageCount.CUSTOM,
@@ -279,6 +293,7 @@ class OperationTests(APITestCase):
     def test_book_layout_detection_complex(self):
         book = DatabaseBook('demo')
         params = AlgorithmRequest(
+            store_to_pcgts=False,
             params=AlgorithmPredictorParams(
             ),
             selection=PageSelectionParams(
@@ -291,6 +306,7 @@ class OperationTests(APITestCase):
     def test_book_layout_detection_simple(self):
         book = DatabaseBook('demo')
         params = AlgorithmRequest(
+            store_to_pcgts=False,
             params=AlgorithmPredictorParams(
             ),
             selection=PageSelectionParams(
@@ -303,6 +319,7 @@ class OperationTests(APITestCase):
     def test_book_symbol_detection(self):
         book = DatabaseBook('demo')
         params = AlgorithmRequest(
+            store_to_pcgts=False,
             params=AlgorithmPredictorParams(
             ),
             selection=PageSelectionParams(

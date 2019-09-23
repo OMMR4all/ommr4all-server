@@ -104,12 +104,6 @@
                 "text": "pa",
                 "connection": 2,
                 "dropCapitalLength": 0
-              },
-              {
-                "id": "syl_15",
-                "text": "",
-                "connection": 1,
-                "dropCapitalLength": 0
               }
             ]
           }
@@ -207,12 +201,6 @@
                 "text": "yma",
                 "connection": 2,
                 "dropCapitalLength": 0
-              },
-              {
-                "id": "syl_30",
-                "text": "",
-                "connection": 2,
-                "dropCapitalLength": 0
               }
             ]
           }
@@ -274,12 +262,6 @@
                 "id": "syl_36",
                 "text": "ia.",
                 "connection": 1,
-                "dropCapitalLength": 0
-              },
-              {
-                "id": "syl_37",
-                "text": "",
-                "connection": 2,
                 "dropCapitalLength": 0
               }
             ]
@@ -445,12 +427,6 @@
                 "text": "no",
                 "connection": 1,
                 "dropCapitalLength": 0
-              },
-              {
-                "id": "syl_61",
-                "text": "",
-                "connection": 1,
-                "dropCapitalLength": 0
               }
             ]
           }
@@ -474,12 +450,6 @@
               {
                 "id": "syl_63",
                 "text": "le",
-                "connection": 1,
-                "dropCapitalLength": 0
-              },
-              {
-                "id": "syl_64",
-                "text": "",
                 "connection": 1,
                 "dropCapitalLength": 0
               }
@@ -513,12 +483,6 @@
                 "text": "des",
                 "connection": 1,
                 "dropCapitalLength": 0
-              },
-              {
-                "id": "syl_68",
-                "text": "",
-                "connection": 2,
-                "dropCapitalLength": 0
               }
             ]
           }
@@ -543,12 +507,6 @@
                 "id": "syl_70",
                 "text": "\u1e8fa.",
                 "connection": 1,
-                "dropCapitalLength": 0
-              },
-              {
-                "id": "syl_71",
-                "text": "",
-                "connection": 2,
                 "dropCapitalLength": 0
               }
             ]
@@ -603,12 +561,6 @@
               {
                 "id": "syl_78",
                 "text": "na",
-                "connection": 1,
-                "dropCapitalLength": 0
-              },
-              {
-                "id": "syl_79",
-                "text": "",
                 "connection": 1,
                 "dropCapitalLength": 0
               }
@@ -701,12 +653,6 @@
                 "id": "syl_92",
                 "text": "la",
                 "connection": 1,
-                "dropCapitalLength": 0
-              },
-              {
-                "id": "syl_93",
-                "text": "",
-                "connection": 2,
                 "dropCapitalLength": 0
               }
             ]
@@ -858,12 +804,6 @@
                 "id": "syl_103",
                 "text": "ya",
                 "connection": 1,
-                "dropCapitalLength": 0
-              },
-              {
-                "id": "syl_104",
-                "text": "",
-                "connection": 2,
                 "dropCapitalLength": 0
               }
             ]

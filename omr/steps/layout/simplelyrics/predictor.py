@@ -1,5 +1,5 @@
 from omr.steps.layout.predictor import LayoutAnalysisPredictor, PredictionType, PredictionResult, \
-    PredictionCallback, AlgorithmPredictorSettings, AlgorithmPredictorParams
+    PredictionCallback, AlgorithmPredictorSettings
 from typing import List, Optional
 from database.file_formats.pcgts import PcGts, BlockType, Coords, Line, Rect, Point, Size
 import numpy as np

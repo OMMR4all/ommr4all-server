@@ -132,6 +132,7 @@ class BookOperationStatusView(APIView):
 
 @dataclass()
 class AlgorithmRequest(DataClassDictMixin):
+    store_to_pcgts: bool = True
     params: AlgorithmPredictorParams = field(default_factory=lambda: AlgorithmPredictorParams())
     selection: PageSelectionParams = field(default_factory=lambda: PageSelectionParams())
 
@@ -150,7 +151,7 @@ class BookOperationView(APIView):
                 meta.algorithmPredictorParams[at] = r.params
                 return TaskRunnerPrediction(at,
                                             PageSelection.from_params(r.selection, book),
-                                            Settings(meta.algorithm_predictor_params(at), store_to_pcgts=True)
+                                            Settings(meta.algorithm_predictor_params(at), store_to_pcgts=r.store_to_pcgts)
                                             )
         # check if operation is linked to a task
         if operation == 'train_symbols':
