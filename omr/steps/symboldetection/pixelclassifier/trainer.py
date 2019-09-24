@@ -13,7 +13,7 @@ from database import DatabaseBook
 from database.file_formats.performance.pageprogress import Locks
 from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
 from omr.imageoperations.music_line_operations import SymbolLabel
-from pagesegmentation.lib.trainer import Trainer, TrainSettings, Loss, Monitor
+from pagesegmentation.lib.trainer import Trainer, TrainSettings, Loss, Monitor, Architecture
 from omr.steps.symboldetection.pixelclassifier.meta import Meta
 from omr.adapters.pagesegmentation.callback import PCTrainerCallback
 
@@ -74,6 +74,8 @@ class PCTrainer(AlgorithmTrainer):
             data_augmentation_settings=self.settings.page_segmentation_params.augmentation_settings,
             loss=Loss.CATEGORICAL_CROSSENTROPY,
             monitor=Monitor.VAL_ACCURACY,
+            architecture=self.settings.page_segmentation_params.architecture,
+            reduce_lr_on_plateau=False,
         )
 
         os.makedirs(os.path.dirname(settings.output_dir), exist_ok=True)

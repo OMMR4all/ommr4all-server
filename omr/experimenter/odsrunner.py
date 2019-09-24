@@ -4,11 +4,18 @@ import subprocess
 import multiprocessing
 from tqdm import tqdm
 import os
+import sys
+
+this_dir = os.path.dirname(os.path.realpath(__file__))
+root_dir = os.path.abspath(os.path.join(this_dir, '..', '..'))
+
+sys.path.append(root_dir)
+os.environ['PYTHONPATH'] = root_dir
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ods', required=True, type=str)
 parser.add_argument('--run', type=str)
-parser.add_argument('--script', required=True, type=str)
+parser.add_argument('--script', type=str, default=os.path.join(this_dir, 'runner.py'))
 parser.add_argument('--additional_args', nargs="*", default=[])
 parser.add_argument('--magic_prefix', default='EXPERIMENT_OUT=')
 parser.add_argument('--header_row', default=2, type=int)
@@ -113,16 +120,26 @@ def run(ex_args):
 
     rc = process.poll()
 
+    if result is None:
+        print("Command '{}' yielded None".format(" ".join(cmd_list)))
+        return None
+
     return list(map(float, result))
 
 
 if len(experiment_args) == 0:
     print("Nothing to compute found")
 else:
+    print("Running experiments")
     with multiprocessing.Pool(processes=len(experiment_args)) as p:
         ex_results = list(tqdm(p.imap(run, [ex_args['args'] for ex_args in experiment_args]), total=len(experiment_args)))
 
+    print("Outputting {} results to ods".format(len(ex_results)))
     for ex_args, ex_result in zip(experiment_args, ex_results):
+        if ex_result is None:
+            print("Command '{}' yielded None".format(" ".join(ex_args['args'])))
+            continue
+
         data_row = ex_args['row']
         row = all_rows[data_row]
         for i, value in enumerate(ex_result):
@@ -130,3 +147,4 @@ else:
             cell.set_value(value)
 
     ods.save()
+    print("Saved")

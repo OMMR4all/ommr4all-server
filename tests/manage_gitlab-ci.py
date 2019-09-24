@@ -38,7 +38,7 @@ repos: List[Repo] = [
     Repo(
         'ommr4all-page-segmentation',
         'https://github.com/OMMR4all/ommr4all-page-segmentation.git',
-        '6136761783b7ced364e1c85aa08875dac800832a',
+        'f1fb8510283080cc32e8a9977d49f0b073f5fdab',
     ),
 ]
 
