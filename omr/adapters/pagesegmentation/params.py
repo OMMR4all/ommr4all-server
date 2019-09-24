@@ -1,5 +1,6 @@
 from typing import NamedTuple
 from pagesegmentation.lib.trainer import AugmentationSettings
+from pagesegmentation.lib.model import Architecture
 
 
 class PageSegmentationTrainerParams(NamedTuple):
@@ -14,3 +15,4 @@ class PageSegmentationTrainerParams(NamedTuple):
         vertical_flip=False,
         brightness_range=[1, 1],
     )
+    architecture: Architecture = Architecture.FCN_SKIP

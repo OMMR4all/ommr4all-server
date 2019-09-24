@@ -3,6 +3,7 @@ import os
 from database.database_book_meta import DatabaseBookMeta
 from database.file_formats import PcGts
 from omr.dataset import DatasetParams
+from omr.steps.algorithmtrainerparams import AlgorithmTrainerParams
 from omr.steps.algorithmtypes import AlgorithmTypes
 from copy import deepcopy
 
@@ -38,7 +39,6 @@ class EvaluatorParams(NamedTuple):
     staff_line_found_distance: int = 3
 
 
-
 class GlobalDataArgs(NamedTuple):
     magic_prefix: Optional[str]
     model_dir: str
@@ -51,15 +51,11 @@ class GlobalDataArgs(NamedTuple):
     dataset_params: DatasetParams
     evaluation_params: EvaluatorParams
     predictor_params: AlgorithmPredictorParams
-    n_iter: int
-    pretrained_model: Optional[str]
-    data_augmentation: bool
     output_book: Optional[str]
     algorithm_type: AlgorithmTypes
-    calamari_network: str
-    calamari_n_folds: int
-    calamari_single_folds: Optional[List[int]]
-    calamari_channels: int
+    trainer_params: AlgorithmTrainerParams
+    page_segmentation_params: PageSegmentationTrainerParams
+    calamari_params: CalamariParams
 
 
 class SingleDataArgs(NamedTuple):
@@ -154,21 +150,9 @@ class Experimenter(ABC):
                     train_data=args.train_pcgts_files,
                     validation_data=args.validation_pcgts_files if args.validation_pcgts_files else args.train_pcgts_files,
                     model=Model(MetaId.from_custom_path(model_path, global_args.algorithm_type)),
-                    params=AlgorithmTrainerParams(
-                        n_iter=global_args.n_iter,
-                        display=100,
-                        load=args.global_args.pretrained_model,
-                        processes=8,
-                    ),
-                    page_segmentation_params=PageSegmentationTrainerParams(
-                        data_augmentation=args.global_args.data_augmentation,
-                    ),
-                    calamari_params=CalamariParams(
-                        network=global_args.calamari_network,
-                        n_folds=global_args.calamari_n_folds,
-                        single_folds=global_args.calamari_single_folds,
-                        channels=global_args.calamari_channels,
-                    ),
+                    params=global_args.trainer_params,
+                    page_segmentation_params=global_args.page_segmentation_params,
+                    calamari_params=global_args.calamari_params,
                 )
             )
             trainer.train()

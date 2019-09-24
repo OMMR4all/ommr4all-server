@@ -74,7 +74,8 @@ class PCTrainer(AlgorithmTrainer):
             data_augmentation_settings=self.settings.page_segmentation_params.augmentation_settings,
             loss=Loss.CATEGORICAL_CROSSENTROPY,
             monitor=Monitor.VAL_ACCURACY,
-            architecture=Architecture.FCN_SKIP,
+            architecture=self.settings.page_segmentation_params.architecture,
+            reduce_lr_on_plateau=False,
         )
 
         os.makedirs(os.path.dirname(settings.output_dir), exist_ok=True)

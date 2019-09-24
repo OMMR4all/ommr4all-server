@@ -2,7 +2,12 @@ import logging
 import sys
 import os
 
+from pagesegmentation.lib.model import Architecture
+
+from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
+from omr.steps.algorithmtrainerparams import AlgorithmTrainerParams
+from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                     stream=sys.stdout)
@@ -57,6 +62,8 @@ if __name__ == "__main__":
     parser.add_argument("--gt_line_thickness", default=3, type=int)
     parser.add_argument("--min_number_of_staff_lines", default=4, type=int)
     parser.add_argument("--max_number_of_staff_lines", default=4, type=int)
+
+    parser.add_argument("--page_segmentation_architecture", type=lambda t: Architecture[t], choices=list(Architecture), default=PageSegmentationTrainerParams().architecture)
 
     parser.add_argument("--calamari_n_folds", type=int, default=0)
     parser.add_argument("--calamari_single_folds", type=int, nargs='+')
@@ -118,15 +125,24 @@ if __name__ == "__main__":
             minNumberOfStaffLines=args.min_number_of_staff_lines,
             maxNumberOfStaffLines=args.max_number_of_staff_lines,
         ),
-        n_iter=args.n_iter,
-        pretrained_model=args.pretrained_model,
-        data_augmentation=args.data_augmentation,
         output_book=args.output_book,
         algorithm_type=args.type,
-        calamari_n_folds=args.calamari_n_folds,
-        calamari_single_folds=args.calamari_single_folds,
-        calamari_network=args.calamari_network,
-        calamari_channels=args.calamari_channels,
+        trainer_params=AlgorithmTrainerParams(
+            n_iter=args.n_iter,
+            display=100,
+            load=args.pretrained_model,
+            processes=8,
+        ),
+        page_segmentation_params=PageSegmentationTrainerParams(
+            data_augmentation=args.data_augmentation,
+            architecture=args.page_segmentation_architecture,
+        ),
+        calamari_params=CalamariParams(
+            network=args.calamari_network,
+            n_folds=args.calamari_n_folds,
+            single_folds=args.calamari_single_folds,
+            channels=args.calamari_channels,
+        ),
     )
 
     experimenter = Step.meta(args.type).experimenter()(global_args)
