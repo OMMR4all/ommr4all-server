@@ -23,6 +23,22 @@ class SymbolLabel(IntEnum):
     ACCID_SHARP = 7
     ACCID_FLAT = 8
 
+    def to_music_symbol(self) -> MusicSymbol:
+        return {
+            SymbolLabel.BACKGROUND: None,
+            SymbolLabel.NOTE_START: MusicSymbol(SymbolType.NOTE,
+                                                graphical_connection=GraphicalConnectionType.NEUME_START),
+            SymbolLabel.NOTE_LOOPED: MusicSymbol(SymbolType.NOTE,
+                                                 graphical_connection=GraphicalConnectionType.LOOPED),
+            SymbolLabel.NOTE_GAPPED: MusicSymbol(SymbolType.NOTE,
+                                                 graphical_connection=GraphicalConnectionType.GAPED),
+            SymbolLabel.CLEF_C: MusicSymbol(SymbolType.CLEF, clef_type=ClefType.C),
+            SymbolLabel.CLEF_F: MusicSymbol(SymbolType.CLEF, clef_type=ClefType.F),
+            SymbolLabel.ACCID_NATURAL: MusicSymbol(SymbolType.ACCID, accid_type=AccidType.NATURAL),
+            SymbolLabel.ACCID_SHARP: MusicSymbol(SymbolType.ACCID, accid_type=AccidType.SHARP),
+            SymbolLabel.ACCID_FLAT: MusicSymbol(SymbolType.ACCID, accid_type=AccidType.FLAT),
+        }[self]
+
 
 # extract image of a staff line, and as mask, the highlighted staff lines
 class ImageExtractStaffLineImages(ImageOperation):
