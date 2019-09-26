@@ -49,18 +49,18 @@ if __name__ == '__main__':
     from omr.steps.algorithmtypes import AlgorithmTypes
     pages = [p for p in DatabaseBook('Graduel_Fully_Annotated').pages()]
     # pages = [DatabaseBook('Graduel_Part_1').page('Graduel_de_leglise_de_Nevers_025')]
-    pages = [DatabaseBook('New_York').page('21v')]
+    # pages = [DatabaseBook('New_York').page('21v')]
     params = DatasetParams(
         pad=[0, 10, 0, 40],
-        dewarp=True,
-        center=True,
+        dewarp=False,
+        center=False,
         staff_lines_only=True,
         cut_region=False,
     )
 
     print(params.to_json())
 
-    at = AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE
+    at = AlgorithmTypes.SYMBOLS_PC
 
     if at == AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE:
         f, ax = plt.subplots(9, max(2, len(pages)), sharex='all', sharey='all')

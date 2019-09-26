@@ -45,8 +45,11 @@ class CalamariPredictor(TextPredictor):
             yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, marked_symbols), marked_symbols)
 
     def extract_symbols(self, dataset: TextDataset, p, m: RegionLineMaskData) -> List[Tuple[str, Point]]:
+        def i2p(p):
+            return m.operation.page.image_to_page_scale(p, m.operation.scale_reference)
+
         sentence = [(pos.chars[0].char,
-                     dataset.local_to_global_pos(Point((pos.global_start + pos.global_end) / 2, m.operation.text_line.aabb.bottom()), m.operation.params).x)
+                     i2p(dataset.local_to_global_pos(Point((pos.global_start + pos.global_end) / 2, m.operation.text_line.aabb.bottom()), m.operation.params).x))
                     for pos in p.positions]
         return sentence
 

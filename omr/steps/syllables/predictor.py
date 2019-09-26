@@ -12,6 +12,7 @@ from omr.steps.algorithm import AlgorithmPredictionResult, AlgorithmPredictor, P
     AlgorithmPredictionResultGenerator
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorSettings
 from omr.steps.text.predictor import SingleLinePredictionResult as TextSingleLinePredictionResult, Line
+from omr.steps.text.predictor import PredictionResult as TextPredictionResult
 
 
 class SyllableMatchResult(NamedTuple):
@@ -38,6 +39,7 @@ class MatchResult(NamedTuple):
 
 class PageMatchResult(NamedTuple):
     match_results: List[MatchResult]
+    text_prediction_result: TextPredictionResult
     pcgts: PcGts
 
     def pcgts(self):
@@ -162,45 +164,50 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
         for unassigned in [s for s in mr.syllables if not any([s in sylls for sylls in syllables_of_neumes])]:
             syllables_of_neumes[neumes.index(find_closest_neume(unassigned.xpos))].append(unassigned)
 
-        for i, (n, sylls) in enumerate(zip(neumes, syllables_of_neumes)):
-            if len(sylls) <= 1:
-                continue
+        moved = True
+        while moved:
+            moved = False
+            for i, (n, sylls) in enumerate(zip(neumes, syllables_of_neumes)):
+                if len(sylls) <= 1:
+                    continue
 
-            sylls.sort(key=lambda s: s.xpos)
+                sylls.sort(key=lambda s: s.xpos)
 
-            left = sylls[0]
-            right = sylls[-1]
+                left = sylls[0]
+                right = sylls[-1]
 
-            def try_move(n_i, direction):
-                if len(syllables_of_neumes[n_i]) == 0:
-                    return n_i
+                def try_move(n_i, direction):
+                    if len(syllables_of_neumes[n_i]) == 0:
+                        return n_i
 
-                try:
-                    next_syllables = syllables_of_neumes[n_i + direction]
-                except IndexError:
-                    return -1
-                if len(next_syllables) == 0:
-                    return n_i
+                    try:
+                        next_syllables = syllables_of_neumes[n_i + direction]
+                    except IndexError:
+                        return -1
+                    if len(next_syllables) == 0:
+                        return n_i
 
-                return try_move(n_i + direction, direction)
+                    return try_move(n_i + direction, direction)
 
-            def move(syll, start, until, direction):
-                if start < until:
-                    cur = syllables_of_neumes[start + 1][0]
-                    move(cur, start + 1, until, direction)
+                def move(syll, start, until, direction):
+                    if start < until:
+                        cur = syllables_of_neumes[start + 1][0]
+                        move(cur, start + 1, until, direction)
 
-                next = syllables_of_neumes[start + direction]
-                cur = syllables_of_neumes[start]
-                cur.remove(syll)
-                next.append(syll)
+                    next = syllables_of_neumes[start + direction]
+                    cur = syllables_of_neumes[start]
+                    cur.remove(syll)
+                    next.append(syll)
 
-            r = try_move(i, +1)
-            if r >= 0:
-                move(right, i, r, +1)
-            else:
-                l = try_move(i, -1)
-                if l >= 0:
-                    move(left, i, r, -1)
+                r = try_move(i, +1)
+                if r >= 0:
+                    move(right, i, r, +1)
+                    moved = True
+                else:
+                    l = try_move(i, -1)
+                    if l >= 0:
+                        move(left, i, r, -1)
+                        moved = True
 
         annotations.get_or_create_connection(
             page.block_of_line(mr.music_line),

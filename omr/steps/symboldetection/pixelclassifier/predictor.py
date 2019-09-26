@@ -18,10 +18,13 @@ from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePred
 
 
 def render_prediction_labels(labels, img=None):
+    from shared.pcgtscanvas import PcGtsCanvas
     out = np.zeros(labels.shape + (3, ), dtype=np.uint8)
+    if img is not None:
+        out = np.stack((img,) * 3, axis=-1).astype(int)
 
     def draw(i, c):
-        return np.kron((labels == i), c).reshape(out.shape).astype(np.uint8)
+        return np.kron((labels == i), c).reshape(out.shape).astype(int)
 
     for i, c in [
         (SymbolLabel.BACKGROUND, (255, 255, 255)),
@@ -34,12 +37,16 @@ def render_prediction_labels(labels, img=None):
         (SymbolLabel.ACCID_SHARP, (50, 50, 255)),
         (SymbolLabel.ACCID_FLAT, (0, 0, 120)),
     ]:
-        out += draw(i, c)
+        c = PcGtsCanvas.color_for_music_symbol(i.to_music_symbol(), inverted=True, default_color=(255, 255, 255))
+        if c != (0, 0, 0):
+            out[:,:,0] = np.where(labels == i, c[0], out[:,:,0])
+            out[:,:,1] = np.where(labels == i, c[1], out[:,:,1])
+            out[:,:,2] = np.where(labels == i, c[2], out[:,:,2])
 
-    if img is not None:
-        out = (out.astype(float) * np.stack((img,) * 3, axis=-1) / 255).astype(np.uint8)
+    # if img is not None:
+        # out = (out.astype(float) * np.stack((img,) * 3, axis=-1) / 255).astype(np.uint8)
 
-    return out
+    return out.clip(0, 255).astype(np.uint8)
 
 
 class PCPredictor(SymbolsPredictor):
@@ -60,6 +67,13 @@ class PCPredictor(SymbolsPredictor):
         for p in self.predictor.predict(dataset.to_page_segmentation_dataset()):
             m: RegionLineMaskData = p.data.user_data
             symbols = SingleLinePredictionResult(self.exract_symbols(p.probabilities, p.labels, m, dataset), p.data.user_data)
+            if False:
+                from shared.pcgtscanvas import PcGtsCanvas
+                canvas = PcGtsCanvas(m.operation.page, PageScaleReference.NORMALIZED_X2)
+                for s in symbols.symbols:
+                    s.coord = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(s.coord.x, s.position_in_staff)
+                canvas.draw(symbols.symbols, invert=True)
+                canvas.show()
             if False:
                 import matplotlib.pyplot as plt
                 f, ax = plt.subplots(5, 1, sharey='all', sharex='all')
@@ -130,13 +144,15 @@ class PCPredictor(SymbolsPredictor):
             else:
                 raise Exception("Unknown label {} during decoding".format(label))
 
-        if False:
+        if True:
             import matplotlib.pyplot as plt
-            f, ax = plt.subplots(3, 1, sharex='all', sharey='all')
+            f, ax = plt.subplots(5, 1, sharex='all', sharey='all')
             ax[0].imshow(p)
-            ax[1].imshow(render_prediction_labels(centroids_canvas, m.line_image))
-            labels = render_prediction_labels(p)
+            ax[1].imshow(render_prediction_labels(centroids_canvas, m.region))
+            labels = render_prediction_labels(p, 255 - m.region)
             ax[2].imshow(labels)
+            ax[3].imshow(m.region, cmap='gray_r')
+            ax[4].imshow(cc, cmap='gist_ncar_r')
             plt.show()
 
         return symbols

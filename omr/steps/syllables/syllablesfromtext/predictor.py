@@ -49,6 +49,7 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
                 callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len(pages))
 
             yield PageMatchResult(
+                text_prediction_result=ocr_r,
                 match_results=match_r,
                 pcgts=ocr_r.pcgts,
             )
@@ -120,7 +121,7 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
 
         return MatchResult(
             syllables=[SyllableMatchResult(
-                xpos=r.line.operation.page.image_to_page_scale(x, r.line.operation.scale_reference),
+                xpos=x,
                 syllable=match['s'],
             ) for match, x in zip(out_matches, x_pos)],
             text_line=r.line.operation.text_line,
@@ -133,6 +134,7 @@ if __name__ == '__main__':
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
     from ommr4all.settings import BASE_DIR
+    from database.file_formats.pcgts import PageScaleReference
     import random
     import matplotlib.pyplot as plt
     from shared.pcgtscanvas import PcGtsCanvas
@@ -155,7 +157,8 @@ if __name__ == '__main__':
     ps: List[PredictionResult] = list(pred.predict(book.pages()[:1]))
     for i, p in enumerate(ps):
         pmr = p.page_match_result
-        canvas = PcGtsCanvas(pmr.pcgts.page, pmr.match_results[0].text_prediction.line.operation.scale_reference)
+        canvas = PcGtsCanvas(pmr.pcgts.page, PageScaleReference.NORMALIZED_X2)
+        canvas.draw(pmr.text_prediction_result)
         canvas.draw(pmr.match_results)
         canvas.draw(p.annotations)
         canvas.show()

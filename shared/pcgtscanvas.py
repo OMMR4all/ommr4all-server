@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Union, Iterable
-from PIL import Image
+from PIL import Image, ImageFont, ImageDraw
 import cv2
 
 from database.file_formats.pcgts import MusicSymbol, StaffLine, Page, PageScaleReference, StaffLines, SymbolType, \
@@ -14,6 +14,7 @@ class PcGtsCanvas:
         self.scale_reference = scale_reference
         self.img = np.array(Image.open(page.location.file(scale_reference.file('color')).local_path()))
         self.avg_line_distance = int(page.page_to_image_scale(page.avg_staff_line_distance(), scale_reference))
+        self.font = ImageFont.truetype('/usr/share/fonts/truetype/junicode/Junicode.ttf', 40)
 
     def draw_music_symbol_position_in_line(self, sl: StaffLines, s: MusicSymbol, color=(255, 0, 0), thickness=-1) -> 'PcGtsCanvas':
         c = sl.compute_coord_by_position_in_staff(s.coord.x, s.position_in_staff)
@@ -28,7 +29,7 @@ class PcGtsCanvas:
         cv2.circle(self.img, tuple(scale(c.p)), self.avg_line_distance // 5, color=tuple(map(int, color)), thickness=thickness)
         return self
 
-    def draw(self, elem: Union[MusicSymbol, StaffLine, Iterable, Annotations]) -> 'PcGtsCanvas':
+    def draw(self, elem: Union[MusicSymbol, StaffLine, Iterable, Annotations], **kwargs) -> 'PcGtsCanvas':
         from omr.steps.text.predictor import SingleLinePredictionResult as TextPredictionResult
         from omr.steps.syllables.syllablesfromtext.predictor import MatchResult
         from omr.steps.syllables.predictor import PredictionResult as SyllablesPredictionResult
@@ -39,19 +40,26 @@ class PcGtsCanvas:
             return np.round(self.page.page_to_image_scale(x, self.scale_reference)).astype(int)
 
         if isinstance(elem, MusicSymbol):
-            cv2.circle(self.img, tuple(scale(elem.coord.p)), self.avg_line_distance // 8, color=self._color_for_music_symbol(elem), thickness=-1)
+            color = self.__class__.color_for_music_symbol(elem)
+            if kwargs.get('invert', False):
+                color = tuple(map(int, 255 - np.array(color, dtype=int)))
+            pos = tuple(scale(elem.coord.p))
+            cv2.circle(self.img, pos, self.avg_line_distance // 8, color=color, thickness=-1)
         elif isinstance(elem, StaffLine):
             sl: StaffLine = elem
             sl.draw(self.img, thickness=self.avg_line_distance // 10, scale=scale)
         elif isinstance(elem, TextPredictionResult):
             r: TextPredictionResult = elem
+            canvas = Image.fromarray(self.img)
             aabb = scale(r.line.operation.text_line.aabb)
+            draw = ImageDraw.Draw(canvas)
             t, b = int(aabb.top()), int(aabb.bottom())
             for text, pos in r.text:
                 pos = scale(pos)
-                self.img[t:b, int(pos)] = (255, 0, 0)
-                cv2.putText(self.img, text, (int(pos), b - 5), fontFace=cv2.FONT_HERSHEY_PLAIN,
-                            fontScale=4, color=(255, 0, 0), thickness=2)
+                draw.line(((int(pos), t), (int(pos), b)), (255, 0, 0))
+                draw.text((int(pos), b - 5), text, font=self.font, fill=(255, 0, 0))
+
+            self.img = np.array(canvas)
         elif isinstance(elem, MatchResult):
             r: MatchResult = elem
             aabb = scale(r.text_line.aabb)
@@ -63,7 +71,7 @@ class PcGtsCanvas:
                 cv2.putText(self.img, text, (pos - 20, b + 20), fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=2, color=(205, 20, 100), thickness=2)
         elif isinstance(elem, SyllablesPredictionResult):
             r: SyllablesPredictionResult = elem
-            self.draw(r.annotations)
+            self.draw(r.annotations, **kwargs)
         elif isinstance(elem, Annotations):
             for c in elem.connections:
                 aabb = scale(c.text_region.aabb)
@@ -76,29 +84,40 @@ class PcGtsCanvas:
 
         elif isinstance(elem, Iterable):
             for e in elem:
-                self.draw(e)
+                self.draw(e, **kwargs)
 
         return self
 
-    def _color_for_music_symbol(self, ms: MusicSymbol):
-        if ms.symbol_type == SymbolType.CLEF:
-            if ms.clef_type == ClefType.C:
-                return 255, 50, 50
-            elif ms.clef_type == ClefType.F:
-                return 160, 0, 0
+    @classmethod
+    def color_for_music_symbol(cls, ms: MusicSymbol, inverted=False, default_color=(255, 255, 255)):
+        def wrapper():
+            if ms is None:
+                return default_color
 
-        elif ms.symbol_type == SymbolType.NOTE:
-            if ms.graphical_connection == GraphicalConnectionType.NEUME_START:
-                return 0, 100, 255
-            elif ms.graphical_connection == GraphicalConnectionType.LOOPED:
-                return 0, 0, 255
-            elif ms.graphical_connection == GraphicalConnectionType.GAPED:
-                return 100, 0, 255
+            if ms.symbol_type == SymbolType.CLEF:
+                if ms.clef_type == ClefType.C:
+                    return 255, 50, 50
+                elif ms.clef_type == ClefType.F:
+                    return 160, 0, 0
 
-        elif ms.symbol_type == SymbolType.ACCID:
-            return 0, 255, 0
+            elif ms.symbol_type == SymbolType.NOTE:
+                if ms.graphical_connection == GraphicalConnectionType.NEUME_START:
+                    return 0, 100, 255
+                elif ms.graphical_connection == GraphicalConnectionType.LOOPED:
+                    return 0, 0, 255
+                elif ms.graphical_connection == GraphicalConnectionType.GAPED:
+                    return 100, 0, 255
 
-        return 255, 255, 255
+            elif ms.symbol_type == SymbolType.ACCID:
+                return 0, 255, 0
+
+            return default_color
+
+        color = wrapper()
+        if inverted:
+            return tuple([255 - v for v in color])
+
+        return color
 
     def show(self):
         import matplotlib.pyplot as plt
