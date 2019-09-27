@@ -14,6 +14,9 @@ class Point:
         else:
             self.p = np.array([x, y])
 
+    def copy(self) -> 'Point':
+        return Point(self.x, self.y)
+
     def rotate(self, degree, origin):
         def rotate_point(xy, radians, origin=(0, 0)):
             x, y = xy
@@ -95,6 +98,9 @@ class Size:
             self.p = w.p
         else:
             self.p = np.array([w, h])
+
+    def copy(self):
+        return Size(self.w, self.h)
 
     @property
     def w(self):
@@ -296,6 +302,9 @@ class Rect:
             "origin": self.origin.to_json(),
             "size": self.size.to_json(),
         }
+
+    def copy(self) -> 'Rect':
+        return Rect(self.origin.copy(), self.size.copy())
 
 
 if __name__ == '__main__':

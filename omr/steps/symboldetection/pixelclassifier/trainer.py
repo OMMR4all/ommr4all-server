@@ -30,7 +30,7 @@ class PCTrainer(AlgorithmTrainer):
             l_rate=1e-4,
             display=100,
             early_stopping_test_interval=500,
-            early_stopping_max_keep=5,
+            early_stopping_max_keep=10,
             processes=1,
         )
 
@@ -57,6 +57,7 @@ class PCTrainer(AlgorithmTrainer):
             callback.resolving_files()
 
         train_data = self.train_dataset.to_page_segmentation_dataset(callback)
+        train_data.data = train_data.data * self.params.train_data_multiplier
         settings = TrainSettings(
             n_epoch=max(1, self.settings.params.n_iter // len(train_data)),
             n_classes=len(SymbolLabel),
@@ -68,6 +69,7 @@ class PCTrainer(AlgorithmTrainer):
             output_dir=self.settings.model.path,
             model_name='model',
             early_stopping_max_l_rate_drops=self.params.early_stopping_max_keep,
+            early_stopping_restore_best_weights=False,
             threads=self.params.processes,
             compute_baseline=True,
             data_augmentation=self.settings.page_segmentation_params.data_augmentation,

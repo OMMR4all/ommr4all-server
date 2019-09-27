@@ -144,7 +144,7 @@ class PCPredictor(SymbolsPredictor):
             else:
                 raise Exception("Unknown label {} during decoding".format(label))
 
-        if True:
+        if False:
             import matplotlib.pyplot as plt
             f, ax = plt.subplots(5, 1, sharex='all', sharey='all')
             ax[0].imshow(p)

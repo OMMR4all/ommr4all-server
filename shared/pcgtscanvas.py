@@ -39,7 +39,10 @@ class PcGtsCanvas:
                 return Rect(scale(x.origin), scale(x.size))
             return np.round(self.page.page_to_image_scale(x, self.scale_reference)).astype(int)
 
-        if isinstance(elem, MusicSymbol):
+        if isinstance(elem, Rect):
+            r: Rect = elem
+            self.img[r.top():r.bottom(), r.left():r.right()] = kwargs.get('color', (255, 255, 255))
+        elif isinstance(elem, MusicSymbol):
             color = self.__class__.color_for_music_symbol(elem)
             if kwargs.get('invert', False):
                 color = tuple(map(int, 255 - np.array(color, dtype=int)))
@@ -50,14 +53,20 @@ class PcGtsCanvas:
             sl.draw(self.img, thickness=self.avg_line_distance // 10, scale=scale)
         elif isinstance(elem, TextPredictionResult):
             r: TextPredictionResult = elem
-            canvas = Image.fromarray(self.img)
             aabb = scale(r.line.operation.text_line.aabb)
-            draw = ImageDraw.Draw(canvas)
             t, b = int(aabb.top()), int(aabb.bottom())
+            color = kwargs.get('color', (255, 0, 0))
+            if kwargs.get('background', False):
+                rect = aabb.copy()
+                rect.origin.p[1] += rect.size.h
+                self.draw(rect, color=(255, 255, 255))
+
+            canvas = Image.fromarray(self.img)
+            draw = ImageDraw.Draw(canvas)
             for text, pos in r.text:
                 pos = scale(pos)
-                draw.line(((int(pos), t), (int(pos), b)), (255, 0, 0))
-                draw.text((int(pos), b - 5), text, font=self.font, fill=(255, 0, 0))
+                draw.line(((int(pos), t), (int(pos), b)), color)
+                draw.text((int(pos), b - 5), text, font=self.font, fill=color)
 
             self.img = np.array(canvas)
         elif isinstance(elem, MatchResult):

@@ -158,7 +158,7 @@ if __name__ == '__main__':
     for i, p in enumerate(ps):
         pmr = p.page_match_result
         canvas = PcGtsCanvas(pmr.pcgts.page, PageScaleReference.NORMALIZED_X2)
-        canvas.draw(pmr.text_prediction_result)
-        canvas.draw(pmr.match_results)
-        canvas.draw(p.annotations)
+        canvas.draw(pmr.text_prediction_result.text_lines[4], color=(25, 150, 25), background=True)
+        # canvas.draw(pmr.match_results)
+        # canvas.draw(p.annotations)
         canvas.show()

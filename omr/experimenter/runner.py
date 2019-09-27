@@ -1,5 +1,9 @@
 import logging
 import sys
+
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+                    stream=sys.stdout)
+
 import os
 
 from pagesegmentation.lib.model import Architecture
@@ -8,10 +12,6 @@ from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from omr.steps.algorithmtrainerparams import AlgorithmTrainerParams
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
-
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
-                    stream=sys.stdout)
-
 import django
 os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
 django.setup()
@@ -47,6 +47,8 @@ if __name__ == "__main__":
     parser.add_argument("--data_augmentation", action="store_true")
     parser.add_argument("--output_book", default=None, type=str)
     parser.add_argument("--type", type=lambda t: AlgorithmTypes[t], required=True, choices=list(AlgorithmTypes))
+    parser.add_argument("--early_stopping_max_keep", type=int, default=-1)
+    parser.add_argument("--train_data_multiplier", type=int, default=1)
 
     parser.add_argument("--height", type=int, default=80)
     parser.add_argument("--pad", type=int, default=[0], nargs="+")
@@ -132,6 +134,8 @@ if __name__ == "__main__":
             display=100,
             load=args.pretrained_model,
             processes=8,
+            early_stopping_max_keep=args.early_stopping_max_keep,
+            train_data_multiplier=args.train_data_multiplier,
         ),
         page_segmentation_params=PageSegmentationTrainerParams(
             data_augmentation=args.data_augmentation,
