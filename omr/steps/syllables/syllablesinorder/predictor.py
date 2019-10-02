@@ -55,6 +55,7 @@ class SyllablesInOrderPredictor(SyllablesPredictor):
 
             yield PageMatchResult(
                 match_results=mrs,
+                text_prediction_result=None,
                 pcgts=pcgts,
             )
 

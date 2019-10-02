@@ -39,7 +39,7 @@ class MatchResult(NamedTuple):
 
 class PageMatchResult(NamedTuple):
     match_results: List[MatchResult]
-    text_prediction_result: TextPredictionResult
+    text_prediction_result: Optional[TextPredictionResult]
     pcgts: PcGts
 
     def pcgts(self):
