@@ -18,3 +18,4 @@ ezodf
 cryptography
 mashumaro
 unidecode
+pdf2image

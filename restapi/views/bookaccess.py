@@ -90,19 +90,29 @@ class BookUploadView(APIView):
             logger.debug('Received new image of content type {}'.format(file.content_type))
             name = os.path.splitext(os.path.basename(file.name))[0]
             name = re.sub('[^\w]', '_', name)
-            page = DatabasePage(book, name)
-            if not os.path.exists(page.local_path()):
-                os.mkdir(page.local_path())
-
             type = file.content_type
-            if not type.startswith('image/'):
-                return Response(status=status.HTTP_400_BAD_REQUEST)
 
-            try:
-                img = Image.open(file.file, 'r').convert('RGB')
+            def image_to_page(img, page_name):
+                page = DatabasePage(book, page_name)
+                if not os.path.exists(page.local_path()):
+                    os.mkdir(page.local_path())
+
                 original = DatabaseFile(page, 'color_original')
                 img.save(original.local_path())
                 logger.debug('Created page at {}'.format(page.local_path()))
+
+            try:
+                if type.startswith('image/'):
+                    img = Image.open(file.file, 'r').convert('RGB')
+                    image_to_page(img, name)
+
+                elif type == 'application/pdf':
+                    from pdf2image import convert_from_bytes
+                    images = convert_from_bytes(file.file.read())
+                    for i, image in enumerate(images):
+                        image_to_page(image, "{}_{:04d}".format(name, i))
+                else:
+                    return Response(status=status.HTTP_400_BAD_REQUEST)
 
             except Exception as e:
                 logger.exception(e)
