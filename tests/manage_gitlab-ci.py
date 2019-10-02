@@ -16,7 +16,6 @@ class Repo(NamedTuple):
     name: str
     url: str
     hash: str
-    fetch: bool = True
 
 
 repos: List[Repo] = [
@@ -57,18 +56,14 @@ def main():
         subprocess.check_call([pip, 'install', '-r', 'requirements.txt'])
 
         with tempfile.TemporaryDirectory() as d:
-            for repo, url, hash, fetch in repos:
+            for repo, url, hash in repos:
                 os.chdir(d)
                 os.makedirs(repo, exist_ok=True)
                 os.chdir(repo)
                 subprocess.check_call(['git', 'init'])
                 subprocess.check_call(['git', 'remote', 'add', 'origin', url])
-                if fetch:
-                    subprocess.check_call(['git', 'fetch', '--depth', '1', 'origin', hash])
-                    subprocess.check_call(['git', 'reset', '--hard', 'FETCH_HEAD'])
-                else:
-                    subprocess.check_call(['git', 'fetch', 'origin'])
-                    subprocess.check_call(['git', 'reset', '--hard', hash])
+                subprocess.check_call(['git', 'fetch', 'origin'])
+                subprocess.check_call(['git', 'reset', '--hard', hash])
                 subprocess.check_call([python, 'setup.py', 'install'])
 
         os.chdir(root_dir)
