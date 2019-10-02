@@ -298,6 +298,21 @@ class BookDownloaderView(APIView):
 
             s.seek(0)
             return FileResponse(s, as_attachment=True, filename=book.book + '.mei.zip')
+        elif type == 'original_images.zip':
+            s = io.BytesIO()
+            zf = zipfile.ZipFile(s, 'w')
+            for page in pages:
+                file = page.file('color_original')
+
+                if not file.exists():
+                    continue
+
+                zf.write(file.local_path(), os.path.join(book.book, page.page + file.ext()))
+
+            zf.close()
+            s.seek(0)
+            return FileResponse(s, as_attachment=True, filename=book.book + '.zip')
+
 
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
