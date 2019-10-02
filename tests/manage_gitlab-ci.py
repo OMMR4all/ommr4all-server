@@ -52,7 +52,7 @@ def main():
     os.chdir(root_dir)
 
     if args.mode == 'setup':
-        subprocess.check_call([pip, 'install', 'tensorflow' if not args.gpu else 'tensorflow_gpu'])
+        subprocess.check_call([pip, 'install', 'tensorflow==1.14' if not args.gpu else 'tensorflow_gpu==1.14'])
         subprocess.check_call([pip, 'install', '-r', 'requirements.txt'])
 
         with tempfile.TemporaryDirectory() as d:
