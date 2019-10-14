@@ -1,4 +1,4 @@
-from enum import Enum, Enum
+from enum import Enum
 from typing import Dict, List
 
 
@@ -21,6 +21,7 @@ class AlgorithmTypes(Enum):
 
     # Tools
     LAYOUT_CONNECTED_COMPONENTS_SELECTION = "layout_connected_components_selection"
+    SYMBOLS_SEQUENCE_MATCHER = "symbols_sequence_matcher"
 
     def group(self) -> 'AlgorithmGroups':
         return [k for k, v in AlgorithmGroups.group_types_mapping().items() if self in v][0]

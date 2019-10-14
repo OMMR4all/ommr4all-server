@@ -58,3 +58,4 @@ import omr.steps.layout.correction_tools.connectedcomponentsselector.meta
 import omr.steps.text.calamari.meta
 import omr.steps.syllables.syllablesfromtext.meta
 import omr.steps.syllables.syllablesinorder.meta
+import omr.steps.tools.symbolsequencematcher.meta

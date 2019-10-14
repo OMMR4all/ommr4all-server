@@ -1,9 +1,10 @@
 from typing import Optional, TYPE_CHECKING
 from uuid import uuid4
-from .coords import Point
-from .definitions import MusicSymbolPositionInStaff
+from database.file_formats.pcgts.page.coords import Point
+from database.file_formats.pcgts.page.definitions import MusicSymbolPositionInStaff
 from enum import IntEnum, Enum
 from shared.jsonparsing import optional_enum
+from collections import namedtuple
 
 if TYPE_CHECKING:
     from .staffline import StaffLines
@@ -177,6 +178,34 @@ class MusicSymbol:
         note_name = NoteName((clef_type_offset + 49 - self.position_in_staff + MusicSymbolPositionInStaff.LINE_2 + position_in_staff) % 7)
         octave = 4 + (clef_type_offset - self.position_in_staff + MusicSymbolPositionInStaff.LINE_1 + position_in_staff) // 7
         return note_name, octave
+
+    def pis_octave(self, note_name: NoteName):
+        if not self.symbol_type == SymbolType.NOTE:
+            raise TypeError("Expected type {} but has {}".format(SymbolType.NOTE, self.symbol_type))
+        clef_type_offset_c = ClefType.C.offset() - 1
+        distance_d = (note_name + 2) % 7
+        distance_u = 7 - distance_d
+        f_pos_1 = (self.position_in_staff - distance_d)
+        f_pos_2 = (self.position_in_staff + distance_u)
+        c_pos_1 = (self.position_in_staff - distance_d - clef_type_offset_c)
+        c_pos_2 = (self.position_in_staff + distance_u - clef_type_offset_c)
+
+        if f_pos_1 % 2 == 0:
+            if f_pos_1 < f_pos_2:
+                f_pos_1 = f_pos_2 - 14
+                c_pos_1 = c_pos_2 - 14
+            else:
+                f_pos_1 = f_pos_2 + 14
+                c_pos_1 = c_pos_2 + 14
+        else:
+            if f_pos_2 < f_pos_1:
+                f_pos_2 = f_pos_1 - 14
+                c_pos_2 = c_pos_1 - 14
+            else:
+                f_pos_2 = f_pos_1 + 14
+                c_pos_2 = c_pos_1 + 14
+
+        return (c_pos_1, f_pos_1), (c_pos_2, f_pos_2)
 
 
 def create_clef(

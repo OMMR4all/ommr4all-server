@@ -131,8 +131,6 @@ class Line(Region):
 
         return last
 
-
-
     def draw(self, canvas, color=(0, 255, 0), thickness=1, scale=None):
         self.staff_lines.draw(canvas, color, thickness, scale)
 
