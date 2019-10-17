@@ -1,13 +1,16 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, permissions
 from database import DatabaseBook
+from restapi.views.bookaccess import require_permissions, DatabaseBookPermissionFlag
 
 import os
 import json
 
 
 class BookVirtualKeyboardView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
     def get(self, request, book):
         book = DatabaseBook(book)
 
@@ -21,6 +24,7 @@ class BookVirtualKeyboardView(APIView):
         with open(file) as f:
             return Response(json.load(f))
 
+    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     def put(self, request, book):
         book = DatabaseBook(book)
 
