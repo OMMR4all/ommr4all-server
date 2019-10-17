@@ -42,7 +42,7 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
 
         for i, r in enumerate(self.ocr_predictor.predict(pages)):
             ocr_r: TextPredictionResult = r
-            match_r = [self.match_text(text_line_r) for text_line_r in ocr_r.text_lines]
+            match_r = [self.match_text(text_line_r) for text_line_r in ocr_r.text_lines if len(text_line_r.line.operation.text_line.sentence.syllables) > 0]
 
             percentage = (i + 1) / len(pages)
             if callback:
@@ -63,6 +63,7 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
 
         pred = [(t, pos) for t, pos in r.text if t not in ' -']
         syls = r.line.operation.text_line.sentence.syllables
+        assert(len(syls) > 0)
 
         # remove all "noisy" chars: ligatures/whitespace, ... for better match results
         def clean_text(t) -> str:

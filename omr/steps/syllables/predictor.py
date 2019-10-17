@@ -104,6 +104,10 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
         pass
 
     def _match_syllables_to_symbols(self, mr: MatchResult, page: Page, annotations: Annotations):
+        if len(mr.syllables) == 0:
+            # no syllables present
+            return
+
         max_d = np.mean([s2.xpos - s1.xpos for s1, s2 in zip(mr.syllables, mr.syllables[1:])])
 
         neumes = [s for s in mr.music_line.symbols if s.symbol_type == SymbolType.NOTE and s.graphical_connection == GraphicalConnectionType.NEUME_START]
