@@ -6,6 +6,10 @@ from enum import IntEnum
 from edit_distance import edit_distance
 from difflib import SequenceMatcher
 from dataclasses import dataclass
+import prettytable
+from matplotlib import pyplot as plt
+from sklearn.metrics import confusion_matrix, classification_report
+
 
 from omr.experimenter.experimenter import EvaluatorParams
 
@@ -22,6 +26,8 @@ class PRF2Metrics(IntEnum):
 
     COUNT = 8
 
+class SymbolDetectionEvaluatorParams(NamedTuple):
+    symbol_detected_min_distance: int = 5
 
 class PRF2Index(IntEnum):
     P = 0
@@ -53,6 +59,110 @@ class AccCounts(IntEnum):
     def __int__(self):
         return self.value
 
+class ConnectionCounter(NamedTuple):
+    LOOPED = 0
+    GAPED = 0
+    NEUMESTART = 0
+
+class ConfusionMatrix:
+
+    def __init__(self):
+        self.pairs = []
+        self.fn = []
+        self.fp = []
+
+        self.cf_matrix = None
+
+    def gather(self, pairs, gt_symbols, p_symbols):
+        self.pairs += pairs
+        self.fp += p_symbols
+        self.fn += gt_symbols
+
+    def plot_confusion_matrix(self, normalize=False, plot=False, conditional=False, show_tp=True):
+
+        ## Generate Confusion Matrix
+        y_true = []
+        y_pred = []
+
+        ## TP
+        for (p_c, p_s), best in self.pairs:
+            gt_c, gt_s = best
+            gt_s: MusicSymbol = gt_s
+            y_true.append(str(gt_s.graphical_connection).split('GraphicalConnectionType.')[1]
+                          if gt_s.symbol_type == gt_s.symbol_type.NOTE else str(gt_s.symbol_type).split('SymbolType.')[1])
+            y_pred.append(str(p_s.graphical_connection).split('GraphicalConnectionType.')[1]
+                          if p_s.symbol_type == p_s.symbol_type.NOTE else str(p_s.symbol_type).split('SymbolType.')[1])
+
+        ## FP
+        for (p_c, p_s) in self.fp:
+            p_s: MusicSymbol = p_s
+            y_true.append('OTHER')
+            y_pred.append(str(p_s.graphical_connection).split('GraphicalConnectionType.')[1]
+                          if p_s.symbol_type == p_s.symbol_type.NOTE else str(p_s.symbol_type).split('SymbolType.')[1])
+
+        ## FN
+        for (p_c, p_s) in self.fn:
+            p_s: MusicSymbol = p_s
+            y_true.append(str(p_s.graphical_connection).split('GraphicalConnectionType.')[1]
+                          if p_s.symbol_type == p_s.symbol_type.NOTE else str(p_s.symbol_type).split('SymbolType.')[1])
+            y_pred.append('OTHER')
+
+        labels = sorted(list(set(y_true + y_pred)))
+        self.cf_matrix = confusion_matrix(y_true, y_pred, labels=labels)
+        if not show_tp:
+            np.fill_diagonal(self.cf_matrix, 0)
+
+        if normalize:
+            self.cf_matrix = self.cf_matrix.astype('float') / self.cf_matrix.sum()
+        if conditional:
+            self.cf_matrix = self.cf_matrix.astype('float') / self.cf_matrix.sum(axis=1)[:, np.newaxis]
+
+        cf_matrix_display = prettytable.PrettyTable()
+        cf_matrix_display.add_column('Pred \ GT', labels + ['SUM'])
+
+        for x in range(len(labels)):
+            row = self.cf_matrix[x, :]
+            cf_matrix_display.add_column(str(labels[x]), list(row)+[np.sum(row)])
+
+        c_sum = []
+        for x in range(len(labels)):
+            column = self.cf_matrix[:, x]
+            c_sum.append(np.sum(column))
+        cf_matrix_display.add_column('SUM', c_sum + [np.sum(self.cf_matrix)])
+
+        print(cf_matrix_display)
+        def plot_confusion_matrix_pyplot(classes, cmap='Blues'):
+            fig, ax = plt.subplots()
+            im = ax.imshow(self.cf_matrix, interpolation='nearest', cmap=cmap)
+            ax.figure.colorbar(im, ax=ax)
+            # We want to show all ticks...
+            ax.set(xticks=np.arange(self.cf_matrix.shape[1]),
+                   yticks=np.arange(self.cf_matrix.shape[0]),
+                   # ... and label them with the respective list entries
+                   xticklabels=classes, yticklabels=classes,
+                   title='Confusion Matrix',
+                   ylabel='True label',
+                   xlabel='Predicted label')
+
+            # Rotate the tick labels and set their alignment.
+            plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+                     rotation_mode="anchor")
+
+            # Loop over data dimensions and create text annotations.
+            fmt = '.2f' if normalize else 'd'
+            thresh = self.cf_matrix.max() / 2.
+            for i in range(self.cf_matrix.shape[0]):
+                for j in range(self.cf_matrix.shape[1]):
+                    ax.text(j, i, format(self.cf_matrix[i, j], fmt),
+                            ha="center", va="center",
+                            color="white" if self.cf_matrix[i, j] > thresh else "black")
+            fig.tight_layout()
+            return ax
+
+        if plot:
+            np.set_printoptions(precision=2)
+            plot_confusion_matrix_pyplot(classes=labels)
+            plt.show()
 
 def precision_recall_f1(tp, fp, fn) -> Tuple[float, float, float]:
     if tp == 0:
@@ -219,7 +329,7 @@ class SymbolDetectionEvaluator:
         self.codec = Codec()
 
     def evaluate(self, gt_symbols: List[List[MusicSymbol]], pred_symbols: List[List[MusicSymbol]]):
-
+        cm = ConfusionMatrix()
         min_distance_sqr = self.params.symbol_detected_min_distance ** 2
 
         def extract_coords_of_symbols(symbols: List[MusicSymbol]) -> List[Tuple[Point, MusicSymbol]]:
@@ -274,6 +384,7 @@ class SymbolDetectionEvaluator:
             n_fp = len(p_symbols)
             n_fn = len(gt_symbols)
 
+            cm.gather(pairs, gt_symbols, p_symbols)
             if n_tp == 0 and n_fp == 0 and n_fn == 0:
                 # empty
                 print("Empty. Skipping!")
@@ -381,7 +492,8 @@ class SymbolDetectionEvaluator:
         total_diffs = total_diffs / total_diffs[-1]
         # transfer total / errors => acc = 1 - errors / total
         total_diffs[-2] = 1 - 1 / total_diffs[-2]
-
+        cm.plot_confusion_matrix()
+        cm.plot_confusion_matrix(normalize=True)
         return f_metrics.mean(axis=0), counts.sum(axis=0), acc_counts, acc_acc, total_diffs
 
 
