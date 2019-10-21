@@ -101,15 +101,26 @@ class Predictor(AlgorithmPredictor):
         #    print(x)
         clefs = aligner.calculate_clef_positions()
         from omr.steps.tools.symbolsequencematcher.construct import Constructor
+        for page in predctions:
+            for line in page.music_lines:
+                line.line.operation.music_line.symbols = line.symbols
+
+            page.pcgts.page.annotations.connections.clear()
+            page.pcgts.to_file(page.dataset_page.file('pcgts').local_path())
+        aligner_name1 = Aligner(predctions, gt)
+        opt_codes_name1 = aligner_name1.get_lev_optcodes(CalcType.DELTANNAME)
+
         constructor = Constructor(prediction=predctions)
         modified_prediction = constructor.rebuild_prediction(clefs)
-
         for page in modified_prediction:
             for line in page.music_lines:
                 line.line.operation.music_line.symbols = line.symbols
 
             page.pcgts.page.annotations.connections.clear()
             page.pcgts.to_file(page.dataset_page.file('pcgts').local_path())
+
+        aligner_name = Aligner(modified_prediction, gt)
+        opt_codes_name = aligner_name.get_lev_optcodes(CalcType.DELTANNAME)
 
 
 class CalcType(Enum):
@@ -121,7 +132,7 @@ class Aligner:
     from database.file_formats.pcgts import Page
 
     def __init__(self, prediction, gt_pcgts: [database_page]):
-        self.prediction = prediction
+        self.prediction: List[SymbolsPredictionResult] = prediction
         self.gt_pcgts: [database_page] = gt_pcgts
         self.opt_codes = None
 
@@ -138,8 +149,12 @@ class Aligner:
             gt_sequence = codec(gt_pcgts, Codec.PCGTS)
 
         if type == CalcType.DELTANNAME:
+            for page in self.prediction:
+                for line in page.music_lines:
+                    line.line.operation.music_region.update_note_names()
+
             prediction_sequence = [symbol.note_name for page in self.prediction for music_line in page.music_lines
-                                   for symbol in music_line.symbols if symbol.symbol_type == symbol.symbol_type.NOTE]
+                                   for symbol in music_line.line.operation.music_line.symbols if symbol.symbol_type == symbol.symbol_type.NOTE]
 
             gt_sequence = [symbol.note_name for page in self.gt_pcgts for mb in page.pcgts().page.music_blocks() for ml
                            in mb.lines for symbol in ml.symbols if symbol.symbol_type == symbol.symbol_type.NOTE]
@@ -291,9 +306,9 @@ if __name__ == '__main__':
     django.setup()
     #DatabaseBook.create()
     gt_book = DatabaseBook('Graduel')
-    gt_pcgts = gt_book.pages()[22:23]
+    gt_pcgts = gt_book.pages()[23:28]
     pred_book = DatabaseBook('Graduel_prediction')
-    pred_pcgts = pred_book.pages()[22:23]
+    pred_pcgts = pred_book.pages()[23:28]
     for pcgts, gpcgts in zip(pred_pcgts, gt_pcgts):
         pcgts.pcgts().page.sort_blocks()
         gpcgts.pcgts().page.sort_blocks()

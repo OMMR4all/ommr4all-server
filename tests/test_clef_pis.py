@@ -66,6 +66,5 @@ class TestClefPIS(unittest.TestCase):
         self.assertEqual(x.pis_octave(note_name=NoteName.G), ((1, -3), (15, 11)))
 
 
-
 if __name__ == '__main__':
     unittest.main()

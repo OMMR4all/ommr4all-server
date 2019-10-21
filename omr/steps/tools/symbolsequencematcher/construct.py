@@ -63,7 +63,11 @@ class Constructor:
                             # Same Clef, nothing to insert
                             # deleted += 1
                             counter += 1
-                            current_symbol_to_insert = next(clef_iterator)
+                            try:
+                                current_symbol_to_insert = next(clef_iterator)
+                            except StopIteration:
+                                current_symbol_to_insert = None
+                                break
                             continue
                             pass
 

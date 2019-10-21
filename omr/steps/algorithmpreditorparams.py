@@ -24,6 +24,8 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
     # layout connected components
     initialLine: Optional['Coords'] = None
 
+    symbolAlignment: str = None
+
 
 @dataclass()
 class AlgorithmPredictorSettings:
