@@ -22,7 +22,7 @@ repos: List[Repo] = [
     Repo(
         'calamari',
         'https://github.com/Calamari-OCR/calamari.git',
-        '3b9d17f2f42f98c752205c5fdcf546a129f2edd3',
+        '2fb2d79e6dfdf68aca8dffcf464bf0b9fe8b1f21',
     ),
     Repo(
         'ommr4all-line-detection',
