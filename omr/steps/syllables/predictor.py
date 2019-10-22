@@ -175,7 +175,7 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
                 if len(sylls) <= 1:
                     continue
 
-                sylls.sort(key=lambda s: s.xpos)
+                sylls.sort(key=lambda s: mr.syllables.index(s))
 
                 left = sylls[0]
                 right = sylls[-1]

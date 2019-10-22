@@ -37,7 +37,7 @@ repos: List[Repo] = [
     Repo(
         'ommr4all-page-segmentation',
         'https://github.com/OMMR4all/ommr4all-page-segmentation.git',
-        '3c13353fae7b36b9efc229edb0a7fccfa410a2fd',
+        '3d87e1852e1fc439169d45994c7bd2505fddd9cc',
     ),
 ]
 
@@ -52,7 +52,7 @@ def main():
     os.chdir(root_dir)
 
     if args.mode == 'setup':
-        subprocess.check_call([pip, 'install', 'tensorflow==1.14' if not args.gpu else 'tensorflow_gpu==1.14'])
+        subprocess.check_call([pip, 'install', 'tensorflow>=2.0' if not args.gpu else 'tensorflow_gpu>=2.0'])
         subprocess.check_call([pip, 'install', '-r', 'requirements.txt'])
 
         with tempfile.TemporaryDirectory() as d:

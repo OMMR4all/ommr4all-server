@@ -68,7 +68,7 @@ class PCTrainer(AlgorithmTrainer):
             display=self.params.display,
             output_dir=self.settings.model.path,
             model_name='model',
-            early_stopping_max_l_rate_drops=self.params.early_stopping_max_keep,
+            early_stopping_max_performance_drops=self.params.early_stopping_max_keep,
             early_stopping_restore_best_weights=False,
             threads=self.params.processes,
             compute_baseline=True,

@@ -30,6 +30,10 @@ class CalamariTrainer(AlgorithmTrainer):
             processes=1,
         )
 
+    @staticmethod
+    def force_dataset_params(params: DatasetParams):
+        params.height = 48
+
     def __init__(self, settings: AlgorithmTrainerSettings):
         super().__init__(settings)
 
@@ -48,7 +52,7 @@ class CalamariTrainer(AlgorithmTrainer):
         params.output_model_prefix = 'text'
         params.display = self.params.display
         params.skip_invalid_gt = True
-        params.processes = -1
+        params.processes = 2
         params.data_aug_retrain_on_original = True
 
         params.early_stopping_frequency = self.params.early_stopping_test_interval

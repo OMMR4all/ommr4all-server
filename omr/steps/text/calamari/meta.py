@@ -1,4 +1,4 @@
-from omr.steps.algorithm import AlgorithmMeta, AlgorithmPredictor, AlgorithmTrainer, Type, AlgorithmTypes
+from omr.steps.algorithm import AlgorithmMeta, AlgorithmPredictor, AlgorithmTrainer, Type, AlgorithmTypes, Experimenter
 from ..dataset import TextDataset, Dataset
 from omr.steps.step import Step
 
@@ -21,6 +21,11 @@ class Meta(AlgorithmMeta):
     @staticmethod
     def dataset_class() -> Type[Dataset]:
         return TextDataset
+
+    @classmethod
+    def experimenter(cls) -> Type[Experimenter]:
+        from ..experimenter import TextExperimenter
+        return TextExperimenter
 
 
 Step.register(Meta)

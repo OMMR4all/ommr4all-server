@@ -27,7 +27,10 @@ class AlgorithmTrainerParams(DataClassJSONMixin):
     
     def mix_default(self, default_params: 'AlgorithmTrainerParams'):
         for key, value in default_params.to_dict().items():
-            if getattr(self, key, None) is None or getattr(self, key, -1) < 0:
+            if type(getattr(self, key, None)) == str:
+                if getattr(self, key, None) is None:
+                    setattr(self, key, getattr(default_params, key))
+            elif getattr(self, key, None) is None or getattr(self, key, -1) < 0:
                 setattr(self, key, getattr(default_params, key))
 
 

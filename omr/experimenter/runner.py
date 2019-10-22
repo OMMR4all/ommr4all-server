@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--calamari_n_folds", type=int, default=0)
     parser.add_argument("--calamari_single_folds", type=int, nargs='+')
-    parser.add_argument("--calamari_network", type=str, default='cnn=32:3x3,pool=2x2,cnn=64:3x3,pool=1x2,cnn=64:3x3,lstm=100,dropout=0.5')
+    parser.add_argument("--calamari_network", type=str, default='cnn=40:3x3,pool=2x2,cnn=60:3x3,pool=2x2,lstm=200,dropout=0.5')
     parser.add_argument("--calamari_channels", type=int, default=1)
 
     # evaluation parameters
