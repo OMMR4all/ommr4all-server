@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from database import DatabaseBook, DatabasePage
 from database.file_formats import PcGts
+from database.file_formats.performance import LockState
 from omr.dataset import DatasetCallback, Dataset
 from typing import Optional, List, Type, Union, Generator
 from omr.experimenter.experimenter import Experimenter
@@ -71,6 +72,11 @@ class AlgorithmTrainer(ABC):
     def force_dataset_params(params: DatasetParams):
         pass
 
+    @staticmethod
+    @abstractmethod
+    def required_locks() -> List[LockState]:
+        return []
+
     def __init__(self, settings: AlgorithmTrainerSettings):
         super().__init__()
         self.settings: AlgorithmTrainerSettings = settings
@@ -88,10 +94,11 @@ class AlgorithmTrainer(ABC):
 
     def train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
         class CallbackInterception(TrainerCallback):
-            def __init__(self, model: Model):
+            def __init__(self, trainer: AlgorithmTrainer):
                 super().__init__()
-                self.meta = model.meta()
-                self.model = model
+                self.model = trainer.settings.model
+                self.meta = self.model.meta()
+                self.init(trainer.params.n_iter, trainer.params.early_stopping_max_keep)
 
             def init(self, total_iters, early_stopping_iters):
                 if callback:
@@ -129,15 +136,17 @@ class AlgorithmTrainer(ABC):
                 if callback:
                     callback.loading_finished(total)
 
+
         if not self.settings.model:
             if target_book:
                 self.settings.model = self.meta().create_new_model(target_book)
             else:
                 raise ValueError()
+
         self.settings.model.save_meta()
 
         self._pre_train()
-        self._train(target_book, CallbackInterception(self.settings.model))
+        self._train(target_book, CallbackInterception(self))
         self._post_train(target_book)
 
         self.settings.model.save_meta()

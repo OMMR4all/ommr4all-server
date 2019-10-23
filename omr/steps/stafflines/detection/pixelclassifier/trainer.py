@@ -1,9 +1,12 @@
 import os
+
+from omr.steps.stafflines.detection.trainer import StaffLineDetectionTrainer
+
 if __name__ == '__main__':
     import django
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
-from database.file_formats.performance.pageprogress import Locks
+from database.file_formats.performance.pageprogress import Locks, LockState
 from database import DatabaseBook
 import logging
 from omr.steps.stafflines.detection.dataset import DatasetParams
@@ -11,12 +14,12 @@ from omr.adapters.pagesegmentation.callback import PCTrainerCallback
 from pagesegmentation.lib.trainer import TrainSettings, Trainer, Loss, Monitor
 from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
 from omr.steps.stafflines.detection.pixelclassifier.meta import Meta
-from typing import Optional
+from typing import Optional, List
 
 logger = logging.getLogger(__name__)
 
 
-class BasicStaffLinesTrainer(AlgorithmTrainer):
+class BasicStaffLinesTrainer(StaffLineDetectionTrainer):
     @staticmethod
     def meta() -> Meta.__class__:
         return Meta
@@ -51,7 +54,7 @@ class BasicStaffLinesTrainer(AlgorithmTrainer):
             display=self.params.display,
             output_dir=self.settings.model.path,
             model_name='model',
-            early_stopping_max_l_rate_drops=self.params.early_stopping_max_keep,
+            early_stopping_max_performance_drops=self.params.early_stopping_max_keep,
             threads=self.params.processes,
             data_augmentation=False,
             loss=Loss.CATEGORICAL_CROSSENTROPY,

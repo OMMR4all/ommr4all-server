@@ -158,8 +158,11 @@ class BookOperationView(APIView):
             from restapi.operationworker.taskrunners.taskrunnersymboldetectiontrainer import TaskRunnerSymbolDetectionTrainer, TaskTrainerParams
             return TaskRunnerSymbolDetectionTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})))
         elif operation == 'train_staff_line_detector':
-            from restapi.operationworker.taskrunners.taskrunnerstafflinedetectiontrainer import TaskRunnerStaffLineDetectionTrainer, TaskTrainerParams
-            return TaskRunnerStaffLineDetectionTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})))
+            from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
+            return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.STAFF_LINES_PC)
+        elif operation == 'train_character_recognition':
+            from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
+            return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.OCR_CALAMARI)
         else:
             raise NotImplementedError()
 

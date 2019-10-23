@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from types import MappingProxyType
+
 from database.file_formats.pcgts import PcGts, Line, PageScaleReference, Point
 import numpy as np
 from typing import List, Tuple, Generator, Union, Optional, Any
@@ -9,9 +11,11 @@ import logging
 from omr.dataset.datastructs import CalamariCodec
 from omr.imageoperations import ImageOperationList, ImageOperationData
 from omr.dewarping.dummy_dewarper import NoStaffLinesAvailable, NoStaffsAvailable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from mashumaro import DataClassJSONMixin
 from enum import Enum
+
+import json
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +54,33 @@ class ImageInput(Enum):
 class LyricsNormalization(Enum):
     SYLLABLES = 'syllables'     # a-le-lu-ya vir-ga
     ONE_STRING = 'one_string'   # aleluyavirga
+    WORDS = 'words'             # aleluya virga
+
+
+@dataclass
+class LyricsNormalizationParams(DataClassJSONMixin):
+    lyrics_normalization: LyricsNormalization = LyricsNormalization.ONE_STRING
+    lower_only: bool = True
+    unified_u: bool = True
+
+
+class LyricsNormalizationProcessor:
+    def __init__(self, params: LyricsNormalizationParams):
+        self.params = params
+
+    def apply(self, text: str) -> str:
+        if self.params.lower_only:
+            text = text.lower()
+
+        if self.params.unified_u:
+            text = text.replace('v', 'u')
+
+        if self.params.lyrics_normalization == LyricsNormalization.ONE_STRING:
+            text = text.replace('-', '').replace(' ', '')
+        elif self.params.lyrics_normalization == LyricsNormalization.WORDS:
+            text = text.replace('-', '')
+
+        return text
 
 
 @dataclass
@@ -69,6 +100,9 @@ class DatasetParams(DataClassJSONMixin):
     target_staff_line_distance: int = 10
     origin_staff_line_distance: int = 10
 
+    # text
+    lyrics_normalization: LyricsNormalizationParams = field(default_factory=lambda: LyricsNormalizationParams())
+
     # symbol detection
     height: int = 80
     dewarp: bool = False
@@ -81,9 +115,6 @@ class DatasetParams(DataClassJSONMixin):
     apply_fcn_height: Optional[int] = None
     neume_types_only: bool = False
     calamari_codec: Optional[CalamariCodec] = None
-
-    # text
-    lyrics_normalization: LyricsNormalization = LyricsNormalization.SYLLABLES
 
     def mix_default(self, default_params: 'DatasetParams'):
         for key, value in default_params.to_dict().items():
@@ -164,9 +195,7 @@ class Dataset(ABC):
                 return None
 
             text = data.operation.text_line.text(with_drop_capital=False)
-            if self.params.lyrics_normalization == LyricsNormalization.ONE_STRING:
-                text = text.replace('-', '').replace(' ', '')
-            return text
+            return LyricsNormalizationProcessor(self.params.lyrics_normalization).apply(text)
 
         images = [255 - get_input_image(d).astype(np.uint8) for d in lines]
         gts = [extract_text(d) for d in lines]

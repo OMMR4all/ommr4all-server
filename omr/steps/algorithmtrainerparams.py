@@ -18,6 +18,7 @@ class AlgorithmTrainerParams(DataClassJSONMixin):
     load: Optional[str] = None
     processes: int = -1
     train_data_multiplier: int = 1
+    data_augmentation_factor: float = None
 
     def model_to_load(self) -> Optional[Model]:
         if not self.load:

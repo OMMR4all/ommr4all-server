@@ -7,6 +7,7 @@ from omr.steps.algorithmtrainerparams import AlgorithmTrainerParams
 from omr.steps.algorithmtypes import AlgorithmTypes
 from copy import deepcopy
 
+
 if __name__ == '__main__':
     import django
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
@@ -81,7 +82,7 @@ def cross_fold(data, amount):
     return [(i, folds[i], flatten(folds[:i] + folds[i+1:])) for i in range(amount)]
 
 
-class Experimenter(ABC):
+class ExperimenterScheduler:
     def __init__(self, args: GlobalDataArgs):
         super().__init__()
         self.global_args = args
@@ -95,6 +96,7 @@ class Experimenter(ABC):
             test_books: List[str],
             train_books_extend: List[str]
             ):
+        from omr.steps.step import Step
         global_args = self.global_args
         logger.info("Finding PcGts files with valid ground truth")
         train_args = generate_dataset(
@@ -114,16 +116,23 @@ class Experimenter(ABC):
                                      gd.test_pcgts_files,
                                      global_args) for gd in train_args]
 
-        results = list(map(self.__class__.run_single, train_args))
-        self.print_results(results, logger)
+        experimenter_class = Step.meta(self.global_args.algorithm_type).experimenter()
+        results = [experimenter_class(args, logger).run_single() for args in train_args]
+        experimenter_class.print_results(self.global_args, results, logger)
 
-    @classmethod
-    def run_single(cls, args: SingleDataArgs):
+
+class Experimenter(ABC):
+    def __init__(self, args: SingleDataArgs, parent_logger):
+        self.args = args
+        self.fold_log = parent_logger.getChild("fold_{}".format(args.id))
+
+    def run_single(self):
+        args = self.args
+        fold_log = self.fold_log
         from omr.steps.algorithm import AlgorithmPredictorSettings, AlgorithmTrainerSettings, AlgorithmTrainerParams
         from omr.steps.step import Step
         global_args = args.global_args
 
-        fold_log = logger.getChild("fold_{}".format(args.id))
 
         def print_dataset_content(files: List[PcGts], label: str):
             fold_log.debug("Got {} {} files: {}".format(len(files), label, [f.page.location.local_path() for f in files]))
@@ -169,7 +178,7 @@ class Experimenter(ABC):
                     pred_params,
                 ))
             full_predictions = list(pred.predict([f.page.location for f in test_pcgts_files]))
-            predictions = cls.extract_gt_prediction(full_predictions)
+            predictions = self.extract_gt_prediction(full_predictions)
             with open(prediction_path, 'wb') as f:
                 pickle.dump(predictions, f)
 
@@ -183,7 +192,7 @@ class Experimenter(ABC):
                 output_pcgts = [PcGts.from_file(pcgts.page.location.copy_to(pred_book).file('pcgts'))
                                 for pcgts in test_pcgts_files]
 
-                cls.output_prediction_to_book(pred_book, output_pcgts, full_predictions)
+                self.output_prediction_to_book(pred_book, output_pcgts, full_predictions)
 
                 for o_pcgts in output_pcgts:
                     o_pcgts.to_file(o_pcgts.page.location.file('pcgts').local_path())
@@ -197,7 +206,7 @@ class Experimenter(ABC):
         predictions = tuple(predictions)
         if not global_args.skip_eval and len(predictions) > 0:
             fold_log.info("Starting evaluation")
-            r = cls.evaluate(predictions, global_args.evaluation_params, fold_log)
+            r = self.evaluate(predictions, global_args.evaluation_params)
         else:
             r = None
 
@@ -207,21 +216,19 @@ class Experimenter(ABC):
 
         return r
 
-    @abstractmethod
-    def print_results(self, results, log):
-        pass
-
     @classmethod
     @abstractmethod
-    def extract_gt_prediction(cls, full_predictions):
+    def print_results(cls, args: GlobalDataArgs, results, log):
         pass
 
-    @classmethod
     @abstractmethod
-    def output_prediction_to_book(cls, pred_book: DatabaseBook, output_pcgts: List[PcGts], predictions):
+    def extract_gt_prediction(self, full_predictions):
         pass
 
-    @classmethod
     @abstractmethod
-    def evaluate(cls, predictions, evaluation_params, log):
+    def output_prediction_to_book(self, pred_book: DatabaseBook, output_pcgts: List[PcGts], predictions):
+        pass
+
+    @abstractmethod
+    def evaluate(self, predictions, evaluation_params):
         pass

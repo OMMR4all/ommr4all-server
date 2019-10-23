@@ -168,6 +168,9 @@ class OperationTests(APITestCase):
     def test_symbol_detection_002(self):
         self._test_predictor('page_test_symbol_detection_002', AlgorithmTypes.SYMBOLS_PC)
 
+    def test_text_recognition_001(self):
+        self._test_predictor('page_test_text_recognition_001', AlgorithmTypes.OCR_CALAMARI)
+
     def test_syllable_detection_from_text_001(self):
         self._test_predictor('page_test_syllable_detection_001', AlgorithmTypes.SYLLABLES_FROM_TEXT)
 

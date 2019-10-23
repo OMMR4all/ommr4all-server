@@ -10,7 +10,8 @@ import numpy as np
 
 
 class SyllablesExperimenter(Experimenter):
-    def print_results(self, results, log):
+    @classmethod
+    def print_results(cls, args, results, log):
         tp, fp, fn, p, r, f1, acc = zip(*results)
 
         p, dp = np.mean(p), np.std(p)
@@ -23,8 +24,10 @@ class SyllablesExperimenter(Experimenter):
         pt.add_row([dp, dr, df1, dacc])
         log.info(pt)
 
-    @classmethod
-    def extract_gt_prediction(cls, full_predictions: List[PredictionResult]):
+        if args.magic_prefix:
+            print("{}{}".format(args.magic_prefix, ','.join(map(str, [p, dp, r, dr, f1, df1, acc, dacc]))))
+
+    def extract_gt_prediction(self, full_predictions: List[PredictionResult]):
         def flatten(x):
             return sum(sum(x, []), [])
 
@@ -32,13 +35,11 @@ class SyllablesExperimenter(Experimenter):
         gt = [[[(sc.syllable.id, sc.note.id) for sc in c.syllable_connections] for c in p.page().annotations.connections] for p in full_predictions]
         return flatten(gt), flatten(pred)
 
-    @classmethod
-    def output_prediction_to_book(cls, pred_book: DatabaseBook, output_pcgts: List[PcGts], predictions: List[PredictionResult]):
+    def output_prediction_to_book(self, pred_book: DatabaseBook, output_pcgts: List[PcGts], predictions: List[PredictionResult]):
         for pcgts, pred in zip(output_pcgts, predictions):
             pcgts.page.annotations = Annotations.from_json(pred.annotations.to_json(), pcgts.page)
 
-    @classmethod
-    def evaluate(cls, predictions, evaluation_params, log):
+    def evaluate(self, predictions, evaluation_params):
         gt, pred = predictions
         tp = len([x for x in gt if x in pred])
         fp = len([x for x in pred if x not in gt])
@@ -52,6 +53,6 @@ class SyllablesExperimenter(Experimenter):
         result = tp, fp, fn, p, r, f1, acc
         pt = PrettyTable(['tp', 'fp', 'fn', 'P', 'R', 'F1', 'acc'])
         pt.add_row(result)
-        log.debug(pt)
+        self.fold_log.debug(pt)
 
         return result

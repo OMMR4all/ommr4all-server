@@ -9,15 +9,17 @@ import os
 from pagesegmentation.lib.model import Architecture
 
 from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
-from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
+from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, SerializableCTCDecoderParams
 from omr.steps.algorithmtrainerparams import AlgorithmTrainerParams
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 import django
 os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
 django.setup()
 
-from omr.dataset import DatasetParams
+from omr.dataset import DatasetParams, LyricsNormalization
 from omr.steps.algorithmtypes import AlgorithmTypes
+from omr.dataset.dataset import LyricsNormalizationParams
+from calamari_ocr.proto import CTCDecoderParams
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -25,8 +27,7 @@ logger = logging.getLogger(__name__)
 if __name__ == "__main__":
     import argparse
     import random
-    from omr.experimenter.experimenter import GlobalDataArgs, EvaluatorParams
-    from omr.steps.step import Step
+    from omr.experimenter.experimenter import GlobalDataArgs, EvaluatorParams, ExperimenterScheduler
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--magic_prefix', default='EXPERIMENT_OUT=')
@@ -45,6 +46,7 @@ if __name__ == "__main__":
     parser.add_argument("--val_amount", default=0.2, type=float)
     parser.add_argument("--pretrained_model", default=None, type=str)
     parser.add_argument("--data_augmentation", action="store_true")
+    parser.add_argument("--data_augmentation_factor", type=float, default=0)
     parser.add_argument("--output_book", default=None, type=str)
     parser.add_argument("--type", type=lambda t: AlgorithmTypes[t], required=True, choices=list(AlgorithmTypes))
     parser.add_argument("--early_stopping_max_keep", type=int, default=-1)
@@ -66,11 +68,15 @@ if __name__ == "__main__":
     parser.add_argument("--max_number_of_staff_lines", default=4, type=int)
 
     parser.add_argument("--page_segmentation_architecture", type=lambda t: Architecture[t], choices=list(Architecture), default=PageSegmentationTrainerParams().architecture)
+    parser.add_argument("--lyrics_normalization", type=lambda t: LyricsNormalization[t], choices=list(LyricsNormalization), default=DatasetParams().lyrics_normalization.lyrics_normalization)
+    parser.add_argument("--lyrics_mixed_case", action='store_true')
 
     parser.add_argument("--calamari_n_folds", type=int, default=0)
     parser.add_argument("--calamari_single_folds", type=int, nargs='+')
     parser.add_argument("--calamari_network", type=str, default='cnn=40:3x3,pool=2x2,cnn=60:3x3,pool=2x2,lstm=200,dropout=0.5')
     parser.add_argument("--calamari_channels", type=int, default=1)
+    parser.add_argument("--calamari_ctc_decoder", type=str, choices=[CTCDecoderParams.CTCDecoderType.Name(x) for x in CTCDecoderParams.CTCDecoderType.values()], default=CTCDecoderParams.CTCDecoderType.Name(AlgorithmPredictorParams().ctcDecoder.params.type))
+    parser.add_argument("--calamari_ctc_decoder_beam_width", type=int, default=AlgorithmPredictorParams().ctcDecoder.params.beam_width)
 
     # evaluation parameters
     parser.add_argument("--seed", type=int, default=1)
@@ -115,6 +121,11 @@ if __name__ == "__main__":
             gray=args.gray,
             extract_region_only=args.extract_region_only,
             gt_line_thickness=args.gt_line_thickness,
+
+            lyrics_normalization=LyricsNormalizationParams(
+                args.lyrics_normalization,
+                not args.lyrics_mixed_case,
+            ),
         ),
         evaluation_params=EvaluatorParams(
             symbol_detected_min_distance=args.symbol_detected_min_distance,
@@ -126,6 +137,10 @@ if __name__ == "__main__":
         predictor_params=AlgorithmPredictorParams(
             minNumberOfStaffLines=args.min_number_of_staff_lines,
             maxNumberOfStaffLines=args.max_number_of_staff_lines,
+            ctcDecoder=SerializableCTCDecoderParams(
+                type=CTCDecoderParams.CTCDecoderType.Value(args.calamari_ctc_decoder),
+                beam_width=args.calamari_ctc_decoder_beam_width,
+            )
         ),
         output_book=args.output_book,
         algorithm_type=args.type,
@@ -136,6 +151,7 @@ if __name__ == "__main__":
             processes=8,
             early_stopping_max_keep=args.early_stopping_max_keep,
             train_data_multiplier=args.train_data_multiplier,
+            data_augmentation_factor=args.data_augmentation_factor,
         ),
         page_segmentation_params=PageSegmentationTrainerParams(
             data_augmentation=args.data_augmentation,
@@ -149,7 +165,7 @@ if __name__ == "__main__":
         ),
     )
 
-    experimenter = Step.meta(args.type).experimenter()(global_args)
+    experimenter = ExperimenterScheduler(global_args)
     experimenter.run(
         args.n_train,
         args.val_amount,

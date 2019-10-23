@@ -8,12 +8,10 @@ import numpy as np
 
 
 class SymbolsExperimenter(Experimenter):
-    @classmethod
-    def extract_gt_prediction(cls, full_predictions):
+    def extract_gt_prediction(self, full_predictions):
         return zip(*[(p.line.operation.music_line.symbols, p.symbols) for p in sum([p.music_lines for p in full_predictions], [])])
 
-    @classmethod
-    def output_prediction_to_book(cls, pred_book: DatabaseBook, output_pcgts: List[PcGts], predictions):
+    def output_prediction_to_book(self, pred_book: DatabaseBook, output_pcgts: List[PcGts], predictions):
         output_pcgts_by_page_name = {}
         for o_pcgts in output_pcgts:
             output_pcgts_by_page_name[o_pcgts.page.location.page] = o_pcgts
@@ -29,8 +27,7 @@ class SymbolsExperimenter(Experimenter):
             o_pcgts = output_pcgts_by_page_name[p.line.operation.page.location.page]
             o_pcgts.page.music_line_by_id(p.line.operation.music_line.id).symbols = p.symbols
 
-    @classmethod
-    def evaluate(cls, predictions, evaluation_params, log):
+    def evaluate(self, predictions, evaluation_params):
         gt_symbols, pred_symbols = predictions
         evaluator = SymbolDetectionEvaluator(evaluation_params)
         metrics, counts, acc_counts, acc_acc, total_diffs = evaluator.evaluate(gt_symbols, pred_symbols)
@@ -46,7 +43,7 @@ class SymbolsExperimenter(Experimenter):
         at.add_column("Precision", prec_rec_f1[:, 0])
         at.add_column("Recall", prec_rec_f1[:, 1])
         at.add_column("F1", prec_rec_f1[:, 2])
-        log.debug(at.get_string())
+        self.fold_log.debug(at.get_string())
 
         at = PrettyTable()
         at.add_column("Type", ["Note all", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence", "Sequence NC"])
@@ -55,15 +52,16 @@ class SymbolsExperimenter(Experimenter):
         at.add_column("Total", acc_counts[:, AccCounts.TOTAL])
         at.add_column("Accuracy [%]", acc_acc[:, 0] * 100)
 
-        log.debug(at.get_string())
+        self.fold_log.debug(at.get_string())
 
         at = PrettyTable(["Missing Notes", "Wrong NC", "Wrong PIS", "Missing Clefs", "Missing Accids", "Additional Notes", "FP Wrong NC", "FP Wrong PIS", "Additional Clefs", "Additional Accids", "Acc", "Total"])
         at.add_row(total_diffs)
-        log.debug(at)
+        self.fold_log.debug(at)
 
         return prec_rec_f1, acc_acc, total_diffs
 
-    def print_results(self, results, log):
+    @classmethod
+    def print_results(cls, args, results, log):
         log.info("Total Result:")
 
         prec_rec_f1_list = [r[0] for r in results if r is not None]
@@ -104,9 +102,8 @@ class SymbolsExperimenter(Experimenter):
         at.add_row(diffs_std)
         log.info("\n" + at.get_string())
 
-        if self.global_args.magic_prefix:
-            # skip first all output
+        if args.magic_prefix:
             all_symbol_detection = np.array(sum([[prf1_mean[1:, i], prf1_std[1:, i]] for i in range(3)], [])).transpose().reshape(-1)
             all_acc = np.array(np.transpose([acc_mean[:, 0], acc_std[:, 0]]).reshape([-1]))
             all_diffs = np.array(np.transpose([diffs_mean, diffs_std])).reshape([-1])
-            print("{}{}".format(self.global_args.magic_prefix, ','.join(map(str, list(all_symbol_detection) + list(all_acc) + list(all_diffs)))))
+            print("{}{}".format(args.magic_prefix, ','.join(map(str, list(all_symbol_detection) + list(all_acc) + list(all_diffs)))))

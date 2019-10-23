@@ -14,10 +14,12 @@ from omr.steps.text.dataset import TextDataset
 class SingleLinePredictionResult(NamedTuple):
     text: List[Tuple[str, Point]]
     line: RegionLineMaskData
+    hyphenated: str
 
     def to_dict(self):
-        return {'symbols': [(s[0], s[1].to_json()) for s in self.text],
-                'id': self.line.operation.music_line.id}
+        return {'sentence': self.hyphenated,
+                'id': self.line.operation.text_line.id,
+                }
 
 
 class PredictionResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__class__):

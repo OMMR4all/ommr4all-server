@@ -1,6 +1,7 @@
 import os
 
 from omr.dataset.datastructs import CalamariCodec
+from omr.steps.symboldetection.trainer import SymbolDetectionTrainer
 
 if __name__ == '__main__':
     import django
@@ -11,19 +12,17 @@ from calamari_ocr.proto import CheckpointParams, DataPreprocessorParams, TextPro
 from calamari_ocr.ocr.trainer import Trainer
 from calamari_ocr.ocr.cross_fold_trainer import CrossFoldTrainer
 from calamari_ocr.ocr.augmentation import SimpleDataAugmenter
-from typing import List, Optional
-from database.file_formats import PcGts
+from typing import Optional
 from database import DatabaseBook
 from omr.dataset import DatasetParams
-from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
-from omr.imageoperations.music_line_operations import SymbolLabel
+from omr.steps.algorithm import TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
 from omr.steps.symboldetection.sequencetosequence.meta import Meta
 
 from database.file_formats.performance.pageprogress import Locks
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 
 
-class OMRTrainer(AlgorithmTrainer):
+class OMRTrainer(SymbolDetectionTrainer):
     @staticmethod
     def meta() -> Meta.__class__:
         return Meta

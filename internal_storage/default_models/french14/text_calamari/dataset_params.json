@@ -1,0 +1,34 @@
+{
+  "gt_required": true,
+  "pad": [
+    0,
+    10,
+    0,
+    20
+  ],
+  "pad_power_of_2": 3,
+  "image_input": "region_image",
+  "full_page": false,
+  "gray": false,
+  "extract_region_only": false,
+  "gt_line_thickness": 3,
+  "page_scale_reference": 4,
+  "target_staff_line_distance": 10,
+  "origin_staff_line_distance": 10,
+  "height": 48,
+  "dewarp": false,
+  "cut_region": true,
+  "center": false,
+  "staff_lines_only": true,
+  "masks_as_input": false,
+  "apply_fcn_pad_power_of_2": 3,
+  "apply_fcn_model": null,
+  "apply_fcn_height": null,
+  "neume_types_only": false,
+  "calamari_codec": null,
+  "lyrics_normalization": {
+    "lyrics_normalization": "one_string",
+    "lower_only": true,
+    "unified_u": true
+  }
+}

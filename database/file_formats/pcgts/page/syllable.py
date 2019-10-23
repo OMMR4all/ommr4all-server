@@ -10,27 +10,6 @@ class SyllableConnection(Enum):
 
 
 class Syllable:
-    syllable_re = re.compile("(([\w\.!?,;]+[~\-])|([\w\.!?,;]+$))")
-
-    @staticmethod
-    def syllables_from_textequiv(text_equiv):
-        words = text_equiv.content.split()
-        syllables = []
-        sub_id = 0
-        for word in words:
-            for s, _, _ in Syllable.syllable_re.findall(word):
-                s_id = "{}:{}".format(text_equiv.id, sub_id)
-                if s.endswith("-"):
-                    syllables.append(Syllable(s_id, s[:-1], SyllableConnection.HIDDEN))
-                elif s.endswith("~"):
-                    syllables.append(Syllable(s_id, s[:-1], SyllableConnection.VISIBLE))
-                else:
-                    syllables.append(Syllable(s_id, s, SyllableConnection.NEW))
-
-                sub_id += 1
-
-        return syllables
-
     def __init__(self,
                  s_id=None,
                  text="",

@@ -20,5 +20,7 @@
   "apply_fcn_model": null,
   "apply_fcn_height": null,
   "neume_types_only": false,
-  "lyrics_normalization": "syllables"
+  "lyrics_normalization": {
+    "lyrics_normalization": "syllables"
+  }
 }

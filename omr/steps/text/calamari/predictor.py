@@ -1,17 +1,20 @@
 import os
+
+from omr.dataset.dataset import LyricsNormalizationProcessor, LyricsNormalization, LyricsNormalizationParams
+
 if __name__ == '__main__':
     import django
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
 from calamari_ocr.ocr.predictor import Predictor, MultiPredictor
 from calamari_ocr.ocr.voting import voter_from_proto
-from calamari_ocr.proto import VoterParams, Predictions
+from calamari_ocr.proto import VoterParams, CTCDecoderParams
 from typing import List, Tuple, Type, Optional, Generator
+from ommr4all.settings import BASE_DIR
+from copy import deepcopy
 
-from database.file_formats.performance.pageprogress import Locks
 from database.model import Model
-from omr.dataset.datastructs import CalamariSequence, RegionLineMaskData
-from database.file_formats import PcGts
+from omr.dataset.datastructs import RegionLineMaskData
 from database import DatabaseBook
 from omr.steps.algorithm import AlgorithmMeta, PredictionCallback
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorSettings
@@ -22,7 +25,9 @@ from omr.steps.text.predictor import \
 import numpy as np
 from calamari_ocr.utils import glob_all
 from database.model.definitions import MetaId
+from thirdparty.pyphen import Pyphen
 
+pyphen = Pyphen(lang='la')
 
 class CalamariPredictor(TextPredictor):
     @staticmethod
@@ -32,21 +37,39 @@ class CalamariPredictor(TextPredictor):
 
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
+        ctc_decoder_params = deepcopy(settings.params.ctcDecoder.params)
+        with open(os.path.join(BASE_DIR, 'internal_storage', 'resources', 'dictionary.txt')) as f:
+            # TODO: dataset params in settings, that we can create the correct normalization params
+            lnp = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.ONE_STRING))
+            ctc_decoder_params.dictionary[:] = [lnp.apply(word) for word in f.read().split()]
+
         # self.predictor = MultiPredictor(glob_all([s + '/text_best*.ckpt.json' for s in params.checkpoints]))
-        self.predictor = MultiPredictor(glob_all([settings.model.local_file('model.ckpt.json')]))
+        self.predictor = MultiPredictor(glob_all([settings.model.local_file('text_best.ckpt.json')]),
+                                        ctc_decoder_params=ctc_decoder_params)
         self.height = self.predictor.predictors[0].network_params.features
         voter_params = VoterParams()
         voter_params.type = VoterParams.CONFIDENCE_VOTER_DEFAULT_CTC
         self.voter = voter_from_proto(voter_params)
 
-    def _predict(self, dataset: TextDataset, callback: Optional[PredictionCallback]) -> Generator[SingleLinePredictionResult, None, None]:
-        for marked_symbols, (r, sample) in zip(dataset.load(callback), self.predictor.predict_dataset(dataset.to_text_line_calamari_dataset())):
-            prediction = self.voter.vote_prediction_result(r)
-            yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, marked_symbols), marked_symbols)
+    def _predict(self, dataset: TextDataset, callback: Optional[PredictionCallback] = None) -> Generator[SingleLinePredictionResult, None, None]:
+        try:
+            for marked_symbols, (r, sample) in zip(dataset.load(), self.predictor.predict_dataset(dataset.to_text_line_calamari_dataset())):
+                prediction = self.voter.vote_prediction_result(r)
+                hyphenated = " ".join([pyphen.inserted(word) for word in prediction.sentence.split()])
+                yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, marked_symbols), marked_symbols, hyphenated)
+        except Exception as e:
+            if str(e) == 'Empty data set provided.':
+                return
+
+            raise e
 
     def extract_symbols(self, dataset: TextDataset, p, m: RegionLineMaskData) -> List[Tuple[str, Point]]:
         def i2p(p):
             return m.operation.page.image_to_page_scale(p, m.operation.scale_reference)
+
+        if len(p.sentence) > 0 and len(p.positions) == 0:
+            # TODO: remove if lm decoding returns positions
+            return [(c, None) for c in p.sentence]
 
         sentence = [(pos.chars[0].char,
                      i2p(dataset.local_to_global_pos(Point((pos.global_start + pos.global_end) / 2, m.operation.text_line.aabb.bottom()), m.operation.params).x))

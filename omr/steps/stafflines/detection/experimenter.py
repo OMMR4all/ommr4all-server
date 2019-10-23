@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class StaffLinesExperimenter(Experimenter):
-    @classmethod
-    def extract_gt_prediction(cls, full_predictions):
+    def extract_gt_prediction(self, full_predictions):
         return [
             EvaluationData(
                 p.line.operation.page.location.local_path(),
@@ -25,8 +24,7 @@ class StaffLinesExperimenter(Experimenter):
             for p in full_predictions
         ]
 
-    @classmethod
-    def evaluate(cls, predictions, evaluation_params, log):
+    def evaluate(self, predictions, evaluation_params):
         evaluator = StaffLineDetectionEvaluator(evaluation_params)
         res = evaluator.evaluate(predictions)
         counts, prf1, (all_tp_staves, all_fp_staves, all_fn_staves) = res
@@ -42,16 +40,17 @@ class StaffLinesExperimenter(Experimenter):
             at.add_column("Precision", prf1[:, 0])
             at.add_column("Recall", prf1[:, 1])
             at.add_column("F1", prf1[:, 2])
-            log.debug(at.get_string())
+            self.fold_log.debug(at.get_string())
 
             metrics = prf1
         else:
-            log.warning("Empty file without ground truth lines")
+            self.fold_log.warning("Empty file without ground truth lines")
             metrics = None
 
         return res
 
-    def print_results(self, results, log):
+    @classmethod
+    def print_results(cls, args, results, log):
         counts, metrics, _ = zip(*results)
 
         logger.info("Total Result:")
@@ -85,12 +84,11 @@ class StaffLinesExperimenter(Experimenter):
         at.add_column("+-", prf1_std[:, 2])
         logger.info("\n\n" + at.get_string())
 
-        if self.global_args.magic_prefix:
+        if args.magic_prefix:
             all_values = np.array(sum([[prf1_mean[:, i], prf1_std[:, i]] for i in range(3)], [])).transpose().reshape(-1)
-            print("{}{}".format(self.global_args.magic_prefix, ','.join(map(str, all_values))))
+            print("{}{}".format(args.magic_prefix, ','.join(map(str, all_values))))
 
-    @classmethod
-    def output_prediction_to_book(cls, pred_book: DatabaseBook, output_pcgts: List[PcGts], predictions):
+    def output_prediction_to_book(self, pred_book: DatabaseBook, output_pcgts: List[PcGts], predictions):
         output_pcgts_by_page_name = {}
         for o_pcgts in output_pcgts:
             output_pcgts_by_page_name[o_pcgts.page.location.page] = o_pcgts
@@ -112,7 +110,7 @@ class StaffLinesExperimenter(Experimenter):
             o_pcgts.to_file(o_pcgts.page.location.file('pcgts').local_path())
 
     def output_book_2(self, test_pcgts_files, predictions, all_tp_staves, all_fp_staves, all_fn_staves):
-        global_args = self.global_args
+        global_args = self.args.global_args
         output_tp = True
         output_fp = True
         output_fn = True

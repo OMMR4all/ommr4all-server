@@ -1,3 +1,4 @@
+from calamari_ocr.ocr.callbacks import TrainingCallback
 from calamari_ocr.proto import CheckpointParams, DataPreprocessorParams, TextProcessorParams, network_params_from_definition_string
 from calamari_ocr.ocr.trainer import Trainer
 from calamari_ocr.ocr.cross_fold_trainer import CrossFoldTrainer
@@ -10,10 +11,23 @@ from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 from database import DatabaseBook
 import os
 
-from omr.steps.algorithm import AlgorithmTrainer, AlgorithmTrainerParams, AlgorithmTrainerSettings, TrainerCallback, AlgorithmMeta
+from omr.steps.algorithm import AlgorithmTrainerParams, AlgorithmTrainerSettings, TrainerCallback, AlgorithmMeta
+from omr.steps.text.trainer import TextTrainerBase
 
 
-class CalamariTrainer(AlgorithmTrainer):
+class CalamariTrainerCallback(TrainingCallback):
+    def __init__(self, cb: TrainerCallback):
+        self.cb = cb
+
+    def display(self, train_cer, train_loss, train_dt, iter, steps_per_epoch, display_epochs,
+                example_pred, example_gt):
+        self.cb.next_iteration(iter, train_loss, 1 - train_cer)
+
+    def early_stopping(self, eval_cer, n_total, n_best, iter):
+        self.cb.next_best_model(iter, 1 - eval_cer, n_best - 1)
+
+
+class CalamariTrainer(TextTrainerBase):
     @staticmethod
     def meta() -> Type['AlgorithmMeta']:
         from omr.steps.text.calamari.meta import Meta
@@ -28,6 +42,7 @@ class CalamariTrainer(AlgorithmTrainer):
             early_stopping_test_interval=1000,
             early_stopping_max_keep=5,
             processes=1,
+            data_augmentation_factor=10,
         )
 
     @staticmethod
@@ -35,11 +50,18 @@ class CalamariTrainer(AlgorithmTrainer):
         params.height = 48
 
     def __init__(self, settings: AlgorithmTrainerSettings):
+        settings.calamari_params.network = 'cnn=40:3x3,pool=2x2,cnn=60:3x3,pool=2x2,lstm=200,dropout=0.5'
         super().__init__(settings)
 
     def _train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
-        train_dataset = self.train_dataset.to_text_line_calamari_dataset(train=True)
-        val_dataset = self.validation_dataset.to_text_line_calamari_dataset(train=True)
+        if callback:
+            callback.resolving_files()
+            calamari_callback = CalamariTrainerCallback(callback)
+        else:
+            calamari_callback = None
+
+        train_dataset = self.train_dataset.to_text_line_calamari_dataset(train=True, callback=callback)
+        val_dataset = self.validation_dataset.to_text_line_calamari_dataset(train=True, callback=callback)
         output = self.settings.model.path
 
         params = CheckpointParams()
@@ -97,16 +119,19 @@ class CalamariTrainer(AlgorithmTrainer):
         else:
             network_params_from_definition_string(network_str, params.model.network)
             trainer = Trainer(
+                codec_whitelist='abcdefghijklmnopqrstuvwxyz ',      # Always keep space and all letters
                 checkpoint_params=params,
                 dataset=train_dataset,
                 validation_dataset=val_dataset,
-                n_augmentations=0,
+                n_augmentations=self.params.data_augmentation_factor if self.params.data_augmentation_factor else 0,
                 data_augmenter=SimpleDataAugmenter(),
-                weights=self.params.load,
+                weights=None if not self.params.model_to_load() else self.params.model_to_load().local_file('text_best.ckpt'),
                 preload_training=True,
                 preload_validation=True,
             )
-            trainer.train()
+            trainer.train(training_callback=calamari_callback,
+                          auto_compute_codec=True,
+                          )
 
 
 if __name__ == '__main__':

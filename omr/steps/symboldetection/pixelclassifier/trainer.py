@@ -1,6 +1,7 @@
 import os
 
 from omr.dataset import DatasetParams
+from omr.steps.symboldetection.trainer import SymbolDetectionTrainer
 
 if __name__ == '__main__':
     import django
@@ -18,7 +19,7 @@ from omr.steps.symboldetection.pixelclassifier.meta import Meta
 from omr.adapters.pagesegmentation.callback import PCTrainerCallback
 
 
-class PCTrainer(AlgorithmTrainer):
+class PCTrainer(SymbolDetectionTrainer):
     @staticmethod
     def meta() -> Meta.__class__:
         return Meta
