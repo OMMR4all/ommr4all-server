@@ -62,6 +62,7 @@ class LyricsNormalizationParams(DataClassJSONMixin):
     lyrics_normalization: LyricsNormalization = LyricsNormalization.ONE_STRING
     lower_only: bool = True
     unified_u: bool = True
+    remove_brackets: bool = True
 
 
 class LyricsNormalizationProcessor:
@@ -74,6 +75,9 @@ class LyricsNormalizationProcessor:
 
         if self.params.unified_u:
             text = text.replace('v', 'u')
+
+        if self.params.remove_brackets:
+            text = text.replace('<', '').replace('>', '')
 
         if self.params.lyrics_normalization == LyricsNormalization.ONE_STRING:
             text = text.replace('-', '').replace(' ', '')
