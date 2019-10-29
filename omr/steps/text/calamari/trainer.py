@@ -24,7 +24,7 @@ class CalamariTrainerCallback(TrainingCallback):
         self.cb.next_iteration(iter, train_loss, 1 - train_cer)
 
     def early_stopping(self, eval_cer, n_total, n_best, iter):
-        self.cb.next_best_model(iter, 1 - eval_cer, n_best - 1)
+        self.cb.next_best_model(iter, eval_cer, n_best - 1)
 
 
 class CalamariTrainer(TextTrainerBase):
@@ -36,13 +36,13 @@ class CalamariTrainer(TextTrainerBase):
     @staticmethod
     def default_params() -> AlgorithmTrainerParams:
         return AlgorithmTrainerParams(
-            n_iter=1_000_000,
-            l_rate=1e-4,
+            n_iter=100_000,
+            l_rate=1e-3,
             display=100,
             early_stopping_test_interval=1000,
             early_stopping_max_keep=5,
             processes=1,
-            data_augmentation_factor=10,
+            data_augmentation_factor=20,
         )
 
     @staticmethod

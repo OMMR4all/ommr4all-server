@@ -41,7 +41,10 @@ class CalamariPredictor(TextPredictor):
         with open(os.path.join(BASE_DIR, 'internal_storage', 'resources', 'dictionary.txt')) as f:
             # TODO: dataset params in settings, that we can create the correct normalization params
             lnp = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.ONE_STRING))
-            ctc_decoder_params.dictionary[:] = [lnp.apply(word) for word in f.read().split()]
+            if len(ctc_decoder_params.dictionary) > 0:
+                ctc_decoder_params.dictionary[:] = [lnp.apply(word) for word in ctc_decoder_params.dictionary]
+            else:
+                ctc_decoder_params.dictionary[:] = [lnp.apply(word) for word in f.read().split()]
 
         # self.predictor = MultiPredictor(glob_all([s + '/text_best*.ckpt.json' for s in params.checkpoints]))
         self.predictor = MultiPredictor(glob_all([settings.model.local_file('text_best.ckpt.json')]),

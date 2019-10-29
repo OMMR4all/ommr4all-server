@@ -57,6 +57,7 @@ class GlobalDataArgs(NamedTuple):
     trainer_params: AlgorithmTrainerParams
     page_segmentation_params: PageSegmentationTrainerParams
     calamari_params: CalamariParams
+    calamari_dictionary_from_gt: bool
 
 
 class SingleDataArgs(NamedTuple):
@@ -171,6 +172,12 @@ class Experimenter(ABC):
             fold_log.info("Starting prediction")
             pred_params = deepcopy(global_args.predictor_params)
             pred_params.modelId = MetaId.from_custom_path(model_path, global_args.algorithm_type)
+            if global_args.calamari_dictionary_from_gt:
+                words = set()
+                for pcgts in test_pcgts_files:
+                    words = words.union(sum([t.sentence.text().replace('-', '').split() for t in pcgts.page.all_text_lines()], []))
+                pred_params.ctcDecoder.params.dictionary[:] = words
+
             pred = Step.create_predictor(
                 global_args.algorithm_type,
                 AlgorithmPredictorSettings(

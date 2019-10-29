@@ -77,6 +77,7 @@ if __name__ == "__main__":
     parser.add_argument("--calamari_channels", type=int, default=1)
     parser.add_argument("--calamari_ctc_decoder", type=str, choices=[CTCDecoderParams.CTCDecoderType.Name(x) for x in CTCDecoderParams.CTCDecoderType.values()], default=CTCDecoderParams.CTCDecoderType.Name(AlgorithmPredictorParams().ctcDecoder.params.type))
     parser.add_argument("--calamari_ctc_decoder_beam_width", type=int, default=AlgorithmPredictorParams().ctcDecoder.params.beam_width)
+    parser.add_argument("--calamari_ctc_dictionary_from_gt", action='store_true')
 
     # evaluation parameters
     parser.add_argument("--seed", type=int, default=1)
@@ -163,6 +164,7 @@ if __name__ == "__main__":
             single_folds=args.calamari_single_folds,
             channels=args.calamari_channels,
         ),
+        calamari_dictionary_from_gt=args.calamari_ctc_dictionary_from_gt
     )
 
     experimenter = ExperimenterScheduler(global_args)

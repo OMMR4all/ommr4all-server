@@ -23,6 +23,7 @@ class TextExperimenter(Experimenter):
         r = np.array([(result['total_instances'], result['avg_ler'], result['total_chars'],
                        result['total_char_errs'], result['total_sync_errs'],
                        result['total_syllables'], result['avg_ser'], result['total_words'], result['avg_wer'],
+                       result['confusion_count'], result['confusion_err'],
                        ) for result in results])
 
         pt = PrettyTable(['GT', 'PRED', 'Count'])
@@ -30,7 +31,7 @@ class TextExperimenter(Experimenter):
             pt.add_row(k + (v, ))
         log.info(pt)
 
-        pt = PrettyTable(['#', 'avg_ler', '#chars', '#errs', '#sync_errs', '#sylls', 'avg_ser', '#words', "avg_wer"])
+        pt = PrettyTable(['#', 'avg_ler', '#chars', '#errs', '#sync_errs', '#sylls', 'avg_ser', '#words', "avg_wer", "#conf", 'conf_err'])
         pt.add_row(np.mean(r, axis=0))
         pt.add_row(np.std(r, axis=0))
         log.info(pt)
@@ -40,9 +41,8 @@ class TextExperimenter(Experimenter):
             print("{}{}".format(args.magic_prefix, ','.join(map(str, list(all_diffs)))))
 
     def extract_gt_prediction(self, full_predictions: List[PredictionResult]):
-        from omr.dataset.dataset import LyricsNormalizationProcessor
-        self.args.global_args.dataset_params.lyrics_normalization.lyrics_normalization = LyricsNormalization.SYLLABLES
-        lnp = LyricsNormalizationProcessor(self.args.global_args.dataset_params.lyrics_normalization)
+        from omr.dataset.dataset import LyricsNormalizationProcessor, LyricsNormalizationParams, LyricsNormalization
+        lnp = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.SYLLABLES))
 
         def format_gt(s):
             s = lnp.apply(s)
@@ -86,11 +86,14 @@ class TextExperimenter(Experimenter):
         result['avg_ser'] = np.mean([n for n, _ in syllable_result])
         result['total_words'] = sum([n for _, n in words_result])
         result['avg_wer'] = np.mean([n for n, _ in words_result])
+        result['confusion_count'] = sum([c for k, c in result['confusion'].items()])
+        result['confusion_err'] = result['confusion_count'] / result['total_syllables']
 
-
-        pt = PrettyTable(['#', 'avg_ler', '#chars', '#errs', '#sync_errs', '#ser', 'avg_ser', '#words', 'avg_wer'])
+        pt = PrettyTable(['#', 'avg_ler', '#chars', '#errs', '#sync_errs', '#ser', 'avg_ser', '#words', 'avg_wer', '#confusions', '#confusions/sylls'])
         pt.add_row([result['total_instances'], result['avg_ler'], result['total_chars'], result['total_char_errs'], result['total_sync_errs'],
-                   result['total_syllables'], result['avg_ser'], result['total_words'], result['avg_wer']]
+                    result['total_syllables'], result['avg_ser'], result['total_words'], result['avg_wer'],
+                    result['confusion_count'], result['confusion_err'],
+                    ]
                    )
         self.fold_log.debug(pt)
 
