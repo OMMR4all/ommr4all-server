@@ -39,18 +39,19 @@ class Sentence:
             [s for s in [Syllable.from_json(s) for s in json.get('syllables', [])] if len(s.text) > 0]
         )
 
-    syllable_re = re.compile(r"(([\w.!?,;]+[~\-])|([\w.!?,;]+$))")
+    # syllable_re = re.compile(r"(([\w.!?,;]+[~\-])|([\w.!?,;]+$))")
+    syllable_re = re.compile(r"([~\-]?[\w.!?,;]+)")
 
     @staticmethod
     def from_string(text: str):
         words = text.split()
         syllables = []
         for word in words:
-            for s, _, _ in Sentence.syllable_re.findall(word):
-                if s.endswith("-"):
-                    syllables.append(Syllable(text=s[:-1], connection=SyllableConnection.HIDDEN))
-                elif s.endswith("~"):
-                    syllables.append(Syllable(text=s[:-1], connection=SyllableConnection.VISIBLE))
+            for s in Sentence.syllable_re.findall(word):
+                if s.startswith("-"):
+                    syllables.append(Syllable(text=s[1:], connection=SyllableConnection.HIDDEN))
+                elif s.startswith("~"):
+                    syllables.append(Syllable(text=s[1:], connection=SyllableConnection.VISIBLE))
                 else:
                     syllables.append(Syllable(text=s, connection=SyllableConnection.NEW))
 

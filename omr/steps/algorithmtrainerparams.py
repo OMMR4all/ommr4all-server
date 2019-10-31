@@ -12,6 +12,7 @@ from mashumaro import DataClassJSONMixin
 class AlgorithmTrainerParams(DataClassJSONMixin):
     n_iter: int = -1
     display: int = 100
+    early_stopping_at_acc: float = 0
     early_stopping_test_interval: int = -1
     early_stopping_max_keep: int = -1
     l_rate: float = -1

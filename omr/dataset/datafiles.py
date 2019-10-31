@@ -74,6 +74,8 @@ def generate_dataset(lock_states: List[LockState],
 
     if cross_folds is None:
         cross_folds = 5
+    elif cross_folds == 0:
+        cross_folds = 1
 
     if train_books_extend:
         train_pcgts_extend, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books_extend])

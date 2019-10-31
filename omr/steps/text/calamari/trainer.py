@@ -77,6 +77,7 @@ class CalamariTrainer(TextTrainerBase):
         params.processes = 2
         params.data_aug_retrain_on_original = True
 
+        params.early_stopping_at_acc = self.params.early_stopping_at_acc if self.params.early_stopping_at_acc else 0
         params.early_stopping_frequency = self.params.early_stopping_test_interval
         params.early_stopping_nbest = self.params.early_stopping_max_keep
         params.early_stopping_best_model_prefix = 'text_best'
@@ -101,6 +102,7 @@ class CalamariTrainer(TextTrainerBase):
                 "checkpoint_frequency": params.checkpoint_frequency,
                 "pad": 0,
                 "network": network_str,
+                "early-stopping_at_accuracy": params.early_stopping_at_acc,
                 "early_stopping_frequency": params.early_stopping_frequency,
                 "early_stopping_nbest": params.early_stopping_nbest,
                 "line_height": params.model.line_height,
