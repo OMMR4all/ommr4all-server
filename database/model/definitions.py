@@ -51,15 +51,26 @@ class ModelsId(NamedTuple):
     @staticmethod
     def parse(s: str, remaining: Optional[List[str]]) -> 'ModelsId':
         s = s.split('/')
-        if remaining is not None:
-            remaining += s[3:]
         storage_type = StorageType(s[0])
-        return ModelsId(
-            Storage(storage_type),
-            s[1] if storage_type == StorageType.EXTERNAL else None,
-            s[1] if storage_type == StorageType.INTERNAL else None,
-            AlgorithmTypes(s[2]),
-        )
+        if storage_type == StorageType.CUSTOM:
+            remaining.append(s[-1])
+            return ModelsId(
+                Storage(storage_type,
+                        '/'.join(s[2:-1]),
+                        ),
+                None,
+                None,
+                AlgorithmTypes(s[1]),
+            )
+        else:
+            if remaining is not None:
+                remaining += s[3:]
+            return ModelsId(
+                Storage(storage_type),
+                s[1] if storage_type == StorageType.EXTERNAL else None,
+                s[1] if storage_type == StorageType.INTERNAL else None,
+                AlgorithmTypes(s[2]),
+            )
 
     storage: Storage
     book: Optional[str]
@@ -81,7 +92,7 @@ class ModelsId(NamedTuple):
         elif self.storage.type == StorageType.INTERNAL:
             return '/'.join([self.storage.type.value, self.notation_style, self.algorithm_type.value])
         else:
-            return self.storage.custom_path
+            return '/'.join([self.storage.type.value, self.algorithm_type.value, self.storage.custom_path])
 
 
 @dataclass

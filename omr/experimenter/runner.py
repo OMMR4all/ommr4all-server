@@ -1,6 +1,8 @@
 import logging
 import sys
 
+from database.model import MetaId
+
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                     stream=sys.stdout)
 
@@ -51,6 +53,7 @@ if __name__ == "__main__":
     parser.add_argument("--type", type=lambda t: AlgorithmTypes[t], required=True, choices=list(AlgorithmTypes))
     parser.add_argument("--early_stopping_at_accuracy", type=float, default=0)
     parser.add_argument("--early_stopping_max_keep", type=int, default=-1)
+    parser.add_argument("--early_stopping_test_interval", type=float, default=-1)
     parser.add_argument("--train_data_multiplier", type=int, default=1)
 
     parser.add_argument("--height", type=int, default=80)
@@ -149,10 +152,11 @@ if __name__ == "__main__":
         trainer_params=AlgorithmTrainerParams(
             n_iter=args.n_iter,
             display=100,
-            load=args.pretrained_model,
+            load=str(MetaId.from_custom_path(args.pretrained_model, args.type)) if args.pretrained_model else None,
             processes=8,
             early_stopping_at_acc=args.early_stopping_at_accuracy,
             early_stopping_max_keep=args.early_stopping_max_keep,
+            early_stopping_test_interval=args.early_stopping_test_interval,
             train_data_multiplier=args.train_data_multiplier,
             data_augmentation_factor=args.data_augmentation_factor,
         ),

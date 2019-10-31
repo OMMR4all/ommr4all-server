@@ -139,7 +139,7 @@ def generate_dataset(lock_states: List[LockState],
                 train_val_files = train_val_files[:n_train]
 
             if val_amount == 0:
-                val, train = None, train_val_files
+                val, train = [], train_val_files
             else:
                 _, val, train = cross_fold(train_val_files, int(1 / val_amount))[0]
             return GeneratedData(fold, train, val, test_files)
