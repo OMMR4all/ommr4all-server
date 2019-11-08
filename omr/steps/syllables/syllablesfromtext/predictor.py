@@ -69,6 +69,8 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
 
         # remove all "noisy" chars: ligatures/whitespace, ... for better match results
         def clean_text(t) -> str:
+            # ß -> s only, not ss
+            t = t.replace('ß', 's')
             t = unidecode.unidecode(t)
             return t.replace(' ', '').replace('-', '').lower()
 
