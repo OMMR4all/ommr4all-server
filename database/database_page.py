@@ -1,3 +1,5 @@
+from json import JSONDecodeError
+
 from database.database_book import DatabaseBook, file_name_validator, InvalidFileNameException, FileExistsException
 from django.core.exceptions import EmptyResultSet
 from database.database_permissions import DatabaseBookPermissionFlag
@@ -14,6 +16,7 @@ if TYPE_CHECKING:
     from database.file_formats.pcgts import PcGts
     from database.database_page_meta import DatabasePageMeta
     from database.file_formats.performance.pageprogress import PageProgress
+    from database.file_formats.performance.statistics import Statistics
 
 
 class DatabasePage:
@@ -21,6 +24,7 @@ class DatabasePage:
                  pcgts: Optional['PcGts'] = None,
                  meta: Optional['DatabasePageMeta'] = None,
                  page_progress: Optional['PageProgress'] = None,
+                 page_statistics: Optional['Statistics'] = None,
                  ):
         self.book = book
         self.page = page.strip("/")
@@ -30,6 +34,7 @@ class DatabasePage:
         self._meta: Optional['DatabasePageMeta'] = meta
         self._pcgts: Optional['PcGts'] = pcgts
         self._page_progress: Optional['PageProgress'] = page_progress
+        self._page_statistics: Optional['Statistics'] = page_statistics
 
     def __eq__(self, other):
         return isinstance(other, DatabasePage) and self.book == other.book and self.page == other.page
@@ -66,6 +71,30 @@ class DatabasePage:
 
     def remote_path(self):
         return os.path.join(self.book.remote_path(), self.page)
+
+    def page_statistics(self) -> 'Statistics':
+        if not self._page_statistics:
+            from database.file_formats.performance.statistics import Statistics
+            file = self.file('statistics', create_if_not_existing=True)
+            try:
+                self._page_statistics = Statistics.from_json_file(file.local_path())
+            except JSONDecodeError as e:
+                logging.error(e)
+                file.delete()
+                file.create()
+                self._page_statistics = Statistics.from_json_file(file.local_path())
+
+        return self._page_statistics
+
+    def set_page_statistics(self, page_statistics: 'Statistics'):
+        self._page_statistics = page_statistics
+
+    def save_page_statistics(self):
+        if not self._page_statistics:
+            return
+
+        self._page_statistics.to_json_file(self.file('statistics').local_path())
+        logger.debug('Successfully saved page statistics file to {}'.format(self.file('statistics').local_path()))
 
     def page_progress(self) -> 'PageProgress':
         if not self._page_progress:

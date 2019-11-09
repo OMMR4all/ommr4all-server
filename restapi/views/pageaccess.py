@@ -204,12 +204,12 @@ class PageStatisticsView(APIView):
         page = DatabasePage(book, page)
 
         obj = json.loads(request.body, encoding='utf-8')
-        total_stats = Statistics.from_json(obj)
-        total_stats.to_json_file(page.file('statistics').local_path())
+        page.set_page_statistics(Statistics.from_json(obj))
+        page.save_page_statistics()
 
         # add to backup archive
         with zipfile.ZipFile(page.file('statistics_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr('statistics_{}.json'.format(datetime.datetime.now()), json.dumps(total_stats.to_json(), indent=2))
+            zf.writestr('statistics_{}.json'.format(datetime.datetime.now()), json.dumps(page.page_statistics().to_json(), indent=2))
 
         logger.debug('Successfully saved statistics file to {}'.format(page.file('statistics').local_path()))
 
@@ -217,19 +217,7 @@ class PageStatisticsView(APIView):
 
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, page):
-        page = DatabasePage(DatabaseBook(book), page)
-        file = DatabaseFile(page, 'statistics')
-
-        if not file.exists():
-            file.create()
-
-        try:
-            return Response(Statistics.from_json_file(file.local_path()).to_json())
-        except JSONDecodeError as e:
-            logging.error(e)
-            file.delete()
-            file.create()
-            return Response(Statistics.from_json_file(file.local_path()).to_json())
+        return Response(DatabaseBook(book).page(page).page_statistics().to_json())
 
 
 class PageRenameView(APIView):
