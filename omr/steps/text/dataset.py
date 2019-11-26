@@ -39,6 +39,8 @@ class TextDataset(Dataset):
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from database.database_book import DatabaseBook
+    from omr.dataset.dataset import LyricsNormalizationParams
+
     pages = [p for p in DatabaseBook('Gothic_Test').pages()]
     params = DatasetParams(
         height=60,
@@ -46,7 +48,7 @@ if __name__ == '__main__':
         cut_region=True,
         pad=[0, 10, 0, 20],
         page_scale_reference=PageScaleReference.HIGHRES,
-        lyrics_normalization=LyricsNormalization.ONE_STRING,
+        lyrics_normalization=LyricsNormalizationParams(LyricsNormalization.ONE_STRING),
     )
 
     if True:

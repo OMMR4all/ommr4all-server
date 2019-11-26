@@ -77,6 +77,14 @@ def vertical_runs(img: np.array) -> [int, int]:
     # on pages with a lot of text the staffspaceheigth can be falsified.
     # --> skip the first elements of the array, we expect the staff lines distance to be at least twice the line height
     white_r = np.argmax(white_runs[black_r * 3:]) + 1 + black_r * 3
+
+    if False:
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(figsize=(7, 8), dpi=400)
+        ax.plot(white_runs[:50], label="White runs")
+        ax.plot(black_runs[:50], label="Black runs")
+        ax.legend()
+        plt.show()
     return white_r, black_r
 
 
@@ -84,9 +92,9 @@ if __name__ == '__main__':
     from ommr4all.settings import PRIVATE_MEDIA_ROOT
     import os
     from PIL import  Image
-    binary = np.asarray(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'pages', 'page00000001', 'binary_deskewed.png')), dtype='uint8') / 255
-    binary1 = np.asarray(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'pa_resized1419', 'pages', '00039r', 'binary_deskewed.png')), dtype='uint8') / 255
+    binary = np.asarray(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'pages', 'page00000001', 'binary_highres_preproc.png')), dtype='uint8') / 255
+    #binary1 = np.asarray(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'pa_resized1419', 'pages', '00039r', 'binary_deskewed.png')), dtype='uint8') / 255
 
-    gray = np.asarray(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'pages', 'page00000001', 'gray_deskewed.jpg')))
-    gray1 = np.asarray(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'pa_resized1419', 'pages', '00037v', 'gray_deskewed.jpg')))
-    print(LineDistanceComputer().get_line_distance(binary1))
+    #gray = np.asarray(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'pages', 'page00000001', 'gray_deskewed.jpg')))
+    #gray1 = np.asarray(Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'pa_resized1419', 'pages', '00037v', 'gray_deskewed.jpg')))
+    print(LineDistanceComputer().get_line_distance(binary))

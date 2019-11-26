@@ -9,12 +9,15 @@ from database.file_formats.pcgts.page import Annotations, ClefType
 
 
 class PcGtsCanvas:
-    def __init__(self, page: Page, scale_reference: PageScaleReference):
+    def __init__(self, page: Page, scale_reference: PageScaleReference, no_background=False, file='color'):
         self.page = page
         self.scale_reference = scale_reference
-        self.img = np.array(Image.open(page.location.file(scale_reference.file('color')).local_path()))
+        self.img = np.array(Image.open(page.location.file(scale_reference.file(file)).local_path()))
         self.avg_line_distance = int(page.page_to_image_scale(page.avg_staff_line_distance(), scale_reference))
         self.font = ImageFont.truetype('/usr/share/fonts/truetype/junicode/Junicode.ttf', 40)
+
+        if no_background:
+            self.img = np.full(self.img.shape, 255, dtype=self.img.dtype)
 
     def draw_music_symbol_position_in_line(self, sl: StaffLines, s: MusicSymbol, color=(255, 0, 0), thickness=-1) -> 'PcGtsCanvas':
         c = sl.compute_coord_by_position_in_staff(s.coord.x, s.position_in_staff)
@@ -34,6 +37,8 @@ class PcGtsCanvas:
         from omr.steps.syllables.syllablesfromtext.predictor import MatchResult
         from omr.steps.syllables.predictor import PredictionResult as SyllablesPredictionResult
 
+        fac = kwargs.get('scale', 1)
+
         def scale(x):
             if isinstance(x, Rect):
                 return Rect(scale(x.origin), scale(x.size))
@@ -47,7 +52,7 @@ class PcGtsCanvas:
             if kwargs.get('invert', False):
                 color = tuple(map(int, 255 - np.array(color, dtype=int)))
             pos = tuple(scale(elem.coord.p))
-            cv2.circle(self.img, pos, self.avg_line_distance // 8, color=color, thickness=-1)
+            cv2.circle(self.img, pos, int(self.avg_line_distance / 8 * fac), color=color, thickness=-1)
         elif isinstance(elem, StaffLine):
             sl: StaffLine = elem
             sl.draw(self.img, thickness=self.avg_line_distance // 10, scale=scale)
@@ -130,5 +135,25 @@ class PcGtsCanvas:
 
     def show(self):
         import matplotlib.pyplot as plt
-        plt.imshow(self.img)
+        self.render_to_ax(plt)
+        plt.show()
+
+    def render_to_ax(self, ax):
+        if len(self.img.shape) == 3:
+            ax.imshow(self.img)
+        else:
+            ax.imshow(self.img, cmap='gray')
+
+    @staticmethod
+    def show_all(canvases: Iterable['PcGtsCanvas'], hor=True):
+        import matplotlib.pyplot as plt
+        canvases = list(canvases)
+        if hor:
+            f, ax = plt.subplots(nrows=1, ncols=len(canvases), sharex='all', sharey='all')
+        else:
+            f, ax = plt.subplots(nrows=len(canvases), sharex='all', sharey='all')
+
+        for a, c in zip(ax, canvases):
+            c.render_to_ax(a)
+
         plt.show()

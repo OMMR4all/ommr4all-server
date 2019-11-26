@@ -46,6 +46,7 @@ class SymbolDetectionDataset(Dataset):
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from imageio import imsave
+    from shared.pcgtscanvas import PcGtsCanvas
     from omr.steps.algorithmtypes import AlgorithmTypes
     pages = [p for p in DatabaseBook('Graduel_Fully_Annotated').pages()]
     # pages = [DatabaseBook('Graduel_Part_1').page('Graduel_de_leglise_de_Nevers_025')]
@@ -77,6 +78,15 @@ if __name__ == '__main__':
         pcgts = PcGts.from_file(page.file('pcgts'))
         dataset = SymbolDetectionDataset([pcgts], params)
         ps_dataset = dataset.to_page_segmentation_dataset()
+
+        canvas_ol = PcGtsCanvas(pcgts.page, scale_reference=PageScaleReference.NORMALIZED_X2)
+        for ml in pcgts.page.all_music_lines():
+            canvas_ol.draw(ml.symbols, scale=1.5, invert=True)
+        canvas_mask = PcGtsCanvas(pcgts.page, scale_reference=PageScaleReference.NORMALIZED_X2, no_background=True)
+        for ml in pcgts.page.all_music_lines():
+            canvas_mask.draw(ml.symbols, scale=1.5, invert=True)
+        canvas = PcGtsCanvas(pcgts.page, scale_reference=PageScaleReference.NORMALIZED_X2, file='gray')
+        PcGtsCanvas.show_all([canvas_ol, canvas_mask, canvas], hor=False)
         f, ax = plt.subplots(len(ps_dataset.data), 3, sharex='all', sharey='all')
         for i, out in enumerate(ps_dataset.data):
             img, region, mask = out.image, out.image, out.mask

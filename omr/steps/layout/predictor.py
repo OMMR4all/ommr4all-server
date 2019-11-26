@@ -65,6 +65,7 @@ class FinalPredictionResult(NamedTuple, AlgorithmPredictionResult, metaclass=Fin
 class LayoutAnalysisPredictor(AlgorithmPredictor):
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
+        self.dataset_params.page_scale_reference = PageScaleReference.NORMALIZED_X2
 
     @classmethod
     def unprocessed(cls, page: DatabasePage) -> bool:

@@ -6,12 +6,29 @@ from omr.steps.preprocessing.deskewer import Deskewer
 
 
 def estimate_skew_angle(image,angles):
+    image = interpolation.rotate(image, -1, order=0, mode='constant')
+
     estimates = []
     for a in angles:
         v = np.mean(interpolation.rotate(image, a, order=0, mode='constant'), axis=1)
         v = np.var(v)
         estimates.append((v, a))
+
     _, a = max(estimates)
+
+    if False:
+        import matplotlib.pyplot as plt
+        f, ax = plt.subplots(1, 4, sharey='all')
+        ax[0].imshow(image, cmap='Greys')
+        v = np.vstack([np.mean(image, axis=1)] * 50).transpose()
+        ax[1].imshow(v, cmap='Greys')
+
+        rot = interpolation.rotate(image, a, order=0, mode='constant')
+        ax[2].imshow(rot, cmap='Greys')
+        v = np.vstack([np.mean(rot, axis=1)] * 50).transpose()
+        ax[3].imshow(v, cmap='Greys')
+        plt.show()
+
     return a
 
 
@@ -38,13 +55,12 @@ class OcropusDeskewer(Deskewer):
 
 
 if __name__ == '__main__':
-    from omr.preprocessing.binarizer.ocropus_binarizer import OCRopusBin
+    from omr.steps.preprocessing.binarizer.ocropus_binarizer import OCRopusBin
     from ommr4all.settings import PRIVATE_MEDIA_ROOT
     import os
-    binary = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'binary_original.png'))
-    gray = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'gray_original.png'))
-    original = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'page00000002', 'color_original.jpg'))
+    binary = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'pages', 'page00000002', 'binary_norm.png'))
+    gray = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'pages', 'page00000002', 'gray_norm.jpg'))
+    original = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'pages', 'page00000002', 'color_norm.jpg'))
     deskewer = OcropusDeskewer(OCRopusBin())
-    deskewer.deskew(original, gray, binary)
-    print(deskewer.angle)
-    deskewer.plot()
+    angle = deskewer.estimate_skew_angle(original, gray, binary)
+    print(angle)

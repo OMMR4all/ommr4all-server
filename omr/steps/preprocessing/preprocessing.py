@@ -36,5 +36,10 @@ class Preprocessing:
         return working_image, working_gray, working_bin
 
 
-
-
+if __name__ == '__main__':
+    from omr.steps.preprocessing.binarizer.ocropus_binarizer import OCRopusBin
+    from ommr4all.settings import PRIVATE_MEDIA_ROOT
+    import os
+    original = Image.open(os.path.join(PRIVATE_MEDIA_ROOT, 'demo', 'pages', 'page00000002', 'color_original.jpg'))
+    preproc = Preprocessing()
+    preproc.preprocess(original)

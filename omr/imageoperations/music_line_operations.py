@@ -8,6 +8,7 @@ from copy import copy
 from enum import IntEnum
 from omr.dewarping.dummy_dewarper import Dewarper, transform
 import logging
+import cv2
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +263,10 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
         def set(coord, label: SymbolLabel, dx=radius, dy=radius):
             coord = p2i(coord)
-            img[int(coord.y - dy):int(coord.y + dy * 2), int(coord.x - dx): int(coord.x + dx * 2)] = label.value
+            # circle
+            cv2.circle(img, tuple(coord.p.round().astype(int)), int(radius * 2), color=label.value, thickness=-1)
+            # box
+            # img[int(coord.y - dy):int(coord.y + dy * 2), int(coord.x - dx): int(coord.x + dx * 2)] = label.value
 
         for s in ml.symbols:
             if s.symbol_type == SymbolType.NOTE:
