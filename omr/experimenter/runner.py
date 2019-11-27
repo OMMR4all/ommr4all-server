@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(level
 
 import os
 
-from pagesegmentation.lib.model import Architecture
+from ocr4all_pixel_classifier.lib.model import Architecture
 
 from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, SerializableCTCDecoderParams
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=1)
 
     # evaluation params
-    parser.add_argument("--symbol_detected_min_distance", type=int, default=EvaluatorParams().symbol_detected_min_distance)
+    parser.add_argument("--symbol_detected_min_distance", type=float, default=EvaluatorParams().symbol_detected_min_distance)
     parser.add_argument("--staff_line_found_distance", default=EvaluatorParams().staff_line_found_distance, type=int)
     parser.add_argument("--line_hit_overlap_threshold", default=EvaluatorParams().line_hit_overlap_threshold, type=float)
     parser.add_argument("--staff_n_lines_threshold", default=EvaluatorParams().staff_line_found_distance, type=int)

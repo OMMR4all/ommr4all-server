@@ -24,8 +24,9 @@ class SymbolsExperimenter(Experimenter):
             o_pcgts.page.comments.comments = []
 
         for p in predictions:
-            o_pcgts = output_pcgts_by_page_name[p.line.operation.page.location.page]
-            o_pcgts.page.music_line_by_id(p.line.operation.music_line.id).symbols = p.symbols
+            for ml in p.music_lines:
+                o_pcgts = output_pcgts_by_page_name[ml.line.operation.page.location.page]
+                o_pcgts.page.music_line_by_id(ml.line.operation.music_line.id).symbols = ml.symbols
 
     def evaluate(self, predictions, evaluation_params):
         gt_symbols, pred_symbols = predictions

@@ -11,7 +11,7 @@ from database import DatabaseBook
 import logging
 from omr.steps.stafflines.detection.dataset import DatasetParams
 from omr.adapters.pagesegmentation.callback import PCTrainerCallback
-from pagesegmentation.lib.trainer import TrainSettings, Trainer, Loss, Monitor
+from ocr4all_pixel_classifier.lib.trainer import TrainSettings, Trainer, Loss, Monitor
 from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
 from omr.steps.stafflines.detection.pixelclassifier.meta import Meta
 from typing import Optional, List

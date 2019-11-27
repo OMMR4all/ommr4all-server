@@ -1,6 +1,6 @@
 from . import ImageOperation, ImageOperationData, OperationOutput, ImageData
 from copy import copy
-from pagesegmentation.lib.predictor import Predictor, PredictSettings, Dataset, SingleData
+from ocr4all_pixel_classifier.lib.predictor import Predictor, PredictSettings, Dataset, SingleData
 import os
 import numpy as np
 

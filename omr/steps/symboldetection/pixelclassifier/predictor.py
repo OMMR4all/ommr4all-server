@@ -5,7 +5,7 @@ if __name__ == '__main__':
     django.setup()
 
 from typing import List, Optional, Generator
-from pagesegmentation.lib.predictor import Predictor, PredictSettings
+from ocr4all_pixel_classifier.lib.predictor import Predictor, PredictSettings
 from database.file_formats.pcgts import *
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset
 from omr.dataset import RegionLineMaskData

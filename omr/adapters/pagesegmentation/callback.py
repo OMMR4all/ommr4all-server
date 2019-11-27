@@ -1,4 +1,4 @@
-from pagesegmentation.lib.callback import TrainProgressCallback
+from ocr4all_pixel_classifier.lib.callback import TrainProgressCallback
 from omr.steps.algorithm import TrainerCallback
 
 

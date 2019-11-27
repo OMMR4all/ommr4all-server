@@ -14,7 +14,7 @@ from database import DatabaseBook
 from database.file_formats.performance.pageprogress import Locks
 from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
 from omr.imageoperations.music_line_operations import SymbolLabel
-from pagesegmentation.lib.trainer import Trainer, TrainSettings, Loss, Monitor, Architecture
+from ocr4all_pixel_classifier.lib.trainer import Trainer, TrainSettings, Loss, Monitor, Architecture
 from omr.steps.symboldetection.pixelclassifier.meta import Meta
 from omr.adapters.pagesegmentation.callback import PCTrainerCallback
 

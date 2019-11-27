@@ -150,7 +150,7 @@ class Dataset(ABC):
 
     def to_page_segmentation_dataset(self, callback: Optional[DatasetCallback] = None):
         if self.params.origin_staff_line_distance == self.params.target_staff_line_distance:
-            from pagesegmentation.lib.dataset import Dataset, SingleData
+            from ocr4all_pixel_classifier.lib.dataset import Dataset, SingleData
             return Dataset([SingleData(image=d.line_image if self.params.image_input == ImageInput.LINE_IMAGE else d.region,
                                        binary=((d.line_image < 125) * 255).astype(np.uint8),
                                        mask=d.mask,
