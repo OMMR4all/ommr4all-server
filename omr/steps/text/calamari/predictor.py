@@ -25,9 +25,8 @@ from omr.steps.text.predictor import \
 import numpy as np
 from calamari_ocr.utils import glob_all
 from database.model.definitions import MetaId
-from thirdparty.pyphen import Pyphen
+from omr.steps.text.hyphenation.hyphenator import HyphenatorFromDictionary, Pyphenator
 
-pyphen = Pyphen(lang='la')
 
 class CalamariPredictor(TextPredictor):
     @staticmethod
@@ -38,13 +37,13 @@ class CalamariPredictor(TextPredictor):
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
         ctc_decoder_params = deepcopy(settings.params.ctcDecoder.params)
-        with open(os.path.join(BASE_DIR, 'internal_storage', 'resources', 'dictionary.txt')) as f:
-            # TODO: dataset params in settings, that we can create the correct normalization params
-            lnp = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.ONE_STRING))
-            if len(ctc_decoder_params.dictionary) > 0:
-                ctc_decoder_params.dictionary[:] = [lnp.apply(word) for word in ctc_decoder_params.dictionary]
-            else:
-                ctc_decoder_params.dictionary[:] = [lnp.apply(word) for word in f.read().split()]
+        lnp = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.ONE_STRING))
+        if len(ctc_decoder_params.dictionary) > 0:
+            ctc_decoder_params.dictionary[:] = [lnp.apply(word) for word in ctc_decoder_params.dictionary]
+        else:
+            with open(os.path.join(BASE_DIR, 'internal_storage', 'resources', 'hyphen_dictionary.txt')) as f:
+                # TODO: dataset params in settings, that we can create the correct normalization params
+                ctc_decoder_params.dictionary[:] = [lnp.apply(line.split()[0]) for line in f.readlines()]
 
         # self.predictor = MultiPredictor(glob_all([s + '/text_best*.ckpt.json' for s in params.checkpoints]))
         self.predictor = MultiPredictor(glob_all([settings.model.local_file('text_best.ckpt.json')]),
@@ -55,10 +54,15 @@ class CalamariPredictor(TextPredictor):
         self.voter = voter_from_proto(voter_params)
 
     def _predict(self, dataset: TextDataset, callback: Optional[PredictionCallback] = None) -> Generator[SingleLinePredictionResult, None, None]:
+        hyphen = Pyphenator()
+        hyphen = HyphenatorFromDictionary(
+            dictionary=os.path.join(BASE_DIR, 'internal_storage', 'resources', 'hyphen_dictionary.txt'),
+            normalization=dataset.params.lyrics_normalization,
+        )
         try:
             for marked_symbols, (r, sample) in zip(dataset.load(), self.predictor.predict_dataset(dataset.to_text_line_calamari_dataset())):
                 prediction = self.voter.vote_prediction_result(r)
-                hyphenated = " ".join([pyphen.inserted(word) for word in prediction.sentence.split()])
+                hyphenated = hyphen.apply_to_sentence(prediction.sentence)
                 yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, marked_symbols), marked_symbols, hyphenated)
         except Exception as e:
             if str(e) == 'Empty data set provided.':
