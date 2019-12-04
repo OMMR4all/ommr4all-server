@@ -80,8 +80,10 @@ if __name__ == "__main__":
     parser.add_argument("--calamari_network", type=str, default='cnn=40:3x3,pool=2x2,cnn=60:3x3,pool=2x2,lstm=200,dropout=0.5')
     parser.add_argument("--calamari_channels", type=int, default=1)
     parser.add_argument("--calamari_ctc_decoder", type=str, choices=[CTCDecoderParams.CTCDecoderType.Name(x) for x in CTCDecoderParams.CTCDecoderType.values()], default=CTCDecoderParams.CTCDecoderType.Name(AlgorithmPredictorParams().ctcDecoder.params.type))
+    parser.add_argument("--calamari_ctc_word_separator", type=str, default=AlgorithmPredictorParams().ctcDecoder.params.word_separator)
     parser.add_argument("--calamari_ctc_decoder_beam_width", type=int, default=AlgorithmPredictorParams().ctcDecoder.params.beam_width)
     parser.add_argument("--calamari_ctc_dictionary_from_gt", action='store_true')
+    parser.add_argument("--calamari_ctc_dictionary", type=str)
 
     # evaluation parameters
     parser.add_argument("--seed", type=int, default=1)
@@ -145,6 +147,8 @@ if __name__ == "__main__":
             ctcDecoder=SerializableCTCDecoderParams(
                 type=CTCDecoderParams.CTCDecoderType.Value(args.calamari_ctc_decoder),
                 beam_width=args.calamari_ctc_decoder_beam_width,
+                word_separator=args.calamari_ctc_word_separator,
+                dictionary=None if not args.calamari_ctc_dictionary else open(args.calamari_ctc_dictionary, 'r').read().split(),
             )
         ),
         output_book=args.output_book,

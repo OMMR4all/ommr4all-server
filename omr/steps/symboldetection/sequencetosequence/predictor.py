@@ -1,6 +1,6 @@
 from calamari_ocr.ocr.predictor import MultiPredictor
 from calamari_ocr.ocr.voting import voter_from_proto
-from calamari_ocr.proto import VoterParams
+from calamari_ocr.proto import VoterParams, CTCDecoderParams
 from typing import List, Optional, Generator
 
 from database.file_formats.pcgts import MusicSymbol, Point
@@ -24,7 +24,8 @@ class OMRPredictor(SymbolsPredictor):
 
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
-        self.predictor = MultiPredictor(glob_all([s + '/omr_best*.ckpt.json' for s in [settings.model.path]]))
+        self.predictor = MultiPredictor(glob_all([s + '/omr_best*.ckpt.json' for s in [settings.model.path]]),
+                                        ctc_decoder_params=settings.params.ctcDecoder.params)
         self.height = self.predictor.predictors[0].network_params.features
         voter_params = VoterParams()
         voter_params.type = VoterParams.CONFIDENCE_VOTER_DEFAULT_CTC

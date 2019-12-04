@@ -1,4 +1,5 @@
 import os
+import json
 
 from omr.dataset.datastructs import CalamariCodec
 from omr.steps.symboldetection.trainer import SymbolDetectionTrainer
@@ -9,7 +10,7 @@ if __name__ == '__main__':
     django.setup()
 
 from calamari_ocr.proto import CheckpointParams, DataPreprocessorParams, TextProcessorParams, network_params_from_definition_string
-from calamari_ocr.ocr.trainer import Trainer
+from calamari_ocr.ocr.trainer import Trainer, Codec
 from calamari_ocr.ocr.cross_fold_trainer import CrossFoldTrainer
 from calamari_ocr.ocr.augmentation import SimpleDataAugmenter
 from typing import Optional
@@ -20,6 +21,8 @@ from omr.steps.symboldetection.sequencetosequence.meta import Meta
 
 from database.file_formats.performance.pageprogress import Locks
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
+
+this_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 class OMRTrainer(SymbolDetectionTrainer):
@@ -52,14 +55,11 @@ class OMRTrainer(SymbolDetectionTrainer):
         params.staff_lines_only = True
         params.pad_power_of_2 = False
         params.calamari_codec = CalamariCodec()
+        with open(os.path.join(this_dir, 'default_codec.json'), 'r') as f:
+            params.calamari_codec = CalamariCodec.from_dict(json.load(f))
 
     def __init__(self, params: AlgorithmTrainerSettings):
         super().__init__(params)
-        if not params.dataset_params.staff_lines_only:
-            raise ValueError("Calamari S2S training must be performed on staves only. Set dataset param staff_lines_only to True")
-
-        # if not params.train_data.params.center or not params.validation_data.params.center:
-        #    raise ValueError("Calamari S2S training must be performed on centered staves only. Set dataset param center to True")
 
     def _train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
         if callback:
@@ -72,7 +72,7 @@ class OMRTrainer(SymbolDetectionTrainer):
 
         params.max_iters = self.params.n_iter
         params.stats_size = 1000
-        params.batch_size = 1
+        params.batch_size = 5
         params.checkpoint_frequency = 0
         params.output_dir = self.settings.model.path
         params.output_model_prefix = 'omr'
@@ -133,6 +133,7 @@ class OMRTrainer(SymbolDetectionTrainer):
                 weights=self.params.load,
                 preload_training=True,
                 preload_validation=True,
+                codec=Codec(self.settings.dataset_params.calamari_codec.codec.values()),
             )
             trainer.train()
 

@@ -178,6 +178,7 @@ class Codec:
 
             else:
                 raise ValueError(opcode)
+
         return SequenceDiffs(missing_notes, wrong_note_connections, wrong_position_in_staff, missing_clefs,
                              missing_accids,
                              additional_note, add_wrong_note_con, add_wrong_pos_in_staff,

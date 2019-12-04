@@ -1,0 +1,469 @@
+{
+  "decodec": {
+    "!": {
+      "symbol_type": "clef",
+      "note_type": null,
+      "clef_type": "c",
+      "accid_type": null,
+      "pos_in_staff": 9,
+      "graphical_connection": null
+    },
+    "\"": {
+      "symbol_type": "clef",
+      "note_type": null,
+      "clef_type": "c",
+      "accid_type": null,
+      "pos_in_staff": 7,
+      "graphical_connection": null
+    },
+    "#": {
+      "symbol_type": "clef",
+      "note_type": null,
+      "clef_type": "f",
+      "accid_type": null,
+      "pos_in_staff": 7,
+      "graphical_connection": null
+    },
+    "$": {
+      "symbol_type": "clef",
+      "note_type": null,
+      "clef_type": "c",
+      "accid_type": null,
+      "pos_in_staff": 5,
+      "graphical_connection": null
+    },
+    "%": {
+      "symbol_type": "clef",
+      "note_type": null,
+      "clef_type": "f",
+      "accid_type": null,
+      "pos_in_staff": 5,
+      "graphical_connection": null
+    },
+    "&": {
+      "symbol_type": "clef",
+      "note_type": null,
+      "clef_type": "c",
+      "accid_type": null,
+      "pos_in_staff": 8,
+      "graphical_connection": null
+    },
+    "'": {
+      "symbol_type": "clef",
+      "note_type": null,
+      "clef_type": "f",
+      "accid_type": null,
+      "pos_in_staff": 3,
+      "graphical_connection": null
+    },
+    "(": {
+      "symbol_type": "clef",
+      "note_type": null,
+      "clef_type": "c",
+      "accid_type": null,
+      "pos_in_staff": 4,
+      "graphical_connection": null
+    },
+    ")": {
+      "symbol_type": "accid",
+      "note_type": null,
+      "clef_type": null,
+      "accid_type": "flat",
+      "pos_in_staff": 8,
+      "graphical_connection": null
+    },
+    "*": {
+      "symbol_type": "accid",
+      "note_type": null,
+      "clef_type": null,
+      "accid_type": "flat",
+      "pos_in_staff": 6,
+      "graphical_connection": null
+    },
+    "+": {
+      "symbol_type": "accid",
+      "note_type": null,
+      "clef_type": null,
+      "accid_type": "flat",
+      "pos_in_staff": 9,
+      "graphical_connection": null
+    },
+    ",": {
+      "symbol_type": "accid",
+      "note_type": null,
+      "clef_type": null,
+      "accid_type": "flat",
+      "pos_in_staff": 7,
+      "graphical_connection": null
+    },
+    "-": {
+      "symbol_type": "accid",
+      "note_type": null,
+      "clef_type": null,
+      "accid_type": "flat",
+      "pos_in_staff": 4,
+      "graphical_connection": null
+    },
+    ".": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 3,
+      "graphical_connection": 2
+    },
+    "/": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 0,
+      "graphical_connection": 2
+    },
+    "0": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 1,
+      "graphical_connection": 2
+    },
+    "1": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 2,
+      "graphical_connection": 2
+    },
+    "2": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 4,
+      "graphical_connection": 2
+    },
+    "3": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 5,
+      "graphical_connection": 2
+    },
+    "4": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 6,
+      "graphical_connection": 2
+    },
+    "5": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 7,
+      "graphical_connection": 2
+    },
+    "6": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 8,
+      "graphical_connection": 2
+    },
+    "7": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 9,
+      "graphical_connection": 2
+    },
+    "8": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 10,
+      "graphical_connection": 2
+    },
+    "9": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 11,
+      "graphical_connection": 2
+    },
+    ":": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 12,
+      "graphical_connection": 2
+    },
+    ";": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 13,
+      "graphical_connection": 2
+    },
+    "<": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 14,
+      "graphical_connection": 2
+    },
+    "=": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 6,
+      "graphical_connection": 0
+    },
+    ">": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 0,
+      "graphical_connection": 0
+    },
+    "?": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 1,
+      "graphical_connection": 0
+    },
+    "@": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 2,
+      "graphical_connection": 0
+    },
+    "A": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 3,
+      "graphical_connection": 0
+    },
+    "B": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 4,
+      "graphical_connection": 0
+    },
+    "C": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 5,
+      "graphical_connection": 0
+    },
+    "D": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 7,
+      "graphical_connection": 0
+    },
+    "E": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 8,
+      "graphical_connection": 0
+    },
+    "F": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 9,
+      "graphical_connection": 0
+    },
+    "G": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 10,
+      "graphical_connection": 0
+    },
+    "H": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 11,
+      "graphical_connection": 0
+    },
+    "I": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 12,
+      "graphical_connection": 0
+    },
+    "J": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 13,
+      "graphical_connection": 0
+    },
+    "K": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 14,
+      "graphical_connection": 0
+    },
+    "L": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 7,
+      "graphical_connection": 1
+    },
+    "M": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 6,
+      "graphical_connection": 1
+    },
+    "N": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 1,
+      "graphical_connection": 1
+    },
+    "O": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 0,
+      "graphical_connection": 1
+    },
+    "P": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 2,
+      "graphical_connection": 1
+    },
+    "Q": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 3,
+      "graphical_connection": 1
+    },
+    "R": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 4,
+      "graphical_connection": 1
+    },
+    "S": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 5,
+      "graphical_connection": 1
+    },
+    "T": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 8,
+      "graphical_connection": 1
+    },
+    "U": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 9,
+      "graphical_connection": 1
+    },
+    "V": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 10,
+      "graphical_connection": 1
+    },
+    "W": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 11,
+      "graphical_connection": 1
+    },
+    "X": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 12,
+      "graphical_connection": 1
+    },
+    "Y": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 13,
+      "graphical_connection": 1
+    },
+    "Z": {
+      "symbol_type": "note",
+      "note_type": 0,
+      "clef_type": null,
+      "accid_type": null,
+      "pos_in_staff": 14,
+      "graphical_connection": 1
+    }
+  },
+  "last_char": 91
+}

@@ -99,7 +99,6 @@ class CalamariSequence:
                                    position_in_staff=c.pos_in_staff,
                                    graphical_connection=c.graphical_connection,
                                    ))
-
         return out
 
     def __init__(self, codec: CalamariCodec, symbols: List[MusicSymbol]):
