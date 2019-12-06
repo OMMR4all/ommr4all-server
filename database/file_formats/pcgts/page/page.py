@@ -163,6 +163,21 @@ class Page:
     def all_music_lines(self) -> List[Line]:
         return sum([mr.lines for mr in self.music_blocks()], [])
 
+    def all_music_lines_in_columns(self) -> List[List[Line]]:
+        columns = []
+        for block in self.music_blocks():
+            left = block.aabb.left()
+            right = block.aabb.right()
+            matching_columns = [c for c in columns if c['left'] <= right and c['right'] >= left]
+            columns.append({'blocks': sum([c['blocks'] for c in matching_columns], [block]),
+                            'lines': sum([c['lines'] for c in matching_columns], block.lines),
+                            'left': left, 'right': right,
+                            })
+            for c in matching_columns:
+                columns.remove(c)
+
+        return [c['lines'] for c in columns]
+
     def all_text_lines(self):
         return sum([b.lines for b in self.text_blocks()], [])
 

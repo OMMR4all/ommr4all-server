@@ -297,7 +297,9 @@ class DatabaseFile:
                     meta.preprocessing.average_line_distance = line_distance
                     meta.save(self.page)
                 else:
-                    line_distance = meta.preprocessing.average_line_distance
+                    # average_line_distance is expected to be computed on the original image
+                    c_orig = Image.open(self.page.local_file_path('color_original.jpg'))
+                    line_distance = int(np.round(meta.preprocessing.average_line_distance * c_hr.size[0] / c_orig.size[0]))
 
                 assert(line_distance > 0)
 

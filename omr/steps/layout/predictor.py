@@ -74,6 +74,11 @@ class LayoutAnalysisPredictor(AlgorithmPredictor):
     def predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
         pcgts_files = [p.pcgts() for p in pages]
         for r, pcgts in zip(self._predict(pcgts_files, callback=callback), pcgts_files):
+            if isinstance(r, FinalPredictionResult):
+                yield r
+                continue
+
+            # TODO: remove following and adapt remaining layout analysis algorithms
             music_lines = pcgts.page.all_music_lines()
 
             # music lines must be sorted
