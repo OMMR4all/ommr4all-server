@@ -14,11 +14,14 @@ class SerializableCTCDecoderParams(SerializableType):
                  type=CTCDecoderParams.CTC_DEFAULT,
                  beam_width=50,
                  word_separator=' ',
-                 dictionary: Optional[List[str]] = None):
+                 dictionary: Optional[List[str]] = None,
+                 non_word_chars: str = '',
+                 ):
         self.params = CTCDecoderParams()
         self.params.type = type
         self.params.beam_width = beam_width
         self.params.word_separator = word_separator
+        self.params.non_word_chars[:] = list(non_word_chars)
         if dictionary:
             self.params.dictionary[:] = dictionary
 

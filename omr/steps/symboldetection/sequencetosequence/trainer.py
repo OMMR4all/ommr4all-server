@@ -78,8 +78,8 @@ class OMRTrainer(SymbolDetectionTrainer):
         params.output_model_prefix = 'omr'
         params.display = self.params.display
         params.skip_invalid_gt = True
-        params.processes = -1
-        params.data_aug_retrain_on_original = True
+        params.processes = self.params.processes
+        params.data_aug_retrain_on_original = False
 
         params.early_stopping_frequency = self.params.early_stopping_test_interval
         params.early_stopping_nbest = self.params.early_stopping_max_keep
@@ -130,7 +130,8 @@ class OMRTrainer(SymbolDetectionTrainer):
                 validation_dataset=val_dataset,
                 n_augmentations=self.settings.page_segmentation_params.data_augmentation * 10,
                 data_augmenter=SimpleDataAugmenter(),
-                weights=self.params.load,
+                weights=None if not self.params.model_to_load() else self.params.model_to_load().local_file(
+                    params.early_stopping_best_model_prefix + '.ckpt'),
                 preload_training=True,
                 preload_validation=True,
                 codec=Codec(self.settings.dataset_params.calamari_codec.codec.values()),

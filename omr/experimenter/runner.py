@@ -84,6 +84,7 @@ if __name__ == "__main__":
     parser.add_argument("--calamari_ctc_decoder_beam_width", type=int, default=AlgorithmPredictorParams().ctcDecoder.params.beam_width)
     parser.add_argument("--calamari_ctc_dictionary_from_gt", action='store_true')
     parser.add_argument("--calamari_ctc_dictionary", type=str)
+    parser.add_argument("--calamari_ctc_decoder_non_word_chars", type=str, default="".join(AlgorithmPredictorParams().ctcDecoder.params.non_word_chars))
 
     # evaluation parameters
     parser.add_argument("--seed", type=int, default=1)
@@ -147,8 +148,9 @@ if __name__ == "__main__":
             ctcDecoder=SerializableCTCDecoderParams(
                 type=CTCDecoderParams.CTCDecoderType.Value(args.calamari_ctc_decoder),
                 beam_width=args.calamari_ctc_decoder_beam_width,
-                word_separator=args.calamari_ctc_word_separator,
+                word_separator='' if args.calamari_ctc_word_separator.upper() == "BLANK" else ' ' if args.calamari_ctc_word_separator.upper() == "SPACE" else args.calamari_ctc_word_separator,
                 dictionary=None if not args.calamari_ctc_dictionary else open(args.calamari_ctc_dictionary, 'r').read().split(),
+                non_word_chars=args.calamari_ctc_decoder_non_word_chars,
             )
         ),
         output_book=args.output_book,

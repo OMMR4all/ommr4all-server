@@ -22,7 +22,7 @@ repos: List[Repo] = [
     Repo(
         'calamari',
         'https://github.com/Calamari-OCR/calamari.git',
-        'fd0306d19e34d3757df7ce57438c875567c6f5a7',
+        'a8f97d7aaf0fae38598d9c4f9f3da1ab408cc32d',
     ),
     Repo(
         'ommr4all-line-detection',
@@ -37,7 +37,7 @@ repos: List[Repo] = [
     Repo(
         'ommr4all-page-segmentation',
         'https://github.com/OMMR4all/ommr4all-page-segmentation.git',
-        'e02e871488b6bfc2bd67c16f21aa6c4f70dc818d',
+        '2e7b8de79f2429c1d425cc6a0225e19db67ee75f',
     ),
 ]
 
