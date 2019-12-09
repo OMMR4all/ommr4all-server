@@ -44,11 +44,17 @@ class Predictor(LayoutAnalysisPredictor):
             for m1, m2 in zip(mls[:-1], mls[1:]):
                 top_l = m1.staff_lines[-1]
                 bot_l = m2.staff_lines[0]
+                bot_points = bot_l.coords.points[np.where((top_l.coords.points[0][0] < bot_l.coords.points[:, 0]) & (bot_l.coords.points[:, 0] < top_l.coords.points[-1][0]))]
+                bot_points = np.concatenate([
+                    [(top_l.coords.points[0][0], bot_l.interpolate_y(top_l.coords.points[0][0]))],
+                    bot_points,
+                    [(top_l.coords.points[-1][0], bot_l.interpolate_y(top_l.coords.points[-1][0]))],
+                ])
                 lyric_coords.append(IdCoordsPair(Coords(np.concatenate([
                     top_l.coords.points + pad_tup,
-                    [top_l.coords.points[-1] + (0, bot_l.coords.points[-1][1] - top_l.coords.interpolate_y(bot_l.coords.points[-1][0])) - pad_tup],
-                    bot_l.coords.points[::-1] - pad_tup,
-                    [top_l.coords.points[0] + (0, bot_l.coords.points[0][1] - top_l.coords.interpolate_y(bot_l.coords.points[0][0])) - pad_tup],
+                    [top_l.coords.points[-1] + (0, bot_points[-1][1] - top_l.coords.interpolate_y(bot_points[-1][0])) - pad_tup],
+                    bot_points[::-1] - pad_tup,
+                    [top_l.coords.points[0] + (0, bot_points[0][1] - top_l.coords.interpolate_y(bot_points[0][0])) - pad_tup],
                 ], axis=0))))
 
             top_l = mls[-1].staff_lines[-1]
