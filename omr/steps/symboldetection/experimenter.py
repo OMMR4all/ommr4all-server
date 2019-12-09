@@ -47,7 +47,7 @@ class SymbolsExperimenter(Experimenter):
         self.fold_log.debug(at.get_string())
 
         at = PrettyTable()
-        at.add_column("Type", ["Note all", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence", "Sequence NC"])
+        at.add_column("Type", ["Note all", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence", "Sequence NC", "Neume Sequence"])
         at.add_column("True", acc_counts[:, AccCounts.TRUE])
         at.add_column("False", acc_counts[:, AccCounts.FALSE])
         at.add_column("Total", acc_counts[:, AccCounts.TOTAL])
@@ -92,7 +92,7 @@ class SymbolsExperimenter(Experimenter):
         log.info("\n" + at.get_string())
 
         at = PrettyTable()
-        at.add_column("Type", ["Note all", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence", "Sequence NC"])
+        at.add_column("Type", ["Note all", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence", "Sequence NC", "Neume Sequence"])
         at.add_column("Accuracy [%]", acc_mean[:, 0] * 100)
         at.add_column("+- [%]", acc_std[:, 0] * 100)
 

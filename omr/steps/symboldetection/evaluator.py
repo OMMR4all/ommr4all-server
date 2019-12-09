@@ -80,12 +80,39 @@ class SequenceDiffs(NamedTuple):
 class Codec:
     def __init__(self):
         self.codec = []
+        self.neume_codec = []
 
     def get(self, v):
         if v in self.codec:
             return self.codec.index(v)
         self.codec.append(v)
         return len(self.codec) - 1
+
+    def get_neume(self, v):
+        if v in self.codec:
+            return self.codec.index(v)
+        self.codec.append(v)
+        return len(self.codec) - 1
+
+    def label_to_neume_sequence(self, sequence: List):
+        neumes = []
+        last_no_neume = True
+        for symbol in sequence:
+            symbol = self.codec[symbol]
+            symbol_type = symbol[0]
+            if symbol_type != SymbolType.NOTE:
+                last_no_neume = True
+                continue
+
+            if symbol[3] == GraphicalConnectionType.NEUME_START or last_no_neume:
+                last_no_neume = False
+                neumes.append([symbol])
+            else:
+                neumes[-1].append(symbol)
+
+        neumes = map(tuple, neumes)
+
+        return list(map(self.get_neume, neumes))
 
     def symbols_to_label_sequence(self, symbols: List[MusicSymbol], note_connection_type: bool):
         sequence = []
@@ -202,7 +229,7 @@ class SymbolDetectionEvaluator:
         acc_metrics = np.zeros((0, 4), dtype=float)
         counts = np.zeros((0, 5, Counts.COUNT), dtype=int)
 
-        acc_counts = np.zeros((0, 7, AccCounts.COUNT), dtype=int)
+        acc_counts = np.zeros((0, 8, AccCounts.COUNT), dtype=int)
 
         total_diffs = np.zeros(12, dtype=int)
 
@@ -211,8 +238,11 @@ class SymbolDetectionEvaluator:
             pred_sequence = self.codec.symbols_to_label_sequence(pred, False)
             gt_sequence_nc = self.codec.symbols_to_label_sequence(gt, True)
             pred_sequence_nc = self.codec.symbols_to_label_sequence(pred, True)
+            neume_gt_sequence = self.codec.label_to_neume_sequence(gt_sequence_nc)
+            neume_pred_sequence = self.codec.label_to_neume_sequence(pred_sequence_nc)
             sequence_ed = edit_distance(gt_sequence, pred_sequence)
             sequence_ed_nc = edit_distance(gt_sequence_nc, pred_sequence_nc)
+            neume_sequence_ed = edit_distance(neume_gt_sequence, neume_pred_sequence)
             diffs = np.asarray(self.codec.compute_sequence_diffs(gt_sequence_nc, pred_sequence_nc))
             total_diffs += diffs
             pairs = []
@@ -334,6 +364,7 @@ class SymbolDetectionEvaluator:
                 accid_all_counts,
                 (sequence_ed[1], sequence_ed[0], sum(sequence_ed)),
                 (sequence_ed_nc[1], sequence_ed_nc[0], sum(sequence_ed_nc)),
+                (neume_sequence_ed[1], neume_sequence_ed[0], sum(neume_sequence_ed))
             ]]), axis=0)
 
             acc_metrics = np.concatenate((acc_metrics, [[
