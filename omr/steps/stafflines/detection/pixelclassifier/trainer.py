@@ -27,11 +27,11 @@ class BasicStaffLinesTrainer(StaffLineDetectionTrainer):
     @staticmethod
     def default_params() -> AlgorithmTrainerParams:
         return AlgorithmTrainerParams(
-            n_iter=1000,
+            n_iter=2000,
             l_rate=1e-3,
             display=10,
-            early_stopping_max_keep=5,
-            early_stopping_test_interval=50,
+            early_stopping_max_keep=10,
+            early_stopping_test_interval=200,
         )
 
     def __init__(self, settings: AlgorithmTrainerSettings):

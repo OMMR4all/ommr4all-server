@@ -1,6 +1,6 @@
 from django.urls import path, re_path
 
-from restapi.views.bookaccess import BooksImportView
+from restapi.views.bookaccess import BooksImportView, BookStatsView
 from django.http import HttpResponse
 
 from restapi.views.operation import OperationStatusView, OperationView, OperationTaskView
@@ -59,6 +59,7 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/comments/count', BookCommentsCountView.as_view()),
         re_path(r'^book/(?P<book>\w+)/comments', BookCommentsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/meta$', BookMetaView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/stats$', BookStatsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/upload/$', BookUploadView.as_view()),
         re_path(r'^book/(?P<book>\w+)/virtual_keyboard/$', BookVirtualKeyboardView.as_view()),
         re_path(r'^book/(?P<book>\w+)/rename_pages/$', BookRenamePagesView.as_view()),

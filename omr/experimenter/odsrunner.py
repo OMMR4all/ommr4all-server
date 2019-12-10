@@ -23,6 +23,8 @@ parser.add_argument('--data_column_offset', default=1, type=int)
 parser.add_argument('--verbose', action='store_true')
 parser.add_argument('--force_all', action='store_true')
 parser.add_argument('--first_only', action='store_true')
+parser.add_argument('--dry_run', action='store_true')
+parser.add_argument('--simulate', action='store_true')
 
 args = parser.parse_args()
 
@@ -48,8 +50,7 @@ params = params[:params_end_index]
 
 experiment_args = []
 data_row_start_index = args.header_row + 1
-all_rows = list(experiments_sheet.rows())
-for i, row in enumerate(all_rows[data_row_start_index:]):
+for i, row in enumerate(rows[data_row_start_index:]):
     ex_args = {}
     for param, cell in zip(params, row):
         if param is None or cell.value is None:
@@ -101,6 +102,11 @@ def run(ex_args):
     cmd_list += ['--{}'.format(a) for a in args.additional_args]
     cmd_list = list(map(str, cmd_list))
 
+    if args.simulate:
+        print("Simulating: {}".format(" ".join(cmd_list)))
+        print("            {}".format(ex_args))
+        return None
+
     process = subprocess.Popen(cmd_list, stdout=subprocess.PIPE)
     result = None
     while True:
@@ -136,15 +142,19 @@ else:
 
     print("Outputting {} results to ods".format(len(ex_results)))
     for ex_args, ex_result in zip(experiment_args, ex_results):
+        data_row = ex_args['row']
+        row = rows[data_row]
+        print([r.value for r in row])
         if ex_result is None:
-            print("Command '{}' yielded None".format(" ".join(ex_args['args'])))
+            print("Command '{}' yielded None".format(ex_args))
             continue
 
-        data_row = ex_args['row']
-        row = all_rows[data_row]
         for i, value in enumerate(ex_result):
             cell = row[i + data_column_start_index]
             cell.set_value(value)
 
-    ods.save()
+    if args.dry_run:
+        print("Dry run, not saving anything!")
+    else:
+        ods.save()
     print("Saved")

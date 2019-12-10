@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+
+from dataclasses_json import dataclass_json
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -34,6 +37,24 @@ class require_permissions(object):
                                 ).response()
 
         return wrapper_require_permissions
+
+
+class BookStatsView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book):
+        book = DatabaseBook(book)
+        from database.tools.book_statistics import compute_book_statistics, Counts
+
+        @dataclass_json
+        @dataclass
+        class DatasetStatisticsResult:
+            current: int
+            total: int
+            counts: Counts
+
+        return Response(DatasetStatisticsResult(0, 0, compute_book_statistics(book)).to_dict())
 
 
 class BookMetaView(APIView):

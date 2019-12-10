@@ -87,7 +87,7 @@ class PCPredictor(SymbolsPredictor):
 
     def exract_symbols(self, probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData, dataset: SymbolDetectionDataset) -> List[MusicSymbol]:
         # n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(((probs[:, :, 0] < 0.5) | (p > 0)).astype(np.uint8))
-        p = (np.argmax(probs[:,:,1:], axis=-1) + 1) * (probs[:,:,0] < 0.8)
+        p = (np.argmax(probs[:,:,1:], axis=-1) + 1) * (probs[:,:,0] < 0.5)
         n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
         symbols = []
         sorted_labels = sorted(range(1, n_labels), key=lambda i: (centroids[i, 0], -centroids[i, 1]))

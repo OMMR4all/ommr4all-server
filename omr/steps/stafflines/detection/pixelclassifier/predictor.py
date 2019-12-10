@@ -1,4 +1,7 @@
 import os
+
+from shared.pcgtscanvas import PcGtsCanvas
+
 if __name__ == '__main__':
     import django
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
@@ -95,7 +98,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from PIL import Image
     # page = Book('demo').page('page00000001')
-    book = DatabaseBook('Graduel_Fully_Annotated')
+    book = DatabaseBook('test')
     page = book.pages()[0]
     # page = book.page('Graduel_de_leglise_de_Nevers_032_rot')  # zacken in linie
     # page = book.page('Graduel_de_leglise_de_Nevers_531')
@@ -114,6 +117,7 @@ if __name__ == '__main__':
     )
     detector = BasicStaffLinePredictor(settings)
     for prediction in detector.predict(pages):
+        canvas = PcGtsCanvas(prediction.line.operation.page, PageScaleReference.NORMALIZED)
         def scale(p):
             return prediction.line.operation.page.page_to_image_scale(p, ref=PageScaleReference.NORMALIZED)
 
@@ -122,9 +126,9 @@ if __name__ == '__main__':
         data = prediction.line
         img = np.array(data.line_image, dtype=np.uint8)
         ax[0].imshow(255 - img, cmap='gray')
-        [s.draw(img, color=255, thickness=3, scale=scale) for s in staffs]
+        [s.draw(img, color=255, thickness=1, scale=scale) for s in staffs]
         b = np.zeros(img.shape)
-        [s.draw(b, color=255, thickness=3, scale=scale) for s in staffs]
+        [s.draw(b, color=255, thickness=1, scale=scale) for s in staffs]
         ax[1].imshow(img)
         ax[2].imshow(b, cmap='gray')
         plt.show()

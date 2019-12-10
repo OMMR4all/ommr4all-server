@@ -235,6 +235,8 @@ LOGGING = {
 }
 
 
+# RESOURCES
+
 class GPUSettings(NamedTuple):
     available_gpus: List[int]
 

@@ -19,3 +19,4 @@ cryptography
 mashumaro
 unidecode
 pdf2image
+dataclasses-json
