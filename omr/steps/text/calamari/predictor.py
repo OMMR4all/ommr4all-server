@@ -55,10 +55,12 @@ class CalamariPredictor(TextPredictor):
 
     def _predict(self, dataset: TextDataset, callback: Optional[PredictionCallback] = None) -> Generator[SingleLinePredictionResult, None, None]:
         hyphen = Pyphenator()
+        """
         hyphen = HyphenatorFromDictionary(
             dictionary=os.path.join(BASE_DIR, 'internal_storage', 'resources', 'hyphen_dictionary.txt'),
             normalization=dataset.params.lyrics_normalization,
         )
+        """
         try:
             for marked_symbols, (r, sample) in zip(dataset.load(), self.predictor.predict_dataset(dataset.to_text_line_calamari_dataset())):
                 prediction = self.voter.vote_prediction_result(r)
