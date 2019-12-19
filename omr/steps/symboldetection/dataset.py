@@ -48,15 +48,16 @@ if __name__ == '__main__':
     from imageio import imsave
     from shared.pcgtscanvas import PcGtsCanvas
     from omr.steps.algorithmtypes import AlgorithmTypes
-    pages = [p for p in DatabaseBook('Graduel_Fully_Annotated').pages()]
+    pages = [p for p in DatabaseBook('Cai_72_GT').pages()]
     # pages = [DatabaseBook('Graduel_Part_1').page('Graduel_de_leglise_de_Nevers_025')]
     # pages = [DatabaseBook('New_York').page('21v')]
     params = DatasetParams(
         pad=[0, 10, 0, 40],
-        dewarp=False,
-        center=False,
+        dewarp=True,
+        center=True,
         staff_lines_only=True,
         cut_region=False,
+        height=120,
     )
 
     print(params.to_json())
