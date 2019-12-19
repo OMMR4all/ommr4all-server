@@ -134,15 +134,17 @@ class OperationTests(APITestCase):
         page = DatabaseBook('demo').page('page_test_preprocessing_001')
         self._test_preprocessing_of_page(page)
 
-    def _test_line_detection_of_page(self, page: str, n_lines, algorithm: AlgorithmTypes):
+    def _test_line_detection_of_page(self, page: str, n_lines: int, n_lines_per_staff: int, algorithm: AlgorithmTypes):
         data = self._test_predictor(page, algorithm)
         self.assertEqual(len(data['staffs']), n_lines)
+        for staff in data['staffs']:
+            self.assertEqual(len(staff['staffLines']), n_lines_per_staff)
 
     def test_line_detection_001(self):
-        self._test_line_detection_of_page('page_test_staff_line_detection_001', 9, AlgorithmTypes.STAFF_LINES_PC)
+        self._test_line_detection_of_page('page_test_staff_line_detection_001', 9, 4, AlgorithmTypes.STAFF_LINES_PC)
 
     def test_line_detection_002(self):
-        self._test_line_detection_of_page('page_test_staff_line_detection_002', 9, AlgorithmTypes.STAFF_LINES_PC)
+        self._test_line_detection_of_page('page_test_staff_line_detection_002', 9, 4, AlgorithmTypes.STAFF_LINES_PC)
 
     def test_layout_detection_complex_standard_001(self):
         self._test_predictor('page_test_layout_detection_001', AlgorithmTypes.LAYOUT_COMPLEX_STANDARD)
