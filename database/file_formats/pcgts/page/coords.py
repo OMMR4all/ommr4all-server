@@ -306,6 +306,12 @@ class Rect:
     def copy(self) -> 'Rect':
         return Rect(self.origin.copy(), self.size.copy())
 
+    def no_intersection(self, rect: 'Rect') -> bool:
+        return self.top() > rect.bottom() or self.bottom() < rect.top() or self.left() > rect.right() or self.right() < rect.left()
+
+    def intersects(self, rect: 'Rect') -> bool:
+        return not self.no_intersection(rect)
+
 
 if __name__ == '__main__':
     c = Coords(np.array([[0, 1], [1, 2], [6, -123]]))
