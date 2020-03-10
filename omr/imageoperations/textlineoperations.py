@@ -4,7 +4,7 @@ from omr.imageoperations.image_crop import ImageCropToSmallestBoxOperation
 from typing import Tuple, List, NamedTuple, Any, Optional, Set
 from database.file_formats.pcgts.page import BlockType, Block, Line
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 from copy import copy
 from enum import IntEnum
 from omr.dewarping.dummy_dewarper import Dewarper
@@ -14,13 +14,14 @@ logger = logging.getLogger(__name__)
 
 
 class ImageExtractDeskewedLyrics(ImageOperation):
-    def __init__(self):
+    def __init__(self, cut_region=True):
         super().__init__()
+        self.cut_region = cut_region
 
     def apply_single(self, data: ImageOperationData):
         image = data.images[0].image
         all_mls = data.page.all_music_lines()
-        all_tls = data.page.all_text_lines()
+        all_tls = data.page.lines_of_type(BlockType.LYRICS)
 
         def extract_transformed_coords(ml: Line) -> List[Coords]:
             lines = ml.staff_lines.sorted()
@@ -44,6 +45,12 @@ class ImageExtractDeskewedLyrics(ImageOperation):
                 continue
 
             image = dew_page[int(aabb.top()):int(aabb.bottom()), int(aabb.left()):int(aabb.right())]
+
+            if self.cut_region:
+                mask_img = Image.new('L', image.shape[::-1], 0)
+                ImageDraw.Draw(mask_img).polygon([tuple(p) for p in (dew_coords.points - aabb.tl.p)], outline=1, fill=1)
+                mask = np.array(mask_img)
+                image = image * mask
 
             img_data = copy(data)
             img_data.page_image = image

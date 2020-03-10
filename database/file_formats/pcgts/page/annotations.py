@@ -89,6 +89,10 @@ class Annotations:
     def drop_annotation_by_text_block(self, block: Block):
         self.connections = [c for c in self.connections if c.text_region != block]
 
+    def drop_annotation_by_text_line(self, line: Line):
+        for c in self.connections:
+            c.syllable_connections = [sc for sc in c.syllable_connections if sc.syllable not in line.sentence.syllables]
+
     def lyrics_of_music_line(self, mr: Block) -> Block:
         for connection in self.connections:
             if connection.music_region == mr:

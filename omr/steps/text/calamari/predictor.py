@@ -48,7 +48,6 @@ class CalamariPredictor(TextPredictor):
         # self.predictor = MultiPredictor(glob_all([s + '/text_best*.ckpt.json' for s in params.checkpoints]))
         self.predictor = MultiPredictor(glob_all([settings.model.local_file('text_best.ckpt.json')]),
                                         ctc_decoder_params=ctc_decoder_params)
-        self.height = self.predictor.predictors[0].network_params.features
         voter_params = VoterParams()
         voter_params.type = VoterParams.CONFIDENCE_VOTER_DEFAULT_CTC
         self.voter = voter_from_proto(voter_params)

@@ -94,6 +94,9 @@ class Page:
         except TypeError:
             return [b for b in self.blocks if b.block_type == block_type]
 
+    def lines_of_type(self, block_type: Union[BlockType, Iterable[BlockType]]) -> List[Block]:
+        return sum((b.lines for b in self.blocks_of_type(block_type)), [])
+
     def clear_blocks_of_type(self, block_type: BlockType):
         self.blocks = [b for b in self.blocks if b.block_type != block_type]
 
@@ -200,6 +203,9 @@ class Page:
         closest = None
         d = 10000000000
         for ml in self.all_music_lines():
+            # must horizontally overlap
+            if ml.aabb.left() > tl.aabb.right() or ml.aabb.right() < tl.aabb.left():
+                continue
             dp = tl.aabb.top() - ml.aabb.top()
             if dp < 0:
                 continue

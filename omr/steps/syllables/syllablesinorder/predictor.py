@@ -13,7 +13,7 @@ from omr.steps.algorithmpreditorparams import AlgorithmPredictorSettings, Algori
 from omr.steps.syllables.syllablesfromtext.meta import Meta
 from omr.steps.syllables.predictor import PredictionResult, SyllablesPredictor, MatchResult, SyllableMatchResult, \
     PageMatchResult
-from omr.steps.text.predictor import PredictionResult as TextPredictionResult
+from omr.steps.text.predictor import PredictionResult as TextPredictionResult, BlockType
 from omr.steps.text.predictor import SingleLinePredictionResult as TextSingleLinePredictionResult
 import unidecode
 from difflib import SequenceMatcher
@@ -36,7 +36,7 @@ class SyllablesInOrderPredictor(SyllablesPredictor):
             pcgts = page.pcgts()
 
             mrs = []
-            for tl in pcgts.page.all_text_lines():
+            for tl in pcgts.page.lines_of_type(BlockType.LYRICS):
                 ml = pcgts.page.closest_music_line_to_text_line(tl)
                 neumes = [s for s in ml.symbols if s.symbol_type == SymbolType.NOTE and s.graphical_connection == GraphicalConnectionType.NEUME_START]
                 neumes.sort(key=lambda n: n.coord.x)

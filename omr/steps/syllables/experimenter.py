@@ -34,7 +34,7 @@ class SyllablesExperimenter(Experimenter):
         pred, gt = [], []
         for p in full_predictions:
             notes = {
-                c.music_region.id: [s for s in c.music_region.lines[0].symbols if s.graphical_connection == GraphicalConnectionType.NEUME_START] for c in p.annotations.connections
+                c.music_region.id: sum([[s for s in line.symbols if s.graphical_connection == GraphicalConnectionType.NEUME_START] for line in c.music_region.lines], []) for c in p.annotations.connections
             }
             pred.append([[(p.page().location.page, c.music_region.id, c.text_region.id, sc.syllable.id, notes[c.music_region.id].index(sc.note)) for sc in c.syllable_connections] for c in p.annotations.connections])
             gt.append([[(p.page().location.page, c.music_region.id, c.text_region.id, sc.syllable.id, notes[c.music_region.id].index(sc.note)) for sc in c.syllable_connections] for c in p.page().annotations.connections])
@@ -57,7 +57,9 @@ class SyllablesExperimenter(Experimenter):
 
         distances = []
         for e in pred:
-            matching_s = [g for g in gt if g[:4] == e[:4]][0]
+            matching_s = next((g for g in gt if g[:4] == e[:4]), None)
+            if not matching_s:
+                continue
             d = e[-1] - matching_s[-1]
             distances.append(d)
 

@@ -122,7 +122,10 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
 
         # interpolate syllables without any match
         ix = np.array([(i, match['x']) for i, match in enumerate(out_matches) if match['x'] >= 0])
-        x_pos = np.interp(range(len(out_matches)), ix[:, 0], ix[:, 1])
+        if len(ix) == 0:
+            x_pos = [0 for _ in range(len(out_matches))]
+        else:
+            x_pos = np.interp(range(len(out_matches)), ix[:, 0], ix[:, 1])
 
         return MatchResult(
             syllables=[SyllableMatchResult(
