@@ -14,6 +14,7 @@ from omr.dewarping.dummy_dewarper import NoStaffLinesAvailable, NoStaffsAvailabl
 from dataclasses import dataclass, field
 from mashumaro import DataClassJSONMixin
 from enum import Enum
+import pandas as pd
 
 import json
 
@@ -162,6 +163,33 @@ class Dataset(ABC):
 
     def to_line_detection_dataset(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:
         return self.load(callback)
+
+    def to_memory_dataset(self, callback: Optional[DatasetCallback] = None):
+        if self.params.origin_staff_line_distance == self.params.target_staff_line_distance:
+            images = []
+            masks = []
+            data = []
+            #import matplotlib.pyplot as plt
+            #cmap = plt.get_cmap('Set1')
+
+            for ind, x in enumerate(self.load(callback)):
+                # from PIL import Image
+                # rgba_img = cmap(x.mask)
+                # rgb_img = np.delete(rgba_img, 3, 2)*255
+                # rgb_img = rgb_img.astype(np.uint8)
+                # backgorund = Image.fromarray(x.region).convert("RGBA")
+                # overlay= Image.fromarray(rgb_img).convert("RGBA")
+                # overlay.save(str(ind)+"overlay.png")
+                # new_image = Image.blend(backgorund, overlay, 0.5)
+                # new_image.save(str(ind)+".png")
+                images.append(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
+                masks.append(x.mask)
+                data.append(x)
+            df = pd.DataFrame(data={'images': images, 'masks': masks, 'original': data})
+            return df
+        else:
+            raise NotImplementedError()
+            pass
 
     def to_calamari_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         from calamari_ocr.ocr.datasets.dataset import RawDataSet, DataSetMode

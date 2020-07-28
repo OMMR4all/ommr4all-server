@@ -9,7 +9,8 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(level
 import os
 
 from ocr4all_pixel_classifier.lib.model import Architecture
-
+from segmentation.modules import ENCODERS, Architecture as TorchArchitecture
+from omr.steps.symboldetection.torchpixelclassifier.params import PageSegmentationTrainerTorchParams
 from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, SerializableCTCDecoderParams
 from omr.steps.algorithmtrainerparams import AlgorithmTrainerParams
@@ -74,6 +75,11 @@ if __name__ == "__main__":
     parser.add_argument("--page_segmentation_architecture", type=lambda t: Architecture[t], choices=list(Architecture), default=PageSegmentationTrainerParams().architecture)
     parser.add_argument("--lyrics_normalization", type=lambda t: LyricsNormalization[t], choices=list(LyricsNormalization), default=DatasetParams().lyrics_normalization.lyrics_normalization)
     parser.add_argument("--lyrics_mixed_case", action='store_true')
+
+    parser.add_argument("--page_segmentation_torch_architecture", type=lambda t: TorchArchitecture[t],
+                             choices=list(TorchArchitecture), default=PageSegmentationTrainerTorchParams().architecture)
+    parser.add_argument("--page_segmentation_torch_encoder", type=str, choices=list(ENCODERS),
+                        default=PageSegmentationTrainerTorchParams().encoder)
 
     parser.add_argument("--calamari_n_folds", type=int, default=0)
     parser.add_argument("--calamari_single_folds", type=int, nargs='+')
@@ -170,12 +176,18 @@ if __name__ == "__main__":
             data_augmentation=args.data_augmentation,
             architecture=args.page_segmentation_architecture,
         ),
+        page_segmentation_torch_params=PageSegmentationTrainerTorchParams(
+            architecture=args.page_segmentation_torch_architecture,
+            encoder=args.page_segmentation_torch_encoder,
+            data_augmentation=args.data_augmentation
+        ),
         calamari_params=CalamariParams(
             network=args.calamari_network,
             n_folds=args.calamari_n_folds,
             single_folds=args.calamari_single_folds,
             channels=args.calamari_channels,
         ),
+
         calamari_dictionary_from_gt=args.calamari_ctc_dictionary_from_gt
     )
 

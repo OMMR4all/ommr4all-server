@@ -20,6 +20,7 @@ from database.model import MetaId, Model
 from omr.dataset.datafiles import LockState, generate_dataset
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
+from omr.steps.symboldetection.torchpixelclassifier.params import PageSegmentationTrainerTorchParams
 from typing import NamedTuple, List, Optional
 import os
 import pickle
@@ -56,6 +57,7 @@ class GlobalDataArgs(NamedTuple):
     algorithm_type: AlgorithmTypes
     trainer_params: AlgorithmTrainerParams
     page_segmentation_params: PageSegmentationTrainerParams
+    page_segmentation_torch_params: PageSegmentationTrainerTorchParams
     calamari_params: CalamariParams
     calamari_dictionary_from_gt: bool
 
@@ -162,6 +164,7 @@ class Experimenter(ABC):
                     model=Model(MetaId.from_custom_path(model_path, global_args.algorithm_type)),
                     params=global_args.trainer_params,
                     page_segmentation_params=global_args.page_segmentation_params,
+                    page_segmentation_torch_params=global_args.page_segmentation_torch_params,
                     calamari_params=global_args.calamari_params,
                 )
             )
