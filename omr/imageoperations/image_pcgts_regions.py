@@ -1,7 +1,7 @@
 from . import ImageOperation, ImageOperationData, OperationOutput
-from database.file_formats.pcgts import BlockType
+from database.file_formats.pcgts import BlockType, Point
 from copy import copy
-from typing import List
+from typing import List, Any
 
 
 class ImageDrawRegions(ImageOperation):
@@ -33,4 +33,7 @@ class ImageDrawRegions(ImageOperation):
         return [d]
 
     def local_to_global_pos(self, p, params):
+        return p
+
+    def global_to_local_pos(self, p: Point, params: Any) -> Point:
         return p

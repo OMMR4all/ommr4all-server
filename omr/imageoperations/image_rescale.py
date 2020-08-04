@@ -36,6 +36,10 @@ class ImageRescaleToHeightOperation(ImageOperation):
         scale, = params
         return Point(p.x / scale, p.y / scale)
 
+    def global_to_local_pos(self, p: Point, params: Any) -> Point:
+        scale, = params
+        return Point(p.x * scale, p.y * scale)
+
     @staticmethod
     def scale_to_h(img, target_height, order=1, cval=0):
         assert(img.dtype == np.uint8)

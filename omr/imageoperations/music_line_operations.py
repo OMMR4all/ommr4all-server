@@ -117,6 +117,14 @@ class ImageExtractStaffLineImages(ImageOperation):
             # default operations
             return Point(p.x + l, t + p.y)
 
+    def global_to_local_pos(self, p: Point, params: Any) -> Point:
+        if self.full_page:
+            return p
+        else:
+            i, (t, b, l, r) = params
+            # default operations
+            return Point(p.x - l, t - p.y)
+
 
 class ImageExtractDewarpedStaffLineImages(ImageOperation):
     def __init__(self, dewarp, cut_region, pad, center, staff_lines_only):
@@ -301,6 +309,17 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
             return Point(*transform(p.xy(), mls))
         else:
             return p
+
+    def global_to_local_pos(self, p: Point, params: Any) -> Point:
+        i, (t, b, l, r), (top, ), mls, dewarper = params
+        # default operations
+        p = Point(p.x - l, abs(t - p.y) + top)
+        # dewarp
+        if self.dewarp:
+            raise NotImplemented
+        else:
+            return p
+
 
 
 if __name__ == "__main__":

@@ -17,7 +17,6 @@ from enum import Enum
 
 import json
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -52,9 +51,9 @@ class ImageInput(Enum):
 
 
 class LyricsNormalization(Enum):
-    SYLLABLES = 'syllables'     # a-le-lu-ya vir-ga
-    ONE_STRING = 'one_string'   # aleluyavirga
-    WORDS = 'words'             # aleluya virga
+    SYLLABLES = 'syllables'  # a-le-lu-ya vir-ga
+    ONE_STRING = 'one_string'  # aleluyavirga
+    WORDS = 'words'  # aleluya virga
 
 
 @dataclass
@@ -148,20 +147,26 @@ class Dataset(ABC):
     def local_to_global_pos(self, p: Point, params: List[Any]) -> Point:
         return self.image_ops.local_to_global_pos(p, params)
 
+    def global_to_local_pos(self, p: Point, params: List[Any]) -> Point:
+        return self.image_ops.global_to_local_pos(p, params)
+
     def to_page_segmentation_dataset(self, callback: Optional[DatasetCallback] = None):
         if self.params.origin_staff_line_distance == self.params.target_staff_line_distance:
             from ocr4all_pixel_classifier.lib.dataset import Dataset, SingleData
-            return Dataset([SingleData(image=d.line_image if self.params.image_input == ImageInput.LINE_IMAGE else d.region,
-                                       binary=((d.line_image < 125) * 255).astype(np.uint8),
-                                       mask=d.mask,
-                                       line_height_px=self.params.origin_staff_line_distance if self.params.origin_staff_line_distance is not None else d.operation.page.avg_staff_line_distance(),
-                                       original_shape=d.line_image.shape,
-                                       user_data=d) for d in self.load(callback)], {})
+            return Dataset(
+                [SingleData(image=d.line_image if self.params.image_input == ImageInput.LINE_IMAGE else d.region,
+                            binary=((d.line_image < 125) * 255).astype(np.uint8),
+                            mask=d.mask,
+                            line_height_px=self.params.origin_staff_line_distance if self.params.origin_staff_line_distance is not None else d.operation.page.avg_staff_line_distance(),
+                            original_shape=d.line_image.shape,
+                            user_data=d) for d in self.load(callback)], {})
         else:
             raise NotImplementedError()
 
     def to_line_detection_dataset(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:
         return self.load(callback)
+
+
 
     def to_calamari_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         from calamari_ocr.ocr.datasets.dataset import RawDataSet, DataSetMode

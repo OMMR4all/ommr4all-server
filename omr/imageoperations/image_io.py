@@ -1,9 +1,10 @@
+from database.file_formats.pcgts import Point
 from . import ImageOperation, ImageOperationData, OperationOutput, ImageData
 from copy import copy
 from PIL import Image
 import numpy as np
 import PIL.ImageOps
-from typing import List, Tuple
+from typing import List, Tuple, Any
 
 
 class ImageLoadFromPageOperation(ImageOperation):
@@ -27,4 +28,7 @@ class ImageLoadFromPageOperation(ImageOperation):
         return [d]
 
     def local_to_global_pos(self, p, params):
+        return p
+
+    def global_to_local_pos(self, p: Point, params: Any) -> Point:
         return p

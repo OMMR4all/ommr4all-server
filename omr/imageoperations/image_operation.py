@@ -44,6 +44,9 @@ class ImageOperation(ABC):
     def local_to_global_pos(self, p: Point, params: Any) -> Point:
         return p
 
+    def global_to_local_pos(self, p: Point, params: Any) -> Point:
+        return p
+
 
 class ImageOperationList(ImageOperation):
     def __init__(self, operations: List[ImageOperation]):
@@ -70,5 +73,8 @@ class ImageOperationList(ImageOperation):
 
         return p
 
-
+    def global_to_local_pos(self, p: Point, params: Any) -> Point:
+        for op, param in reversed(list(zip(reversed(self.operations), reversed(params)))): # zip(self.operations, params):
+            p = op.global_to_local_pos(p, param)
+        return p
 

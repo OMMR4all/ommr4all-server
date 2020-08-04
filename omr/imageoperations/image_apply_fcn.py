@@ -1,3 +1,6 @@
+from typing import Any
+
+from database.file_formats.pcgts import Point
 from . import ImageOperation, ImageOperationData, OperationOutput, ImageData
 from copy import copy
 from ocr4all_pixel_classifier.lib.predictor import Predictor, PredictSettings, Dataset, SingleData
@@ -26,4 +29,7 @@ class ImageApplyFCN(ImageOperation):
         return [data]
 
     def local_to_global_pos(self, p, params):
+        return p
+
+    def global_to_local_pos(self, p: Point, params: Any) -> Point:
         return p
