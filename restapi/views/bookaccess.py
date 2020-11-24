@@ -63,7 +63,6 @@ class BookMetaView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book):
         book = DatabaseBook(book)
-
         return Response({**book.get_meta().to_dict(), 'permissions': book.resolve_user_permissions(request.user).flags})
 
     @require_permissions([DatabaseBookPermissionFlag.EDIT_BOOK_META])

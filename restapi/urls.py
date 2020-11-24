@@ -37,7 +37,7 @@ urlpatterns = \
         # auth
         re_path(r'^auth/(?P<auth>\w+)$', AuthView.as_view(), name='AuthView'),
 
-        # user
+       # user
         re_path(r'^user/book/(?P<book>\w+)/permissions$', UserBookPermissionsView.as_view()),
 
         # administrative
@@ -85,4 +85,4 @@ urlpatterns = \
         # all books
         path('books/import', BooksImportView.as_view()),
         path('books', BooksView.as_view(), name='books'),
-    ] \
+    ]
