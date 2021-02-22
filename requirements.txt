@@ -21,3 +21,4 @@ unidecode
 pdf2image
 dataclasses-json
 scikit-learn
+h5py<3.0.0
