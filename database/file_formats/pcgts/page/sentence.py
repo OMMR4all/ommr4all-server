@@ -5,8 +5,9 @@ import re
 
 class Sentence:
     def __init__(self,
-                 syllables: List[Syllable]):
+                 syllables: List[Syllable], document_start: bool = False):
         self.syllables = syllables
+        self.document_start = document_start
 
     def text(self, with_drop_capital=True):
         t = ''
@@ -37,7 +38,8 @@ class Sentence:
     @staticmethod
     def from_json(json: dict):
         return Sentence(
-            [s for s in [Syllable.from_json(s) for s in json.get('syllables', [])] if len(s.text) > 0]
+            syllables=[s for s in [Syllable.from_json(s) for s in json.get('syllables', [])] if len(s.text) > 0],
+            document_start=json.get('documentStart')
         )
 
     # syllable_re = re.compile(r"(([\w.!?,;]+[~\-])|([\w.!?,;]+$))")
@@ -61,5 +63,6 @@ class Sentence:
     def to_json(self) -> dict:
         return {
             'syllables': [s.to_json() for s in self.syllables],
+            'documentStart': self.document_start
         }
 

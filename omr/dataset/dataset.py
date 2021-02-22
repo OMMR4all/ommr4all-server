@@ -221,9 +221,10 @@ class Dataset(ABC):
             try:
                 input = ImageOperationData([], self.params.page_scale_reference, page=f.page, pcgts=f)
                 for outputs in self.image_ops.apply_single(input):
+
                     yield RegionLineMaskData(outputs)
             except (NoStaffsAvailable, NoStaffLinesAvailable):
                 pass
             except Exception as e:
-                logger.exception("Exception during processing of page: {}".format(f.page.location.local_path()))
-                raise e
+                logger.info("Exception during processing of page: {}".format(f.page.location.local_path()))
+
