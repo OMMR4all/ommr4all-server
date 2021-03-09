@@ -1,14 +1,14 @@
+import os
 from typing import Optional, TYPE_CHECKING
 from .taskqueue import TaskQueue, TaskStatus
 from .taskcommunicator import TaskCommunicator
-from uuid import uuid4
+from uuid import uuid4, UUID
 from .taskresources import Resources, default_resources
 from .taskrunners.taskrunner import TaskRunner
 import logging
 from .taskcreator import TaskCreator
 from .taskwatcher import TaskWatcher
 from ommr4all.settings import TASK_OPERATION_WATCHER_SETTINGS
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 class TaskIDGenerator:
     def gen(self):
-        return str(uuid4(bytes=os.urandom(16), version=4))
+        return str(UUID(bytes=os.urandom(16), version=4))
 
 
 class OperationWorker:

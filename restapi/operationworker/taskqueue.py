@@ -38,7 +38,7 @@ class TaskQueue:
     def has(self, task_id: str, task_runner: TaskRunner):
         with self.mutex:
             for task in self.tasks:
-                if task.task_id == task_id or self._id_by_runner(task_runner) == task.task_id:
+                if task.task_id == task_id:# Todo refactor id by runner to only use the id of the task
                     return True
 
         return False
@@ -46,7 +46,8 @@ class TaskQueue:
     def put(self, task_id: str, task_runner: TaskRunner, creator: 'User'):
         with self.mutex:
             for task in self.tasks:
-                if task.task_id == task_id or self._id_by_runner(task_runner) == task.task_id:
+                # Todo refactor id by runner to only use the id of the task
+                if task.task_id == task_id:# or self._id_by_runner(task_runner) == task.task_id:
                     raise TaskAlreadyQueuedException(task.task_id)
 
             self.tasks.append(Task(task_id, task_runner, TaskStatus(code=TaskStatusCodes.QUEUED),
