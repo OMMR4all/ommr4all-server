@@ -8,6 +8,7 @@ import logging
 from .taskcreator import TaskCreator
 from .taskwatcher import TaskWatcher
 from ommr4all.settings import TASK_OPERATION_WATCHER_SETTINGS
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 
 class TaskIDGenerator:
     def gen(self):
-        return str(uuid4())
+        return str(uuid4(bytes=os.urandom(16), version=4))
 
 
 class OperationWorker:
