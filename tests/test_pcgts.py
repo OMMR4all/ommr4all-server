@@ -24,6 +24,5 @@ class GenericTests(unittest.TestCase):
 
         json1 = deepcopy(json0)
         self.assertTrue(update_pcgts(json1))
-
         self.maxDiff = None
         self.assertEqual(json1, PcGts.from_json(json1, None).to_json())
