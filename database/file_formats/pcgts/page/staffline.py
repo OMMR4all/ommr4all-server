@@ -6,13 +6,13 @@ from dataclasses import dataclass
 
 
 class StaffLine:
-    def __init__(self, coords=Coords(), highlighted=False, space=False, blind_print_line=False, sl_id=''):
+    def __init__(self, coords=Coords(), highlighted=False, space=False, dry_point_line=False, sl_id=''):
         self.id = sl_id
         self.coords = coords
         self._center_y = 0
         self._dewarped_y = 0
         self.highlighted = highlighted
-        self.blind_print_line = blind_print_line
+        self.dry_point_line = dry_point_line
         self.space = space
         self.update()
 
@@ -22,7 +22,7 @@ class StaffLine:
             Coords.from_json(json.get('coords', [])),
             json.get('highlighted', False),
             json.get('space', False),
-            json.get('blind_print_line'),
+            json.get('dry_point_line'),
             json.get('id', ''),
         )
 
@@ -32,7 +32,7 @@ class StaffLine:
             'coords': self.coords.to_json(),
             'highlighted': self.highlighted,
             'space': self.space,
-            'blind_print_line': self.blind_print_line,
+            'dry_point_line': self.dry_point_line,
         }
 
     def update(self):
