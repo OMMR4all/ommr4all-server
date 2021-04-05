@@ -1,6 +1,6 @@
 from . import *
 
-from database.file_formats.pcgts.page import page as dt_page
+from database.file_formats.pcgts.page import page as dt_page, Syllable
 from typing import List
 import logging
 

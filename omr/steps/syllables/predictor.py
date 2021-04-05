@@ -74,9 +74,9 @@ class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=Predicti
         }
 
     def store_to_page(self):
-        page = self.page()
-        page.annotations.connections.clear()
-        raise NotImplementedError()
+        self.pcgts().page.annotations.connections.clear()
+        self.pcgts().page.annotations = self.annotations
+        self.pcgts().to_file(self.ds_page().file('pcgts').local_path())
 
 
 class SyllablesPredictor(AlgorithmPredictor, ABC):
@@ -89,7 +89,8 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
             return True
         return len(page.pcgts().page.annotations.connections) == 0
 
-    def predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
+    def predict(self, pages: List[DatabasePage],
+                callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
         for pr in self._predict(pages, callback):
             annotations = Annotations(pr.page())
             for mr in pr.match_results:
@@ -100,7 +101,8 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
             )
 
     @abstractmethod
-    def _predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> Generator[PageMatchResult, None, None]:
+    def _predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> Generator[
+        PageMatchResult, None, None]:
         pass
 
     def _match_syllables_to_symbols(self, mr: MatchResult, page: Page, annotations: Annotations):
@@ -110,7 +112,8 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
 
         max_d = np.mean([s2.xpos - s1.xpos for s1, s2 in zip(mr.syllables, mr.syllables[1:])])
 
-        neumes = [s for s in mr.music_line.symbols if s.symbol_type == SymbolType.NOTE and s.graphical_connection == GraphicalConnectionType.NEUME_START]
+        neumes = [s for s in mr.music_line.symbols if
+                  s.symbol_type == SymbolType.NOTE and s.graphical_connection == GraphicalConnectionType.NEUME_START]
         avg_neume_distance = mr.music_line.avg_neume_distance(None)
         if avg_neume_distance is None:
             return

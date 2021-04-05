@@ -35,7 +35,6 @@ class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=Predicti
     def to_dict(self):
         return {'textLines': [l.to_dict() for l in self.text_lines]}
 
-
     def store_to_page(self):
         for line in self.text_lines:
             line.line.operation.text_line.sentence = Sentence.from_string(line.hyphenated)
