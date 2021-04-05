@@ -166,10 +166,8 @@ class PagePcGtsView(APIView):
         book = DatabaseBook(book)
         page = DatabasePage(book, page)
         obj = json.loads(request.body, encoding='utf-8')
-
         pcgts = PcGts.from_json(obj, page)
         pcgts.to_file(page.file('pcgts').local_path())
-
         # add to backup archive
         with zipfile.ZipFile(page.file('pcgts_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
             zf.writestr('pcgts_{}.json'.format(datetime.datetime.now()), json.dumps(pcgts.to_json(), indent=2))

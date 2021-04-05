@@ -3,6 +3,7 @@ from typing import List, Generator, NamedTuple, Tuple, Optional
 
 from database import DatabasePage
 from database.file_formats.pcgts import *
+from database.file_formats.pcgts.page import Sentence
 from omr.dataset import RegionLineMaskData
 
 from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictionResultGenerator, \
@@ -34,13 +35,12 @@ class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=Predicti
     def to_dict(self):
         return {'textLines': [l.to_dict() for l in self.text_lines]}
 
+
     def store_to_page(self):
-        # for line in self.text_lines:
-        #     line.line.operation.music_line.symbols = line.symbols
-        #
-        # self.pcgts.page.annotations.connections.clear()
-        # self.pcgts.to_file(self.dataset_page.file('pcgts').local_path())
-        raise NotImplemented()
+        for line in self.text_lines:
+            line.line.operation.text_line.sentence = Sentence.from_string(line.hyphenated)
+        self.pcgts.page.annotations.connections.clear()
+        self.pcgts.to_file(self.dataset_page.file('pcgts').local_path())
 
 
 class TextPredictor(AlgorithmPredictor, ABC):
