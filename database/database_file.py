@@ -6,7 +6,7 @@ import numpy as np
 import os
 from database.database_page import DatabasePage
 import logging
-
+from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,8 @@ class DatabaseFileDefinition(NamedTuple):
     requires: List[str] = []
     default: int = 0
     has_preview: bool = False
+    has_hash_of_requirements: bool = False
+    recalculate: bool = False
 
 
 file_definitions = {
@@ -49,6 +51,18 @@ file_definitions = {
         'pcgts',
         ['pcgts.json'],
         requires=['color_original'],
+    ),
+    'monodiplus': DatabaseFileDefinition(
+        'monodiplus',
+        ['monodiplus.json'],
+        requires=['pcgts'],
+        recalculate=True,
+    ),
+    'monodiplus_svg': DatabaseFileDefinition(
+        'monodiplus_svg',
+        ['monodiplus.svg'],
+        requires=['monodiplus'],
+        recalculate=True,
     ),
     'pcgts_backup': DatabaseFileDefinition(
         'pcgts_backup',
@@ -163,7 +177,7 @@ class DatabaseFile:
             self.preview = False
             self.definition: DatabaseFileDefinition = file_definitions[fileId.strip('/')]
 
-        if create_if_not_existing and not self.exists():
+        if create_if_not_existing and not self.exists() or create_if_not_existing and self.definition.recalculate:
             self.create()
 
     def local_path(self, file_id=-1):
@@ -192,7 +206,8 @@ class DatabaseFile:
 
     def exists(self):
         return all(map(os.path.exists, [self.local_path(i) for i in range(len(self.definition.output))])) \
-               and (not self.definition.has_preview or all(map(os.path.exists, [self.local_thumbnail_path(i) for i in range(len(self.definition.output))])))
+               and (not self.definition.has_preview or all(
+            map(os.path.exists, [self.local_thumbnail_path(i) for i in range(len(self.definition.output))])))
 
     def delete(self):
         for i in range(len(self.definition.output)):
@@ -209,7 +224,7 @@ class DatabaseFile:
     def create(self):
 
         with mutex_dict.get(self.local_path(), Lock()):
-            if self.exists():
+            if self.exists() and not self.definition.recalculate:
                 # check if exists
                 return
 
@@ -218,7 +233,7 @@ class DatabaseFile:
                 DatabaseFile(self.page, file).create()
 
             # check again if exists since the requirements might have created that file!
-            if self.exists():
+            if self.exists() and not self.definition.recalculate:
                 return
 
             from omr.steps.preprocessing.preprocessing import Preprocessing
@@ -299,9 +314,10 @@ class DatabaseFile:
                 else:
                     # average_line_distance is expected to be computed on the original image
                     c_orig = Image.open(self.page.local_file_path('color_original.jpg'))
-                    line_distance = int(np.round(meta.preprocessing.average_line_distance * c_hr.size[0] / c_orig.size[0]))
+                    line_distance = int(
+                        np.round(meta.preprocessing.average_line_distance * c_hr.size[0] / c_orig.size[0]))
 
-                assert(line_distance > 0)
+                assert (line_distance > 0)
 
                 # rescale original image
                 scaling = line_distance / target_staff_line_distance
@@ -327,7 +343,7 @@ class DatabaseFile:
                     meta = self.page.meta()
                     line_distance = meta.preprocessing.average_line_distance
 
-                assert(line_distance > 0)
+                assert (line_distance > 0)
                 c_hr = Image.open(self.page.local_file_path('color_highres_preproc.jpg'))
 
                 # rescale original image
@@ -350,14 +366,34 @@ class DatabaseFile:
                 binary = np.array(Image.open(DatabaseFile(self.page, 'binary_norm').local_path()))
                 with open(self.local_path(), 'wb') as f:
                     pickle.dump(connected_compontents_with_stats(binary), f)
+            elif self.definition.id == 'monodiplus':
+                import json
+                import database.file_formats.pcgts as ns_pcgts
+                # with open(DatabaseFile(self.page, 'pcgts').local_path()) as json_file:
+                # pcgts = json.load(json_file)
+                pcgts = ns_pcgts.PcGts.from_file(DatabaseFile(self.page, 'pcgts'))
+                root = PcgtsToMonodiConverter([pcgts]).root
+                # import hashlib
+                with open(self.local_path(), 'w', encoding='utf-8') as f:
+                    json.dump(root.to_json(), f, ensure_ascii=False, indent=4)
+            elif self.definition.id == 'monodiplus_svg':
+                path = DatabaseFile(self.page, 'monodiplus').local_path()
+                from ommr4all.settings import BASE_DIR
+                script_path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'monodi_svg_render', 'bin',
+                                           'one-shot')
+                import subprocess
+                proc = subprocess.Popen([script_path, path, "-o", self.local_path()], stdout=subprocess.PIPE)
+                result, err = proc.communicate()
+                # error code in the java script is to be ignored for now
+                exit_code = proc.wait()
             else:
                 raise Exception("Cannot create file for {}".format(self.definition.id))
 
 
+if __name__ == "__main__":
+    from database import DatabaseBook
+    import database.file_formats.pcgts as ns_pcgts
 
-
-
-
-
-
-
+    b = DatabaseBook('demo')
+    for b in b.pages():
+        b.file('monodiplus_svg', create_if_not_existing=True)
