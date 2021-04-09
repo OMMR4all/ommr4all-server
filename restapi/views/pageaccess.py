@@ -1,6 +1,10 @@
+import os
+
+from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework import status, permissions
 from database import *
+from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
 from database.file_formats.performance.pageprogress import PageProgress
 from database.file_formats.performance.statistics import Statistics
 from database.file_formats.pcgts import PcGts
@@ -29,7 +33,7 @@ def require_lock(func):
 
 
 class require_page_verification(object):
-    def __init__(self, verified = True):
+    def __init__(self, verified=True):
         self.verified = verified
 
     def __call__(self, func):
@@ -62,8 +66,23 @@ class PageContentView(APIView):
 
         if not file.exists():
             file.create()
-
         return serve(request._request, file.local_request_path(), "/", False)
+
+
+class PageSVGView(APIView):
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book, page, width):
+        import subprocess
+        from ommr4all.settings import BASE_DIR
+        book = DatabaseBook(book)
+        page = DatabasePage(book, page)
+        path = DatabaseFile(page, 'monodiplus').local_path()
+        script_path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'monodi_svg_render', 'bin', 'one-shot')
+        proc = subprocess.run([script_path, path, "-w", width], capture_output=True, text=True)
+        str_result = proc.stdout
+        reg = re.match(r".*(<svg.*</svg>).*", str_result, flags=re.DOTALL).group(1)
+        return HttpResponse(reg, content_type="image/svg+xml")
 
 
 class PageLockView(APIView):
@@ -86,7 +105,8 @@ class PageLockView(APIView):
                     # unknown user, we can force it
                     pass
                 else:
-                    return Response({'locked': False, 'first_name': user.first_name, 'last_name': user.last_name, 'email': user.email})
+                    return Response({'locked': False, 'first_name': user.first_name, 'last_name': user.last_name,
+                                     'email': user.email})
 
         page.lock(request.user)
         return Response({'locked': True})
@@ -146,7 +166,8 @@ class PageProgressView(APIView):
         page.save_page_progress()
 
         # add to backup archive
-        with zipfile.ZipFile(page.file('page_progress_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(page.file('page_progress_backup').local_path(), 'a',
+                             compression=zipfile.ZIP_DEFLATED) as zf:
             zf.writestr('page_progress_{}.json'.format(datetime.datetime.now()), json.dumps(pp.to_json(), indent=2))
 
         return Response()
@@ -207,7 +228,8 @@ class PageStatisticsView(APIView):
 
         # add to backup archive
         with zipfile.ZipFile(page.file('statistics_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr('statistics_{}.json'.format(datetime.datetime.now()), json.dumps(page.page_statistics().to_json(), indent=2))
+            zf.writestr('statistics_{}.json'.format(datetime.datetime.now()),
+                        json.dumps(page.page_statistics().to_json(), indent=2))
 
         logger.debug('Successfully saved statistics file to {}'.format(page.file('statistics').local_path()))
 
@@ -228,7 +250,8 @@ class PageRenameView(APIView):
 
         if name != obj['name']:
             return APIError(status.HTTP_406_NOT_ACCEPTABLE,
-                            "Renaming page not possible, because the new name '{}' is invalid: '{}' != '{}'".format(obj['name'], obj['name'], name),
+                            "Renaming page not possible, because the new name '{}' is invalid: '{}' != '{}'".format(
+                                obj['name'], obj['name'], name),
                             "Invalid page name '{}'".format(obj['name']),
                             ErrorCodes.PAGE_INVALID_NAME,
                             ).response()
@@ -237,7 +260,8 @@ class PageRenameView(APIView):
             page.rename(name)
         except InvalidFileNameException:
             return APIError(status.HTTP_406_NOT_ACCEPTABLE,
-                            "Renaming page not possible, because the new name '{}' is invalid: '{}' != '{}'".format(obj['name'], obj['name'], name),
+                            "Renaming page not possible, because the new name '{}' is invalid: '{}' != '{}'".format(
+                                obj['name'], obj['name'], name),
                             "Invalid page name '{}'".format(obj['name']),
                             ErrorCodes.PAGE_INVALID_NAME,
                             ).response()
@@ -249,3 +273,4 @@ class PageRenameView(APIView):
                             ).response()
 
         return Response()
+

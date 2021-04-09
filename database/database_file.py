@@ -1,3 +1,4 @@
+import re
 from typing import NamedTuple, List
 from PIL import Image
 from multiprocessing import Lock
@@ -395,5 +396,24 @@ if __name__ == "__main__":
     import database.file_formats.pcgts as ns_pcgts
 
     b = DatabaseBook('demo')
-    for b in b.pages():
-        b.file('monodiplus_svg', create_if_not_existing=True)
+    page = b.pages()[0]
+    path = DatabaseFile(page, 'monodiplus').local_path()
+    from ommr4all.settings import BASE_DIR
+
+    script_path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'monodi_svg_render', 'bin',
+                               'one-shot')
+    import subprocess
+
+    proc = subprocess.Popen([script_path, path, "-w", "500"], stdout=subprocess.PIPE)
+    result, err = proc.communicate()
+    str_result = str(result)
+    reg = re.match(r".*(<svg.*</svg>).*", str_result).group(1)
+    #start_prefix = "<?xml"
+    #print(str_result[str_result.find(start_prefix):])
+    #print("123")
+
+    #print(result)
+    #print("456")
+    #print(err)
+    # error code in the java script is to be ignored for now
+    exit_code = proc.wait()
