@@ -77,7 +77,7 @@ class PageSVGView(APIView):
         from ommr4all.settings import BASE_DIR
         book = DatabaseBook(book)
         page = DatabasePage(book, page)
-        path = DatabaseFile(page, 'monodiplus').local_path()
+        path = DatabaseFile(page, 'monodiplus', create_if_not_existing=True).local_path()
         script_path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'monodi_svg_render', 'bin', 'one-shot')
         proc = subprocess.run([script_path, path, "-w", width], capture_output=True, text=True)
         str_result = proc.stdout

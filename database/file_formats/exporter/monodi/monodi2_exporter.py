@@ -426,7 +426,7 @@ class PcgtsToMonodiConverter:
 if __name__=="__main__":
     from database import DatabaseBook
     b = DatabaseBook('demo')
-    pcgts = [ns_pcgts.PcGts.from_file(p.file('pcgts')) for p in b.pages()]
+    pcgts = [ns_pcgts.PcGts.from_file( b.pages()[4].file('pcgts'))]
     root = PcgtsToMonodiConverter(pcgts).root
     print(json.dumps(root.to_json(), indent=2))
     with open('data.json', 'w', encoding='utf-8') as f:
