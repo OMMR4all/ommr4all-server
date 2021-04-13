@@ -1,4 +1,6 @@
 import os
+import tempfile
+from pathlib import Path
 
 from django.http import HttpResponse
 from rest_framework.views import APIView
@@ -77,9 +79,11 @@ class PageSVGView(APIView):
         from ommr4all.settings import BASE_DIR
         book = DatabaseBook(book)
         page = DatabasePage(book, page)
-        path = DatabaseFile(page, 'monodiplus', create_if_not_existing=True).local_path()
+        file = DatabaseFile(page, 'pcgts', create_if_not_existing=True)
+        root = PcgtsToMonodiConverter([file.page.pcgts()]).root
         script_path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'monodi_svg_render', 'bin', 'one-shot')
-        proc = subprocess.run([script_path, path, "-w", width], capture_output=True, text=True)
+        proc = subprocess.run([script_path, "-", "-w", width], input=str(json.dumps(root.to_json())),
+                              capture_output=True, text=True)
         str_result = proc.stdout
         reg = re.match(r".*(<svg.*</svg>).*", str_result, flags=re.DOTALL).group(1)
         return HttpResponse(reg, content_type="image/svg+xml")
@@ -273,4 +277,3 @@ class PageRenameView(APIView):
                             ).response()
 
         return Response()
-
