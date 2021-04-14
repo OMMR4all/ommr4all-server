@@ -10,6 +10,7 @@ from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodi
 from database.file_formats.performance.pageprogress import PageProgress
 from database.file_formats.performance.statistics import Statistics
 from database.file_formats.pcgts import PcGts
+from omr.util import PerformanceCounter
 from restapi.views.bookaccess import require_permissions, DatabaseBookPermissionFlag
 from restapi.models.error import *
 from django.views.static import serve
@@ -78,13 +79,19 @@ class PageSVGView(APIView):
     def get(self, request, book, page, width):
         import subprocess
         from ommr4all.settings import BASE_DIR
+        #with PerformanceCounter(function_name="book"):
         book = DatabaseBook(book)
+        #with PerformanceCounter(function_name="page"):
         page = DatabasePage(book, page)
+        #with PerformanceCounter(function_name="pcgts"):
         file = DatabaseFile(page, 'pcgts', create_if_not_existing=True)
+        #with PerformanceCounter(function_name="monodi_conversion"):
         root = PcgtsToMonodiConverter([file.page.pcgts()]).root
         script_path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'monodi_svg_render', 'bin', 'one-shot')
         #proc = subprocess.run([script_path, "-", "-w", width], input=str(json.dumps(root.to_json())),
         #                      capture_output=True, text=True)
+        #with PerformanceCounter(function_name="javamonodi_render"):
+
         proc = subprocess.run([script_path, "-", "-w", width], input=str(json.dumps(root.to_json())),
                               stdout=subprocess.PIPE, universal_newlines=True, stderr=subprocess.PIPE)
         str_result = proc.stdout
