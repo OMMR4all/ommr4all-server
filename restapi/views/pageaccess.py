@@ -72,6 +72,7 @@ class PageContentView(APIView):
 
 
 class PageSVGView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, page, width):
@@ -82,8 +83,10 @@ class PageSVGView(APIView):
         file = DatabaseFile(page, 'pcgts', create_if_not_existing=True)
         root = PcgtsToMonodiConverter([file.page.pcgts()]).root
         script_path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'monodi_svg_render', 'bin', 'one-shot')
+        #proc = subprocess.run([script_path, "-", "-w", width], input=str(json.dumps(root.to_json())),
+        #                      capture_output=True, text=True)
         proc = subprocess.run([script_path, "-", "-w", width], input=str(json.dumps(root.to_json())),
-                              capture_output=True, text=True)
+                              stdout=subprocess.PIPE, universal_newlines=True, stderr=subprocess.PIPE)
         str_result = proc.stdout
         reg = re.match(r".*(<svg.*</svg>).*", str_result, flags=re.DOTALL).group(1)
         return HttpResponse(reg, content_type="image/svg+xml")
