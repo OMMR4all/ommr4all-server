@@ -174,8 +174,10 @@ class MusicSymbol:
             raise TypeError("Expected type {} but has {}".format(SymbolType.CLEF, self.symbol_type))
 
         clef_type_offset = self.clef_type.offset()
-        note_name = NoteName((clef_type_offset + 49 - self.position_in_staff + MusicSymbolPositionInStaff.LINE_2 + position_in_staff) % 7)
-        octave = 4 + (clef_type_offset - self.position_in_staff + MusicSymbolPositionInStaff.LINE_1 + position_in_staff) // 7
+        relative_offset = (position_in_staff - self.position_in_staff)
+        note_name = NoteName((clef_type_offset + 49 + MusicSymbolPositionInStaff.LINE_2 + relative_offset) % 7)
+        octave = 4 + (clef_type_offset + MusicSymbolPositionInStaff.LINE_1 + relative_offset) // 7
+        octave = octave - 1 if self.clef_type == self.clef_type.F else octave
         return note_name, octave
 
 

@@ -1,5 +1,7 @@
-from database.file_formats.pcgts import SymbolType, Point, MusicSymbolPositionInStaff, NoteName
-from database.file_formats.pcgts.page.coords import Rect
+from database.file_formats.pcgts import SymbolType, Point, MusicSymbolPositionInStaff, NoteName, \
+    GraphicalConnectionType, StaffLines, NoteType
+from database.file_formats.pcgts.page import BasicNeumeType
+from database.file_formats.pcgts.page.coords import Rect, Coords
 from typing import List, Tuple, Optional
 from enum import IntEnum, Enum
 import numpy as np
