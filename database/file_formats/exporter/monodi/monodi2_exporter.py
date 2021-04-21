@@ -283,13 +283,12 @@ RootContainer:
 
 
 class PcgtsToMonodiConverter:
-    def __init__(self, pcgts: List[ns_pcgts.PcGts]):
+    def __init__(self, pcgts: List[ns_pcgts.PcGts], document=False):
         self.current_line_container: Optional[LineContainer] = None
         self.miscContainer = MiscContainer([])
         self.line_containers = self.miscContainer.children
         self.root = RootContainer([self.miscContainer])
-
-        self.run(pcgts)
+        self.run(pcgts, documents=document)
 
     def get_or_create_current_line_container(self):
         if self.current_line_container is None:
@@ -307,7 +306,8 @@ class PcgtsToMonodiConverter:
         else:
             return clc.children[-1]
 
-    def run(self, pcgts: List[ns_pcgts.PcGts]):
+    def run(self, pcgts: List[ns_pcgts.PcGts], documents=False):
+        document_start = False
         regions_to_export = [ns_pcgts.BlockType.HEADING, ns_pcgts.BlockType.FOLIO_NUMBER, ns_pcgts.BlockType.PARAGRAPH, ns_pcgts.BlockType.MUSIC]
         for p in pcgts:
             elements: List[ns_pcgts.Block] = p.page.blocks_of_type(regions_to_export)
@@ -317,8 +317,21 @@ class PcgtsToMonodiConverter:
                 self.current_line_container = None
 
                 if element.block_type == ns_pcgts.BlockType.MUSIC:
+
                     mr = element
                     connections = [c for c in p.page.annotations.connections if c.music_region == mr]
+                    if documents:
+                        tr = set(c.text_region for c in connections)
+                        te = [te.lines[0].sentence.document_start for te in tr]
+                        if True in te and not document_start:
+                            document_start = True
+                        elif True in te and document_start:
+                            break
+                        elif document_start:
+                            pass
+                        else:
+                            continue
+
                     if len(connections) == 0:
                         continue
 
@@ -421,13 +434,18 @@ class PcgtsToMonodiConverter:
                             text=text
                         )
                     )
+            else:
+                continue
+            break
+
+
 
 
 if __name__=="__main__":
     from database import DatabaseBook
-    b = DatabaseBook('demo')
-    pcgts = [ns_pcgts.PcGts.from_file( b.pages()[4].file('pcgts'))]
-    root = PcgtsToMonodiConverter(pcgts).root
+    b = DatabaseBook('demo2')
+    pcgts = [ns_pcgts.PcGts.from_file(x.file('pcgts')) for x in b.pages()]
+    root = PcgtsToMonodiConverter(pcgts, document=True).root
     print(json.dumps(root.to_json(), indent=2))
     with open('data.json', 'w', encoding='utf-8') as f:
         json.dump(root.to_json(), f, ensure_ascii=False, indent=4)
