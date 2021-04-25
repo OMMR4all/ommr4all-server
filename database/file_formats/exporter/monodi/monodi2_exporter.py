@@ -354,7 +354,7 @@ class PcgtsToMonodiConverter:
                                 clc.children.append(
                                     Clef(
                                         base=BaseNote.from_name(line_symbol.note_name),
-                                        octave=line_symbol.octave,
+                                        octave=line_symbol.octave + 1,
                                         shape=line_symbol.clef_type.value.upper(),
                                     )
                                 )
@@ -364,7 +364,7 @@ class PcgtsToMonodiConverter:
                                     NonSpacesNotes([GroupedNotes([
                                         Note(
                                             base=BaseNote.from_name(line_symbol.note_name),
-                                            octave=line_symbol.octave,
+                                            octave=line_symbol.octave + 1,
                                             noteType=NoteType.from_accid(line_symbol),
                                             liquecent=False,
                                         )
@@ -385,7 +385,7 @@ class PcgtsToMonodiConverter:
                                     nsn.non_spaced[-1].grouped.append(
                                         Note(
                                             base=BaseNote.from_symbol(line_symbol),
-                                            octave=line_symbol.octave,
+                                            octave=line_symbol.octave + 1,
                                             noteType=NoteType.from_note(line_symbol),
                                             liquecent=line_symbol.note_type in [ns_pcgts.NoteType.LIQUESCENT_FOLLOWING_D, ns_pcgts.NoteType.LIQUESCENT_FOLLOWING_U],
                                         )
@@ -394,7 +394,7 @@ class PcgtsToMonodiConverter:
                                     gn = GroupedNotes([
                                         Note(
                                             base=BaseNote.from_symbol(line_symbol),
-                                            octave=line_symbol.octave,
+                                            octave=line_symbol.octave + 1,
                                             noteType=NoteType.from_note(line_symbol),
                                             liquecent=line_symbol.note_type in [ns_pcgts.NoteType.LIQUESCENT_FOLLOWING_D, ns_pcgts.NoteType.LIQUESCENT_FOLLOWING_U],
                                         )
