@@ -104,10 +104,11 @@ class SimpleMidiExporter:
                 for line in mb.lines:
                     symbols = line.symbols
                     for symbol in symbols:
-                        duration = 0.5  # 1 1 beat long. Calculate duration based on position in image?
-                        mf.addNote(track, channel, pitch_midi_table[Pitch(symbol.note_name.value, symbol.octave)],
-                                   time_step, duration, volume)
-                        time_step = time_step + duration
+                        if symbol.symbol_type == symbol.symbol_type.NOTE:
+                            duration = 0.5  # 1 1 beat long. Calculate duration based on position in image?
+                            mf.addNote(track, channel, pitch_midi_table[Pitch(symbol.note_name.value, symbol.octave)],
+                                       time_step, duration, volume)
+                            time_step = time_step + duration
         # write it to disk
         with open("output.mid", 'wb') as outf:
             mf.writeFile(outf)
@@ -122,10 +123,11 @@ class SimpleMidiExporter:
                 for line in mb.lines:
                     symbols = line.symbols
                     for symbol in symbols:
-                        duration = 0.5  # 1 1 beat long. Calculate duration based on position in image?
-                        notes.append({"pitch": pitch_midi_table[Pitch(symbol.note_name.value, symbol.octave)], 'startTime': total_duration,
-                                      'endTime': total_duration + duration})
-                        total_duration += duration
+                        if symbol.symbol_type == symbol.symbol_type.NOTE:
+                            duration = 0.5  # 1 1 beat long. Calculate duration based on position in image?
+                            notes.append({"pitch": pitch_midi_table[Pitch(symbol.note_name.value, symbol.octave)], 'startTime': total_duration,
+                                          'endTime': total_duration + duration})
+                            total_duration += duration
 
         return {'notes': notes, 'totalTime': total_duration}
 
