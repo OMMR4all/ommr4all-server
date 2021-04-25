@@ -410,10 +410,7 @@ if __name__ == "__main__":
     reg = re.match(r".*(<svg.*</svg>).*", str_result).group(1)
     #start_prefix = "<?xml"
     #print(str_result[str_result.find(start_prefix):])
-    #print("123")
-
     #print(result)
-    #print("456")
     #print(err)
     # error code in the java script is to be ignored for now
     exit_code = proc.wait()
