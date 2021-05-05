@@ -94,6 +94,12 @@ class Annotations:
             if connection.music_region == mr:
                 return connection.text_region
 
+
+    def get_symbols_of_line(self, mr: Block, line: Line) -> List[MusicSymbol]:
+        for connection in self.connections:
+            if connection.music_region == mr:
+                for line in mr.lines:
+                    pass
     def get_or_create_connection(self, m: Block, t: Block) -> Connection:
         for c in self.connections:
             if c.music_region == m and c.text_region == t:

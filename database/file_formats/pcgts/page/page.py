@@ -1,3 +1,5 @@
+import uuid
+
 from database.file_formats.pcgts.page import Coords, Point, Block, BlockType, Line, Rect, Size
 from database.file_formats.pcgts.page import annotations as annotations
 from database.file_formats.pcgts.page.usercomment import UserComments
@@ -34,7 +36,7 @@ class Page:
     def __init__(self,
                  blocks: List[Block]=None,
                  image_filename="", image_height=0, image_width=0,
-                 location: 'DatabasePage' = None):
+                 location: 'DatabasePage' = None, p_id=None):
         self.blocks: List[Block] = blocks if blocks else []
         self.image_filename = image_filename
         self.image_height = image_height
@@ -44,7 +46,7 @@ class Page:
         self.reading_order = ReadingOrder(self)
         self.location = location
         self.page_scale_ratios = {}
-
+        self.p_id = p_id if p_id else str(uuid.uuid4())
         self.update_note_names()
 
     def syllable_by_id(self, syllable_id):
@@ -63,6 +65,7 @@ class Page:
             json.get('imageHeight', 0),
             json.get('imageWidth', 0),
             location=location,
+            p_id=json.get('p_id'),
         )
         if 'annotations' in json:
             page.annotations = annotations.Annotations.from_json(json['annotations'], page)
@@ -85,6 +88,7 @@ class Page:
             'annotations': self.annotations.to_json(),
             'comments': self.comments.to_json(),
             'readingOrder': self.reading_order.to_json(),
+            'p_id': self.p_id,
         }
 
     def blocks_of_type(self, block_type: Union[BlockType, Iterable[BlockType]]) -> List[Block]:

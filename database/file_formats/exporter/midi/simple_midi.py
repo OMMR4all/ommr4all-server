@@ -3,6 +3,7 @@ import database.file_formats.pcgts as ns_pcgts
 
 from midiutil.MidiFile import MIDIFile
 
+from database.file_formats.book.document import Document
 from database.file_formats.pcgts import NoteName
 
 
@@ -87,7 +88,7 @@ class SimpleMidiExporter:
         self.pcgts = pcgts
         pass
 
-    def generate_midi(self):
+    def generate_midi(self, output_path: str, track_name: str = 'Sample'):
         mf = MIDIFile(1)  # only 1 track
         track = 0  # the only track
         time_step = 0  # start at the beginning
@@ -95,7 +96,7 @@ class SimpleMidiExporter:
         # add some notes
         channel = 0
         volume = 100
-        mf.addTrackName(track, time_step, "Sample Track")
+        mf.addTrackName(track, time_step, track_name)
         mf.addTempo(track, time_step, 120)
         for pcgts in self.pcgts:
             page = pcgts.page
@@ -110,25 +111,55 @@ class SimpleMidiExporter:
                                        time_step, duration, volume)
                             time_step = time_step + duration
         # write it to disk
-        with open("output.mid", 'wb') as outf:
+        with open(output_path, 'wb') as outf:
             mf.writeFile(outf)
 
-    def generate_note_sequence(self):
+    def generate_note_sequence(self, document: Document = None):
         notes = []
         total_duration = 0.0
+        document_started = False
+
+        def add_note(lines):
+            nonlocal total_duration
+            nonlocal notes
+            for line in lines:
+                symbols = line.symbols
+                for symbol in symbols:
+                    if symbol.symbol_type == symbol.symbol_type.NOTE:
+                        duration = 0.5  # 1 1 beat long. Calculate duration based on position in image?
+                        notes.append(
+                            {"pitch": pitch_midi_table[Pitch(symbol.note_name.value, symbol.octave)],
+                             'startTime': total_duration,
+                             'endTime': total_duration + duration})
+                        total_duration += duration
+
         for pcgts in self.pcgts:
             page = pcgts.page
             music_blocks = page.music_blocks()
             for mb in music_blocks:
-                for line in mb.lines:
-                    symbols = line.symbols
-                    for symbol in symbols:
-                        if symbol.symbol_type == symbol.symbol_type.NOTE:
-                            duration = 0.5  # 1 1 beat long. Calculate duration based on position in image?
-                            notes.append({"pitch": pitch_midi_table[Pitch(symbol.note_name.value, symbol.octave)], 'startTime': total_duration,
-                                          'endTime': total_duration + duration})
-                            total_duration += duration
+                connections = [c for c in pcgts.page.annotations.connections if c.music_region == mb]
 
+                connection = connections[0]
+                if document is not None:
+                    line_id_start = document.start.line_id
+                    line_id_end = document.end.line_id
+
+                    line_ids = [line.id for line in connection.text_region.lines]
+                    if page.p_id == document.end.page_id:
+                        if line_id_end in line_ids:
+                            break
+                    if page.p_id == document.start.page_id or document_started:
+                        if line_id_start in line_ids:
+                            add_note(mb.lines)
+                            document_started = True
+                        else:
+                            add_note(mb.lines)
+
+                else:
+                    add_note(mb.lines)
+            else:
+                continue
+            break
         return {'notes': notes, 'totalTime': total_duration}
 
 
@@ -138,4 +169,4 @@ if __name__ == "__main__":
     b = DatabaseBook('Pa_14819')
     pcgts = [p.pcgts() for p in b.pages()][0]
     sme = SimpleMidiExporter([pcgts])
-    sme.generate_midi()
+    sme.generate_midi("/tmp/test.mid")
