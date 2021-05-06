@@ -22,6 +22,9 @@ class DocumentConnection:
             "line_id": self.line_id,
         }
 
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
 
 class Document:
     def __init__(self, page_ids, page_names, start: DocumentConnection, end: DocumentConnection,
@@ -32,7 +35,6 @@ class Document:
         self.pages_names: List[str] = page_names
         self.start: DocumentConnection = start
         self.end: DocumentConnection = end
-        self.update_page_names()
 
     @staticmethod
     def from_json(json: dict):
@@ -59,5 +61,4 @@ class Document:
         for page in self.pages_names:
             pass
 
-    def update_page_names(self):
-        pass
+

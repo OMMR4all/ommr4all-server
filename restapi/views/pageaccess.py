@@ -215,6 +215,7 @@ class PagePcGtsView(APIView):
         book = DatabaseBook(book)
         page = DatabasePage(book, page)
         obj = json.loads(request.body, encoding='utf-8')
+
         pcgts = PcGts.from_json(obj, page)
         pcgts.to_file(page.file('pcgts').local_path())
         # add to backup archive

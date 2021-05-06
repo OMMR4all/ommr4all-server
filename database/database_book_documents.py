@@ -96,9 +96,23 @@ class DatabaseBookDocuments():
                         start = DocumentConnection(line_id=t_line.id, page_id=page.p_id)
         if start is not None:
             documents.append(Document(document_page_ids, document_page_names,
-                                  start=start,
-                                  end=DocumentConnection(line_id=None, page_id=None)))
-        d.database_documents = Documents(documents=documents)
+                                      start=start,
+                                      end=DocumentConnection(line_id=None, page_id=None)))
+
+        updated_documents: List[Document] = []
+        for doc in documents:
+            for orig_doc in d.database_documents.documents:
+                if doc.start == orig_doc.start:
+                    updated_doc = orig_doc
+                    updated_doc.pages_names = doc.pages_names
+                    updated_doc.pages_ids = doc.pages_ids
+                    updated_doc.end = doc.end
+                    updated_documents.append(updated_doc)
+                    break
+            else:
+                updated_documents.append(doc)
+
+        d.database_documents = Documents(documents=updated_documents)
         return d
 
 

@@ -18,6 +18,7 @@ from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodi
 from ommr4all.settings import BASE_DIR
 from omr.util import PerformanceCounter
 from restapi.views.bookaccess import require_permissions
+from restapi.views.pageaccess import require_lock
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,39 @@ class BookDocumentsView(APIView):
 
         data = documents_of_book(book)
         return Response(data)
+
+    @require_permissions([DatabaseBookPermissionFlag.SAVE])
+    def put(self, request, book):
+        book = DatabaseBook(book)
+        ## Todo Mutex/lock
+        obj = json.loads(request.body, encoding='utf-8')
+        db = DatabaseBookDocuments.from_json(obj)
+        db.to_file(book)
+        logger.debug('Successfully saved DatabaseFile to {}'.format(book.local_path))
+
+        return Response()
+
+
+class DocumentView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book, document):
+        book = DatabaseBook(book)
+        documents = DatabaseBookDocuments().load(book)
+        document: Document = documents.database_documents.get_document_by_id(document)
+        return Response(document.to_json())
+
+    @require_permissions([DatabaseBookPermissionFlag.SAVE])
+    def put(self, request, book, document):
+        book = DatabaseBook(book)
+        documents = DatabaseBookDocuments().load(book)
+        document: Document = documents.database_documents.get_document_by_id(document)
+        obj = json.loads(request.body, encoding='utf-8')
+        doc_obj = Document.from_json(obj)
+        documents.database_documents.documents[documents.database_documents.documents.index(document)] = doc_obj
+        documents.to_file(book=book)
+        return Response()
 
 
 class DocumentsSVGView(APIView):
@@ -64,7 +98,6 @@ class DocumentsMidiView(APIView):
     def get(self, request, book, document):
         book = DatabaseBook(book)
         documents = DatabaseBookDocuments().load(book)
-        print(documents.to_json())
         document: Document = documents.database_documents.get_document_by_id(document)
         pages = [DatabasePage(book, x) for x in document.pages_names]
         pcgts = [DatabaseFile(page, 'pcgts', create_if_not_existing=True).page.pcgts() for page in pages]
