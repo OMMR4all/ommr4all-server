@@ -98,6 +98,67 @@ class AccidType(Enum):
     SHARP = 'sharp'
 
 
+class SymbolPredictionConfidence:
+    def __init__(self, background: float = None, note_start=None, note_looped=None, note_gapped=None,
+                 clef_c=None, clef_f=None, accid_natural=None, accid_sharp=None, accid_flat=None):
+        self.background = background
+        self.note_start = note_start
+        self.note_looped = note_looped
+        self.note_gapped = note_gapped
+        self.clef_c = clef_c
+        self.clef_f = clef_f
+        self.accid_natural = accid_natural
+        self.accid_sharp = accid_sharp
+        self.accid_flat = accid_flat
+
+    @staticmethod
+    def from_json(d: dict):
+        return SymbolPredictionConfidence(
+            d.get('background', None),
+            d.get('noteStart', None),
+            d.get('noteLooped', None),
+            d.get('noteGapped', None),
+            d.get('clefC', None),
+            d.get('clefF', None),
+            d.get('accidNatural', None),
+            d.get('accidSharp', None),
+            d.get('accidFlat', None)
+        ) if d else SymbolPredictionConfidence()
+
+    def to_json(self):
+        return {
+            'background': self.background,
+            'noteStart': self.note_start,
+            'noteLooped': self.note_looped,
+            'noteGapped': self.note_gapped,
+            'clefC': self.clef_c,
+            'clefF': self.clef_f,
+            'accidNatural': self.accid_natural,
+            'accidSharp': self.accid_sharp,
+            'accidFlat': self.accid_flat,
+        }
+
+
+class SymbolConfidence:
+    def __init__(self,
+                 symbol_prediction_confidence: SymbolPredictionConfidence = None,
+                 symbol_sequence_confidence: float = None,
+                 ):
+        self.symbol_prediction_confidence = symbol_prediction_confidence
+        self.symbol_sequence_confidence = symbol_sequence_confidence
+
+    @staticmethod
+    def from_json(d: dict) -> 'SymbolConfidence':
+        return SymbolConfidence(
+            SymbolPredictionConfidence.from_json(d.get('symbolPredictionConfidence', None)),
+            d.get('symbolSequenceConfidence', None),
+        ) if d else SymbolConfidence()
+
+    def to_json(self) -> dict:
+        return {'symbolPredictionConfidence': self.symbol_prediction_confidence.to_json() if self.symbol_prediction_confidence else None,
+                'symbolSequenceConfidence': self.symbol_sequence_confidence}
+
+
 class MusicSymbol:
     def __init__(self,
                  symbol_type: SymbolType,
@@ -111,6 +172,7 @@ class MusicSymbol:
                  octave: int = 0,
                  note_name: NoteName = NoteName.UNDEFINED,
                  graphical_connection: GraphicalConnectionType = GraphicalConnectionType.GAPED,
+                 confidence: SymbolConfidence = None
                  ):
         self.id = s_id if s_id else str(uuid4())
         self.coord = coord if coord else Point()
@@ -123,6 +185,7 @@ class MusicSymbol:
         self.octave = octave
         self.note_name = note_name
         self.graphical_connection = graphical_connection
+        self.symbol_confidence = confidence
 
     @staticmethod
     def from_json(d: dict) -> 'MusicSymbol':
@@ -140,6 +203,7 @@ class MusicSymbol:
             d.get('oct', -1),
             optional_enum(d, 'pname', NoteName, NoteName.UNDEFINED),
             optional_enum(d, 'graphicalConnection', GraphicalConnectionType, GraphicalConnectionType.GAPED),
+            SymbolConfidence.from_json(d.get('symbolConfidence', None))
         )
 
     def to_json(self) -> dict:
@@ -160,6 +224,8 @@ class MusicSymbol:
             d['clefType'] = self.clef_type.value
         elif self.symbol_type == SymbolType.ACCID:
             d['accidType'] = self.accid_type.value
+
+        d['symbolConfidence'] = self.symbol_confidence.to_json() if self.symbol_confidence else None
         return d
 
     def update_note_name(self, clef, staff_lines: Optional['StaffLines'] = None):
@@ -186,6 +252,7 @@ def create_clef(
         s_id: Optional[str] = None,
         coord: Point = None,
         position_in_staff: MusicSymbolPositionInStaff = MusicSymbolPositionInStaff.UNDEFINED,
+        confidence=None
 ):
     return MusicSymbol(
         SymbolType.CLEF,
@@ -193,6 +260,8 @@ def create_clef(
         clef_type=clef_type,
         coord=coord,
         position_in_staff=position_in_staff,
+        confidence=confidence
+
     )
 
 
@@ -201,6 +270,8 @@ def create_accid(
         s_id: Optional[str] = None,
         coord: Point = None,
         position_in_staff: MusicSymbolPositionInStaff = MusicSymbolPositionInStaff.UNDEFINED,
+        confidence=None
+
 ):
     return MusicSymbol(
         SymbolType.ACCID,
@@ -208,4 +279,6 @@ def create_accid(
         accid_type=accid_type,
         coord=coord,
         position_in_staff=position_in_staff,
+        confidence=confidence
+
     )
