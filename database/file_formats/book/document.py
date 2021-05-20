@@ -4,22 +4,27 @@ import uuid
 
 
 class DocumentConnection:
-    def __init__(self, page_id=None, line_id=None):
+    def __init__(self, page_id=None, page_name=None, line_id=None, row: int = None):
         self.page_id = page_id
+        self.page_name = page_name
         self.line_id = line_id
+        self.row = row
 
     @staticmethod
     def from_json(json: dict):
         return DocumentConnection(
             json.get('page_id', None),
+            json.get('page_name', None),
             json.get('line_id', None),
-
+            json.get('row', None),
         )
 
     def to_json(self):
         return {
             "page_id": self.page_id,
+            "page_name": self.page_name,
             "line_id": self.line_id,
+            "row": self.row,
         }
 
     def __eq__(self, other):
@@ -28,13 +33,14 @@ class DocumentConnection:
 
 class Document:
     def __init__(self, page_ids, page_names, start: DocumentConnection, end: DocumentConnection,
-                 monody_id=None, doc_id=None):
+                 monody_id=None, doc_id=None, textinitium=''):
         self.monody_id = monody_id if monody_id else str(uuid.uuid4())
         self.doc_id = doc_id if doc_id else str(uuid.uuid4())
         self.pages_ids: List[int] = page_ids
         self.pages_names: List[str] = page_names
         self.start: DocumentConnection = start
         self.end: DocumentConnection = end
+        self.textinitium = textinitium
 
     @staticmethod
     def from_json(json: dict):
@@ -45,6 +51,8 @@ class Document:
             doc_id=json.get('doc_id', None),
             start=DocumentConnection.from_json(json.get('start_point', None)),
             end=DocumentConnection.from_json(json.get('end_point', None)),
+            textinitium=json.get('textinitium', ''),
+
         )
 
     def to_json(self):
@@ -55,6 +63,8 @@ class Document:
             "doc_id": self.doc_id,
             "start_point": self.start.to_json(),
             "end_point": self.end.to_json(),
+            "textinitium": self.textinitium,
+
         }
 
     def get_pcgts_of_document(self, book):

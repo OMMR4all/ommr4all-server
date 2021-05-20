@@ -70,34 +70,49 @@ class DatabaseBookDocuments():
         db_pages: List[DatabasePage] = book.pages()
         document_page_ids = []
         document_page_names = []
-
+        textinitium = ''
         documents: List[Document] = []
         start = None
-        for db_page in db_pages:
+        for page_ind, db_page in enumerate(db_pages):
             page = db_page.pcgts().page
             if start is not None:
                 document_page_ids.append(page.p_id)
                 document_page_names.append(page.location.page)
 
-            for t_line in page.all_text_lines():
+            for ind, t_line in enumerate(page.all_text_lines(), start=1):
 
                 if t_line.sentence.document_start:
                     if start is None:
-                        start = DocumentConnection(line_id=t_line.id, page_id=page.p_id)
+                        start = DocumentConnection(line_id=t_line.id, page_id=page.p_id, row=ind,
+                                                   page_name=page.location.page)
+                        textinitium = t_line.sentence.text(True)
                         document_page_ids.append(page.p_id)
                         document_page_names.append(page.location.page)
                     else:
+                        end_row = ind - 1 if ind-1 != 0 else len(db_pages[page_ind - 1].pcgts().page.all_text_lines())
+                        end_page = page.location.page if ind-1 != 0 else db_pages[page_ind - 1].pcgts().page.location.page
                         documents.append(Document(document_page_ids, document_page_names,
                                                   start=start,
-                                                  end=DocumentConnection(line_id=t_line.id, page_id=page.p_id)))
+                                                  end=DocumentConnection(line_id=t_line.id, page_id=page.p_id,
+                                                                         row= end_row, page_name=end_page),
+                                                  textinitium=textinitium))
                         document_page_ids = [page.p_id]
                         document_page_names = [page.location.page]
 
-                        start = DocumentConnection(line_id=t_line.id, page_id=page.p_id)
+                        start = DocumentConnection(line_id=t_line.id, page_id=page.p_id, row=ind,
+                                                   page_name=page.location.page)
+                        textinitium = t_line.sentence.text(True)
+
         if start is not None:
+            db_page = db_pages[-1]
+            page = db_page.pcgts().page
+            lines = page.all_text_lines()
+
             documents.append(Document(document_page_ids, document_page_names,
                                       start=start,
-                                      end=DocumentConnection(line_id=None, page_id=None)))
+                                      end=DocumentConnection(line_id=lines[-1].id if len(lines) > 0 else None, page_id=page.p_id, row=len(lines),
+                                                             page_name=page.location.page),
+                                      textinitium=textinitium))
 
         updated_documents: List[Document] = []
         for doc in documents:
@@ -107,6 +122,7 @@ class DatabaseBookDocuments():
                     updated_doc.pages_names = doc.pages_names
                     updated_doc.pages_ids = doc.pages_ids
                     updated_doc.end = doc.end
+                    updated_doc.textinitium = doc.textinitium
                     updated_documents.append(updated_doc)
                     break
             else:
