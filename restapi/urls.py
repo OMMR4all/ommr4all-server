@@ -9,7 +9,7 @@ from restapi.views.bookaccess import BookView, BooksView, BookDownloaderView, Bo
 from restapi.views.pageaccess import PagePcGtsView, PageProgressView, PageStatisticsView, PageLockView, PageSVGView, \
     PageMidiView
 from restapi.views.bookdocuments import BookDocumentsView, DocumentsSVGView, DocumentsMidiView, DocumentView, \
-    DocumentOdsView
+    DocumentOdsView, BookDocumentsOdsView
 from restapi.views.virtualkeyboards import BookVirtualKeyboardView
 from restapi.views.bookoperations import BookOperationStatusView, BookOperationTaskView, BookOperationView, \
     BookPageSelectionView, BookOperationModelsView, BookOperationModelView
@@ -66,7 +66,9 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/comments', BookCommentsView.as_view()),
 
         # documents
+        re_path(r'^book/(?P<book>\w+)/documents/meta/ods', BookDocumentsOdsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/documents', BookDocumentsView.as_view()),
+
         re_path(r'^book/(?P<book>\w+)/document/(?P<document>[0-9a-f-]+)/svg/(?P<width>.+)$',
                 DocumentsSVGView.as_view()),
         re_path(r'^book/(?P<book>\w+)/document/(?P<document>[0-9a-f-]+)/midi$', DocumentsMidiView.as_view()),

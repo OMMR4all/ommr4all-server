@@ -51,6 +51,21 @@ class BookDocumentsView(APIView):
         return Response()
 
 
+class BookDocumentsOdsView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book):
+        book = DatabaseBook(book)
+        documents = DatabaseBookDocuments().load(book)
+        filename = 'CM Default Metadatendatei'
+        bytes = documents.database_documents.export_documents_to_ods(
+            documents=documents.database_documents.documents,
+            filename=filename,
+            username=str(request.user.username))
+        return HttpResponse(bytes, content_type="application/vnd.oasis.opendocument.spreadsheet")
+
+
 class DocumentView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -119,5 +134,3 @@ class DocumentOdsView(APIView):
         filename = 'CM Default Metadatendatei'
         bytes = document.export_to_ods(filename)
         return HttpResponse(bytes, content_type="application/vnd.oasis.opendocument.spreadsheet")
-
-
