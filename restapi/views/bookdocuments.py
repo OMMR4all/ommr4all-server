@@ -15,6 +15,7 @@ import logging
 
 from database.file_formats.book.document import Document
 from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
+from database.file_formats.pcgts import PageScaleReference
 from ommr4all.settings import BASE_DIR
 from omr.util import PerformanceCounter
 from restapi.views.bookaccess import require_permissions
@@ -105,3 +106,18 @@ class DocumentsMidiView(APIView):
         seq = midi.generate_note_sequence(document=document)
 
         return Response(seq)
+
+
+class DocumentOdsView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book, document):
+        book = DatabaseBook(book)
+        documents = DatabaseBookDocuments().load(book)
+        document: Document = documents.database_documents.get_document_by_id(document)
+        filename = 'CM Default Metadatendatei'
+        bytes = document.export_to_ods(filename)
+        return HttpResponse(bytes, content_type="application/vnd.oasis.opendocument.spreadsheet")
+
+
