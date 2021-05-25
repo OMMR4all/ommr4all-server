@@ -2,6 +2,8 @@ import json
 import os
 import re
 import subprocess
+
+from database.file_formats.book import document
 from database.file_formats.exporter.midi.simple_midi import SimpleMidiExporter
 
 from django.http import HttpResponse
@@ -61,10 +63,10 @@ class BookDocumentsOdsView(APIView):
         book = DatabaseBook(book)
         documents = DatabaseBookDocuments().load(book)
         filename = 'CM Default Metadatendatei'
-        bytes = documents.database_documents.export_documents_to_ods(
+        bytes = documents.database_documents.export_documents_to_xls(
             documents=documents.database_documents.documents,
             filename=filename,
-            username=str(request.user.username))
+            editor=str(request.user.username))
         return HttpResponse(bytes, content_type="application/vnd.oasis.opendocument.spreadsheet")
 
 
@@ -134,8 +136,8 @@ class DocumentOdsView(APIView):
         documents = DatabaseBookDocuments().load(book)
         document: Document = documents.database_documents.get_document_by_id(document)
         filename = 'CM Default Metadatendatei'
-        bytes = document.export_to_ods(filename, request.user.username)
-        return HttpResponse(bytes, content_type="application/vnd.oasis.opendocument.spreadsheet")
+        bytes = document.export_to_xls(filename, request.user.username)
+        return HttpResponse(bytes, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 class MonodiConnectionView(APIView):
@@ -145,6 +147,8 @@ class MonodiConnectionView(APIView):
     def put(self, request, book):
         documents = json.loads(request.body.decode('utf-8'))
         documents = list(map(Document.from_json, documents))
+        #pages = [DatabasePage(book, x) for x in document.pages_names]
+
         print(documents)
         if request.session.get('monodi_token', None) is not None:
             request.session['monodi_token'] = None

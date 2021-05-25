@@ -72,8 +72,6 @@ urlpatterns = \
 
         re_path(r'^book/(?P<book>\w+)/documents/monodi$', MonodiConnectionView.as_view()),
 
-        re_path(r'^book/(?P<book>\w+)/documents/monodi$', MonodiConnectionView.as_view()),
-
         # documents
         re_path(r'^book/(?P<book>\w+)/documents/meta/ods', BookDocumentsOdsView.as_view()),
 

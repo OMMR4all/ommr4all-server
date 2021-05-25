@@ -91,6 +91,32 @@ class Document:
 
         return bytes
 
+    def export_to_xls(self, filename, editor):
+        import xlsxwriter
+        from database.file_formats.exporter.monodi.ods import MonodiXlsxConfig
+        from io import BytesIO
+
+        output = BytesIO()
+
+        workbook = xlsxwriter.Workbook(output)
+        config = MonodiXlsxConfig()
+        worksheet = workbook.add_worksheet()
+
+        for x in config.entries:
+            worksheet.write(x.cell.row, x.cell.column, x.value)
+
+        worksheet.write(1, config.dict['Textinitium Editionseinheit'].cell.column, self.textinitium)
+        worksheet.write(1, config.dict['Startseite'].cell.column, self.start.page_name)
+        worksheet.write(1, config.dict['Startzeile'].cell.column, self.start.row)
+        worksheet.write(1, config.dict['Endseite'].cell.column, self.end.page_name)
+        worksheet.write(1, config.dict['Endzeile'].cell.column, self.end.row)
+        worksheet.write(1, config.dict['Editor'].cell.column, str(editor))
+        worksheet.write(1, config.dict['Doc-Id\' (intern)'].cell.column, self.monody_id)
+        worksheet.write(1, config.dict['Quellen-ID (intern)'].cell.column, 'Editorenordner')
+        workbook.close()
+        xlsx_data_bytes = output.getvalue()
+        return xlsx_data_bytes
+
     def get_pcgts_of_document(self, book):
         for page in self.pages_names:
             pass

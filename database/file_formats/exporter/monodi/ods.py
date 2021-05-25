@@ -2,8 +2,6 @@ from typing import Union
 
 import typing
 
-
-
 header = ['Dokumenten_ID', 'Gattung1', 'Gattung2', 'Fest', 'Feier', 'Textinitium Editionseinheit',
           'Überlieferungszustand', 'Zusatz zu Textinitium', 'Bezugsgesang', 'Nachweis_Editionseinheit',
           'Melodiennummer_Katalog', 'Kontrafaktur: Stammtext', 'Melodie Standard', 'Melodie Quelle',
@@ -13,12 +11,12 @@ header = ['Dokumenten_ID', 'Gattung1', 'Gattung2', 'Fest', 'Feier', 'Textinitium
 
 
 class OdsCell:
-    def __init__(self, row: int, column: str):
+    def __init__(self, row: int, column: Union[str, int]):
         self.row = row
         self.column = column
 
     def get_entry(self):
-        return ''.join([self.column, str(self.row)])
+        return ''.join([str(self.column), str(self.row)])
 
 
 class Entry:
@@ -71,6 +69,49 @@ class MonodiOdsConfig:
         self.entries = MonodiOdsConfig.default_config
 
 
+class MonodiXlsxConfig:
+    default_config = [
+        Entry(OdsCell(0, 0), 'Dokumenten_ID'),
+        Entry(OdsCell(0, 1), 'Gattung1'),
+        Entry(OdsCell(0, 2), 'Gattung2'),
+        Entry(OdsCell(0, 3), 'Fest'),
+        Entry(OdsCell(0, 4), 'Feier'),
+        Entry(OdsCell(0, 5), 'Textinitium Editionseinheit'),
+        Entry(OdsCell(0, 6), 'Überlieferungszustand'),
+        Entry(OdsCell(0, 7), 'Zusatz zu Textinitium'),
+        Entry(OdsCell(0, 8), 'Bezugsgesang'),
+        Entry(OdsCell(0, 9), 'Nachweis_Editionseinheit'),
+        Entry(OdsCell(0, 10), 'Melodiennummer_Katalog'),
+        Entry(OdsCell(0, 11), 'Kontrafaktur: Stammtext'),
+        Entry(OdsCell(0, 12), 'Melodie Standard'),
+        Entry(OdsCell(0, 13), 'Melodie Quelle'),
+        Entry(OdsCell(0, 14), 'Startseite'),
+        Entry(OdsCell(0, 15), 'Start Verso-Spalte'),
+        Entry(OdsCell(0, 16), 'Startzeile'),
+        Entry(OdsCell(0, 17), 'Startposition'),
+        Entry(OdsCell(0, 18), 'Endseite'),
+        Entry(OdsCell(0, 19), 'End Verso-Spalte'),
+        Entry(OdsCell(0, 20), 'Endzeile'),
+        Entry(OdsCell(0, 21), 'Nachtragsschicht'),
+        Entry(OdsCell(0, 22), 'Quellensigle'),
+        Entry(OdsCell(0, 23), 'Druckausgabe'),
+        Entry(OdsCell(0, 24), 'Referenz auf Spiel'),
+        Entry(OdsCell(0, 25), 'Editionsstatus'),
+        Entry(OdsCell(0, 26), 'Editor'),
+        Entry(OdsCell(0, 27), 'Schreibzugriff'),
+        Entry(OdsCell(0, 28), 'Kommentar'),
+        Entry(OdsCell(0, 29), 'Doc-Id\' (intern)'),
+        Entry(OdsCell(0, 30), 'Quellen-ID (intern)'),
+        Entry(OdsCell(0, 31), ''),
+        Entry(OdsCell(0, 32), 'Verlinkung'),
+    ]
+
+    def __init__(self):
+        self.length = len(MonodiOdsConfig.default_config)
+        self.dict: typing.Dict[str, Entry] = {x.value: x for x in MonodiXlsxConfig.default_config}
+        self.entries = MonodiXlsxConfig.default_config
+
+
 if __name__ == '__main__':
 
     from matplotlib import pyplot as plt
@@ -78,6 +119,7 @@ if __name__ == '__main__':
     import numpy as np
     from database import DatabaseBook, DatabaseFile
     from database.file_formats.pcgts import PageScaleReference
+
     book = DatabaseBook('Annotation___Square_Notation')
     pages = book.pages()[0]
 

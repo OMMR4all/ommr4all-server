@@ -236,6 +236,7 @@ class FormContainer(NamedTuple):
 
 RootChildren = Union[FormContainer, MiscContainer]
 
+
 class RootContainer(NamedTuple):
     children: List[RootChildren]
 
@@ -372,6 +373,7 @@ class PcgtsToMonodiConverter:
 
                     else:
                         raise TypeError(type(line_symbol))
+
             nonlocal current_symbol_index
             all_syllable_connections = sum([c.syllable_connections for c in connections], [])
             all_syllable_connections.sort(key=lambda sc: sc.note.coord.x)
@@ -394,9 +396,9 @@ class PcgtsToMonodiConverter:
 
             add_line_symbols(symbols[current_symbol_index:])
 
-
         document_started = False
-        regions_to_export = [ns_pcgts.BlockType.HEADING, ns_pcgts.BlockType.FOLIO_NUMBER, ns_pcgts.BlockType.PARAGRAPH, ns_pcgts.BlockType.MUSIC]
+        regions_to_export = [ns_pcgts.BlockType.HEADING, ns_pcgts.BlockType.FOLIO_NUMBER, ns_pcgts.BlockType.PARAGRAPH,
+                             ns_pcgts.BlockType.MUSIC]
         for p in pcgts:
             elements: List[ns_pcgts.Block] = p.page.blocks_of_type(regions_to_export)
             page = p.page
@@ -454,11 +456,9 @@ class PcgtsToMonodiConverter:
             break
 
 
-
-
-
-if __name__=="__main__":
+if __name__ == "__main__":
     from database import DatabaseBook
+
     b = DatabaseBook('demo2')
     pcgts = [ns_pcgts.PcGts.from_file(x.file('pcgts')) for x in b.pages()]
     root = PcgtsToMonodiConverter(pcgts, document=True).root
