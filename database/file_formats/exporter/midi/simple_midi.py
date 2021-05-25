@@ -138,25 +138,25 @@ class SimpleMidiExporter:
             music_blocks = page.music_blocks()
             for mb in music_blocks:
                 connections = [c for c in pcgts.page.annotations.connections if c.music_region == mb]
+                if len(connections) > 0:
+                    connection = connections[0]
+                    if document is not None:
+                        line_id_start = document.start.line_id
+                        line_id_end = document.end.line_id
 
-                connection = connections[0]
-                if document is not None:
-                    line_id_start = document.start.line_id
-                    line_id_end = document.end.line_id
+                        line_ids = [line.id for line in connection.text_region.lines]
+                        if page.p_id == document.end.page_id:
+                            if line_id_end in line_ids:
+                                break
+                        if page.p_id == document.start.page_id or document_started:
+                            if line_id_start in line_ids:
+                                add_note(mb.lines)
+                                document_started = True
+                            else:
+                                add_note(mb.lines)
 
-                    line_ids = [line.id for line in connection.text_region.lines]
-                    if page.p_id == document.end.page_id:
-                        if line_id_end in line_ids:
-                            break
-                    if page.p_id == document.start.page_id or document_started:
-                        if line_id_start in line_ids:
-                            add_note(mb.lines)
-                            document_started = True
-                        else:
-                            add_note(mb.lines)
-
-                else:
-                    add_note(mb.lines)
+                    else:
+                        add_note(mb.lines)
             else:
                 continue
             break

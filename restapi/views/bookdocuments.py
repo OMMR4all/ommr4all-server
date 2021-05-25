@@ -100,7 +100,7 @@ class DocumentsSVGView(APIView):
         document: Document = documents.database_documents.get_document_by_id(document)
         pages = [DatabasePage(book, x) for x in document.pages_names]
         pcgts = [DatabaseFile(page, 'pcgts', create_if_not_existing=True).page.pcgts() for page in pages]
-        root = PcgtsToMonodiConverter(pcgts, document=True).root
+        root = PcgtsToMonodiConverter(pcgts, document=document).root
         script_path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'monodi_svg_render', 'bin', 'one-shot')
         proc = subprocess.run([script_path, "-", "-w", width], input=str(json.dumps(root.to_json())),
                               stdout=subprocess.PIPE, universal_newlines=True, stderr=subprocess.PIPE)
