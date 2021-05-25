@@ -57,6 +57,10 @@ class ErrorCodes(IntEnum):
     # Model related
     MODEL_NOT_FOUND = 55000
 
+    # Monodi related
+    MONODI_LOGIN_REQUIRED = 65000
+    NO_MATCHING_CREDENTIALS_FOUND = 66000
+
 
 @dataclass
 class APIError(DataClassDictMixin):

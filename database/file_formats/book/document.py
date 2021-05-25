@@ -5,7 +5,6 @@ import uuid
 import ezodf
 
 
-
 class DocumentConnection:
     def __init__(self, page_id=None, page_name=None, line_id=None, row: int = None):
         self.page_id = page_id
@@ -70,7 +69,7 @@ class Document:
 
         }
 
-    def export_to_ods(self, filename):
+    def export_to_ods(self, filename, editor):
         from database.file_formats.exporter.monodi.ods import MonodiOdsConfig
         from ezodf import newdoc, Paragraph, Heading, Sheet
         ods = newdoc(doctype='ods', filename=filename)
@@ -80,12 +79,12 @@ class Document:
 
         for x in config.entries:
             sheet[x.cell.get_entry()].set_value(x.value)
-        sheet[''.join([config.dict['Textinitium Editionseinheit'].cell.column, str(2)])].set_value( self.textinitium)
-        sheet[''.join([config.dict['Startseite'].cell.column, str(2)])].set_value( self.start.page_name)
-        sheet[''.join([config.dict['Startzeile'].cell.column, str(2)])].set_value( self.start.row)
-        sheet[''.join([config.dict['Endseite'].cell.column, str(2)])].set_value( self.end.page_name)
-        sheet[''.join([config.dict['Endzeile'].cell.column, str(2)])].set_value( self.end.row)
-        sheet[''.join([config.dict['Editor'].cell.column, str(2)])].set_value('tim.eipert@uni-wuerzburg.de')
+        sheet[''.join([config.dict['Textinitium Editionseinheit'].cell.column, str(2)])].set_value(self.textinitium)
+        sheet[''.join([config.dict['Startseite'].cell.column, str(2)])].set_value(self.start.page_name)
+        sheet[''.join([config.dict['Startzeile'].cell.column, str(2)])].set_value(self.start.row)
+        sheet[''.join([config.dict['Endseite'].cell.column, str(2)])].set_value(self.end.page_name)
+        sheet[''.join([config.dict['Endzeile'].cell.column, str(2)])].set_value(self.end.row)
+        sheet[''.join([config.dict['Editor'].cell.column, str(2)])].set_value(str(editor))
         sheet[''.join([config.dict['Doc-Id\' (intern)'].cell.column, str(2)])].set_value(self.monody_id)
         sheet[''.join([config.dict['Quellen-ID (intern)'].cell.column, str(2)])].set_value('Editorenordner')
         bytes = ods.tobytes()
@@ -95,5 +94,3 @@ class Document:
     def get_pcgts_of_document(self, book):
         for page in self.pages_names:
             pass
-
-

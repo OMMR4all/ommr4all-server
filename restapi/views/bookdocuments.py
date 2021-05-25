@@ -7,7 +7,7 @@ from database.file_formats.exporter.midi.simple_midi import SimpleMidiExporter
 from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import permissions
+from rest_framework import permissions, status
 from database import *
 from database.database_book_documents import DatabaseBookDocuments
 from database.file_formats import PcGts
@@ -18,8 +18,10 @@ from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodi
 from database.file_formats.pcgts import PageScaleReference
 from ommr4all.settings import BASE_DIR
 from omr.util import PerformanceCounter
+from restapi.models.error import APIError, ErrorCodes
 from restapi.views.bookaccess import require_permissions
 from restapi.views.pageaccess import require_lock
+import requests as python_request
 
 logger = logging.getLogger(__name__)
 
@@ -132,5 +134,52 @@ class DocumentOdsView(APIView):
         documents = DatabaseBookDocuments().load(book)
         document: Document = documents.database_documents.get_document_by_id(document)
         filename = 'CM Default Metadatendatei'
-        bytes = document.export_to_ods(filename)
+        bytes = document.export_to_ods(filename, request.user.username)
         return HttpResponse(bytes, content_type="application/vnd.oasis.opendocument.spreadsheet")
+
+
+class MonodiConnectionView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def put(self, request, book):
+        documents = json.loads(request.body.decode('utf-8'))
+        documents = list(map(Document.from_json, documents))
+        print(documents)
+        if request.session.get('monodi_token', None) is not None:
+            request.session['monodi_token'] = None
+
+        else:
+            return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                            "Unauthorized. Login to the monodi service",
+                            "Unauthorized. Login to the monodi service",
+                            ErrorCodes.MONODI_LOGIN_REQUIRED,
+                            ).response()
+        return HttpResponse()
+
+
+class MonodiLoginView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def post(self, request):
+        body_unicode = request.body.decode('utf-8')
+        body = json.loads(body_unicode)
+        content = body['username']
+        password = body['password']
+        request.session['monodi_token'] = content
+        return HttpResponse()
+
+        r = python_request.post('https://editor.corpus-monodicum.de/api/login/login',
+                                json={"user": content, "password": password})
+
+        if r.status_code == 200:
+            json_response = r.json()
+            if json_response["kind"] == "LoginSuccessful":
+                token = json_response["token"]
+                request.session['monodi_token'] = token
+                return HttpResponse()
+        return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                        "No Account matches Credentials Found. Use other combination to login to the monodi service",
+                        "No Account matches Credentials Found. Use other combination to login to the monodi service",
+                        ErrorCodes.NO_MATCHING_CREDENTIALS_FOUND,
+                        ).response()
