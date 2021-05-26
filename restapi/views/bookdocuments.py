@@ -4,6 +4,7 @@ import re
 import subprocess
 
 from database.file_formats.book import document
+from database.file_formats.book.documents import Documents
 from database.file_formats.exporter.midi.simple_midi import SimpleMidiExporter
 
 from django.http import HttpResponse
@@ -145,12 +146,61 @@ class MonodiConnectionView(APIView):
 
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def put(self, request, book):
+        book = DatabaseBook(book)
         documents = json.loads(request.body.decode('utf-8'))
         documents = list(map(Document.from_json, documents))
-        #pages = [DatabasePage(book, x) for x in document.pages_names]
 
-        print(documents)
         if request.session.get('monodi_token', None) is not None:
+            import base64
+
+            filename = 'CM Default Metadatendatei'
+
+            bytes = Documents.export_documents_to_xls(
+                documents=documents,
+                filename=filename,
+                editor=str(request.user.username))
+            # f = open('/tmp/outputTest', 'wb')
+            # f.write(bytes)
+            # f.close()
+            base64EncodedStr = base64.b64encode(bytes).decode()
+            header = {'Content-Type': 'text/plain', 'Authorization': '{}'.format(request.session.get('monodi_token',
+                                                                                                     None))}
+
+            import_documents_response = python_request.post(
+                url='https://editor.corpus-monodicum.de/api/source/importDocuments',
+                data=base64EncodedStr,
+                header=header)
+
+            if import_documents_response.status_code == 200:
+                json_response = import_documents_response.json()
+                if json_response["kind"] == "UploadFinished":
+                    header = {'Authorization': '{}'.format(request.session.get('monodi_token', None))}
+                    for document in documents:
+                        pages = [DatabasePage(book, x) for x in document.pages_names]
+                        pcgts = [DatabaseFile(page, 'pcgts', create_if_not_existing=True).page.pcgts() for page in pages]
+                        root = PcgtsToMonodiConverter(pcgts, document=document)
+                        json_data = root.get_Monodi_json(document=document, editor=str(request.user.username))
+                        doc_response = python_request.post('https://editor.corpus-monodicum.de/api/document/update',
+                                                           json=json_data, header=header)
+                        if doc_response.status_code == 200:
+                            json_response = import_documents_response.json()
+                            if json_response["kind"] == "Ok":
+                                continue
+                            else:
+                                return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                                                "Error when importing documents to Monodi",
+                                                "Error when importing documents to Monodi",
+                                                ErrorCodes.ERROR_ON_UPDATING_DOCUMENT,
+                                                ).response()
+                    return HttpResponse()
+
+            else:
+                return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                                "Error when importing documents to Monodi",
+                                "Error when importing documents to Monodi",
+                                ErrorCodes.ERROR_ON_IMPORTING_DOCUMENTS,
+                                ).response()
+
             request.session['monodi_token'] = None
 
         else:
@@ -171,7 +221,7 @@ class MonodiLoginView(APIView):
         content = body['username']
         password = body['password']
         request.session['monodi_token'] = content
-        return HttpResponse()
+        #return HttpResponse()
 
         r = python_request.post('https://editor.corpus-monodicum.de/api/login/login',
                                 json={"user": content, "password": password})

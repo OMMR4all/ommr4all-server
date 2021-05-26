@@ -293,6 +293,38 @@ class PcgtsToMonodiConverter:
         self.root = RootContainer([self.miscContainer])
         self.run(pcgts, document=document)
 
+    def get_Monodi_json(self, document: Document, editor):
+        doc = {"id": document.monody_id,
+               "quelle_id": "Editorenordner",
+               "dokumenten_id": document.monody_id,
+               "gattung1": "",
+               "gattung2": "",
+               "festtag": "",
+               "feier": "",
+               "textinitium": document.textinitium,
+               "bibliographischerverweis": "",
+               "druckausgabe": "",
+               "zeilenstart": document.start.row,
+               "foliostart": document.textinitium,
+               "kommentar": "",
+               "editionsstatus": "",
+               "additionalData": {
+                   "Melodiennummer_Katalog": "",
+                   "Editor": str(editor),
+                   "Bezugsgesang": "",
+                   "Melodie_Standard": "",
+                   "Endseite": document.end.page_name,
+                   "Startposition": "",
+                   "Zusatz_zu_Textinitium": "",
+                   "Referenz_auf_Spiel": "",
+                   "Endzeile": document.end.row,
+                   "Nachtragsschicht": "",
+                   "\u00dcberlieferungszustand": "",
+                   "Melodie_Quelle": ""
+                    }
+               }
+        return {"document": doc, "notes": self.root.to_json()}
+
     def get_or_create_current_line_container(self):
         if self.current_line_container is None:
             self.current_line_container = LineContainer([])
