@@ -150,7 +150,7 @@ class MonodiConnectionView(APIView):
         book = DatabaseBook(book)
         documents = json.loads(request.body.decode('utf-8'))
         documents = list(map(Document.from_json, documents))
-        #request.session['monodi_token'] = None
+        # request.session['monodi_token'] = None
 
         if request.session.get('monodi_token', None) is not None:
             editor = request.session.get('monodi_user', None)
@@ -205,7 +205,20 @@ class MonodiConnectionView(APIView):
                                                 "Error when importing documents to Monodi",
                                                 ErrorCodes.ERROR_ON_UPDATING_DOCUMENT,
                                                 ).response()
+                        else:
+                            return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                                            "Error when importing documents to Monodi",
+                                            "Error when importing documents to Monodi",
+                                            ErrorCodes.ERROR_ON_UPDATING_DOCUMENT,
+                                            ).response()
                     return HttpResponse()
+
+                else:
+                    return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                                    "Error when importing documents to Monodi",
+                                    "Error when importing documents to Monodi",
+                                    ErrorCodes.ERROR_ON_IMPORTING_DOCUMENTS,
+                                    ).response()
 
             else:
                 return APIError(status.HTTP_406_NOT_ACCEPTABLE,
@@ -244,7 +257,7 @@ class MonodiLoginView(APIView):
                 request.session['monodi_token'] = token
                 return HttpResponse()
         return APIError(status.HTTP_406_NOT_ACCEPTABLE,
-                        "No Account matches Credentials Found. Use other combination to login to the monodi service",
-                        "No Account matches Credentials Found. Use other combination to login to the monodi service",
+                        "No Account matches credentials. Use other combination to login to the monodi service",
+                        "No Account matches credentials. Use other combination to login to the monodi service",
                         ErrorCodes.NO_MATCHING_CREDENTIALS_FOUND,
                         ).response()
