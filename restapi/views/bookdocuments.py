@@ -15,6 +15,7 @@ from database import *
 from database.database_book_documents import DatabaseBookDocuments
 from database.file_formats import PcGts
 import logging
+import json
 
 from database.file_formats.book.document import Document
 from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
@@ -149,27 +150,26 @@ class MonodiConnectionView(APIView):
         book = DatabaseBook(book)
         documents = json.loads(request.body.decode('utf-8'))
         documents = list(map(Document.from_json, documents))
+        #request.session['monodi_token'] = None
 
         if request.session.get('monodi_token', None) is not None:
+            editor = request.session.get('monodi_user', None)
             import base64
-
             filename = 'CM Default Metadatendatei'
 
             bytes = Documents.export_documents_to_xls(
                 documents=documents,
                 filename=filename,
-                editor=str(request.user.username))
-            # f = open('/tmp/outputTest', 'wb')
-            # f.write(bytes)
-            # f.close()
+                editor=str(editor))
             base64EncodedStr = base64.b64encode(bytes).decode()
+            # Convert it to valid json
+            base64EncodedStr = "".join(["\"", base64EncodedStr, "\""])
             header = {'Content-Type': 'text/plain', 'Authorization': '{}'.format(request.session.get('monodi_token',
                                                                                                      None))}
-
             import_documents_response = python_request.post(
                 url='https://editor.corpus-monodicum.de/api/source/importDocuments',
                 data=base64EncodedStr,
-                header=header)
+                headers=header)
 
             if import_documents_response.status_code == 200:
                 json_response = import_documents_response.json()
@@ -177,13 +177,26 @@ class MonodiConnectionView(APIView):
                     header = {'Authorization': '{}'.format(request.session.get('monodi_token', None))}
                     for document in documents:
                         pages = [DatabasePage(book, x) for x in document.pages_names]
-                        pcgts = [DatabaseFile(page, 'pcgts', create_if_not_existing=True).page.pcgts() for page in pages]
+                        pcgts = [DatabaseFile(page, 'pcgts', create_if_not_existing=True).page.pcgts() for page in
+                                 pages]
                         root = PcgtsToMonodiConverter(pcgts, document=document)
-                        json_data = root.get_Monodi_json(document=document, editor=str(request.user.username))
+                        json_data = root.get_Monodi_json(document=document, editor=str(editor))
+
+                        def pp_json(json_thing, sort=True, indents=4):
+                            if type(json_thing) is str:
+                                print(json.dumps(json.loads(json_thing), sort_keys=sort, indent=indents))
+                            else:
+                                print(json.dumps(json_thing, sort_keys=sort, indent=indents))
+                            return None
+
                         doc_response = python_request.post('https://editor.corpus-monodicum.de/api/document/update',
-                                                           json=json_data, header=header)
+                                                           json=json_data, headers=header)
+                        # with open("/tmp/demo.json", "w") as fp:
+                        #    #js = json.loads(json_data)
+                        #    json.dump(json_data, fp, sort_keys=False, indent=4)
                         if doc_response.status_code == 200:
-                            json_response = import_documents_response.json()
+                            json_response = doc_response.json()
+
                             if json_response["kind"] == "Ok":
                                 continue
                             else:
@@ -200,9 +213,6 @@ class MonodiConnectionView(APIView):
                                 "Error when importing documents to Monodi",
                                 ErrorCodes.ERROR_ON_IMPORTING_DOCUMENTS,
                                 ).response()
-
-            request.session['monodi_token'] = None
-
         else:
             return APIError(status.HTTP_406_NOT_ACCEPTABLE,
                             "Unauthorized. Login to the monodi service",
@@ -220,8 +230,8 @@ class MonodiLoginView(APIView):
         body = json.loads(body_unicode)
         content = body['username']
         password = body['password']
-        request.session['monodi_token'] = content
-        #return HttpResponse()
+        # request.session['monodi_token'] = content
+        # return HttpResponse()
 
         r = python_request.post('https://editor.corpus-monodicum.de/api/login/login',
                                 json={"user": content, "password": password})
@@ -230,6 +240,7 @@ class MonodiLoginView(APIView):
             json_response = r.json()
             if json_response["kind"] == "LoginSuccessful":
                 token = json_response["token"]
+                request.session['monodi_user'] = content
                 request.session['monodi_token'] = token
                 return HttpResponse()
         return APIError(status.HTTP_406_NOT_ACCEPTABLE,

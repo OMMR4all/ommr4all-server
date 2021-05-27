@@ -304,7 +304,7 @@ class PcgtsToMonodiConverter:
                "textinitium": document.textinitium,
                "bibliographischerverweis": "",
                "druckausgabe": "",
-               "zeilenstart": document.start.row,
+               "zeilenstart": str(document.start.row),
                "foliostart": document.textinitium,
                "kommentar": "",
                "editionsstatus": "",
@@ -317,7 +317,7 @@ class PcgtsToMonodiConverter:
                    "Startposition": "",
                    "Zusatz_zu_Textinitium": "",
                    "Referenz_auf_Spiel": "",
-                   "Endzeile": document.end.row,
+                   "Endzeile": str(document.end.row),
                    "Nachtragsschicht": "",
                    "\u00dcberlieferungszustand": "",
                    "Melodie_Quelle": ""
