@@ -138,7 +138,9 @@ class DocumentOdsView(APIView):
         documents = DatabaseBookDocuments().load(book)
         document: Document = documents.database_documents.get_document_by_id(document)
         filename = 'CM Default Metadatendatei'
-        bytes = document.export_to_xls(filename, request.user.username)
+        editor = request.session.get('monodi_user', None)
+        user = editor if editor is not None else request.user.username
+        bytes = document.export_to_xls(filename, user)
         return HttpResponse(bytes, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
@@ -162,6 +164,7 @@ class MonodiConnectionView(APIView):
                 filename=filename,
                 editor=str(editor))
             base64EncodedStr = base64.b64encode(bytes).decode()
+
             # Convert it to valid json
             base64EncodedStr = "".join(["\"", base64EncodedStr, "\""])
             header = {'Content-Type': 'text/plain', 'Authorization': '{}'.format(request.session.get('monodi_token',
