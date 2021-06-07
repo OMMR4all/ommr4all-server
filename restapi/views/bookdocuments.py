@@ -3,6 +3,8 @@ import os
 import re
 import subprocess
 
+from django.views.decorators.csrf import csrf_exempt
+
 from database.file_formats.book import document
 from database.file_formats.book.documents import Documents
 from database.file_formats.exporter.midi.simple_midi import SimpleMidiExporter
