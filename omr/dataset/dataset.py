@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from types import MappingProxyType
 
-from database.file_formats.pcgts import PcGts, Line, PageScaleReference, Point
+from database.file_formats.pcgts import PcGts, Line, PageScaleReference, Point, GraphicalConnectionType, SymbolType, \
+    ClefType, AccidType
 import numpy as np
 from typing import List, Tuple, Generator, Union, Optional, Any
 from omr.dataset import RegionLineMaskData
@@ -16,6 +17,7 @@ from mashumaro import DataClassJSONMixin
 from enum import Enum
 
 import json
+
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +168,65 @@ class Dataset(ABC):
     def to_line_detection_dataset(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:
         return self.load(callback)
 
+    def to_centernet_dataset(self, callback: Optional[DatasetCallback] = None, debug = False):
+        from matplotlib import pyplot as plt
+        import cv2
+        from omr.imageoperations.music_line_operations import SymbolLabel
 
+        images = []
+        bboxs = []
+
+        if self.params.origin_staff_line_distance == self.params.target_staff_line_distance:
+            for d in self.load(callback):
+                image = d.line_image if self.params.image_input == ImageInput.LINE_IMAGE else d.region
+                copy_image = image.copy()
+                bbox = []
+
+                for s in d.operation.music_line.symbols:
+                    c = d.operation.page.page_to_image_scale(s.coord,
+                                                             ref=d.operation.scale_reference).round().astype(int)
+                    coord = self.image_ops.global_to_local_pos(c, d.operation.params)
+                    label = 0
+                    if s.symbol_type == SymbolType.NOTE:
+                        if s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                            label = SymbolLabel.NOTE_START
+                        elif s.graphical_connection == GraphicalConnectionType.LOOPED:
+                            label = SymbolLabel.NOTE_LOOPED
+                        else:
+                            label = SymbolLabel.NOTE_GAPPED
+
+                    elif s.symbol_type == SymbolType.CLEF:
+                        if s.clef_type == ClefType.F:
+                            label = SymbolLabel.CLEF_F
+                        else:
+                            label = SymbolLabel.CLEF_C
+                    elif s.symbol_type == SymbolType.ACCID:
+                        if s.accid_type == AccidType.NATURAL:
+                            label = SymbolLabel.ACCID_NATURAL
+                        elif s.accid_type == AccidType.FLAT:
+                            label = SymbolLabel.ACCID_FLAT
+                        else:
+                            label = SymbolLabel.ACCID_SHARP
+                    buffer = 1
+                    if coord.x <= image.shape[1] and coord.y <= image.shape[0]:
+                        bbox.append([coord.x - buffer, coord.y - buffer, buffer * 2, buffer * 2, label.value])
+
+                    if debug:
+                        radius = 2
+                        color = (255, 0, 0)
+                        filled = -1
+                        cv2.circle(copy_image, (int(coord.x), int(coord.y)), radius, color, filled)
+
+                images.append(image)
+                bboxs.append(bbox)
+                if debug:
+                    plt.imshow(copy_image)
+                    plt.show()
+
+            return images, bboxs
+
+        else:
+            raise NotImplementedError()
 
     def to_calamari_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         from calamari_ocr.ocr.datasets.dataset import RawDataSet, DataSetMode
