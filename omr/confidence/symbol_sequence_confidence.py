@@ -78,6 +78,9 @@ class SequenceSetting(IntEnum):
                                 os.path.join(b_dir, 'Note_3Gram_Table.pickle'),
                                 os.path.join(b_dir, 'Note_4Gram_Table.pickle')][self.value])
 
+    def get_token_length(self):
+        return[1, 2, 3, 4][self.value]
+
 
 class SymbolSequenceConfidence:
     def __init__(self, setting: SequenceSetting = SequenceSetting.NOTE_4GRAM):
@@ -99,8 +102,8 @@ if __name__ == "__main__":
 
     # path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'ExcelTables', 'Notes', 'Note_1Gram_Table.xlsx')
     # parse_data(path=path)
-    a = SymbolSequenceConfidence(SequenceSetting.NOTE_1GRAM)
+    a = SymbolSequenceConfidence(SequenceSetting.NOTE_3GRAM)
     import pickle
-    with open(os.path.join(b_dir, 'Note_1Gram_Table.pickle'), 'wb') as file:
+    with open(os.path.join(b_dir, 'Note_3Gram_Table.pickle'), 'wb') as file:
         pickle.dump(a, file, protocol=pickle.HIGHEST_PROTOCOL)
     pass

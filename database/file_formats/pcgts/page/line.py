@@ -1,4 +1,5 @@
 from typing import List, Optional
+
 from .region import Region, Coords
 from .definitions import BlockType
 from .coords import Point
@@ -10,6 +11,7 @@ from uuid import uuid4
 
 
 class Line(Region):
+
     def __init__(self,
                  id: Optional[str] = None,
                  coords: Optional[Coords] = None,
@@ -152,6 +154,18 @@ class Line(Region):
                 s.update_note_name(current_clef, self.staff_lines)
 
         return current_clef
+
+    def update_sequence_confidence(self, setting):
+        from omr.confidence.symbol_sequence_confidence import SymbolSequenceConfidence
+        setting: SymbolSequenceConfidence = setting # Avoid Importloop
+        self.update_note_names()
+        token_length = setting.setting.get_token_length()
+        for ind, symbol in enumerate(self.symbols):
+            if ind >= token_length:
+                confidence = setting.get_symbol_sequence_confidence(prev_Symbols=symbol[ind - token_length:ind],
+                                                                    target_symbol=symbol)
+                symbol.symbol_confidence.symbol_sequence_confidence.confidence = confidence
+                symbol.symbol_confidence.symbol_sequence_confidence.token_length = token_length
 
     def fix_start_of_neumes(self):
         last_no_note = True

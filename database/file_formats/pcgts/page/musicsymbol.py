@@ -42,6 +42,13 @@ class NoteName(IntEnum):
     def __str__(self):
         return 'ABCDEFG '[self.value]
 
+    @staticmethod
+    def from_string(name: str):
+        for name, member in NoteName.__members__.items():
+            if name.lower() == name.lower():
+                return member
+        return NoteName.UNDEFINED
+
 
 # See https://music-encoding.org/guidelines/v3/content/neumes.html (Fig. 1) for reference
 class BasicNeumeType(IntEnum):
@@ -139,10 +146,29 @@ class SymbolPredictionConfidence:
         }
 
 
+class SymbolSequenceConfidence:
+    def __init__(self, confidence: float = None, token_length: int = None):
+        self.confidence: float = confidence
+        self.token_length: int = token_length
+
+    @staticmethod
+    def from_json(d: dict):
+        return SymbolSequenceConfidence(
+            d.get('confidence', None),
+            d.get('tokenLength', None),
+        ) if d else SymbolSequenceConfidence()
+
+    def to_json(self):
+        return {
+            'confidence': self.confidence,
+            'tokenLength': self.token_length,
+        }
+
+
 class SymbolConfidence:
     def __init__(self,
                  symbol_prediction_confidence: SymbolPredictionConfidence = None,
-                 symbol_sequence_confidence: float = None,
+                 symbol_sequence_confidence: SymbolSequenceConfidence = None,
                  ):
         self.symbol_prediction_confidence = symbol_prediction_confidence
         self.symbol_sequence_confidence = symbol_sequence_confidence
@@ -151,12 +177,13 @@ class SymbolConfidence:
     def from_json(d: dict) -> 'SymbolConfidence':
         return SymbolConfidence(
             SymbolPredictionConfidence.from_json(d.get('symbolPredictionConfidence', None)),
-            d.get('symbolSequenceConfidence', None),
+            SymbolSequenceConfidence.from_json(d.get('symbolSequenceConfidence', None)),
         ) if d else SymbolConfidence()
 
     def to_json(self) -> dict:
-        return {'symbolPredictionConfidence': self.symbol_prediction_confidence.to_json() if self.symbol_prediction_confidence else None,
-                'symbolSequenceConfidence': self.symbol_sequence_confidence}
+        return {
+            'symbolPredictionConfidence': self.symbol_prediction_confidence.to_json() if self.symbol_prediction_confidence else None,
+            'symbolSequenceConfidence': self.symbol_sequence_confidence.to_json() if self.symbol_sequence_confidence else None}
 
 
 class MusicSymbol:

@@ -5,6 +5,7 @@ if __name__ == '__main__':
 
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
+from omr.confidence.symbol_sequence_confidence import SequenceSetting, SymbolSequenceConfidence
 
 from typing import List, Optional, Generator
 from ocr4all_pixel_classifier.lib.predictor import Predictor, PredictSettings
@@ -176,7 +177,9 @@ class PCPredictor(SymbolsPredictor):
             ax[3].imshow(m.region, cmap='gray_r')
             ax[4].imshow(cc, cmap='gist_ncar_r')
             plt.show()
-        return symbols
+        line = Line(symbols=symbols)
+        line.update_sequence_confidence(SymbolSequenceConfidence(SequenceSetting.NOTE_3GRAM))
+        return line.symbols
 
 
 if __name__ == '__main__':
