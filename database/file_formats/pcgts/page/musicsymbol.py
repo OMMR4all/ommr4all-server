@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List
 from uuid import uuid4
 from .coords import Point
 from .definitions import MusicSymbolPositionInStaff
@@ -44,8 +44,8 @@ class NoteName(IntEnum):
 
     @staticmethod
     def from_string(name: str):
-        for name, member in NoteName.__members__.items():
-            if name.lower() == name.lower():
+        for name1, member in NoteName.__members__.items():
+            if name1.lower() == name.lower():
                 return member
         return NoteName.UNDEFINED
 
@@ -103,6 +103,12 @@ class AccidType(Enum):
     FLAT = 'flat'
     NATURAL = 'natural'
     SHARP = 'sharp'
+
+
+class SymbolErrorType(IntEnum):
+    SEQUENCE = 0
+    CLEF = 1
+    SEGMENTATION = 2
 
 
 class SymbolPredictionConfidence:
@@ -169,21 +175,26 @@ class SymbolConfidence:
     def __init__(self,
                  symbol_prediction_confidence: SymbolPredictionConfidence = None,
                  symbol_sequence_confidence: SymbolSequenceConfidence = None,
+                 symbol_error_type: SymbolErrorType = None
                  ):
         self.symbol_prediction_confidence = symbol_prediction_confidence
         self.symbol_sequence_confidence = symbol_sequence_confidence
+        self.symbol_error_type = symbol_error_type
 
     @staticmethod
     def from_json(d: dict) -> 'SymbolConfidence':
         return SymbolConfidence(
             SymbolPredictionConfidence.from_json(d.get('symbolPredictionConfidence', None)),
             SymbolSequenceConfidence.from_json(d.get('symbolSequenceConfidence', None)),
+            optional_enum(d, 'symbolErrorType', SymbolErrorType, None) if d.get('symbolErrorType') is not None else None,
+
         ) if d else SymbolConfidence()
 
     def to_json(self) -> dict:
         return {
             'symbolPredictionConfidence': self.symbol_prediction_confidence.to_json() if self.symbol_prediction_confidence else None,
-            'symbolSequenceConfidence': self.symbol_sequence_confidence.to_json() if self.symbol_sequence_confidence else None}
+            'symbolSequenceConfidence': self.symbol_sequence_confidence.to_json() if self.symbol_sequence_confidence else None,
+            'symbolErrorType': self.symbol_error_type.value if self.symbol_error_type is not None else None}
 
 
 class MusicSymbol:
@@ -269,9 +280,23 @@ class MusicSymbol:
         clef_type_offset = self.clef_type.offset()
         relative_offset = (position_in_staff - self.position_in_staff)
         note_name = NoteName((clef_type_offset + 49 + MusicSymbolPositionInStaff.LINE_2 + relative_offset) % 7)
-        octave = 4 + (clef_type_offset + MusicSymbolPositionInStaff.LINE_1 + relative_offset) // 7
+        octave = 5 + (clef_type_offset + MusicSymbolPositionInStaff.LINE_1 + relative_offset) // 7
         octave = octave - 1 if self.clef_type == self.clef_type.F else octave
         return note_name, octave
+
+    def update_note_sequence_confidence(self, previous_symbols: List['MusicSymbol'], setting, token_length):
+        confidence = setting.get_symbol_sequence_confidence(prev_Symbols=previous_symbols,
+                                                            target_symbol=self)
+        s_sequence_confidence = SymbolSequenceConfidence(confidence=confidence, token_length=token_length)
+        error_type = None
+        if confidence < 0.02:
+            error_type = SymbolErrorType.SEQUENCE
+        self.symbol_confidence = SymbolConfidence(symbol_sequence_confidence=s_sequence_confidence,
+                                                  symbol_prediction_confidence=self.symbol_confidence.
+                                                  symbol_prediction_confidence,
+                                                  symbol_error_type=error_type)
+
+        # print(self.symbol_confidence.symbol_sequence_confidence.confidence)
 
 
 def create_clef(

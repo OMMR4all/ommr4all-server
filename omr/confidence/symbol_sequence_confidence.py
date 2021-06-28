@@ -1,6 +1,7 @@
 import os
 from enum import IntEnum
 from typing import List
+from ommr4all.settings import BASE_DIR
 
 from database.file_formats.pcgts import MusicSymbol, SymbolType, NoteName
 
@@ -11,8 +12,8 @@ class ConfidenceData:
         self.target: MusicSymbol = target
 
     def __hash__(self):
-        total_string = "".join(f"{symbol.note_name}{symbol.octave}" for symbol in
-                               self.token) + f"{self.target.note_name}{self.target.octave}"
+        total_string = "".join(f"{symbol.note_name.name}{symbol.octave}" for symbol in
+                               self.token) + f"{self.target.note_name.name}{self.target.octave}"
         return hash(total_string)
 
     def __eq__(self, other):
@@ -27,6 +28,11 @@ class ConfidenceData:
 
         return ConfidenceData(tokens, targets)
 
+    def to_string(self):
+        total_string = "".join(f"{symbol.note_name.name}{symbol.octave}" for symbol in
+                               self.token) + f"{self.target.note_name.name}{self.target.octave}"
+        return total_string
+
 
 def parse_data(path):
     from openpyxl import load_workbook
@@ -39,14 +45,15 @@ def parse_data(path):
     for ind, row in enumerate(ws.values):
         for col_ind, value in enumerate(row):
             if ind == 0:
-                if value != "Token":
-                    target.append(value.strip())
+                target.append(value.strip())
             else:
                 if col_ind == 0:
                     current_token = value
                 else:
-                    key = ConfidenceData.from_string(current_token.replace(" ", ""), target[col_ind - 1])
-                    look_up_table[key] = value
+                    target_token = target[col_ind]
+                    if len(target_token) == 2:
+                        key = ConfidenceData.from_string(current_token.replace(" ", ""), target[col_ind]).to_string()
+                        look_up_table[key] = value
     return look_up_table
 
 
@@ -79,10 +86,10 @@ class SequenceSetting(IntEnum):
                                 os.path.join(b_dir, 'Note_4Gram_Table.pickle')][self.value])
 
     def get_token_length(self):
-        return[1, 2, 3, 4][self.value]
+        return [1, 2, 3, 4][self.value]
 
 
-class SymbolSequenceConfidence:
+class SymbolSequenceConfidenceLookUp:
     def __init__(self, setting: SequenceSetting = SequenceSetting.NOTE_4GRAM):
         self.setting = setting
         self.look_up = None
@@ -92,7 +99,12 @@ class SymbolSequenceConfidence:
             self.look_up = self.setting.get_look_up()
 
     def get_symbol_sequence_confidence(self, prev_Symbols: List[MusicSymbol], target_symbol: MusicSymbol):
-        return self.look_up[ConfidenceData(prev_Symbols, target=target_symbol)]
+        # print(self.look_up)
+        # print(ConfidenceData(prev_Symbols, target=target_symbol).to_string())
+        try:
+            return self.look_up[ConfidenceData(prev_Symbols, target=target_symbol).to_string()]
+        except:
+            return 0
 
 
 if __name__ == "__main__":
@@ -102,8 +114,10 @@ if __name__ == "__main__":
 
     # path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'ExcelTables', 'Notes', 'Note_1Gram_Table.xlsx')
     # parse_data(path=path)
-    a = SymbolSequenceConfidence(SequenceSetting.NOTE_3GRAM)
+    a = SymbolSequenceConfidenceLookUp(SequenceSetting.NOTE_3GRAM)
     import pickle
+
     with open(os.path.join(b_dir, 'Note_3Gram_Table.pickle'), 'wb') as file:
         pickle.dump(a, file, protocol=pickle.HIGHEST_PROTOCOL)
+        pass
     pass

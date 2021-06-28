@@ -1,11 +1,13 @@
 import os
 
+from database.file_formats.pcgts.page import SymbolErrorType
+
 if __name__ == '__main__':
     import django
 
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
-from omr.confidence.symbol_sequence_confidence import SequenceSetting, SymbolSequenceConfidence
+from omr.confidence.symbol_sequence_confidence import SequenceSetting, SymbolSequenceConfidenceLookUp
 
 from typing import List, Optional, Generator
 from ocr4all_pixel_classifier.lib.predictor import Predictor, PredictSettings
@@ -52,6 +54,18 @@ def render_prediction_labels(labels, img=None):
     return out.clip(0, 255).astype(np.uint8)
 
 
+def filter_unique_symbols_by_coord(symbol_list1: List[MusicSymbol], symbol_list2: List[MusicSymbol], max_distance=0.00001):
+    symbol_list = []
+    for x in symbol_list2:
+        for y in symbol_list1:
+            if x.coord.distance_sqr(y.coord) < max_distance:
+                break
+        else:
+            x.symbol_confidence.symbol_error_type = SymbolErrorType.SEGMENTATION
+            symbol_list.append(x)
+    return symbol_list
+
+
 class PCPredictor(SymbolsPredictor):
     @staticmethod
     def meta() -> Meta.__class__:
@@ -64,6 +78,7 @@ class PCPredictor(SymbolsPredictor):
             network=os.path.join(settings.model.local_file('model.h5'))
         )
         self.predictor = Predictor(settings)
+        self.look_up = SymbolSequenceConfidenceLookUp(SequenceSetting.NOTE_3GRAM)
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[
         SingleLinePredictionResult, None, None]:
@@ -72,6 +87,10 @@ class PCPredictor(SymbolsPredictor):
             m: RegionLineMaskData = p.data.user_data
             symbols = SingleLinePredictionResult(self.extract_symbols(p.probabilities, p.labels, m, dataset),
                                                  p.data.user_data)
+            additional_symbols = filter_unique_symbols_by_coord(symbols.symbols, self.extract_symbols(p.probabilities, p.labels, m, dataset,
+                                                      probability=0.8))
+            symbols2 = SingleLinePredictionResult(additional_symbols,
+                                                  p.data.user_data)
             if False:
                 from shared.pcgtscanvas import PcGtsCanvas
                 canvas = PcGtsCanvas(m.operation.page, PageScaleReference.NORMALIZED_X2)
@@ -89,12 +108,12 @@ class PCPredictor(SymbolsPredictor):
                 ax[3].imshow((p.probabilities[:, :, 0] <= 0.8) * (1 + np.argmax(p.probabilities[:, :, 1:], axis=-1)))
                 ax[4].imshow(render_prediction_labels(p.data.mask, p.data.image))
                 plt.show()
-            yield symbols
+            yield symbols, symbols2
 
     def extract_symbols(self, probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
-                        dataset: SymbolDetectionDataset) -> List[MusicSymbol]:
+                        dataset: SymbolDetectionDataset, probability=0.5) -> List[MusicSymbol]:
         # n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(((probs[:, :, 0] < 0.5) | (p > 0)).astype(np.uint8))
-        p = (np.argmax(probs[:, :, 1:], axis=-1) + 1) * (probs[:, :, 0] < 0.5)
+        p = (np.argmax(probs[:, :, 1:], axis=-1) + 1) * (probs[:, :, 0] < probability)
         n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
         symbols = []
         sorted_labels = sorted(range(1, n_labels), key=lambda i: (centroids[i, 0], -centroids[i, 1]))
@@ -158,11 +177,14 @@ class PCPredictor(SymbolsPredictor):
                 symbols.append(create_clef(ClefType.F, coord=coord, position_in_staff=position_in_staff,
                                            confidence=SymbolConfidence(symbol_pred, None)))
             elif label == SymbolLabel.ACCID_FLAT:
-                symbols.append(create_accid(AccidType.FLAT, coord=coord, confidence=SymbolConfidence(symbol_pred, None)))
+                symbols.append(
+                    create_accid(AccidType.FLAT, coord=coord, confidence=SymbolConfidence(symbol_pred, None)))
             elif label == SymbolLabel.ACCID_SHARP:
-                symbols.append(create_accid(AccidType.SHARP, coord=coord, confidence=SymbolConfidence(symbol_pred, None)))
+                symbols.append(
+                    create_accid(AccidType.SHARP, coord=coord, confidence=SymbolConfidence(symbol_pred, None)))
             elif label == SymbolLabel.ACCID_NATURAL:
-                symbols.append(create_accid(AccidType.NATURAL, coord=coord, confidence=SymbolConfidence(symbol_pred, None)))
+                symbols.append(
+                    create_accid(AccidType.NATURAL, coord=coord, confidence=SymbolConfidence(symbol_pred, None)))
             else:
                 raise Exception("Unknown label {} during decoding".format(label))
             pass
@@ -178,8 +200,10 @@ class PCPredictor(SymbolsPredictor):
             ax[4].imshow(cc, cmap='gist_ncar_r')
             plt.show()
         line = Line(symbols=symbols)
-        line.update_sequence_confidence(SymbolSequenceConfidence(SequenceSetting.NOTE_3GRAM))
-        return line.symbols
+        line.update_sequence_confidence(self.look_up)
+        symbols = line.symbols
+
+        return symbols
 
 
 if __name__ == '__main__':

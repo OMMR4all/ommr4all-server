@@ -24,13 +24,17 @@ class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=Predicti
     pcgts: PcGts
     dataset_page: DatabasePage
     music_lines: List[SingleLinePredictionResult]
+    debug_music_lines: List[SingleLinePredictionResult]
 
     def to_dict(self):
-        return {'musicLines': [l.to_dict() for l in self.music_lines]}
+        return {'musicLines': [l.to_dict() for l in self.music_lines],
+                'debugSymbols': [l.to_dict() for l in self.debug_music_lines]}
 
     def store_to_page(self):
         for line in self.music_lines:
             line.line.operation.music_line.symbols = line.symbols
+        for line in self.debug_music_lines:
+            line.line.operation.music_line.additional_symbols = line.symbols
 
         self.pcgts.page.annotations.connections.clear()
         self.pcgts.to_file(self.dataset_page.file('pcgts').local_path())
@@ -46,10 +50,19 @@ class SymbolsPredictor(AlgorithmPredictor, ABC):
 
     def predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
         pcgts_files = [p.pcgts() for p in pages]
-        page_results = [PredictionResult(pcgts, pcgts.page.location, []) for pcgts in pcgts_files]
+        page_results = [PredictionResult(pcgts, pcgts.page.location, [], []) for pcgts in pcgts_files]
         for line_results in self._predict(pcgts_files, callback):
-            page_result = [p for p in page_results if p.pcgts == line_results.line.operation.pcgts][0]
-            page_result.music_lines.append(line_results)
+            if isinstance(line_results, SingleLinePredictionResult):
+                page_result = [p for p in page_results if p.pcgts == line_results.line.operation.pcgts][0]
+                page_result.music_lines.append(line_results)
+            else:
+                if len(line_results) == 2:
+                    line_results_symbols = line_results[0]
+                    page_result = [p for p in page_results if p.pcgts == line_results_symbols.line.operation.pcgts][0]
+                    page_result.music_lines.append(line_results_symbols)
+                    line_results_symbols = line_results[1]
+                    page_result = [p for p in page_results if p.pcgts == line_results_symbols.line.operation.pcgts][0]
+                    page_result.debug_music_lines.append(line_results_symbols)
 
         for page_result in page_results:
             if False:
