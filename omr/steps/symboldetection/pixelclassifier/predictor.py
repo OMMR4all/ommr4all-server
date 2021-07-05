@@ -1,13 +1,13 @@
 import os
 
 from database.file_formats.pcgts.page import SymbolErrorType
+from omr.confidence.symbol_sequence_confidence import SymbolSequenceConfidenceLookUp, SequenceSetting
 
 if __name__ == '__main__':
     import django
 
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
-from omr.confidence.symbol_sequence_confidence import SequenceSetting, SymbolSequenceConfidenceLookUp
 
 from typing import List, Optional, Generator
 from ocr4all_pixel_classifier.lib.predictor import Predictor, PredictSettings
@@ -54,7 +54,8 @@ def render_prediction_labels(labels, img=None):
     return out.clip(0, 255).astype(np.uint8)
 
 
-def filter_unique_symbols_by_coord(symbol_list1: List[MusicSymbol], symbol_list2: List[MusicSymbol], max_distance=0.00001):
+def filter_unique_symbols_by_coord(symbol_list1: List[MusicSymbol], symbol_list2: List[MusicSymbol],
+                                   max_distance=0.00001):
     symbol_list = []
     for x in symbol_list2:
         for y in symbol_list1:
@@ -87,8 +88,10 @@ class PCPredictor(SymbolsPredictor):
             m: RegionLineMaskData = p.data.user_data
             symbols = SingleLinePredictionResult(self.extract_symbols(p.probabilities, p.labels, m, dataset),
                                                  p.data.user_data)
-            additional_symbols = filter_unique_symbols_by_coord(symbols.symbols, self.extract_symbols(p.probabilities, p.labels, m, dataset,
-                                                      probability=0.8))
+            additional_symbols = filter_unique_symbols_by_coord(symbols.symbols,
+                                                                self.extract_symbols(p.probabilities, p.labels, m,
+                                                                                     dataset,
+                                                                                     probability=0.8))
             symbols2 = SingleLinePredictionResult(additional_symbols,
                                                   p.data.user_data)
             if False:
@@ -136,7 +139,6 @@ class PCPredictor(SymbolsPredictor):
 
             label = SymbolLabel(int(np.argmax([np.sum(area == v + 1) for v in range(len(SymbolLabel) - 1)])) + 1)
             centroids_canvas[int(np.round(c.y)), int(np.round(c.x))] = label
-            position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
 
             # confidences
             indexes_of_cc = np.where(cc == i)
@@ -145,6 +147,8 @@ class PCPredictor(SymbolsPredictor):
             avg_prob_cc = np.mean(probs_of_cc, axis=0)
             symbol_pred = SymbolPredictionConfidence(*avg_prob_cc.tolist())
             if label == SymbolLabel.NOTE_START:
+                position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
+
                 symbols.append(MusicSymbol(
                     symbol_type=SymbolType.NOTE,
                     coord=coord,
@@ -153,6 +157,8 @@ class PCPredictor(SymbolsPredictor):
                     confidence=SymbolConfidence(symbol_pred, None)
                 ))
             elif label == SymbolLabel.NOTE_GAPPED:
+                position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
+
                 symbols.append(MusicSymbol(
                     symbol_type=SymbolType.NOTE,
                     coord=coord,
@@ -162,6 +168,8 @@ class PCPredictor(SymbolsPredictor):
 
                 ))
             elif label == SymbolLabel.NOTE_LOOPED:
+                position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
+
                 symbols.append(MusicSymbol(
                     symbol_type=SymbolType.NOTE,
                     coord=coord,
@@ -171,9 +179,11 @@ class PCPredictor(SymbolsPredictor):
 
                 ))
             elif label == SymbolLabel.CLEF_C:
+                position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=True)
                 symbols.append(create_clef(ClefType.C, coord=coord, position_in_staff=position_in_staff,
                                            confidence=SymbolConfidence(symbol_pred, None)))
             elif label == SymbolLabel.CLEF_F:
+                position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=True)
                 symbols.append(create_clef(ClefType.F, coord=coord, position_in_staff=position_in_staff,
                                            confidence=SymbolConfidence(symbol_pred, None)))
             elif label == SymbolLabel.ACCID_FLAT:

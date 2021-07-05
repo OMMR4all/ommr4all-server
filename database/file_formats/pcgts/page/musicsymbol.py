@@ -186,7 +186,8 @@ class SymbolConfidence:
         return SymbolConfidence(
             SymbolPredictionConfidence.from_json(d.get('symbolPredictionConfidence', None)),
             SymbolSequenceConfidence.from_json(d.get('symbolSequenceConfidence', None)),
-            optional_enum(d, 'symbolErrorType', SymbolErrorType, None) if d.get('symbolErrorType') is not None else None,
+            optional_enum(d, 'symbolErrorType', SymbolErrorType, None) if d.get(
+                'symbolErrorType') is not None else None,
 
         ) if d else SymbolConfidence()
 
@@ -284,12 +285,13 @@ class MusicSymbol:
         octave = octave - 1 if self.clef_type == self.clef_type.F else octave
         return note_name, octave
 
-    def update_note_sequence_confidence(self, previous_symbols: List['MusicSymbol'], setting, token_length):
+    def update_note_sequence_confidence(self, previous_symbols: List['MusicSymbol'], setting, token_length,
+                                        confidence_factor=0.02):
         confidence = setting.get_symbol_sequence_confidence(prev_Symbols=previous_symbols,
                                                             target_symbol=self)
         s_sequence_confidence = SymbolSequenceConfidence(confidence=confidence, token_length=token_length)
         error_type = None
-        if confidence < 0.02:
+        if confidence < confidence_factor:
             error_type = SymbolErrorType.SEQUENCE
         self.symbol_confidence = SymbolConfidence(symbol_sequence_confidence=s_sequence_confidence,
                                                   symbol_prediction_confidence=self.symbol_confidence.

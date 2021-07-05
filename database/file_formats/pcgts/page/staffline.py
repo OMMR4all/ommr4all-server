@@ -74,17 +74,17 @@ class StaffLine:
         # lines
         line = np.zeros(gray.shape)
         self.draw(line, color=(255,), thickness=2, offset=(2 * offset, 2 * offset))
-        target = gray[top-offset:bot+offset, left:right]
+        target = gray[top - offset:bot + offset, left:right]
         search = line[top:bot, left:right]
 
-        fit = [np.mean(target[i:i+bot-top, :] * search) for i in range(offset * 2)]
+        fit = [np.mean(target[i:i + bot - top, :] * search) for i in range(offset * 2)]
         shift = np.argmin(fit) - offset
         self.coords.points[:, 1] += shift
 
         # debug output
         if debug:
             import matplotlib.pyplot as plt
-            sub_imgs = [target[i:i+bot-top, :] * search for i in range(offset * 2)]
+            sub_imgs = [target[i:i + bot - top, :] * search for i in range(offset * 2)]
             f, ax = plt.subplots(len(sub_imgs), 1)
             for a, si in zip(ax, sub_imgs):
                 a.imshow(si)
@@ -118,8 +118,8 @@ class StaffLines(List[StaffLine]):
     def sorted(self):
         return StaffLines(sorted(self, key=lambda s: s.center_y()))
 
-    def compute_position_in_staff(self, coord: Point) -> MusicSymbolPositionInStaff:
-        return self.position_in_staff(coord)
+    def compute_position_in_staff(self, coord: Point, clef=False) -> MusicSymbolPositionInStaff:
+        return self.position_in_staff(coord, clef)
 
     def compute_coord_by_position_in_staff(self, x: float, pis: MusicSymbolPositionInStaff) -> Point:
         line = pis.value - MusicSymbolPositionInStaff.LINE_1
@@ -130,7 +130,8 @@ class StaffLines(List[StaffLine]):
         elif line % 2 == 0:
             return Point(x, self[len(self) - 1 - line // 2].interpolate_y(x))
         else:
-            return Point(x, (self[len(self) - 1 - line // 2].interpolate_y(x) + self[len(self) - line // 2 - 2].interpolate_y(x)) / 2)
+            return Point(x, (self[len(self) - 1 - line // 2].interpolate_y(x) + self[
+                len(self) - line // 2 - 2].interpolate_y(x)) / 2)
 
     def avg_line_distance(self, default=-1):
         if len(self) <= 1:
@@ -157,7 +158,7 @@ class StaffLines(List[StaffLine]):
     @staticmethod
     def _interp_staff_pos(y: float, top: float, bot: float, top_space: bool, bot_space: bool,
                           top_pos: MusicSymbolPositionInStaff, bot_pos: MusicSymbolPositionInStaff,
-                          offset: int) -> Tuple[float, MusicSymbolPositionInStaff]:
+                          offset: int, clef=False) -> Tuple[float, MusicSymbolPositionInStaff]:
         ld = bot - top
         if top_space and not bot_space:
             top -= ld
@@ -178,14 +179,19 @@ class StaffLines(List[StaffLine]):
                 top_pos -= 1
                 top_pos = bot_pos + 2
 
-        d = y -top
+        d = y - top
         rel = d / (bot - top)
         snapped = -offset + StaffLines._round_to_staff_pos(2 * rel)
+        pis = int(top_pos - snapped)
+        if clef:
+            if pis % 2 != 1:
+                pis = pis + 1
+
         return top + snapped * (bot - top) / 2, \
                MusicSymbolPositionInStaff(max(MusicSymbolPositionInStaff.SPACE_0,
-                                              min(MusicSymbolPositionInStaff.SPACE_7, int(top_pos - snapped))))
+                                              min(MusicSymbolPositionInStaff.SPACE_7, pis)))
 
-    def _staff_pos(self, p: Point, offset: int = 0) -> Tuple[float, MusicSymbolPositionInStaff]:
+    def _staff_pos(self, p: Point, offset: int = 0, clef=False) -> Tuple[float, MusicSymbolPositionInStaff]:
         @dataclass
         class StaffPos:
             line: StaffLine
@@ -197,9 +203,11 @@ class StaffLines(List[StaffLine]):
 
         y_on_staff: List[StaffPos] = []
         for staffLine in self.sorted():
-            y_on_staff.append(StaffPos(staffLine, staffLine.coords.interpolate_y(p.x), MusicSymbolPositionInStaff.UNDEFINED))
+            y_on_staff.append(
+                StaffPos(staffLine, staffLine.coords.interpolate_y(p.x), MusicSymbolPositionInStaff.UNDEFINED))
 
-        y_on_staff[-1].pos = MusicSymbolPositionInStaff.SPACE_1 if y_on_staff[-1].line.space else MusicSymbolPositionInStaff.LINE_1
+        y_on_staff[-1].pos = MusicSymbolPositionInStaff.SPACE_1 if y_on_staff[
+            -1].line.space else MusicSymbolPositionInStaff.LINE_1
         for i in reversed(range(0, len(y_on_staff) - 1)):
             if y_on_staff[i + 1].line.space == y_on_staff[i].line.space:
                 y_on_staff[i].pos = y_on_staff[i + 1].pos + 2
@@ -222,10 +230,11 @@ class StaffLines(List[StaffLine]):
             last = y_on_staff[pre_line_idx]
             prev = y_on_staff[pre_line_idx - 1]
 
-        return StaffLines._interp_staff_pos(p.y, prev.y, last.y, prev.line.space, last.line.space, prev.pos, last.pos, offset)
+        return StaffLines._interp_staff_pos(p.y, prev.y, last.y, prev.line.space, last.line.space, prev.pos, last.pos,
+                                            offset, clef)
 
-    def position_in_staff(self, p: Point) -> MusicSymbolPositionInStaff:
-        return self._staff_pos(p)[1]
+    def position_in_staff(self, p: Point, clef=False) -> MusicSymbolPositionInStaff:
+        return self._staff_pos(p, clef=clef)[1]
 
     def snap_to_pos(self, p: Point, offset: int = 0) -> float:
         return self._staff_pos(p, offset)[0]

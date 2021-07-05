@@ -144,8 +144,8 @@ class Line(Region):
     def draw(self, canvas, color=(0, 255, 0), thickness=1, scale=None):
         self.staff_lines.draw(canvas, color, thickness, scale)
 
-    def compute_position_in_staff(self, coord: Point) -> MusicSymbolPositionInStaff:
-        return self.staff_lines.compute_position_in_staff(coord)
+    def compute_position_in_staff(self, coord: Point, clef=False) -> MusicSymbolPositionInStaff:
+        return self.staff_lines.compute_position_in_staff(coord, clef)
 
     def update_note_names(self, initial_clef: MusicSymbol = None):
         current_clef = initial_clef if initial_clef else create_clef(ClefType.F,
@@ -167,17 +167,17 @@ class Line(Region):
         setting: SymbolSequenceConfidenceLookUp = setting  # Avoid Importloop
         self.update_note_names()
         token_length = setting.setting.get_token_length()
-        #print(setting.look_up)
+        # print(setting.look_up)
         for ind, symbol in enumerate(self.symbols):
             if ind >= token_length:
-
-                symbol.update_note_sequence_confidence(self.symbols[ind - token_length:ind], setting, token_length=token_length)
-                #confidence = setting.get_symbol_sequence_confidence(prev_Symbols=self.symbols[ind - token_length:ind],
+                symbol.update_note_sequence_confidence(self.symbols[ind - token_length:ind], setting,
+                                                       token_length=token_length)
+                # confidence = setting.get_symbol_sequence_confidence(prev_Symbols=self.symbols[ind - token_length:ind],
                 #                                                    target_symbol=symbol)
-                #print(confidence)
-                #s_sequence_confidence = SymbolSequenceConfidence(confidence=confidence, token_length=token_length )
-                #self.symbols[ind].symbol_confidence.symbol_sequence_confidence = s_sequence_confidence
-                #print(self.symbols[ind].symbol_confidence.symbol_sequence_confidence.confidence)
+                # print(confidence)
+                # s_sequence_confidence = SymbolSequenceConfidence(confidence=confidence, token_length=token_length )
+                # self.symbols[ind].symbol_confidence.symbol_sequence_confidence = s_sequence_confidence
+                # print(self.symbols[ind].symbol_confidence.symbol_sequence_confidence.confidence)
 
     def fix_start_of_neumes(self):
         last_no_note = True

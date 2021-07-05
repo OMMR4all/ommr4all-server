@@ -107,6 +107,13 @@ class SymbolSequenceConfidenceLookUp:
             return 0
 
 
+#SequenceLookUp = {
+#    SequenceSetting.NOTE_1GRAM: SymbolSequenceConfidenceLookUp(SequenceSetting.NOTE_1GRAM),
+#    SequenceSetting.NOTE_2GRAM: SymbolSequenceConfidenceLookUp(SequenceSetting.NOTE_2GRAM),
+#    SequenceSetting.NOTE_3GRAM: SymbolSequenceConfidenceLookUp(SequenceSetting.NOTE_3GRAM),
+#    SequenceSetting.NOTE_4GRAM: SymbolSequenceConfidenceLookUp(SequenceSetting.NOTE_4GRAM)
+#}
+
 if __name__ == "__main__":
     from ommr4all.settings import BASE_DIR
 
@@ -114,10 +121,10 @@ if __name__ == "__main__":
 
     # path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'ExcelTables', 'Notes', 'Note_1Gram_Table.xlsx')
     # parse_data(path=path)
-    a = SymbolSequenceConfidenceLookUp(SequenceSetting.NOTE_3GRAM)
+    a = SymbolSequenceConfidenceLookUp(SequenceSetting.NOTE_4GRAM)
     import pickle
 
-    with open(os.path.join(b_dir, 'Note_3Gram_Table.pickle'), 'wb') as file:
+    with open(os.path.join(b_dir, 'Note_4Gram_Table.pickle'), 'wb') as file:
         pickle.dump(a, file, protocol=pickle.HIGHEST_PROTOCOL)
         pass
     pass
