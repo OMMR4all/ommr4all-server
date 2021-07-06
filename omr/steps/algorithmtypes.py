@@ -21,6 +21,7 @@ class AlgorithmTypes(Enum):
 
     # Tools
     LAYOUT_CONNECTED_COMPONENTS_SELECTION = "layout_connected_components_selection"
+    SYMBOLS_SEQUENCE_CONFIDENCE_CALCULATOR = "symbol_sequence_confidence_calculator"
 
     def group(self) -> 'AlgorithmGroups':
         return [k for k, v in AlgorithmGroups.group_types_mapping().items() if self in v][0]

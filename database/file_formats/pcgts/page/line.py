@@ -1,15 +1,18 @@
 from typing import List, Optional
+
+from omr.util import PerformanceCounter
 from .region import Region, Coords
 from .definitions import BlockType
 from .coords import Point
 from .sentence import Sentence
 from .staffline import StaffLines
 from .musicsymbol import MusicSymbol, MusicSymbolPositionInStaff, create_clef, ClefType, SymbolType, \
-    GraphicalConnectionType
+    GraphicalConnectionType, SymbolSequenceConfidence
 from uuid import uuid4
 
 
 class Line(Region):
+
     def __init__(self,
                  id: Optional[str] = None,
                  coords: Optional[Coords] = None,
@@ -19,6 +22,8 @@ class Line(Region):
 
                  staff_lines: StaffLines = None,
                  symbols: List[MusicSymbol] = None,
+
+                 additional_symbols: List[MusicSymbol] = None,
                  ):
         # general
         self.reconstructed = reconstructed
@@ -29,6 +34,7 @@ class Line(Region):
         # music line
         self.staff_lines = staff_lines if staff_lines else StaffLines()
         self.symbols: List[MusicSymbol] = symbols if symbols else []
+        self.additional_symbols: List[MusicSymbol] = additional_symbols if additional_symbols else []
 
         # init parent
         super().__init__(id, coords)
@@ -47,7 +53,9 @@ class Line(Region):
             d.get('reconstructed', False),
             Sentence.from_json(d.get('sentence', {})),
             StaffLines.from_json(d.get('staffLines', [])),
-            [MusicSymbol.from_json(s) for s in d.get('symbols', [])]
+            [MusicSymbol.from_json(s) for s in d.get('symbols', [])],
+            [MusicSymbol.from_json(s) for s in d.get('additionalSymbols', [])]
+
         )
 
     def to_json(self, block_type: Optional[BlockType] = None) -> dict:
@@ -61,6 +69,8 @@ class Line(Region):
         if block_type == BlockType.MUSIC:
             d['staffLines'] = self.staff_lines.to_json()
             d['symbols'] = [s.to_json() for s in self.symbols]
+            d['additionalSymbols'] = [s.to_json() for s in self.additional_symbols]
+
         elif block_type is not None:
             # text block
             d['sentence'] = self.sentence.to_json()
@@ -131,16 +141,15 @@ class Line(Region):
 
         return last
 
-
-
     def draw(self, canvas, color=(0, 255, 0), thickness=1, scale=None):
         self.staff_lines.draw(canvas, color, thickness, scale)
 
-    def compute_position_in_staff(self, coord: Point) -> MusicSymbolPositionInStaff:
-        return self.staff_lines.compute_position_in_staff(coord)
+    def compute_position_in_staff(self, coord: Point, clef=False) -> MusicSymbolPositionInStaff:
+        return self.staff_lines.compute_position_in_staff(coord, clef)
 
     def update_note_names(self, initial_clef: MusicSymbol = None):
-        current_clef = initial_clef if initial_clef else create_clef(ClefType.F, position_in_staff=MusicSymbolPositionInStaff.LINE_0)
+        current_clef = initial_clef if initial_clef else create_clef(ClefType.F,
+                                                                     position_in_staff=MusicSymbolPositionInStaff.LINE_0)
 
         for s in self.symbols:
             if s.symbol_type == SymbolType.CLEF:
@@ -153,6 +162,23 @@ class Line(Region):
 
         return current_clef
 
+    def update_sequence_confidence(self, setting):
+        from omr.confidence.symbol_sequence_confidence import SymbolSequenceConfidenceLookUp
+        setting: SymbolSequenceConfidenceLookUp = setting  # Avoid Importloop
+        self.update_note_names()
+        token_length = setting.setting.get_token_length()
+        # print(setting.look_up)
+        for ind, symbol in enumerate(self.symbols):
+            if ind >= token_length:
+                symbol.update_note_sequence_confidence(self.symbols[ind - token_length:ind], setting,
+                                                       token_length=token_length)
+                # confidence = setting.get_symbol_sequence_confidence(prev_Symbols=self.symbols[ind - token_length:ind],
+                #                                                    target_symbol=symbol)
+                # print(confidence)
+                # s_sequence_confidence = SymbolSequenceConfidence(confidence=confidence, token_length=token_length )
+                # self.symbols[ind].symbol_confidence.symbol_sequence_confidence = s_sequence_confidence
+                # print(self.symbols[ind].symbol_confidence.symbol_sequence_confidence.confidence)
+
     def fix_start_of_neumes(self):
         last_no_note = True
         for s in self.symbols:
@@ -162,5 +188,3 @@ class Line(Region):
                 last_no_note = False
             else:
                 last_no_note = True
-
-

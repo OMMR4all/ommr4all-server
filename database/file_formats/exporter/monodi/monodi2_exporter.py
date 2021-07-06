@@ -468,8 +468,6 @@ class PcgtsToMonodiConverter:
                                 document_started = True
                             else:
                                 add_block(symbols)
-
-
                     else:
                         add_block(symbols)
                 else:

@@ -29,3 +29,4 @@ matplotlib
 six
 attrs
 requests
+openpyxl

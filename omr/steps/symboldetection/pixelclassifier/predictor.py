@@ -1,6 +1,11 @@
 import os
+
+from database.file_formats.pcgts.page import SymbolErrorType
+from omr.confidence.symbol_sequence_confidence import SymbolSequenceConfidenceLookUp, SequenceSetting
+
 if __name__ == '__main__':
     import django
+
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
 
@@ -19,7 +24,7 @@ from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePred
 
 def render_prediction_labels(labels, img=None):
     from shared.pcgtscanvas import PcGtsCanvas
-    out = np.zeros(labels.shape + (3, ), dtype=np.uint8)
+    out = np.zeros(labels.shape + (3,), dtype=np.uint8)
     if img is not None:
         out = np.stack((img,) * 3, axis=-1).astype(int)
 
@@ -39,14 +44,27 @@ def render_prediction_labels(labels, img=None):
     ]:
         c = PcGtsCanvas.color_for_music_symbol(i.to_music_symbol(), inverted=True, default_color=(255, 255, 255))
         if c != (0, 0, 0):
-            out[:,:,0] = np.where(labels == i, c[0], out[:,:,0])
-            out[:,:,1] = np.where(labels == i, c[1], out[:,:,1])
-            out[:,:,2] = np.where(labels == i, c[2], out[:,:,2])
+            out[:, :, 0] = np.where(labels == i, c[0], out[:, :, 0])
+            out[:, :, 1] = np.where(labels == i, c[1], out[:, :, 1])
+            out[:, :, 2] = np.where(labels == i, c[2], out[:, :, 2])
 
     # if img is not None:
-        # out = (out.astype(float) * np.stack((img,) * 3, axis=-1) / 255).astype(np.uint8)
+    # out = (out.astype(float) * np.stack((img,) * 3, axis=-1) / 255).astype(np.uint8)
 
     return out.clip(0, 255).astype(np.uint8)
+
+
+def filter_unique_symbols_by_coord(symbol_list1: List[MusicSymbol], symbol_list2: List[MusicSymbol],
+                                   max_distance=0.00001):
+    symbol_list = []
+    for x in symbol_list2:
+        for y in symbol_list1:
+            if x.coord.distance_sqr(y.coord) < max_distance:
+                break
+        else:
+            x.symbol_confidence.symbol_error_type = SymbolErrorType.SEGMENTATION
+            symbol_list.append(x)
+    return symbol_list
 
 
 class PCPredictor(SymbolsPredictor):
@@ -61,33 +79,44 @@ class PCPredictor(SymbolsPredictor):
             network=os.path.join(settings.model.local_file('model.h5'))
         )
         self.predictor = Predictor(settings)
+        self.look_up = SymbolSequenceConfidenceLookUp(SequenceSetting.NOTE_3GRAM)
 
-    def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[SingleLinePredictionResult, None, None]:
+    def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[
+        SingleLinePredictionResult, None, None]:
         dataset = SymbolDetectionDataset(pcgts_files, self.dataset_params)
         for p in self.predictor.predict(dataset.to_page_segmentation_dataset()):
             m: RegionLineMaskData = p.data.user_data
-            symbols = SingleLinePredictionResult(self.exract_symbols(p.probabilities, p.labels, m, dataset), p.data.user_data)
+            symbols = SingleLinePredictionResult(self.extract_symbols(p.probabilities, p.labels, m, dataset),
+                                                 p.data.user_data)
+            additional_symbols = filter_unique_symbols_by_coord(symbols.symbols,
+                                                                self.extract_symbols(p.probabilities, p.labels, m,
+                                                                                     dataset,
+                                                                                     probability=0.8))
+            symbols2 = SingleLinePredictionResult(additional_symbols,
+                                                  p.data.user_data)
             if False:
                 from shared.pcgtscanvas import PcGtsCanvas
                 canvas = PcGtsCanvas(m.operation.page, PageScaleReference.NORMALIZED_X2)
                 for s in symbols.symbols:
-                    s.coord = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(s.coord.x, s.position_in_staff)
+                    s.coord = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(s.coord.x,
+                                                                                                    s.position_in_staff)
                 canvas.draw(symbols.symbols, invert=True)
                 canvas.show()
             if False:
                 import matplotlib.pyplot as plt
                 f, ax = plt.subplots(5, 1, sharey='all', sharex='all')
-                ax[0].imshow(p.probabilities[:,:,0], vmin=0.0, vmax=1.0)
+                ax[0].imshow(p.probabilities[:, :, 0], vmin=0.0, vmax=1.0)
                 ax[1].imshow(p.data.image, vmin=0.0, vmax=255)
                 ax[2].imshow(render_prediction_labels(p.labels, p.data.image))
                 ax[3].imshow((p.probabilities[:, :, 0] <= 0.8) * (1 + np.argmax(p.probabilities[:, :, 1:], axis=-1)))
                 ax[4].imshow(render_prediction_labels(p.data.mask, p.data.image))
                 plt.show()
-            yield symbols
+            yield symbols, symbols2
 
-    def exract_symbols(self, probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData, dataset: SymbolDetectionDataset) -> List[MusicSymbol]:
+    def extract_symbols(self, probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
+                        dataset: SymbolDetectionDataset, probability=0.5) -> List[MusicSymbol]:
         # n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(((probs[:, :, 0] < 0.5) | (p > 0)).astype(np.uint8))
-        p = (np.argmax(probs[:,:,1:], axis=-1) + 1) * (probs[:,:,0] < 0.5)
+        p = (np.argmax(probs[:, :, 1:], axis=-1) + 1) * (probs[:, :, 0] < probability)
         n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
         symbols = []
         sorted_labels = sorted(range(1, n_labels), key=lambda i: (centroids[i, 0], -centroids[i, 1]))
@@ -103,46 +132,72 @@ class PCPredictor(SymbolsPredictor):
             c = Point(x=centroids[i, 0], y=centroids[i, 1])
             coord = dataset.local_to_global_pos(c, m.operation.params)
             coord = m.operation.page.image_to_page_scale(coord, m.operation.scale_reference)
-            #coord = coord.round().astype(int)
+            # coord = coord.round().astype(int)
 
-            # compute label this the label with the hightest frequency of the connected component
-            area = p[y:y+h, x:x+w] * (cc[y:y+h, x:x+w] == i)
+            # compute label this the label with the highest frequency of the connected component
+            area = p[y:y + h, x:x + w] * (cc[y:y + h, x:x + w] == i)
+
             label = SymbolLabel(int(np.argmax([np.sum(area == v + 1) for v in range(len(SymbolLabel) - 1)])) + 1)
             centroids_canvas[int(np.round(c.y)), int(np.round(c.x))] = label
-            position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
+
+            # confidences
+            indexes_of_cc = np.where(cc == i)
+            labels_of_cc = p[indexes_of_cc]
+            probs_of_cc = probs[indexes_of_cc]
+            avg_prob_cc = np.mean(probs_of_cc, axis=0)
+            symbol_pred = SymbolPredictionConfidence(*avg_prob_cc.tolist())
             if label == SymbolLabel.NOTE_START:
+                position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
+
                 symbols.append(MusicSymbol(
                     symbol_type=SymbolType.NOTE,
                     coord=coord,
                     position_in_staff=position_in_staff,
                     graphical_connection=GraphicalConnectionType.NEUME_START,
+                    confidence=SymbolConfidence(symbol_pred, None)
                 ))
             elif label == SymbolLabel.NOTE_GAPPED:
+                position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
+
                 symbols.append(MusicSymbol(
                     symbol_type=SymbolType.NOTE,
                     coord=coord,
                     position_in_staff=position_in_staff,
                     graphical_connection=GraphicalConnectionType.GAPED,
+                    confidence=SymbolConfidence(symbol_pred, None)
+
                 ))
             elif label == SymbolLabel.NOTE_LOOPED:
+                position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
+
                 symbols.append(MusicSymbol(
                     symbol_type=SymbolType.NOTE,
                     coord=coord,
                     position_in_staff=position_in_staff,
                     graphical_connection=GraphicalConnectionType.LOOPED,
+                    confidence=SymbolConfidence(symbol_pred, None)
+
                 ))
             elif label == SymbolLabel.CLEF_C:
-                symbols.append(create_clef(ClefType.C, coord=coord, position_in_staff=position_in_staff))
+                position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=True)
+                symbols.append(create_clef(ClefType.C, coord=coord, position_in_staff=position_in_staff,
+                                           confidence=SymbolConfidence(symbol_pred, None)))
             elif label == SymbolLabel.CLEF_F:
-                symbols.append(create_clef(ClefType.F, coord=coord, position_in_staff=position_in_staff))
+                position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=True)
+                symbols.append(create_clef(ClefType.F, coord=coord, position_in_staff=position_in_staff,
+                                           confidence=SymbolConfidence(symbol_pred, None)))
             elif label == SymbolLabel.ACCID_FLAT:
-                symbols.append(create_accid(AccidType.FLAT, coord=coord))
+                symbols.append(
+                    create_accid(AccidType.FLAT, coord=coord, confidence=SymbolConfidence(symbol_pred, None)))
             elif label == SymbolLabel.ACCID_SHARP:
-                symbols.append(create_accid(AccidType.SHARP, coord=coord))
+                symbols.append(
+                    create_accid(AccidType.SHARP, coord=coord, confidence=SymbolConfidence(symbol_pred, None)))
             elif label == SymbolLabel.ACCID_NATURAL:
-                symbols.append(create_accid(AccidType.NATURAL, coord=coord))
+                symbols.append(
+                    create_accid(AccidType.NATURAL, coord=coord, confidence=SymbolConfidence(symbol_pred, None)))
             else:
                 raise Exception("Unknown label {} during decoding".format(label))
+            pass
 
         if False:
             import matplotlib.pyplot as plt
@@ -154,25 +209,30 @@ class PCPredictor(SymbolsPredictor):
             ax[3].imshow(m.region, cmap='gray_r')
             ax[4].imshow(cc, cmap='gist_ncar_r')
             plt.show()
+        line = Line(symbols=symbols)
+        line.update_sequence_confidence(self.look_up)
+        symbols = line.symbols
 
         return symbols
 
 
 if __name__ == '__main__':
     from database import DatabaseBook
+
     b = DatabaseBook('Graduel_Fully_Annotated')
     val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[0:1]]
     pred = PCPredictor(AlgorithmPredictorSettings(Meta.best_model_for_book(b)))
     ps = list(pred.predict([p.page.location for p in val_pcgts]))
     import matplotlib.pyplot as plt
+
     orig = np.array(ps[0].music_lines[0].line.operation.page_image)
     for p in ps[0].music_lines:
         for s in p.symbols:
             if s.symbol_type == SymbolType.NOTE:
-                c = p.line.operation.page.page_to_image_scale(s.coord, ref=PageScaleReference.NORMALIZED_X2).round().astype(int)
+                c = p.line.operation.page.page_to_image_scale(s.coord,
+                                                              ref=PageScaleReference.NORMALIZED_X2).round().astype(int)
                 t, l = c.y, c.x
-                orig[t - 2:t + 2, l-2:l+2] = 255
+                orig[t - 2:t + 2, l - 2:l + 2] = 255
 
     plt.imshow(orig)
     plt.show()
-

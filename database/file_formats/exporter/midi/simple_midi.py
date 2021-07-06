@@ -157,6 +157,7 @@ class SimpleMidiExporter:
 
                     else:
                         add_note(mb.lines)
+
             else:
                 continue
             break
