@@ -149,11 +149,9 @@ class SimpleMidiExporter:
                             if line_id_end in line_ids:
                                 break
                         if page.p_id == document.start.page_id or document_started:
-                            if line_id_start in line_ids:
+                            if line_id_start in line_ids or document_started:
                                 add_note(mb.lines)
                                 document_started = True
-                            else:
-                                add_note(mb.lines)
 
                     else:
                         add_note(mb.lines)

@@ -463,11 +463,11 @@ class PcgtsToMonodiConverter:
                             if line_id_end in line_ids:
                                 break
                         if page.p_id == document.start.page_id or document_started:
-                            if line_id_start in line_ids:
+
+                            if line_id_start in line_ids or document_started:
                                 add_block(symbols)
                                 document_started = True
-                            else:
-                                add_block(symbols)
+
                     else:
                         add_block(symbols)
                 else:
