@@ -1,4 +1,6 @@
 from dataclasses import dataclass, field
+
+from database.file_formats.book.document import Document
 from database.model import Model, MetaId
 from mashumaro import DataClassJSONMixin
 from mashumaro.types import SerializableType
@@ -54,6 +56,8 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
     # tools
     # layout connected components
     initialLine: Optional['Coords'] = None
+
+    documentId: str = None
 
 
 @dataclass()

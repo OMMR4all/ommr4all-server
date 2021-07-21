@@ -131,6 +131,22 @@ class DocumentsMidiView(APIView):
         return Response(seq)
 
 
+class DocumentsSimilarityView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book, document):
+        book = DatabaseBook(book)
+        documents = DatabaseBookDocuments().load(book)
+        document: Document = documents.database_documents.get_document_by_id(document)
+        pages = [DatabasePage(book, x) for x in document.pages_names]
+        pcgts = [DatabaseFile(page, 'pcgts', create_if_not_existing=True).page.pcgts() for page in pages]
+        midi = SimpleMidiExporter(pcgts)
+        seq = midi.generate_note_sequence(document=document)
+
+        return Response(seq)
+
+
 class DocumentOdsView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 

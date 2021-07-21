@@ -15,6 +15,7 @@ class AlgorithmTypes(Enum):
     SYMBOLS_SEQUENCE_TO_SEQUENCE = 'symbols_sequence_to_sequence'
 
     OCR_CALAMARI = "text_calamari"
+    TEXT_DOCUMENT = "text_documents"
 
     SYLLABLES_FROM_TEXT = 'syllables_from_text'
     SYLLABLES_IN_ORDER = 'syllables_in_order'

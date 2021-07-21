@@ -1,7 +1,7 @@
 # output
 *models_out*
 storage_*
-
+internal_storage/resources/monodi_db*
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

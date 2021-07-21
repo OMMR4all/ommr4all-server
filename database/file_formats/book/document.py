@@ -4,6 +4,8 @@ import uuid
 
 import ezodf
 
+from database import DatabasePage
+
 
 class DocumentConnection:
     def __init__(self, page_id=None, page_name=None, line_id=None, row: int = None):
@@ -117,6 +119,20 @@ class Document:
         xlsx_data_bytes = output.getvalue()
         return xlsx_data_bytes
 
-    def get_pcgts_of_document(self, book):
-        for page in self.pages_names:
-            pass
+    def get_text_of_document(self, book):
+        text = ""
+        started = False
+        pages = [DatabasePage(book, x) for x in self.pages_names]
+        for page in pages:
+            for line in page.pcgts().page.all_text_lines():
+
+                if page.pcgts().page.p_id == self.end.page_id:
+                    if line.id == self.end.line_id:
+                        break
+                if line.id == self.start.line_id or started:
+                    started = True
+                    text += line.text() + " "
+            else:
+                continue
+            break
+        return text
