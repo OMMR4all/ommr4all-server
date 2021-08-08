@@ -17,7 +17,6 @@ from enum import Enum
 
 import json
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -52,9 +51,9 @@ class ImageInput(Enum):
 
 
 class LyricsNormalization(Enum):
-    SYLLABLES = 'syllables'     # a-le-lu-ya vir-ga
-    ONE_STRING = 'one_string'   # aleluyavirga
-    WORDS = 'words'             # aleluya virga
+    SYLLABLES = 'syllables'  # a-le-lu-ya vir-ga
+    ONE_STRING = 'one_string'  # aleluyavirga
+    WORDS = 'words'  # aleluya virga
 
 
 @dataclass
@@ -151,12 +150,13 @@ class Dataset(ABC):
     def to_page_segmentation_dataset(self, callback: Optional[DatasetCallback] = None):
         if self.params.origin_staff_line_distance == self.params.target_staff_line_distance:
             from ocr4all_pixel_classifier.lib.dataset import Dataset, SingleData
-            return Dataset([SingleData(image=d.line_image if self.params.image_input == ImageInput.LINE_IMAGE else d.region,
-                                       binary=((d.line_image < 125) * 255).astype(np.uint8),
-                                       mask=d.mask,
-                                       line_height_px=self.params.origin_staff_line_distance if self.params.origin_staff_line_distance is not None else d.operation.page.avg_staff_line_distance(),
-                                       original_shape=d.line_image.shape,
-                                       user_data=d) for d in self.load(callback)], {})
+            return Dataset(
+                [SingleData(image=d.line_image if self.params.image_input == ImageInput.LINE_IMAGE else d.region,
+                            binary=((d.line_image < 125) * 255).astype(np.uint8),
+                            mask=d.mask,
+                            line_height_px=self.params.origin_staff_line_distance if self.params.origin_staff_line_distance is not None else d.operation.page.avg_staff_line_distance(),
+                            original_shape=d.line_image.shape,
+                            user_data=d) for d in self.load(callback)], {})
         else:
             raise NotImplementedError()
 
@@ -169,15 +169,18 @@ class Dataset(ABC):
 
         def get_input_image(d: RegionLineMaskData):
             if self.params.cut_region:
-                return d.line_image.transpose()
+                return d.line_image
             elif self.params.masks_as_input:
                 hot = d.operation.images[3].image
                 hot[:, :, 0] = (d.line_image if self.params.cut_region else d.region)
                 return hot.transpose([1, 0, 2])
             else:
-                return d.region.transpose()
+                return d.region
 
         images = [get_input_image(d).astype(np.uint8) for d in marked_symbols]
+        from PIL import Image
+        for ind, i in enumerate(images):
+            Image.fromarray(i).save("/tmp/images/image_" + str(ind) + ".png")
         if self.params.neume_types_only:
             gts = [d.calamari_sequence(self.params.calamari_codec).calamari_neume_types_str for d in marked_symbols]
         else:
@@ -221,10 +224,8 @@ class Dataset(ABC):
             try:
                 input = ImageOperationData([], self.params.page_scale_reference, page=f.page, pcgts=f)
                 for outputs in self.image_ops.apply_single(input):
-
                     yield RegionLineMaskData(outputs)
             except (NoStaffsAvailable, NoStaffLinesAvailable):
                 pass
             except Exception as e:
                 logger.info("Exception during processing of page: {}".format(f.page.location.local_path()))
-

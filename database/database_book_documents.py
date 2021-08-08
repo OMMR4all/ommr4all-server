@@ -15,7 +15,7 @@ from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, Algorith
 from restapi.models.auth import RestAPIUser
 
 
-class DatabaseBookDocuments():
+class DatabaseBookDocuments:
     def __init__(self, b_id: str = None, monodi_id: int = None, name: str = '', created: datetime = datetime.now(),
                  creator: Optional[RestAPIUser] = None, database_documents: Documents = None):
         self.b_id = b_id

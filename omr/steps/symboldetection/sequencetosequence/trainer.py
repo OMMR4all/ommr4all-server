@@ -51,7 +51,7 @@ class OMRTrainer(SymbolDetectionTrainer):
     @staticmethod
     def force_dataset_params(params: DatasetParams):
         params.dewarp = True
-        params.center = True
+        params.center = True # Also inserts padding
         params.staff_lines_only = True
         params.pad_power_of_2 = False
         params.calamari_codec = CalamariCodec()
@@ -144,16 +144,16 @@ if __name__ == '__main__':
     import numpy as np
     random.seed(1)
     np.random.seed(1)
-    b = DatabaseBook('Graduel_Fully_Annotated')
+    b = DatabaseBook('Annotation___Square_Notation')
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
     train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.SYMBOLS, True), LockState(Locks.LAYOUT, True)], True, [b])
     dataset_params = DatasetParams(
         gt_required=True,
-        height=40,
+        height=128,
         dewarp=True,
         cut_region=False,
         pad=[0, 10, 0, 20],
-        center=True,
+        center=False,
         staff_lines_only=True,
         masks_as_input=False,
     )

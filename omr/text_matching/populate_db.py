@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from collections import defaultdict
 
@@ -6,6 +7,7 @@ from dataclasses import dataclass
 
 from database.file_formats.importer.mondodi.simple_import import simple_monodi_data_importer
 from omr.dataset.dataset import LyricsNormalizationProcessor, LyricsNormalizationParams, LyricsNormalization
+logger = logging.getLogger(__name__)
 
 
 def load_json(path):
@@ -72,7 +74,11 @@ class SimilarDocumentChecker:
         self.document_dict = {}
         self.document_path = {}
         self.text_normalizer = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.WORDS))
-        self.populate()
+        try:
+            self.populate()
+        except Exception as e:
+            logger.error("Could not Load Document Database")
+            logger.exception(e)
 
     def populate(self):
         for x in documents_gen():
@@ -100,24 +106,13 @@ if __name__ == "__main__":
 
     for x in documents_gen():
         b = load_json(x.document_meta)
-        # if b["dokumenten_id"] == "Pa 1235-253-1":
-        #
-        #    print("123")
         a = populate(x.data)
 
         document_meta[x.document_id] = b["dokumenten_id"]
         text = a.get_text(text_normalizer).split(" ")
-
-        # if b["dokumenten_id"] == "Pa 1235-253-1":
-        #    print(b)
-        #    print(text)
-
         populate_look_up_dict(text, x.document_id, word_dict)
         document_dict[x.document_id] = a
         document_path[x.document_id] = x
-
-        # print(x)
-        #    douo-ieo-si-seoein-ceor-ta-pe-ho-rib
 
     counter = check_word_based_similarity(["lux", "aduenit", "ueneranda", "lux", "in", "chrois"], word_dict)
     for key, count in counter.most_common(10):

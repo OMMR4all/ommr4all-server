@@ -78,6 +78,7 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
         gt = clean_text("".join([s.text for s in syls]))
         pred_txt = clean_text("".join([t for t, pos in pred]))
         sm = SequenceMatcher(a=pred_txt, b=gt, autojunk=False, isjunk=False)
+
         if debug:
             pt = PrettyTable(list(range(len(sm.get_opcodes()))))
             pt.add_row([gt[gt_start:gt_end] for _, _, _, gt_start, gt_end in sm.get_opcodes()])

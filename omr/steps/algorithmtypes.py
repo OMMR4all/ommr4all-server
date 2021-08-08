@@ -16,6 +16,7 @@ class AlgorithmTypes(Enum):
 
     OCR_CALAMARI = "text_calamari"
     TEXT_DOCUMENT = "text_documents"
+    TEXT_DOCUMENT_CORRECTOR = "text_documents_corrector"
 
     SYLLABLES_FROM_TEXT = 'syllables_from_text'
     SYLLABLES_IN_ORDER = 'syllables_in_order'

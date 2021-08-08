@@ -59,3 +59,4 @@ import omr.steps.text.calamari.meta
 import omr.steps.syllables.syllablesfromtext.meta
 import omr.steps.syllables.syllablesinorder.meta
 import omr.steps.text.correction_tools.document_matching_corrector.meta
+import omr.steps.text.correction_tools.document_corrector.meta

@@ -58,6 +58,7 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
     initialLine: Optional['Coords'] = None
 
     documentId: str = None
+    documentText: str = None
 
 
 @dataclass()
