@@ -22,6 +22,12 @@ class NoteType(IntEnum):
     LIQUESCENT_FOLLOWING_U = 3
     LIQUESCENT_FOLLOWING_D = 4
 
+    @staticmethod
+    def from_string(name: str):
+        for name1, member in NoteType.__members__.items():
+            if name1.lower() == name.lower():
+                return member
+        return None
 
 class GraphicalConnectionType(IntEnum):
     GAPED = 0
@@ -104,6 +110,12 @@ class AccidType(Enum):
     NATURAL = 'natural'
     SHARP = 'sharp'
 
+    @staticmethod
+    def from_string(name: str):
+        for name1, member in AccidType.__members__.items():
+            if name1.lower() == name.lower():
+                return member
+        return None
 
 class SymbolErrorType(IntEnum):
     SEQUENCE = 0

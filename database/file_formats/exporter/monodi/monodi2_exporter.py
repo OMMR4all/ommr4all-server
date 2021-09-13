@@ -286,12 +286,13 @@ RootContainer:
 
 
 class PcgtsToMonodiConverter:
-    def __init__(self, pcgts: List[ns_pcgts.PcGts], document: Document = None):
+    def __init__(self, pcgts: List[ns_pcgts.PcGts], document: Document = None, ignore_text= False):
         self.current_line_container: Optional[LineContainer] = None
         self.miscContainer = MiscContainer([])
         self.line_containers = self.miscContainer.children
         self.root = RootContainer([self.miscContainer])
         self.run(pcgts, document=document)
+        self.ignore_text = ignore_text
 
     def get_Monodi_json(self, document: Document, editor):
         doc = {"id": document.monody_id,
@@ -443,8 +444,8 @@ class PcgtsToMonodiConverter:
 
                     mr = element
                     connections = [c for c in p.page.annotations.connections if c.music_region == mr]
-                    if len(connections) == 0:
-                        continue
+                    #if len(connections) == 0:
+                    #    continue
 
                     symbols = []
                     for s in mr.lines:

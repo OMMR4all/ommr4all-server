@@ -10,7 +10,6 @@ import prettytable
 from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix, classification_report
 
-
 from omr.experimenter.experimenter import EvaluatorParams
 
 
@@ -26,8 +25,10 @@ class PRF2Metrics(IntEnum):
 
     COUNT = 8
 
+
 class SymbolDetectionEvaluatorParams(NamedTuple):
     symbol_detected_min_distance: int = 5
+
 
 class PRF2Index(IntEnum):
     P = 0
@@ -39,6 +40,7 @@ class PRF2Index(IntEnum):
     def __int__(self):
         return self.value
 
+
 class Counts(IntEnum):
     TP = 0
     FP = 1
@@ -48,6 +50,7 @@ class Counts(IntEnum):
 
     def __int__(self):
         return self.value
+
 
 class AccCounts(IntEnum):
     TRUE = 0
@@ -59,10 +62,12 @@ class AccCounts(IntEnum):
     def __int__(self):
         return self.value
 
+
 class ConnectionCounter(NamedTuple):
     LOOPED = 0
     GAPED = 0
     NEUMESTART = 0
+
 
 class ConfusionMatrix:
 
@@ -89,7 +94,8 @@ class ConfusionMatrix:
             gt_c, gt_s = best
             gt_s: MusicSymbol = gt_s
             y_true.append(str(gt_s.graphical_connection).split('GraphicalConnectionType.')[1]
-                          if gt_s.symbol_type == gt_s.symbol_type.NOTE else str(gt_s.symbol_type).split('SymbolType.')[1])
+                          if gt_s.symbol_type == gt_s.symbol_type.NOTE else str(gt_s.symbol_type).split('SymbolType.')[
+                1])
             y_pred.append(str(p_s.graphical_connection).split('GraphicalConnectionType.')[1]
                           if p_s.symbol_type == p_s.symbol_type.NOTE else str(p_s.symbol_type).split('SymbolType.')[1])
 
@@ -122,7 +128,7 @@ class ConfusionMatrix:
 
         for x in range(len(labels)):
             row = self.cf_matrix[x, :]
-            cf_matrix_display.add_column(str(labels[x]), list(row)+[np.sum(row)])
+            cf_matrix_display.add_column(str(labels[x]), list(row) + [np.sum(row)])
 
         c_sum = []
         for x in range(len(labels)):
@@ -131,6 +137,7 @@ class ConfusionMatrix:
         cf_matrix_display.add_column('SUM', c_sum + [np.sum(self.cf_matrix)])
 
         print(cf_matrix_display)
+
         def plot_confusion_matrix_pyplot(classes, cmap='Blues'):
             fig, ax = plt.subplots()
             im = ax.imshow(self.cf_matrix, interpolation='nearest', cmap=cmap)
@@ -163,6 +170,7 @@ class ConfusionMatrix:
             np.set_printoptions(precision=2)
             plot_confusion_matrix_pyplot(classes=labels)
             plt.show()
+
 
 def precision_recall_f1(tp, fp, fn) -> Tuple[float, float, float]:
     if tp == 0:
@@ -233,9 +241,29 @@ class Codec:
                 sequence.append((symbol.symbol_type, symbol.clef_type, symbol.position_in_staff))
             elif symbol.symbol_type == SymbolType.NOTE:
                 if note_connection_type:
-                    sequence.append((symbol.symbol_type, symbol.note_type, symbol.position_in_staff, symbol.graphical_connection))
+                    sequence.append(
+                        (symbol.symbol_type, symbol.note_type, symbol.position_in_staff, symbol.graphical_connection))
                 else:
                     sequence.append((symbol.symbol_type, symbol.note_type, symbol.position_in_staff, True))
+            else:
+                raise Exception('Unknown symbol type')
+
+        return list(map(self.get, sequence))
+
+    def symbols_to_label_sequence_melody(self, symbols: List[MusicSymbol], note_connection_type: bool):
+        sequence = []
+        for symbol in symbols:
+            if symbol.symbol_type == SymbolType.ACCID:
+                sequence.append((symbol.symbol_type, symbol.accid_type))
+            elif symbol.symbol_type == SymbolType.CLEF:
+                pass
+                # sequence.append((symbol.symbol_type, symbol.clef_type, symbol.octave))
+            elif symbol.symbol_type == SymbolType.NOTE:
+                if note_connection_type:
+                    sequence.append(
+                        (symbol.symbol_type, symbol.note_type, symbol.octave, symbol.graphical_connection, symbol.note_name))
+                else:
+                    sequence.append((symbol.symbol_type, symbol.note_type, symbol.octave, True, symbol.note_name))
             else:
                 raise Exception('Unknown symbol type')
 
@@ -249,7 +277,6 @@ class Codec:
         missing_clefs = 0
         wrong_note_connections = 0
         wrong_position_in_staff = 0
-
 
         additional_note = 0
         add_wrong_pos_in_staff = 0
@@ -273,7 +300,7 @@ class Codec:
                     if symbol_type == SymbolType.ACCID:
                         missing_accids += 1
                     elif symbol_type == SymbolType.NOTE:
-                        if opcode == 'replace' and pred_end > pred_start + i:
+                        if opcode == 'replace' and pred_end > pred_start + i: # + 1:
                             # check for wrong connection
                             p = self.codec[pred[pred_start + i]]
                             if p[0] == symbol_type:
@@ -296,7 +323,7 @@ class Codec:
                     if symbol_type == SymbolType.ACCID:
                         additional_accid += 1
                     elif symbol_type == SymbolType.NOTE:
-                        if opcode == 'replace' and gt_end > gt_start + i:
+                        if opcode == 'replace' and gt_end > gt_start + i : #+ 1
                             # check for wrong connection
                             p = self.codec[gt[gt_start + i]]
                             if p[0] == symbol_type:
@@ -391,13 +418,16 @@ class SymbolDetectionEvaluator:
                 continue
 
             def sub_group(symbol_types: List[SymbolType]):
-                l_tp = [(p, gt) for (_, p), (_, gt) in pairs if gt.symbol_type in symbol_types and p.symbol_type in symbol_types]
+                l_tp = [(p, gt) for (_, p), (_, gt) in pairs if
+                        gt.symbol_type in symbol_types and p.symbol_type in symbol_types]
 
-                l_fp = [p for (_, p), (_, gt) in pairs if gt.symbol_type not in symbol_types and p.symbol_type in symbol_types] \
-                        + [p for (_, p) in p_symbols if p.symbol_type in symbol_types]
+                l_fp = [p for (_, p), (_, gt) in pairs if
+                        gt.symbol_type not in symbol_types and p.symbol_type in symbol_types] \
+                       + [p for (_, p) in p_symbols if p.symbol_type in symbol_types]
 
                 l_fn = \
-                    [gt for (_, p), (_, gt) in pairs if p.symbol_type not in symbol_types and gt.symbol_type in symbol_types] \
+                    [gt for (_, p), (_, gt) in pairs if
+                     p.symbol_type not in symbol_types and gt.symbol_type in symbol_types] \
                     + [gt for (_, gt) in gt_symbols if gt.symbol_type in symbol_types]
 
                 tp, fp, fn = tuple(list(map(len, (l_tp, l_fp, l_fn))))
@@ -498,9 +528,11 @@ class SymbolDetectionEvaluator:
 
 
 if __name__ == '__main__':
-    from omr.symboldetection.predictor import SymbolDetectionPredictor, create_predictor, PredictorTypes, SymbolDetectionPredictorParameters
+    from omr.symboldetection.predictor import SymbolDetectionPredictor, create_predictor, PredictorTypes, \
+        SymbolDetectionPredictorParameters
     from prettytable import PrettyTable
     from database import DatabaseBook
+
     b = DatabaseBook('Graduel')
     eval_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[12:13]]
     print([e.page.location.local_path() for e in eval_pcgts])
@@ -528,13 +560,13 @@ if __name__ == '__main__':
     at.add_column("F1", prec_rec_f1[:, 2])
     print(at.get_string())
 
-
     at = PrettyTable()
-    at.add_column("Type", ["Note all", "Note GC", "Note NS", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence", "Sequence NC"])
+    at.add_column("Type",
+                  ["Note all", "Note GC", "Note NS", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence",
+                   "Sequence NC"])
     at.add_column("True", acc_counts[:, AccCounts.TRUE])
     at.add_column("False", acc_counts[:, AccCounts.FALSE])
     at.add_column("Total", acc_counts[:, AccCounts.TOTAL])
     at.add_column("Accuracy [%]", acc_acc[:, 0] * 100)
 
     print(at.get_string())
-
