@@ -1,14 +1,23 @@
 import os
 
-from omr.dataset.dataset import LyricsNormalizationProcessor, LyricsNormalization, LyricsNormalizationParams
+from calamari_ocr.ocr.dataset.pipeline import CalamariPipeline
+from calamari_ocr.ocr.predict.params import PredictorParams
+from dataclasses import field, dataclass
+
+#from omr.dataset.dataset import LyricsNormalizationProcessor, LyricsNormalization, LyricsNormalizationParams
+from tfaip.data.databaseparams import DataPipelineParams
+
+from omr.steps.text.calamari.calamari_interface import RawData
 
 if __name__ == '__main__':
     import django
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
-from calamari_ocr.ocr.predictor import Predictor, MultiPredictor
-from calamari_ocr.ocr.voting import voter_from_proto
-from calamari_ocr.proto import VoterParams, CTCDecoderParams
+from calamari_ocr.ocr.predict.predictor import Predictor, MultiPredictor
+from calamari_ocr.ocr.voting import voter_from_params
+from calamari_ocr.ocr.voting.params import VoterParams, VoterType
+from calamari_ocr.ocr.model.ctcdecoder.ctc_decoder import CTCDecoderParams
+
 from typing import List, Tuple, Type, Optional, Generator
 from ommr4all.settings import BASE_DIR
 from copy import deepcopy
@@ -28,6 +37,14 @@ from database.model.definitions import MetaId
 from omr.steps.text.hyphenation.hyphenator import HyphenatorFromDictionary, Pyphenator
 
 
+from typing import Generator
+
+from tfaip.data.pipeline.definitions import PipelineMode
+
+from calamari_ocr.ocr.dataset.datareader.base import SampleMeta, InputSample
+from calamari_ocr.ocr.dataset.datareader.base import CalamariDataGenerator
+
+
 class CalamariPredictor(TextPredictor):
     @staticmethod
     def meta() -> Type['AlgorithmMeta']:
@@ -36,22 +53,36 @@ class CalamariPredictor(TextPredictor):
 
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
-        ctc_decoder_params = deepcopy(settings.params.ctcDecoder.params)
-        lnp = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.ONE_STRING))
-        if len(ctc_decoder_params.dictionary) > 0:
-            ctc_decoder_params.dictionary[:] = [lnp.apply(word) for word in ctc_decoder_params.dictionary]
-        else:
-            with open(os.path.join(BASE_DIR, 'internal_storage', 'resources', 'hyphen_dictionary.txt')) as f:
-                # TODO: dataset params in settings, that we can create the correct normalization params
-                ctc_decoder_params.dictionary[:] = [lnp.apply(line.split()[0]) for line in f.readlines()]
+       # ctc_decoder_params = deepcopy(settings.params.ctcDecoder.params)
+       # lnp = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.ONE_STRING))
+       # if len(ctc_decoder_params.dictionary) > 0:
+       #     ctc_decoder_params.dictionary[:] = [lnp.apply(word) for word in ctc_decoder_params.dictionary]
+       # else:
+       #     with open(os.path.join(BASE_DIR, 'internal_storage', 'resources', 'hyphen_dictionary.txt')) as f:
+       #         # TODO: dataset params in settings, that we can create the correct normalization params
+       #         ctc_decoder_params.dictionary[:] = [lnp.apply(line.split()[0]) for line in f.readlines()]
 
         # self.predictor = MultiPredictor(glob_all([s + '/text_best*.ckpt.json' for s in params.checkpoints]))
-        self.predictor = MultiPredictor(glob_all([settings.model.local_file('text_best.ckpt.json')]),
-                                        ctc_decoder_params=ctc_decoder_params)
-        self.height = self.predictor.predictors[0].network_params.features
         voter_params = VoterParams()
-        voter_params.type = VoterParams.CONFIDENCE_VOTER_DEFAULT_CTC
-        self.voter = voter_from_proto(voter_params)
+        voter_params.type = VoterParams.type.ConfidenceVoterDefaultCTC
+        self.predictor = MultiPredictor.from_paths(
+            checkpoints=glob_all([settings.model.local_file('text_best_*.ckpt.json')]),
+            voter_params=voter_params,
+            predictor_params=PredictorParams(silent=True,
+                                             progress_bar=True,
+                                             pipeline=DataPipelineParams(batch_size=1,
+                                                                         mode=PipelineMode("prediction"))
+                                             )
+        )
+        # self.height = self.predictor.predictors[0].network_params.features
+        print(glob_all([settings.model.local_file('text_best_0.ckpt.json')]))
+        self.voter = voter_from_params(voter_params)
+        #self.predictor = MultiPredictor(glob_all([settings.model.local_file('text_best.ckpt.json')]),
+        #                                ctc_decoder_params=ctc_decoder_params)
+        #self.height = self.predictor.predictors[0].network_params.features
+        #voter_params = VoterParams()
+        #voter_params.type = VoterParams.CONFIDENCE_VOTER_DEFAULT_CTC
+        #self.voter = voter_from_proto(voter_params)
 
     def _predict(self, dataset: TextDataset, callback: Optional[PredictionCallback] = None) -> Generator[SingleLinePredictionResult, None, None]:
         hyphen = Pyphenator()
@@ -61,16 +92,61 @@ class CalamariPredictor(TextPredictor):
             normalization=dataset.params.lyrics_normalization,
         )
         """
-        try:
-            for marked_symbols, (r, sample) in zip(dataset.load(), self.predictor.predict_dataset(dataset.to_text_line_calamari_dataset())):
-                prediction = self.voter.vote_prediction_result(r)
-                hyphenated = hyphen.apply_to_sentence(prediction.sentence)
-                yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, marked_symbols), marked_symbols, hyphenated)
-        except Exception as e:
-            if str(e) == 'Empty data set provided.':
-                return
+        #predict_params = PipelineParams(
+        #    type=DataSetType.RAW,
+        #    skip_invalid=True,
+        #    remove_invalid=True,
+        #    files=[],
+        #    text_files=[],
+        #    data_reader_args=FileDataReaderArgs(
+        #        pad=None,
+        #        text_index=0,
+        #    ),
+        #    batch_size=1,
+        #    num_processes=1,
+        #)
+        #pipeline: CalamariPipeline = self.predictor.data.get_predict_data(predict_params)
+        dataset_cal = dataset.to_text_line_calamari_dataset()
 
-            raise e
+        data_params = dataset_cal
+        #data: CalamariDataGeneratorParams = field(
+        #    default_factory=FileDataParams,
+        #    metadata=pai_meta(mode="flat", choices=DATA_GENERATOR_CHOICES),
+        #)
+        predictor = self.predictor.predict(data_params)
+        pipeline: CalamariPipeline = self.predictor.data.get_or_create_pipeline(self.predictor.params.pipeline, data_params)
+        print(predictor)
+        #RawDataPipeline
+        dataset_cal = dataset.to_text_line_calamari_dataset()
+        #pipeline._reader = dataset_cal
+        reader = pipeline.reader()
+        #pipeline: CalamariPipeline = predictor.data.get_or_create_pipeline(predictor.params.pipeline, args.data)
+        #pipeline.
+        # reader = pipeline.reader()
+        if len(reader) == 0:
+            raise Exception("Empty dataset provided. Check your files argument (got {})!".format(len(dataset.files)))
+
+        avg_sentence_confidence = 0
+        n_predictions = 0
+        for m, s in zip(dataset.load(), predictor):
+            inputs, (result, prediction), meta = s.inputs, s.outputs, s.meta
+            sample = reader.sample_by_id(meta['id'])
+            n_predictions += 1
+            sentence = prediction.sentence
+            hyphenated = hyphen.apply_to_sentence(prediction.sentence)
+
+            avg_sentence_confidence += prediction.avg_char_probability
+            yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, m), m, hyphenated=hyphenated)
+        #try:
+        #    for marked_symbols, (r, sample) in zip(dataset.load(), self.predictor.predict_dataset(dataset.to_text_line_calamari_dataset())):
+        #        prediction = self.voter.vote_prediction_result(r)
+        #        hyphenated = hyphen.apply_to_sentence(prediction.sentence)
+        #        yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, marked_symbols), marked_symbols, hyphenated)
+        #except Exception as e:
+        #    if str(e) == 'Empty data set provided.':
+        #        return
+        #
+        #    raise e
 
     def extract_symbols(self, dataset: TextDataset, p, m: RegionLineMaskData) -> List[Tuple[str, Point]]:
         def i2p(p):

@@ -1,11 +1,17 @@
-from calamari_ocr.ocr.callbacks import TrainingCallback
-from calamari_ocr.proto import CheckpointParams, DataPreprocessorParams, TextProcessorParams, network_params_from_definition_string
-from calamari_ocr.ocr.trainer import Trainer
-from calamari_ocr.ocr.cross_fold_trainer import CrossFoldTrainer
-from calamari_ocr.ocr.augmentation import SimpleDataAugmenter
-from typing import Optional, Type
+#from calamari_ocr.ocr.callbacks import TrainingCallback
+#from calamari_ocr.proto import CheckpointParams, DataPreprocessorParams, TextProcessorParams, network_params_from_definition_string
+#from calamari_ocr.ocr.trainer import Trainer
+#from calamari_ocr.ocr.cross_fold_trainer import CrossFoldTrainer
+#from calamari_ocr.ocr.augmentation import SimpleDataAugmenter
+from contextlib import ExitStack
+from typing import Optional, Type, Dict
+
+from calamari_ocr.ocr.scenario import CalamariEnsembleScenario
+from tfaip.util.logging import WriteToLogFile
+from tfaip.util.typing import AnyNumpy
 
 from database.file_formats.performance.pageprogress import Locks
+from ommr4all import settings
 from omr.dataset import DatasetParams, LyricsNormalization
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 from database import DatabaseBook
@@ -14,8 +20,40 @@ import os
 from omr.steps.algorithm import AlgorithmTrainerParams, AlgorithmTrainerSettings, TrainerCallback, AlgorithmMeta
 from omr.steps.text.trainer import TextTrainerBase
 
+from tfaip.util.tfaipargparse import post_init
 
-class CalamariTrainerCallback(TrainingCallback):
+
+class CalamariOmmr4allEnsembleScenario(CalamariEnsembleScenario):
+    @classmethod
+    def default_trainer_params(cls):
+
+        p = super().default_trainer_params()
+        p.gen.setup.val.batch_size = 1
+        p.gen.setup.val.num_processes = 1
+        p.gen.setup.train.batch_size = 1
+        p.gen.setup.train.num_processes = 1
+        p.epochs = 70
+        p.samples_per_epoch = 2
+        p.scenario.data.pre_proc.run_parallel = False
+        #p.model.ensemble = 1
+
+        #p.scenario.data.pre_proc.
+        post_init(p)
+        return p
+
+
+def setup_trainer_params( train_dataset, output_dir, debug=False):
+    p = CalamariOmmr4allEnsembleScenario.default_trainer_params()
+    p.force_eager = debug
+    p.gen.train = train_dataset
+    #p.scenario.model.    # p.gen.setup.val = val_dataset
+    p.output_dir = output_dir
+    p.best_model_prefix = "text"
+    p.write_checkpoints = False ##
+    post_init(p)
+    print(p)
+    return p
+class CalamariTrainerCallback:
     def __init__(self, cb: TrainerCallback):
         self.cb = cb
 
@@ -61,9 +99,28 @@ class CalamariTrainer(TextTrainerBase):
             calamari_callback = None
 
         train_dataset = self.train_dataset.to_text_line_calamari_dataset(train=True, callback=callback)
-        val_dataset = self.validation_dataset.to_text_line_calamari_dataset(train=True, callback=callback)
+        #val_dataset = self.validation_dataset.to_text_line_calamari_dataset(train=True, callback=callback)
         output = self.settings.model.path
+        from calamari_ocr.scripts.train import main
 
+
+
+        def mainp(trainer_params: "TrainerParams") -> Dict[str, AnyNumpy]:
+            with ExitStack() as stack:
+                if trainer_params.output_dir:
+                    stack.enter_context(WriteToLogFile(trainer_params.output_dir, append=False))
+
+                #logger.info("trainer_params=" + trainer_params.to_json(indent=2))
+
+                # create the trainer and run it
+                trainer = trainer_params.scenario.cls().create_trainer(trainer_params)
+                return trainer.train()
+        p = setup_trainer_params(train_dataset=train_dataset, output_dir=output)
+        mainp(p)
+        #weights = None if not self.params.model_to_load() else self.params.model_to_load().local_file('text_best.ckpt'),
+        #params.output_dir = output
+        #params.output_model_prefix = 'text'
+        """
         params = CheckpointParams()
 
         params.max_iters = self.params.n_iter
@@ -135,15 +192,20 @@ class CalamariTrainer(TextTrainerBase):
                           auto_compute_codec=True,
                           )
 
-
+        """
 if __name__ == '__main__':
     import random
     import numpy as np
     random.seed(1)
     np.random.seed(1)
-    b = DatabaseBook('Graduel_Fully_Annotated')
+
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
-    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.LAYOUT, True)], True, [b])
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ommr4all.settings')
+    import django
+    django.setup()
+    b = DatabaseBook('Pa_14819')
+
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.1, [LockState(Locks.LAYOUT, True)], True, [b])
 
     trainer_params = CalamariTrainer.default_params()
     trainer_params.l_rate = 1e-3
@@ -154,7 +216,7 @@ if __name__ == '__main__':
         height=48,
         cut_region=True,
         pad=[0, 10, 0, 20],
-        lyrics_normalization=LyricsNormalization.ONE_STRING,
+        #lyrics_normalization=LyricsNormalization.ONE_STRING,
     )
     train_params = AlgorithmTrainerSettings(
         params,

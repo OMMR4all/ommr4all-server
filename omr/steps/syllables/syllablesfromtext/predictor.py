@@ -15,7 +15,7 @@ from omr.steps.syllables.predictor import PredictionResult, SyllablesPredictor, 
     PageMatchResult
 from omr.steps.text.predictor import PredictionResult as TextPredictionResult
 from omr.steps.text.predictor import SingleLinePredictionResult as TextSingleLinePredictionResult
-from calamari_ocr.ocr.backends.ctc_decoder.ctc_decoder import CTCDecoderParams
+#from calamari_ocr.ocr.backends.ctc_decoder.ctc_decoder import CTCDecoderParams
 import unidecode
 from difflib import SequenceMatcher
 from prettytable import PrettyTable
@@ -32,10 +32,11 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
         meta = Step.meta(AlgorithmTypes.OCR_CALAMARI)
         from ommr4all.settings import BASE_DIR
         model = Model(MetaId.from_custom_path(BASE_DIR + '/internal_storage/default_models/fraktur/text_calamari/', meta.type()))
+        print(model.path)
         settings = AlgorithmPredictorSettings(
             model=model,
         )
-        settings.params.ctcDecoder.params.type = CTCDecoderParams.CTC_DEFAULT
+        #settings.params.ctcDecoder.params.type = CTCDecoderParams.CTC_DEFAULT
         self.ocr_predictor = meta.create_predictor(settings)
 
     def _predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> Generator[PageMatchResult, None, None]:

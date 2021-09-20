@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-
+from dataclasses import dataclass, field as datafields
 from database.file_formats.book.document import Document
 from database.model import Model, MetaId
 from mashumaro import DataClassJSONMixin
@@ -7,34 +7,36 @@ from mashumaro.types import SerializableType
 from typing import Optional, TYPE_CHECKING, List
 from .algorithmtypes import AlgorithmTypes
 from database.file_formats.pcgts import Coords
-from calamari_ocr.ocr.backends.ctc_decoder.ctc_decoder import CTCDecoderParams
+from calamari_ocr.ocr.model.ctcdecoder.ctc_decoder import CTCDecoderParams, CTCDecoderType
 from google.protobuf.json_format import MessageToDict, ParseDict
 
+def dataclass_from_dict(klass, dikt):
+    try:
+        fieldtypes = {f.name:f.type for f in datafields(klass)}
+        return klass(**{f:dataclass_from_dict(fieldtypes[f], dikt[f]) for f in dikt})
+    except:
+        return dikt
 
-class SerializableCTCDecoderParams(SerializableType):
-    def __init__(self,
-                 type=CTCDecoderParams.CTC_DEFAULT,
-                 beam_width=50,
-                 word_separator=' ',
-                 dictionary: Optional[List[str]] = None,
-                 non_word_chars: str = '',
-                 ):
-        self.params = CTCDecoderParams()
-        self.params.type = type
-        self.params.beam_width = beam_width
-        self.params.word_separator = word_separator
-        self.params.non_word_chars[:] = list(non_word_chars)
-        if dictionary:
-            self.params.dictionary[:] = dictionary
+@dataclass
+class SerializableCTCDecoderParams(CTCDecoderParams, DataClassJSONMixin):
+    type: CTCDecoderType = CTCDecoderType.Default
+    blank_index: int = 0
+    min_p_threshold: float = 0
 
-    def _serialize(self):
-        return MessageToDict(self.params)
+    beam_width = 25
+    non_word_chars: List[str] = field(default_factory=lambda: list("0123456789[]()_.:;!?{}-'\""))
 
-    @classmethod
-    def _deserialize(cls, value):
-        params = SerializableCTCDecoderParams()
-        params.params = ParseDict(value, CTCDecoderParams())
-        return params
+    dictionary: List[str] = field(default_factory=list)
+    word_separator: str = " "
+   # def _serialize(self):
+   #     dataclass_from_dict(SerializableCTCDecoderParams, self.params)
+   #     return MessageToDict(self.params)
+
+   # @classmethod
+   # def _deserialize(cls, value):
+   #     params = SerializableCTCDecoderParams()
+   #     params.params = ParseDict(value, CTCDecoderParams())
+   #     return params
 
 
 @dataclass()

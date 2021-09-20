@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from types import MappingProxyType
 
+from tfaip import PipelineMode
+
 from database.file_formats.pcgts import PcGts, Line, PageScaleReference, Point
 import numpy as np
 from typing import List, Tuple, Generator, Union, Optional, Any
@@ -16,6 +18,8 @@ from mashumaro import DataClassJSONMixin
 from enum import Enum
 
 import json
+
+from omr.steps.text.calamari.calamari_interface import RawData
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +192,6 @@ class Dataset(ABC):
         return RawDataSet(DataSetMode.TRAIN if train else DataSetMode.PREDICT, images=images, texts=gts)
 
     def to_text_line_calamari_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
-        from calamari_ocr.ocr.datasets.dataset import RawDataSet, DataSetMode
         lines = self.load(callback)
 
         def get_input_image(d: RegionLineMaskData):
@@ -206,7 +209,7 @@ class Dataset(ABC):
 
         images = [255 - get_input_image(d).astype(np.uint8) for d in lines]
         gts = [extract_text(d) for d in lines]
-        return RawDataSet(DataSetMode.TRAIN if train else DataSetMode.PREDICT, images=images, texts=gts)
+        return RawData(images=images, gt_files=gts)
 
     def load(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:
         if self.loaded is None:

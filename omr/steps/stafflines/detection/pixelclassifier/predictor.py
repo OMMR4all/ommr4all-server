@@ -59,7 +59,7 @@ class BasicStaffLinePredictor(StaffLinePredictor):
             line_interpolation=True,
             line_space_height=self.dataset_params.origin_staff_line_distance,
             target_line_space_height=self.dataset_params.target_staff_line_distance,
-            model=os.path.join(settings.model.local_file('model')),
+            model=os.path.join(settings.model.local_file('model.h5')),
             post_process=params.post_processing,
             best_fit_scale=params.best_fit_scale,
             debug=False,
