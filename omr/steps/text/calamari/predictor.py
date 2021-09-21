@@ -66,7 +66,7 @@ class CalamariPredictor(TextPredictor):
         voter_params = VoterParams()
         voter_params.type = VoterParams.type.ConfidenceVoterDefaultCTC
         self.predictor = MultiPredictor.from_paths(
-            checkpoints=glob_all([settings.model.local_file('text_best_*.ckpt.json')]),
+            checkpoints=glob_all([settings.model.local_file('text.ckpt.json')]),
             voter_params=voter_params,
             predictor_params=PredictorParams(silent=True,
                                              progress_bar=True,

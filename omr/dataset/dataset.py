@@ -62,9 +62,9 @@ class LyricsNormalization(Enum):
 
 @dataclass
 class LyricsNormalizationParams(DataClassJSONMixin):
-    lyrics_normalization: LyricsNormalization = LyricsNormalization.ONE_STRING
+    lyrics_normalization: LyricsNormalization = LyricsNormalization.WORDS
     lower_only: bool = True
-    unified_u: bool = True
+    unified_u: bool = False
     remove_brackets: bool = True
 
 

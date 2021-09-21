@@ -1,34 +1,26 @@
 import os
-from copy import deepcopy
-from typing import Generator, List, Type, Dict
+from typing import Generator, List, Type, Dict, Mapping, Collection
 
+import dataclasses_json
 import numpy as np
 from calamari_ocr.ocr.dataset.datareader.base import CalamariDataGenerator, SampleMeta, InputSample, \
     CalamariDataGeneratorParams, logger
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass, _is_dataclass_instance, fields
 
 from calamari_ocr.utils import glob_all
 from calamari_ocr.utils.image import ImageLoader, ImageLoaderParams
-from dataclasses_json.core import Json
 from paiargparse import pai_dataclass, pai_meta
-from paiargparse.dataclass_json_overrides import _decode_dataclass, _asdict
+
 from tfaip import PipelineMode
+import copy
+from dataclasses_json import dataclass_json, config
 
 
-def recover_to_dict(cls):
-    print("2000" * 100)
-    if hasattr(cls, '_to_dict'):
-        print("heyehey")
-        setattr(cls, 'to_dict', getattr(cls, '_to_dict'))
-    return cls
-
-
-@recover_to_dict
 @pai_dataclass
 @dataclass
 class RawData(CalamariDataGeneratorParams):
-    images: List[np.array] = field(default_factory=list, metadata=pai_meta(required=True))
-    gt_files: List[str] = field(default_factory=list)
+    images: List[np.array] = field(default_factory=list, metadata=config(encoder=lambda x: None))
+    gt_files: List[str] = field(default_factory=list, metadata=config(encoder=lambda x: None))
 
     def __len__(self):
         return len(self.images)
@@ -40,7 +32,7 @@ class RawData(CalamariDataGeneratorParams):
             self.gt_files = [self.gt_files[i] for i in indices]
 
     def to_prediction(self):
-        pred = deepcopy(self)
+        pred = copy.deepcopy(self)
         return pred
 
     @staticmethod
@@ -53,19 +45,6 @@ class RawData(CalamariDataGeneratorParams):
 
     def image_loader(self) -> ImageLoader:
         return ImageLoader(ImageLoaderParams())
-
-    @classmethod
-    def from_dict(cls, kvs, *, infer_missing=False):
-        # Use custom _decode_dataclass with fixed types
-        return _decode_dataclass(cls, kvs, infer_missing)
-
-    def _to_dict(self, encode_json=False, include_cls=False) -> Dict[str, Json]:
-        a = self.images
-        self.images = []
-        print("200" * 50)
-        d = _asdict(self, encode_json=encode_json, include_cls=include_cls)
-        self.images = a
-        return d
 
 
 class RawDataReader(CalamariDataGenerator):

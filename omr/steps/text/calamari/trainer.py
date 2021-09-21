@@ -6,6 +6,7 @@
 from contextlib import ExitStack
 from typing import Optional, Type, Dict
 
+import dataclasses
 from calamari_ocr.ocr.scenario import CalamariEnsembleScenario
 from tfaip.util.logging import WriteToLogFile
 from tfaip.util.typing import AnyNumpy
@@ -33,7 +34,7 @@ class CalamariOmmr4allEnsembleScenario(CalamariEnsembleScenario):
         p.gen.setup.train.batch_size = 1
         p.gen.setup.train.num_processes = 1
         p.epochs = 70
-        p.samples_per_epoch = 2
+        #p.samples_per_epoch = 2
         p.scenario.data.pre_proc.run_parallel = False
         #p.model.ensemble = 1
 
@@ -51,7 +52,6 @@ def setup_trainer_params( train_dataset, output_dir, debug=False):
     p.best_model_prefix = "text"
     p.write_checkpoints = False ##
     post_init(p)
-    print(p)
     return p
 class CalamariTrainerCallback:
     def __init__(self, cb: TrainerCallback):
@@ -86,6 +86,7 @@ class CalamariTrainer(TextTrainerBase):
     @staticmethod
     def force_dataset_params(params: DatasetParams):
         params.height = 48
+        #params.lyrics_normalization = params.lyrics_normalization.lyrics_normalization.WORDS
 
     def __init__(self, settings: AlgorithmTrainerSettings):
         settings.calamari_params.network = 'cnn=40:3x3,pool=2x2,cnn=60:3x3,pool=2x2,lstm=200,dropout=0.5'
@@ -205,8 +206,7 @@ if __name__ == '__main__':
     django.setup()
     b = DatabaseBook('Pa_14819')
 
-    train_pcgts, val_pcgts = dataset_by_locked_pages(0.1, [LockState(Locks.LAYOUT, True)], True, [b])
-
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.9999, [LockState(Locks.LAYOUT, True)], True, [b])
     trainer_params = CalamariTrainer.default_params()
     trainer_params.l_rate = 1e-3
     trainer_params.load = '/home/ls6/wick/Documents/Projects/calamari_models/fraktur_historical_ligs/0.ckpt.json'
