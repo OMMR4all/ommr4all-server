@@ -75,7 +75,6 @@ class CalamariPredictor(TextPredictor):
                                              )
         )
         # self.height = self.predictor.predictors[0].network_params.features
-        print(glob_all([settings.model.local_file('text_best_0.ckpt.json')]))
         self.voter = voter_from_params(voter_params)
         #self.predictor = MultiPredictor(glob_all([settings.model.local_file('text_best.ckpt.json')]),
         #                                ctc_decoder_params=ctc_decoder_params)
@@ -92,40 +91,12 @@ class CalamariPredictor(TextPredictor):
             normalization=dataset.params.lyrics_normalization,
         )
         """
-        #predict_params = PipelineParams(
-        #    type=DataSetType.RAW,
-        #    skip_invalid=True,
-        #    remove_invalid=True,
-        #    files=[],
-        #    text_files=[],
-        #    data_reader_args=FileDataReaderArgs(
-        #        pad=None,
-        #        text_index=0,
-        #    ),
-        #    batch_size=1,
-        #    num_processes=1,
-        #)
-        #pipeline: CalamariPipeline = self.predictor.data.get_predict_data(predict_params)
         dataset_cal = dataset.to_text_line_calamari_dataset()
 
         data_params = dataset_cal
-        #data: CalamariDataGeneratorParams = field(
-        #    default_factory=FileDataParams,
-        #    metadata=pai_meta(mode="flat", choices=DATA_GENERATOR_CHOICES),
-        #)
         predictor = self.predictor.predict(data_params)
         pipeline: CalamariPipeline = self.predictor.data.get_or_create_pipeline(self.predictor.params.pipeline, data_params)
-        print(predictor)
-        #RawDataPipeline
-        dataset_cal = dataset.to_text_line_calamari_dataset()
-        #pipeline._reader = dataset_cal
         reader = pipeline.reader()
-        #pipeline: CalamariPipeline = predictor.data.get_or_create_pipeline(predictor.params.pipeline, args.data)
-        #pipeline.
-        # reader = pipeline.reader()
-        if len(reader) == 0:
-            raise Exception("Empty dataset provided. Check your files argument (got {})!".format(len(dataset.files)))
-
         avg_sentence_confidence = 0
         n_predictions = 0
         for m, s in zip(dataset.load(), predictor):
@@ -137,16 +108,6 @@ class CalamariPredictor(TextPredictor):
 
             avg_sentence_confidence += prediction.avg_char_probability
             yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, m), m, hyphenated=hyphenated)
-        #try:
-        #    for marked_symbols, (r, sample) in zip(dataset.load(), self.predictor.predict_dataset(dataset.to_text_line_calamari_dataset())):
-        #        prediction = self.voter.vote_prediction_result(r)
-        #        hyphenated = hyphen.apply_to_sentence(prediction.sentence)
-        #        yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, marked_symbols), marked_symbols, hyphenated)
-        #except Exception as e:
-        #    if str(e) == 'Empty data set provided.':
-        #        return
-        #
-        #    raise e
 
     def extract_symbols(self, dataset: TextDataset, p, m: RegionLineMaskData) -> List[Tuple[str, Point]]:
         def i2p(p):
