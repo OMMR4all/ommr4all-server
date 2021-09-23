@@ -22,7 +22,7 @@ repos: List[Repo] = [
     Repo(
         'calamari',
         'https://github.com/Calamari-OCR/calamari.git',
-        'c9baccb130e91b5f29e4ee5cfbf3afd99d5b155e',
+        'eba8e9c35d2c301319cc9cb15d25124460aee2db',
     ),
     Repo(
         'ommr4all-line-detection',
@@ -52,7 +52,7 @@ def main():
     os.chdir(root_dir)
 
     if args.mode == 'setup':
-        subprocess.check_call([pip, 'install', 'tensorflow>=2.0' if not args.gpu else 'tensorflow_gpu>=2.0'])
+        subprocess.check_call([pip, 'install', 'tensorflow~=2.4.0' if not args.gpu else 'tensorflow_gpu~=2.4.0'])
         subprocess.check_call([pip, 'install', '-r', 'requirements.txt'])
 
         with tempfile.TemporaryDirectory() as d:
