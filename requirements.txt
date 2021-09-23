@@ -19,7 +19,7 @@ cryptography
 mashumaro
 unidecode
 pdf2image
-dataclasses-json 0.5.6
+dataclasses-json==0.5.6
 scikit-learn
 h5py<3.0.0
 midiutil
