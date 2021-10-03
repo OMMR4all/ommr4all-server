@@ -5,6 +5,7 @@ import subprocess
 
 from django.views.decorators.csrf import csrf_exempt
 
+from database.database_dictionary import DatabaseDictionary
 from database.file_formats.book import document
 from database.file_formats.book.documents import Documents
 from database.file_formats.exporter.midi.simple_midi import SimpleMidiExporter
@@ -30,6 +31,27 @@ from restapi.views.pageaccess import require_lock
 import requests as python_request
 
 logger = logging.getLogger(__name__)
+
+
+class BookDictionaryView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book):
+        book = DatabaseBook(book)
+        b = DatabaseDictionary.load(book)
+        return Response(b.to_json())
+
+    @require_permissions([DatabaseBookPermissionFlag.SAVE])
+    def put(self, request, book):
+        book = DatabaseBook(book)
+        ## Todo Mutex/lock
+        obj = json.loads(request.body, encoding='utf-8')
+        db = DatabaseDictionary.from_json(obj)
+        db.to_file(book)
+        logger.debug('Successfully saved DatabaseFile to {}'.format(book.local_path))
+
+        return Response()
 
 
 class BookDocumentsView(APIView):

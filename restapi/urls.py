@@ -9,7 +9,7 @@ from restapi.views.bookaccess import BookView, BooksView, BookDownloaderView, Bo
 from restapi.views.pageaccess import PagePcGtsView, PageProgressView, PageStatisticsView, PageLockView, PageSVGView, \
     PageMidiView
 from restapi.views.bookdocuments import BookDocumentsView, DocumentsSVGView, DocumentsMidiView, DocumentView, \
-    DocumentOdsView, BookDocumentsOdsView, MonodiConnectionView, MonodiLoginView
+    DocumentOdsView, BookDocumentsOdsView, MonodiConnectionView, MonodiLoginView, BookDictionaryView
 from restapi.views.virtualkeyboards import BookVirtualKeyboardView
 from restapi.views.bookoperations import BookOperationStatusView, BookOperationTaskView, BookOperationView, \
     BookPageSelectionView, BookOperationModelsView, BookOperationModelView
@@ -84,7 +84,7 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/document/(?P<document>[0-9a-f-]+)/content$', DocumentView.as_view()),
         re_path(r'^book/(?P<book>\w+)/document/(?P<document>[0-9a-f-]+)/ods$', DocumentOdsView.as_view()),
 
-
+        re_path(r'^book/(?P<book>\w+)/dictionary', BookDictionaryView.as_view()),
 
         re_path(r'^book/(?P<book>\w+)/meta$', BookMetaView.as_view()),
         re_path(r'^book/(?P<book>\w+)/stats$', BookStatsView.as_view()),
