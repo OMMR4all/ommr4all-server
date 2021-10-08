@@ -1,3 +1,4 @@
+import string
 from abc import ABC, abstractmethod
 from types import MappingProxyType
 
@@ -66,6 +67,7 @@ class LyricsNormalizationParams(DataClassJSONMixin):
     lower_only: bool = True
     unified_u: bool = False
     remove_brackets: bool = True
+    remove_punctuation: bool = False
 
 
 class LyricsNormalizationProcessor:
@@ -75,7 +77,9 @@ class LyricsNormalizationProcessor:
     def apply(self, text: str) -> str:
         if self.params.lower_only:
             text = text.lower()
-
+        if self.params.remove_punctuation:
+            for i in string.punctuation:
+                text = text.replace(i, '')
         if self.params.unified_u:
             text = text.replace('v', 'u')
 

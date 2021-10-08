@@ -7,7 +7,7 @@ from database.file_formats.importer.mondodi.simple_import import MonodiDocument
 import json
 import logging
 import os
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 from dataclasses import dataclass
 
@@ -52,9 +52,12 @@ def documents_gen(export_dir):
             yield MonodiImportStructure(source, data, meta, doc)
 
 
-def populate_look_up_dict(sentence, id, word_dict):
+def populate_look_up_dict(sentence, word_dict, t1, t2):
     for x in sentence:
-        word_dict[x].append(id)
+        word = t2.apply(x)
+        if "\n" in word:
+            continue
+        word_dict[word].append(t1.apply(x))
 
 
 def check_word_based_similarity(sentence, word_dict):
@@ -67,13 +70,18 @@ def check_word_based_similarity(sentence, word_dict):
     return count
 
 
-
-
-
 class WordDictionaryGenerator:
     def __init__(self, export_path):
         self.word_dict = defaultdict(list)
-        self.text_normalizer = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.WORDS))
+        self.text_normalizer1 = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.SYLLABLES))
+        self.text_normalizer2 = LyricsNormalizationProcessor(
+            LyricsNormalizationParams(LyricsNormalization.WORDS,
+                                      True,
+                                      False,
+                                      True,
+                                      True,
+                                      ))
+
         try:
             self.populate(export_path)
         except Exception as e:
@@ -83,12 +91,13 @@ class WordDictionaryGenerator:
     def populate(self, path):
         for x in documents_gen(path):
             a = populate(x.data)
-            populate_look_up_dict(a.get_text(self.text_normalizer).split(" "), x.document_id, self.word_dict)
+            populate_look_up_dict(a.get_text().split(" "), self.word_dict, self.text_normalizer1, self.text_normalizer2)
 
     def get_sorted_frequency_word_list(self):
         freq_word_list = []
         for key, y in self.word_dict.items():
-            freq_word_list.append(WordFrequency(word=key, frequency=len(y)))
+            c = Counter(y)
+            freq_word_list.append(WordFrequency(word=key, frequency=len(y), hyphenated=c.most_common(1)[0][0]))
         return WordFrequencyDict(freq_list=sorted(freq_word_list, key=lambda entry: entry.frequency, reverse=True))
 
     def write_to_json_file(self, path):
