@@ -8,6 +8,7 @@ from dataclasses import field, dataclass
 from tfaip.data.databaseparams import DataPipelineParams
 
 from omr.steps.text.calamari.calamari_interface import RawData
+from omr.steps.text.correction_tools.dictionary_corrector.predictor import DictionaryCorrector
 
 if __name__ == '__main__':
     import django
@@ -76,6 +77,10 @@ class CalamariPredictor(TextPredictor):
         )
         # self.height = self.predictor.predictors[0].network_params.features
         self.voter = voter_from_params(voter_params)
+        self.dict_corrector = None
+
+        if settings.params.useDictionaryCorrection:
+            self.dict_corrector = DictionaryCorrector()
         #self.predictor = MultiPredictor(glob_all([settings.model.local_file('text_best.ckpt.json')]),
         #                                ctc_decoder_params=ctc_decoder_params)
         #self.height = self.predictor.predictors[0].network_params.features
@@ -92,6 +97,8 @@ class CalamariPredictor(TextPredictor):
         )
         """
         dataset_cal = dataset.to_text_line_calamari_dataset()
+        book = dataset.files[0].dataset_page().book
+        self.dict_corrector.load_dict(book=book)
 
         data_params = dataset_cal
         predictor = self.predictor.predict(data_params)
@@ -104,7 +111,10 @@ class CalamariPredictor(TextPredictor):
             sample = reader.sample_by_id(meta['id'])
             n_predictions += 1
             sentence = prediction.sentence
-            hyphenated = hyphen.apply_to_sentence(prediction.sentence)
+            if self.dict_corrector:
+                hyphenated = self.dict_corrector.segmentate_correct_and_hyphenate_text(sentence)
+            else:
+                hyphenated = hyphen.apply_to_sentence(prediction.sentence)
 
             avg_sentence_confidence += prediction.avg_char_probability
             yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, m), m, hyphenated=hyphenated)

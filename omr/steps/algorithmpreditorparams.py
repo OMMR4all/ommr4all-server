@@ -62,6 +62,7 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
     documentId: str = None
     documentText: str = None
 
+    useDictionaryCorrection: bool = True
 
 @dataclass()
 class AlgorithmPredictorSettings:

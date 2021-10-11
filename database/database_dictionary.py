@@ -16,6 +16,7 @@ from ommr4all import settings
 class WordFrequency:
     word: str
     frequency: int
+    hyphenated: str
 
 
 @dataclass_json
@@ -97,7 +98,8 @@ class DatabaseDictionary:
             "created": self.created.isoformat(),
             "dictionary": self.dictionary.to_dict() if self.dictionary else []
         }
-
+    def to_frequent_list(self):
+        pass
 
 if __name__ == "__main__":
     b = DatabaseDictionary.load(DatabaseBook('demo'))
