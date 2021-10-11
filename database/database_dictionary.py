@@ -16,6 +16,7 @@ from ommr4all import settings
 class WordFrequency:
     word: str
     frequency: int
+    hyphenated: str
 
 
 @dataclass_json
