@@ -30,3 +30,4 @@ six
 attrs
 requests
 openpyxl
+symspellpy
