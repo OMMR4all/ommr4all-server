@@ -98,7 +98,8 @@ class CalamariPredictor(TextPredictor):
         """
         dataset_cal = dataset.to_text_line_calamari_dataset()
         book = dataset.files[0].dataset_page().book
-        self.dict_corrector.load_dict(book=book)
+        if self.dict_corrector:
+            self.dict_corrector.load_dict(book=book)
 
         data_params = dataset_cal
         predictor = self.predictor.predict(data_params)
