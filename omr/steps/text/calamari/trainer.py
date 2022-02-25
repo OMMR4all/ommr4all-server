@@ -204,9 +204,10 @@ if __name__ == '__main__':
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ommr4all.settings')
     import django
     django.setup()
-    b = DatabaseBook('Pa_14819')
+    #b = DatabaseBook('test')
+    b = DatabaseBook('Graduel_Part_3')
 
-    train_pcgts, val_pcgts = dataset_by_locked_pages(0.9999, [LockState(Locks.LAYOUT, True)], True, [b])
+    train_pcgts, val_pcgts = dataset_by_locked_pages(1, [LockState(Locks.LAYOUT, True)], True, [b])
     trainer_params = CalamariTrainer.default_params()
     trainer_params.l_rate = 1e-3
     trainer_params.load = '/home/ls6/wick/Documents/Projects/calamari_models/fraktur_historical_ligs/0.ckpt.json'

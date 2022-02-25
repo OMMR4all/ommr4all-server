@@ -1,10 +1,12 @@
 import os
 
+import scipy
 from calamari_ocr.ocr.dataset.pipeline import CalamariPipeline
 from calamari_ocr.ocr.predict.params import PredictorParams
 from dataclasses import field, dataclass
 
 #from omr.dataset.dataset import LyricsNormalizationProcessor, LyricsNormalization, LyricsNormalizationParams
+from ctc_decoder import LanguageModel, beam_search, best_path
 from tfaip.data.databaseparams import DataPipelineParams
 
 from omr.steps.text.calamari.calamari_interface import RawData
@@ -100,10 +102,17 @@ class CalamariPredictor(TextPredictor):
         book = dataset.files[0].dataset_page().book
         if self.dict_corrector:
             self.dict_corrector.load_dict(book=book)
+        #path = os.path.join(BASE_DIR, 'tools', 'text_language_model.json')
+
+        #with open(path, 'r') as file:
+        #    text = file.read().replace('\n', '')
+        #chars = " #,.abcdefghiklmnopqrstuvxyzſω"
+        #lm = LanguageModel(text, chars)
 
         data_params = dataset_cal
         predictor = self.predictor.predict(data_params)
-        pipeline: CalamariPipeline = self.predictor.data.get_or_create_pipeline(self.predictor.params.pipeline, data_params)
+        pipeline: CalamariPipeline = self.predictor.data.get_or_create_pipeline(self.predictor.params.pipeline,
+                                                                                data_params)
         reader = pipeline.reader()
         avg_sentence_confidence = 0
         n_predictions = 0
@@ -112,10 +121,12 @@ class CalamariPredictor(TextPredictor):
             sample = reader.sample_by_id(meta['id'])
             n_predictions += 1
             sentence = prediction.sentence
+
             if self.dict_corrector:
-                hyphenated = self.dict_corrector.segmentate_correct_and_hyphenate_text(sentence)
-            else:
-                hyphenated = hyphen.apply_to_sentence(prediction.sentence)
+                if len(sentence) > 0:
+                    hyphenated = self.dict_corrector.segmentate_correct_and_hyphenate_text(sentence)
+                else:
+                    hyphenated = sentence
 
             avg_sentence_confidence += prediction.avg_char_probability
             yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, m), m, hyphenated=hyphenated)
