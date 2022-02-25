@@ -131,8 +131,11 @@ class Dewarper:
         logger.info("Creating dewarper based on {} staves with shape {}".format(len(staves), shape))
         self.shape = shape
         self.dst_grid = griddify(shape_to_rect(self.shape), 10, 30)
+        #print(self.dst_grid)
         logger.debug("Transforming grid)")
         self.src_grid = transform_grid(self.dst_grid, staves, self.shape)
+        #print(self.src_grid)
+
         logger.debug("Creating mesh")
         self.mesh = grid_to_mesh(self.src_grid, self.dst_grid)
 
@@ -186,7 +189,7 @@ if __name__ == '__main__':
     from database import DatabaseBook
     from database.file_formats.pcgts import PageScaleReference
     import matplotlib.pyplot as plt
-    page = DatabaseBook('Gothic_Test').pages()[0]
+    page = DatabaseBook('demo').pages()[0]
     binary = Image.open(page.file('binary_highres_preproc', create_if_not_existing=True).local_path())
     gray = Image.open(page.file('gray_highres_preproc').local_path())
     pcgts = PcGts.from_file(page.file('pcgts', create_if_not_existing=True))
@@ -200,7 +203,7 @@ if __name__ == '__main__':
     for a, l in enumerate(images):
         l = np.array(l)
         for p in points_to_transform:
-            l[p[1]-5:p[1]+5, p[0]-5:p[0]+5] = 255
+            l[p[1]-5:p[1]+5, p[0]-5:p[0]+5] = 0
         ax[0, a].imshow(l)
 
     dewarper = Dewarper(images[0].size, pcgts.page.all_staves_staff_line_coords(scale=PageScaleReference.HIGHRES))
@@ -209,7 +212,7 @@ if __name__ == '__main__':
     for a, l in enumerate(images):
         l = np.array(l)
         for p in transformed_points:
-            l[p[1]-5:p[1]+5, p[0]-5:p[0]+5] = 255
+            l[p[1]-5:p[1]+5, p[0]-5:p[0]+5] = 0
         ax[1, a].imshow(l)
 
     plt.show()

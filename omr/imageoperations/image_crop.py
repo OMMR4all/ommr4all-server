@@ -34,15 +34,19 @@ class ImageCropToSmallestBoxOperation(ImageOperation):
     def apply_single(self, data: ImageOperationData) -> OperationOutput:
         def smallestbox(a, datas) -> Tuple[List[np.ndarray], Rect]:
             r = a.any(1)
-            m, n = a.shape
+            #print(a.shape)
+            #print(r.shape)
+            #print(r.argmax())
+            #print(r)
+            m, n = a.shape[:2]
             c = a.any(0)
             q, w, e, r = (r.argmax(), m - r[::-1].argmax(), c.argmax(), n - c[::-1].argmax())
+            #print((r.argmax(), m - r[::-1].argmax(), c.argmax(), n - c[::-1].argmax()))
             q = max(0, q - self.pad[0])
             w = min(m, w + self.pad[2])
             e = max(0, e - self.pad[3])
             r = min(n, r + self.pad[1])
             return [d[q:w, e:r] for d in datas], Rect(q, w, e, r)
-
         imgs, r = smallestbox(data.images[0].image, [d.image for d in data])
         data.images = [ImageData(i, d.nearest_neighbour_rescale) for d, i in zip(data, imgs)]
         data.params = r

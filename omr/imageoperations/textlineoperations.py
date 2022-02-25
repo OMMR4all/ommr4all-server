@@ -14,8 +14,25 @@ logger = logging.getLogger(__name__)
 
 
 class ImageExtractDeskewedLyrics(ImageOperation):
-    def __init__(self):
+    def __init__(self, pad = 0):
         super().__init__()
+        if isinstance(pad, tuple) or isinstance(pad, list):
+            if len(pad) == 0:
+                self.pad = (0, 0, 0, 0)
+            elif len(pad) == 1:
+                self.pad = pad * 4
+            elif len(pad) == 2:
+                self.pad = (pad[0], pad[1], pad[0], pad[1])
+            elif len(pad) == 4:
+                self.pad = pad
+            else:
+                raise ValueError("Invalid shape of padding {}".format(pad))
+        elif isinstance(pad, int):
+            self.pad = (pad, pad, pad, pad)
+        elif pad is None:
+            self.pad = (0, 0, 0, 0)
+        else:
+            raise TypeError("Invalid type of pad: {}. Only int or tuple is supported".format(type(pad)))
 
     def apply_single(self, data: ImageOperationData):
         image = data.images[0].image
@@ -42,14 +59,17 @@ class ImageExtractDeskewedLyrics(ImageOperation):
             aabb = dew_coords.aabb()
             if aabb.area() == 0:
                 continue
-
-            image = dew_page[int(aabb.top()):int(aabb.bottom()), int(aabb.left()):int(aabb.right())]
-
+            image = dew_page[
+                    int(aabb.top()) - self.pad[0]: int(aabb.bottom()) + self.pad[2],
+                    int(aabb.left()) - self.pad[1]: int(aabb.right()) + self.pad[3]]
+            #image = dew_page[
+            #        int(aabb.top()): int(aabb.bottom()),
+            #        int(aabb.left()): int(aabb.right())]
             img_data = copy(data)
             img_data.page_image = image
             img_data.text_line = tl
             img_data.images = [ImageData(image, True)]
-            img_data.params = (dewarper, aabb)
+            img_data.params = (dewarper, aabb, self.pad)
             out.append(img_data)
 
         if False:
@@ -69,8 +89,18 @@ class ImageExtractDeskewedLyrics(ImageOperation):
         return out
 
     def local_to_global_pos(self, p: Point, params: Any):
-        (dewarper, aabb) = params
-        return Point(dewarper.transform_point(p.p + aabb.tl.p))
+        (dewarper, aabb, pad) = params
+        point = Point(p.x - pad[0], p.y)
+        #print(aabb.tl.p)
+        rec = Point(aabb.tl.p)
+        point2 = Point(rec.x - pad[0], rec.y)
+        point = Point(dewarper.transform_point(point.p + point2.p))
+        #print(point)
+        #point = Point(dewarper.transform_point(p.p + aabb.tl.p))
+
+        #point = Point(point.x - pad[0], point.y)
+        #print(point)
+        return point
 
 
 # extract image of a text from the binary image
