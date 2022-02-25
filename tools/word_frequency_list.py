@@ -73,8 +73,9 @@ def check_word_based_similarity(sentence, word_dict):
 class WordDictionaryGenerator:
     def __init__(self, export_path):
         self.word_dict = defaultdict(list)
+        self.text = ""
         self.bigram_word_dict = defaultdict(list)
-
+        self.sentence_list = defaultdict(lambda: 0)
         self.text_normalizer1 = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.SYLLABLES))
         self.text_normalizer2 = LyricsNormalizationProcessor(
             LyricsNormalizationParams(LyricsNormalization.WORDS,
@@ -93,7 +94,12 @@ class WordDictionaryGenerator:
     def populate(self, path):
         for x in documents_gen(path):
             a = populate(x.data)
-            populate_look_up_dict(a.get_text().split(" "), self.word_dict, self.text_normalizer1, self.text_normalizer2)
+            self.text += a.get_text() + " "
+            for x in a.get_text().split("\n"):
+                x = x.strip().lower().replace("-", "")
+                if len(x) > 0:
+                    self.sentence_list[x] = self.sentence_list[x] + 1
+            # populate_look_up_dict(a.get_text().split(" "), self.word_dict, self.text_normalizer1, self.text_normalizer2)
 
     def populate_bigram_look_up_dict(self, sentence, word_dict, t1, t2):
         last_word = None
@@ -113,7 +119,7 @@ class WordDictionaryGenerator:
             a = populate(x.data)
             self.populate_bigram_look_up_dict(a.get_text().split(" "), self.bigram_word_dict,
                                               self.text_normalizer1, self.text_normalizer2)
-        #print(self.get_sorted_frequency_bigram_word_list())
+        # print(self.get_sorted_frequency_bigram_word_list())
 
     def get_sorted_frequency_bigram_word_list(self):
         freq_word_list = []
@@ -121,7 +127,6 @@ class WordDictionaryGenerator:
             c = Counter(y)
             freq_word_list.append(WordFrequency(word=key, frequency=len(y), hyphenated=c.most_common(1)[0][0]))
         return WordFrequencyDict(freq_list=sorted(freq_word_list, key=lambda entry: entry.frequency, reverse=True))
-
 
     def get_sorted_frequency_word_list(self):
         freq_word_list = []
@@ -145,8 +150,26 @@ class WordDictionaryGenerator:
         with open(os.path.join(path, "bigram_default_dictionary.json"), 'w') as outfile:
             for x in freq_word_list.freq_list:
                 outfile.write(x.word + " " + str(x.frequency) + "\n")
+
+    def get_language_model_text(self):
+        return self.text
+
+    def write_language_model_text(self, path):
+        text = self.text
+        text = self.text_normalizer2.apply(text=text)
+        text = text.replace("\n", "")
+        with open(os.path.join(path, "text_language_model.json"), 'w') as outfile:
+            outfile.write(text)
+
+    def write_sentence_file(self, path, seperator="$"):
+        freq_word_list: WordFrequencyDict = self.get_sorted_frequency_bigram_word_list()
+        with open(os.path.join(path, "sentence_dictionary.json"), 'w') as outfile:
+            for x in self.sentence_list.keys():
+                outfile.write(x + seperator + str(self.sentence_list[x]) + "\n")
 if __name__ == "__main__":
     a = WordDictionaryGenerator("/home/alexanderh/Downloads/OMMR4allEvaluationDatenAB/Evaluation/Buck/ommr4all/export")
     # a.write_to_json_file(".")
-    a.populate_bigram("/home/alexanderh/Downloads/OMMR4allEvaluationDatenAB/Evaluation/Buck/ommr4all/export")
-    a.write_bigram_to_file(".")
+    #a.populate_bigram("/home/alexanderh/Downloads/OMMR4allEvaluationDatenAB/Evaluation/Buck/ommr4all/export")
+    #a.write_bigram_to_file(".")
+    #a.write_language_model_text(".")
+    a.write_sentence_file(".")
