@@ -56,6 +56,7 @@ import omr.steps.symboldetection.pixelclassifier.meta
 import omr.steps.symboldetection.sequencetosequence.meta
 import omr.steps.layout.correction_tools.connectedcomponentsselector.meta
 import omr.steps.text.calamari.meta
+import omr.steps.text.pytorch_ocr.meta
 import omr.steps.syllables.syllablesfromtext.meta
 import omr.steps.syllables.syllablesinorder.meta
 import omr.steps.text.correction_tools.document_matching_corrector.meta

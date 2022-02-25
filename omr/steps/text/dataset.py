@@ -21,15 +21,15 @@ class TextDataset(Dataset):
         params.page_scale_reference = PageScaleReference.NORMALIZED_X2
 
         operations = [
-            ImageLoadFromPageOperation(invert=True, files=[(params.page_scale_reference.file('binary'), True)]),
-            # ImageExtractTextLineImages({BlockType.LYRICS}, params.cut_region, params.pad),
-            ImageExtractDeskewedLyrics(),
+            ImageLoadFromPageOperation(invert=True, files=[(params.page_scale_reference.file(params.text_image_color_type), True)]),
+            #ImageExtractTextLineImages({BlockType.LYRICS}, params.cut_region, params.pad),
+            ImageExtractDeskewedLyrics(params.pad),
             ImageRescaleToHeightOperation(height=params.height),
         ]
         return ImageOperationList(operations)
 
     def __init__(self, pcgts: List[PcGts], params: DatasetParams):
-        params.pad = (0, 10, 0, 20)
+        params.pad = (5, 10, 5, 20)
         params.dewarp = False
         params.staff_lines_only = True
         params.cut_region = True

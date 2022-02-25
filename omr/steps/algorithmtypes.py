@@ -15,6 +15,7 @@ class AlgorithmTypes(Enum):
     SYMBOLS_SEQUENCE_TO_SEQUENCE = 'symbols_sequence_to_sequence'
 
     OCR_CALAMARI = "text_calamari"
+    OCR_NAUTILUS = "text_nautilus"
     TEXT_DOCUMENT = "text_documents"
     TEXT_DOCUMENT_CORRECTOR = "text_documents_corrector"
     TEXT_DICTIONARY_CORRECTOR = "text_dictionary_corrector"
@@ -46,7 +47,7 @@ class AlgorithmGroups(Enum):
             AlgorithmGroups.STAFF_LINES: [AlgorithmTypes.STAFF_LINES_PC, ],
             AlgorithmGroups.LAYOUT: [AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES, AlgorithmTypes.LAYOUT_COMPLEX_STANDARD],
             AlgorithmGroups.SYMBOLS: [AlgorithmTypes.SYMBOLS_PC, AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE],
-            AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_CALAMARI],
+            AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_CALAMARI, AlgorithmTypes.OCR_NAUTILUS],
             AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_FROM_TEXT, AlgorithmTypes.SYLLABLES_IN_ORDER],
             AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION],
         }

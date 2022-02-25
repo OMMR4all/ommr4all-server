@@ -1,3 +1,4 @@
+import os
 import string
 from abc import ABC, abstractmethod
 from types import MappingProxyType
@@ -126,6 +127,7 @@ class DatasetParams(DataClassJSONMixin):
     apply_fcn_height: Optional[int] = None
     neume_types_only: bool = False
     calamari_codec: Optional[CalamariCodec] = None
+    text_image_color_type: str = 'binary'
 
     def mix_default(self, default_params: 'DatasetParams'):
         for key, value in default_params.to_dict().items():
@@ -197,7 +199,6 @@ class Dataset(ABC):
 
     def to_text_line_calamari_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         lines = self.load(callback)
-
         def get_input_image(d: RegionLineMaskData):
             if self.params.cut_region:
                 return d.line_image
@@ -213,8 +214,46 @@ class Dataset(ABC):
 
         images = [255 - get_input_image(d).astype(np.uint8) for d in lines]
         gts = [extract_text(d) for d in lines]
+        #print(gts)
+        #import uuid
+        #uuid = str(uuid.uuid4()) + "_"
+        #path = "/tmp/images/"
+        #if not os.path.exists(path):
+        #    os.mkdir(path)
+        #from PIL import Image
+        #import csv
+        #with open(os.path.join(path, "labels.csv"), 'w', newline='') as csvfile:
+        #    fieldnames = ['filename', 'words']
+        #    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        #    writer.writeheader()
+        #    for ind, (i, t) in enumerate(zip(images, gts)):
+        #        with open(os.path.join(path, uuid + str(ind) + ".gt.txt"), 'w') as f:
+        #            f.write(t)
+        #        Image.fromarray(i).save(os.path.join(path, uuid + str(ind) + ".png"))
+        #        writer.writerow({'filename': uuid+ str(ind) + ".png", 'words': t})
+        #print("123")
+        #exit()
         return RawData(images=images, gt_files=gts)
 
+    def to_text_line_nautilus_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
+        lines = self.load(callback)
+        def get_input_image(d: RegionLineMaskData):
+            if self.params.cut_region:
+                return d.line_image
+            else:
+                return d.region
+
+        def extract_text(data: RegionLineMaskData):
+            if not data.operation.text_line:
+                return None
+
+            text = data.operation.text_line.text(with_drop_capital=False)
+            return LyricsNormalizationProcessor(self.params.lyrics_normalization).apply(text)
+
+        images = [255 - get_input_image(d).astype(np.uint8) for d in lines]
+        gts = [extract_text(d) for d in lines]
+
+        return (images, gts)
     def load(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:
         if self.loaded is None:
             self.loaded = list(self._load(callback))
@@ -235,4 +274,5 @@ class Dataset(ABC):
             except (NoStaffsAvailable, NoStaffLinesAvailable):
                 pass
             except Exception as e:
+
                 logger.info("Exception during processing of page: {}".format(f.page.location.local_path()))
