@@ -36,6 +36,7 @@ class DictionaryCorrector(SymSpell):
 
     def segmentate_correct_and_hyphenate_text(self, text, hyphenate=True, edit_distance=2):
         sentence = self.word_segmentation(text, edit_distance)
+
         if hyphenate:
             sentence = self.hyphen.apply_to_sentence(sentence.corrected_string)
         return sentence
