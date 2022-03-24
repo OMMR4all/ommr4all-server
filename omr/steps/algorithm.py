@@ -89,6 +89,7 @@ class AlgorithmTrainer(ABC):
         self.__class__.force_dataset_params(self.settings.dataset_params)
 
         self.params: AlgorithmTrainerParams = self.settings.params
+
         self.train_dataset = self.meta().dataset_class()(self.settings.train_data, self.settings.dataset_params)
         self.validation_dataset = self.meta().dataset_class()(self.settings.validation_data, self.settings.dataset_params)
 

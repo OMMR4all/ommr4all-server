@@ -55,10 +55,17 @@ class CalamariCodec(SerializableType):
         return cls._deserialize(d)
 
     def encode(self, c: CodecType) -> str:
-        if c not in self.codec:
-            self.codec[c] = chr(self.last_char)
-            self.decodec[self.codec[c]] = c
-            self.last_char += 1
+        while True:
+            if c not in self.codec:
+                ll = chr(self.last_char)
+                if ll in self.decodec:
+                    self.last_char += 1
+                    continue
+                self.codec[c] = ll
+                self.decodec[self.codec[c]] = c
+                break
+            else:
+                break
 
         return self.codec[c]
 
@@ -99,6 +106,8 @@ class CalamariSequence:
                                    position_in_staff=c.pos_in_staff,
                                    graphical_connection=c.graphical_connection,
                                    ))
+            #print(f"I: {s} pos: {pos} Symbol: {out[-1].to_json()}")
+
         return out
 
     def __init__(self, codec: CalamariCodec, symbols: List[MusicSymbol]):

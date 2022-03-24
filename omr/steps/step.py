@@ -54,6 +54,8 @@ import omr.steps.layout.simplelyrics.meta
 import omr.steps.layout.standard.meta
 import omr.steps.symboldetection.pixelclassifier.meta
 import omr.steps.symboldetection.sequencetosequence.meta
+import omr.steps.symboldetection.sequence_to_sequence_nautilus.meta
+
 import omr.steps.layout.correction_tools.connectedcomponentsselector.meta
 import omr.steps.text.calamari.meta
 import omr.steps.text.pytorch_ocr.meta

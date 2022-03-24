@@ -173,6 +173,26 @@ class Dataset(ABC):
     def to_line_detection_dataset(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:
         return self.load(callback)
 
+    def to_drop_capital_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
+        from omr.steps.layout.drop_capitals.torch_dataset import DropCapitalDataset
+        d = self.load(callback)
+        images = []
+        masks = []
+        additional_data = []
+
+        for instance in d:
+            images.append(instance.operation.images[0].image)
+            masks.append(instance.operation.images[1].image)
+            if not train:
+                additional_data.append(instance)
+            #        from matplotlib import pyplot as plt
+            #f, axarr = plt.subplots(2, 1)
+            #axarr[0].imshow(instance.operation.images[0].image)
+            #axarr[1].imshow(instance.operation.images[1].image)
+
+            #plt.show()
+
+        return DropCapitalDataset(imgs=images, masks=masks, additional_data=additional_data)
     def to_calamari_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         from calamari_ocr.ocr.datasets.dataset import RawDataSet, DataSetMode
         marked_symbols = self.load(callback)
@@ -234,6 +254,50 @@ class Dataset(ABC):
         #print("123")
         #exit()
         return RawData(images=images, gt_files=gts)
+
+    def to_nautilus_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
+        marked_symbols = self.load(callback)
+
+        def get_input_image(d: RegionLineMaskData):
+            if self.params.cut_region:
+                return d.line_image
+            elif self.params.masks_as_input:
+                hot = d.operation.images[3].image
+                hot[:, :, 0] = (d.line_image if self.params.cut_region else d.region)
+                return hot.transpose([1, 0, 2])
+            else:
+                return d.region
+
+        images = [get_input_image(d).astype(np.uint8) for d in marked_symbols]
+        from PIL import Image
+        #for ind, i in enumerate(images):
+        #    Image.fromarray(i).save("/tmp/images/image_" + str(ind) + ".png")
+        print()
+        if self.params.neume_types_only:
+            gts = [d.calamari_sequence(self.params.calamari_codec).calamari_neume_types_str for d in marked_symbols]
+        else:
+            gts = [d.calamari_sequence(self.params.calamari_codec).calamari_str for d in marked_symbols]
+        if train:
+            path = "/tmp/train/"
+        else:
+            path = "/tmp/val/"
+
+        if not os.path.exists(path):
+            os.mkdir(path)
+        from PIL import Image
+        import csv
+        import uuid
+        uuid = str(uuid.uuid4()) + "_"
+        with open(os.path.join(path, "labels.csv"), 'w', newline='') as csvfile:
+            fieldnames = ['filename', 'words']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for ind, (i, t) in enumerate(zip(images, gts)):
+                with open(os.path.join(path, uuid + str(ind) + ".gt.txt"), 'w') as f:
+                    f.write(t)
+                Image.fromarray(i).save(os.path.join(path, uuid + str(ind) + ".png"))
+                writer.writerow({'filename': uuid+ str(ind) + ".png", 'words': t})
+        return images, gts
 
     def to_text_line_nautilus_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         lines = self.load(callback)
