@@ -53,15 +53,16 @@ class PytorchPredictor(TextPredictor):
         super().__init__(settings)
         self.dict_corrector = None
         self.chars = ' "#,.abcdefghiklmnopqrstuvxyzſω'
+        #self.chars = ' "#,-./03456789;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz§¶ÄÊßâãäæêëîóôöúûüýāēīōœūŵſƷʒ̂̃̄̈̾͛ͣͤͥͦͧͪͬͭͮͯ͞ωᷓᷠᷤᷦḡṙṽẃẏị․⁊℈ↄꝐꝑꝓꝙꝛꝝꝪꝫꝭꝰ'
         path = settings.model.local_file('best_accuracy.pth')
 
         opt = get_config(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
                                       'network_config', 'ocr_config.yaml'), self.chars)
-        print(path)
-        print(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
-                           'network_config', 'ocr_config.yaml'))
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print(device)
+        #print(path)
+        #print(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
+        #                   'network_config', 'ocr_config.yaml'))
+        #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        #print(device)
         self.network = Network(opt, path, self.chars, corpus='')
         if settings.params.useDictionaryCorrection:
             self.dict_corrector = DictionaryCorrector()
@@ -80,10 +81,10 @@ class PytorchPredictor(TextPredictor):
         if self.dict_corrector:
             self.dict_corrector.load_dict(book=book)
         path = os.path.join(BASE_DIR, 'tools', 'sentence_dictionary.json')
-        exists = os.path.exists(path)
+        #exists = os.path.exists(path)
         ###with open(path, 'r') as file:
         #    text = file.read().replace('\n', '')
-        chars = " #,.abcdefghiklmnopqrstuvxyzſω"
+        #chars = " #,.abcdefghiklmnopqrstuvxyzſω"
         #sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
         #loaded = sym_spell.load_dictionary(path, term_index=0, count_index=1, separator="$")
 
