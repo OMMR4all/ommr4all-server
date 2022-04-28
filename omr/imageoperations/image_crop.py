@@ -50,6 +50,7 @@ class ImageCropToSmallestBoxOperation(ImageOperation):
         imgs, r = smallestbox(data.images[0].image, [d.image for d in data])
         data.images = [ImageData(i, d.nearest_neighbour_rescale) for d, i in zip(data, imgs)]
         data.params = r
+
         return [data]
 
     def local_to_global_pos(self, p: Point, params: Any) -> Point:

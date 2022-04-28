@@ -1,7 +1,8 @@
 from omr.imageoperations.image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point
 from omr.imageoperations.image_crop import ImageCropToSmallestBoxOperation
 from typing import Tuple, List, Any, Optional
-from database.file_formats.pcgts import Page, PageScaleReference, Line, MusicSymbol, ClefType, AccidType, GraphicalConnectionType, Coords, SymbolType
+from database.file_formats.pcgts import Page, PageScaleReference, Line, MusicSymbol, ClefType, AccidType, \
+    GraphicalConnectionType, Coords, SymbolType, BlockType
 import numpy as np
 from PIL import Image
 from copy import copy
@@ -117,6 +118,46 @@ class ImageExtractStaffLineImages(ImageOperation):
             # default operations
             return Point(p.x + l, t + p.y)
 
+# extract image of a staff line, and as mask, the highlighted staff lines
+class ImageExtractDropCapitalsImages(ImageOperation):
+    def __init__(self):
+        super().__init__()
+
+    def apply_single(self, data: ImageOperationData):
+        image = data.images[0].image
+        marked_drop_capitals = np.zeros(image.shape[:2], dtype=np.uint8)
+        page = data.page
+
+        def scale(p):
+            return page.page_to_image_scale(p, data.scale_reference)
+
+        i = 1
+        s = []
+        for mr in data.page.blocks_of_type(BlockType.DROP_CAPITAL):
+            for drop_capital in mr.lines:
+                s.append(drop_capital)
+                scale(drop_capital.coords).draw(marked_drop_capitals, i, 0, fill=True)
+                i += 1
+
+        out = []
+        image_data = copy(data)
+        image_data.images = [ImageData(image, False), ImageData(marked_drop_capitals, True)]
+        image_data.params = None
+        image_data.page_image = image
+        image_data.music_lines = s
+        out.append(image_data)
+
+
+        return out
+
+    def _extract_image_op(self, data: ImageOperationData):
+        data.images = [
+                          data.images[0],
+                          data.images[1]]
+
+    def local_to_global_pos(self, p: Point, params: Any):
+        return p
+
 
 class ImageExtractDewarpedStaffLineImages(ImageOperation):
     def __init__(self, dewarp, cut_region, pad, center, staff_lines_only):
@@ -165,9 +206,11 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
         if debug:
             import matplotlib.pyplot as plt
-            f, ax = plt.subplots(1, 2)
+            f, ax = plt.subplots(1, 3)
             ax[0].imshow(labels)
             ax[1].imshow(dew_labels)
+            ax[2].imshow(dew_page)
+
             plt.show()
 
         i = 1
@@ -183,6 +226,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                     img_data.images = [ImageData(mask, True), ImageData(dew_page, False), ImageData(dew_symbols, True)]
                     cropped = self.cropper.apply_single(img_data)[0]
                     self._extract_image_op(img_data)
+
                     if self.center:
                         coords = extract_transformed_coords(ml)
                         r = self._resize_to_height(cropped.images, coords, rect=cropped.params)
