@@ -53,6 +53,16 @@ class PcGtsCanvas:
                 color = tuple(map(int, 255 - np.array(color, dtype=int)))
             pos = tuple(scale(elem.coord.p))
             cv2.circle(self.img, pos, int(self.avg_line_distance / 8 * fac), color=color, thickness=-1)
+            if elem.symbol_type == elem.symbol_type.CLEF:
+                if elem.clef_type == elem.clef_type.C:
+                    self.img[int(pos[1]-self.avg_line_distance  * 0.8):int(pos[1]+self.avg_line_distance * 0.8), int(pos[0]-self.avg_line_distance  * 0.3):int(pos[0]+self.avg_line_distance  * 0.3)] = color
+                else:
+                    self.img[int(pos[1]-self.avg_line_distance  * 0.8):int(pos[1]+self.avg_line_distance * 0.8), int(pos[0]-self.avg_line_distance  * 0.4):int(pos[0]+self.avg_line_distance  * 0.4)] = color
+
+
+            else:
+                self.img[int(pos[1]-self.avg_line_distance / 4 * 0.8):int(pos[1]+self.avg_line_distance / 4 * 0.8), int(pos[0]-self.avg_line_distance / 4 * 0.8):int(pos[0]+self.avg_line_distance / 4 * 0.8)] = color
+
         elif isinstance(elem, StaffLine):
             sl: StaffLine = elem
             sl.draw(self.img, thickness=self.avg_line_distance // 10, scale=scale)
