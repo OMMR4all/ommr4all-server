@@ -1,7 +1,8 @@
 from omr.experimenter.experimenter import Experimenter
 from database import DatabaseBook
 from omr.steps.symboldetection.dataset import PcGts
-from omr.steps.symboldetection.evaluator import SymbolDetectionEvaluator, Counts, precision_recall_f1, AccCounts
+from omr.steps.symboldetection.evaluator import SymbolDetectionEvaluator, Counts, precision_recall_f1, AccCounts, \
+    SymbolErrorTypeDetectionEvaluator, SymbolMelodyEvaluator
 from typing import List
 from prettytable import PrettyTable
 import numpy as np
@@ -9,7 +10,8 @@ import numpy as np
 
 class SymbolsExperimenter(Experimenter):
     def extract_gt_prediction(self, full_predictions):
-        return zip(*[(p.line.operation.music_line.symbols, p.symbols) for p in sum([p.music_lines for p in full_predictions], [])])
+        output = zip(*[(p.line.operation.music_line.symbols, p.symbols) for p in sum([p.music_lines for p in full_predictions], [])]), full_predictions
+        return output
 
     def output_prediction_to_book(self, pred_book: DatabaseBook, output_pcgts: List[PcGts], predictions):
         output_pcgts_by_page_name = {}
@@ -29,9 +31,14 @@ class SymbolsExperimenter(Experimenter):
                 o_pcgts.page.music_line_by_id(ml.line.operation.music_line.id).symbols = ml.symbols
 
     def evaluate(self, predictions, evaluation_params):
-        gt_symbols, pred_symbols = predictions
+        symbols, full_predictions = predictions
+        gt_symbols, pred_symbols = symbols
         evaluator = SymbolDetectionEvaluator(evaluation_params)
         metrics, counts, acc_counts, acc_acc, total_diffs = evaluator.evaluate(gt_symbols, pred_symbols)
+        evaluator2 = SymbolErrorTypeDetectionEvaluator(evaluation_params)
+        counts1, counts2 = evaluator2.evaluate(full_predictions)
+        melody_evaluator = SymbolMelodyEvaluator(evaluation_params)
+        melody_counts, melody_acc = melody_evaluator.evaluate(gt_symbols, pred_symbols)
 
         at = PrettyTable()
 
@@ -41,6 +48,8 @@ class SymbolsExperimenter(Experimenter):
         at.add_column("FN", counts[:, Counts.FN])
 
         prec_rec_f1 = np.array([precision_recall_f1(c[Counts.TP], c[Counts.FP], c[Counts.FN]) for c in counts])
+        self.fold_log.debug(prec_rec_f1)
+
         at.add_column("Precision", prec_rec_f1[:, 0])
         at.add_column("Recall", prec_rec_f1[:, 1])
         at.add_column("F1", prec_rec_f1[:, 2])
@@ -59,7 +68,7 @@ class SymbolsExperimenter(Experimenter):
         at.add_row(total_diffs)
         self.fold_log.debug(at)
 
-        return prec_rec_f1, acc_acc, total_diffs
+        return prec_rec_f1, acc_acc, total_diffs, counts1.to_np_array(), counts2.to_np_array(), melody_acc
 
     @classmethod
     def print_results(cls, args, results, log):
@@ -68,6 +77,10 @@ class SymbolsExperimenter(Experimenter):
         prec_rec_f1_list = [r[0] for r in results if r is not None]
         acc_counts_list = [r[1] for r in results if r is not None]
         total_diffs = [r[2] for r in results if r is not None]
+        count_1 = [r[3] for r in results if r is not None]
+        clef_analysis = [r[4] for r in results if r is not None]
+        melody_count_list = [r[5] for r in results if r is not None]
+
         if len(prec_rec_f1_list) == 0:
             return
 
@@ -78,7 +91,14 @@ class SymbolsExperimenter(Experimenter):
         acc_std = np.std(acc_counts_list, axis=0)
         diffs_mean = np.mean(total_diffs, axis=0)
         diffs_std = np.std(total_diffs, axis=0)
+        count1_mean = np.mean(count_1, axis=0)
+        count1_std = np.std(count_1, axis=0)
+        clef_analysis_sum = np.sum(clef_analysis, axis=0)
+        clef_analysis_mean = np.mean(clef_analysis, axis=0)
+        clef_analysis_std = np.std(clef_analysis, axis=0)
 
+        melody_mean = np.mean(melody_count_list, axis=0)
+        melody_std = np.std(melody_count_list, axis=0)
         at = PrettyTable()
 
         at.add_column("Type", ["All", "All", "Notes", "Clefs", "Accids"])
@@ -107,4 +127,8 @@ class SymbolsExperimenter(Experimenter):
             all_symbol_detection = np.array(sum([[prf1_mean[1:, i], prf1_std[1:, i]] for i in range(3)], [])).transpose().reshape(-1)
             all_acc = np.array(np.transpose([acc_mean[:, 0], acc_std[:, 0]]).reshape([-1]))
             all_diffs = np.array(np.transpose([diffs_mean, diffs_std])).reshape([-1])
-            print("{}{}".format(args.magic_prefix, ','.join(map(str, list(all_symbol_detection) + list(all_acc) + list(all_diffs)))))
+            all_count1 = np.array(np.transpose([count1_mean, count1_std])).reshape([-1])
+            all_clef_analysis = np.array(np.transpose([clef_analysis_sum, clef_analysis_mean])).reshape([-1])
+            all_melody = np.array(np.transpose([melody_mean, melody_std])).reshape([-1])
+
+            print("{}{}".format(args.magic_prefix, ','.join(map(str, list(all_symbol_detection) + list(all_acc) + list(all_diffs) + list(all_melody) +  list(all_clef_analysis)))))

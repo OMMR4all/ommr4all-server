@@ -1,3 +1,5 @@
+from dataclasses_json import dataclass_json, LetterCase
+
 from database.file_formats.pcgts import *
 from typing import List, Tuple, NamedTuple
 import os
@@ -5,13 +7,79 @@ import numpy as np
 from enum import IntEnum
 from edit_distance import edit_distance
 from difflib import SequenceMatcher
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import prettytable
 from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix, classification_report
 
-
 from omr.experimenter.experimenter import EvaluatorParams
+from omr.steps.symboldetection.predictor import SingleLinePredictionResult
+from tools.dataset_statistics import drop_captial_of_text_line_center, para_text_of_text_line_center, \
+    symbols_between_x1_x2, symbols_in_line, symbols_in_block
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class Counts_Types:
+    n_pages: int = 0
+    n_staves: int = 0
+    n_staff_lines: int = 0
+    n_symbols: int = 0
+    n_note_components: int = 0
+    n_clefs: int = 0
+    n_accids: int = 0
+    n_symbols_in_text_area: int = 0
+    n_symbols_in_text_area_fp: int = 0
+
+    n_clef_after_drop_capital_area_all: int = 0
+    n_clef_after_drop_capital_area_all_fp: int = 0
+
+    n_clef_after_drop_capital_area_big: int = 0
+    n_clef_after_drop_capital_area_big_fp: int = 0
+
+    n_symbol_in_drop_capital_area: int = 0
+    n_symbol_in_drop_capital_area_fp: int = 0
+
+    n_symbol_above_para_text_area: int = 0
+    n_symbol_above_para_text_area_fp: int = 0
+
+    n_drop_capitals_all: int = 0
+    n_drop_capitals_big: int = 0
+    n_para_text: int = 0
+    n_para_text2: int = 0
+    n_para_drop_captial2: int = 0
+
+    def to_np_array(self):
+        return np.array(list(asdict(self).values()))
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class Clef_Error_Types:
+    n_clefs_tp: int = 0
+
+    n_clefs_tp_pos: int = 0
+    n_clefs_tp_type: int = 0
+
+    n_clef_beginning_tp: int = 0
+    n_clef_unspecific_tp: int = 0
+    n_clef_after_drop_capital_area_all_tp: int = 0
+    n_clef_after_drop_capital_area_big_tp: int = 0
+
+    n_clefs_fp: int = 0
+    n_clef_beginning_fp: int = 0
+    n_clef_unspecific_fp: int = 0
+    n_clef_after_drop_capital_area_all_fp: int = 0
+    n_clef_after_drop_capital_area_big_fp: int = 0
+
+    n_clefs_fn: int = 0
+    n_clef_beginning_fn: int = 0
+    n_clef_unspecific_fn: int = 0
+    n_clef_after_drop_capital_area_all_fn: int = 0
+    n_clef_after_drop_capital_area_big_fn: int = 0
+
+    def to_np_array(self):
+        return np.array(list(asdict(self).values()))
 
 
 class PRF2Metrics(IntEnum):
@@ -26,8 +94,10 @@ class PRF2Metrics(IntEnum):
 
     COUNT = 8
 
+
 class SymbolDetectionEvaluatorParams(NamedTuple):
     symbol_detected_min_distance: int = 5
+
 
 class PRF2Index(IntEnum):
     P = 0
@@ -39,6 +109,7 @@ class PRF2Index(IntEnum):
     def __int__(self):
         return self.value
 
+
 class Counts(IntEnum):
     TP = 0
     FP = 1
@@ -48,6 +119,7 @@ class Counts(IntEnum):
 
     def __int__(self):
         return self.value
+
 
 class AccCounts(IntEnum):
     TRUE = 0
@@ -59,10 +131,12 @@ class AccCounts(IntEnum):
     def __int__(self):
         return self.value
 
+
 class ConnectionCounter(NamedTuple):
     LOOPED = 0
     GAPED = 0
     NEUMESTART = 0
+
 
 class ConfusionMatrix:
 
@@ -89,7 +163,8 @@ class ConfusionMatrix:
             gt_c, gt_s = best
             gt_s: MusicSymbol = gt_s
             y_true.append(str(gt_s.graphical_connection).split('GraphicalConnectionType.')[1]
-                          if gt_s.symbol_type == gt_s.symbol_type.NOTE else str(gt_s.symbol_type).split('SymbolType.')[1])
+                          if gt_s.symbol_type == gt_s.symbol_type.NOTE else str(gt_s.symbol_type).split('SymbolType.')[
+                1])
             y_pred.append(str(p_s.graphical_connection).split('GraphicalConnectionType.')[1]
                           if p_s.symbol_type == p_s.symbol_type.NOTE else str(p_s.symbol_type).split('SymbolType.')[1])
 
@@ -122,7 +197,7 @@ class ConfusionMatrix:
 
         for x in range(len(labels)):
             row = self.cf_matrix[x, :]
-            cf_matrix_display.add_column(str(labels[x]), list(row)+[np.sum(row)])
+            cf_matrix_display.add_column(str(labels[x]), list(row) + [np.sum(row)])
 
         c_sum = []
         for x in range(len(labels)):
@@ -131,6 +206,7 @@ class ConfusionMatrix:
         cf_matrix_display.add_column('SUM', c_sum + [np.sum(self.cf_matrix)])
 
         print(cf_matrix_display)
+
         def plot_confusion_matrix_pyplot(classes, cmap='Blues'):
             fig, ax = plt.subplots()
             im = ax.imshow(self.cf_matrix, interpolation='nearest', cmap=cmap)
@@ -163,6 +239,7 @@ class ConfusionMatrix:
             np.set_printoptions(precision=2)
             plot_confusion_matrix_pyplot(classes=labels)
             plt.show()
+
 
 def precision_recall_f1(tp, fp, fn) -> Tuple[float, float, float]:
     if tp == 0:
@@ -233,13 +310,21 @@ class Codec:
                 sequence.append((symbol.symbol_type, symbol.clef_type, symbol.position_in_staff))
             elif symbol.symbol_type == SymbolType.NOTE:
                 if note_connection_type:
-                    sequence.append((symbol.symbol_type, symbol.note_type, symbol.position_in_staff, symbol.graphical_connection))
+                    sequence.append(
+                        (symbol.symbol_type, symbol.note_type, symbol.position_in_staff, symbol.graphical_connection))
                 else:
                     sequence.append((symbol.symbol_type, symbol.note_type, symbol.position_in_staff, True))
             else:
                 raise Exception('Unknown symbol type')
 
         return list(map(self.get, sequence))
+
+    def symbols_to_melody_sequence(self, symbols: List[MusicSymbol]):
+        sequence = []
+        for symbol in symbols:
+            if symbol.symbol_type == SymbolType.NOTE:
+                sequence.append((symbol.note_name, symbol.octave))
+        return sequence
 
     def compute_sequence_diffs(self, gt, pred) -> SequenceDiffs:
         sm = SequenceMatcher(a=pred, b=gt, autojunk=False, isjunk=False)
@@ -249,7 +334,6 @@ class Codec:
         missing_clefs = 0
         wrong_note_connections = 0
         wrong_position_in_staff = 0
-
 
         additional_note = 0
         add_wrong_pos_in_staff = 0
@@ -351,6 +435,9 @@ class SymbolDetectionEvaluator:
             neume_gt_sequence = self.codec.label_to_neume_sequence(gt_sequence_nc)
             neume_pred_sequence = self.codec.label_to_neume_sequence(pred_sequence_nc)
             sequence_ed = edit_distance(gt_sequence, pred_sequence)
+            # print(gt_sequence)
+            # print(pred_sequence)
+            # print(sequence_ed)
             sequence_ed_nc = edit_distance(gt_sequence_nc, pred_sequence_nc)
             neume_sequence_ed = edit_distance(neume_gt_sequence, neume_pred_sequence)
             diffs = np.asarray(self.codec.compute_sequence_diffs(gt_sequence_nc, pred_sequence_nc))
@@ -365,8 +452,10 @@ class SymbolDetectionEvaluator:
                 best_s = None
                 best_gti = None
                 # closest other symbol
+
                 for gt_i, (gt_c, gt_s) in enumerate(gt_symbols):
                     d = gt_c.distance_sqr(p_c)
+
                     if d > min_distance_sqr:
                         continue
 
@@ -379,7 +468,6 @@ class SymbolDetectionEvaluator:
                     pairs.append(((p_c, p_s), best_s))
                     del gt_symbols[best_gti]
                     del p_symbols[p_i]
-
             n_tp = len(pairs)
             n_fp = len(p_symbols)
             n_fn = len(gt_symbols)
@@ -391,13 +479,16 @@ class SymbolDetectionEvaluator:
                 continue
 
             def sub_group(symbol_types: List[SymbolType]):
-                l_tp = [(p, gt) for (_, p), (_, gt) in pairs if gt.symbol_type in symbol_types and p.symbol_type in symbol_types]
+                l_tp = [(p, gt) for (_, p), (_, gt) in pairs if
+                        gt.symbol_type in symbol_types and p.symbol_type in symbol_types]
 
-                l_fp = [p for (_, p), (_, gt) in pairs if gt.symbol_type not in symbol_types and p.symbol_type in symbol_types] \
-                        + [p for (_, p) in p_symbols if p.symbol_type in symbol_types]
+                l_fp = [p for (_, p), (_, gt) in pairs if
+                        gt.symbol_type not in symbol_types and p.symbol_type in symbol_types] \
+                       + [p for (_, p) in p_symbols if p.symbol_type in symbol_types]
 
                 l_fn = \
-                    [gt for (_, p), (_, gt) in pairs if p.symbol_type not in symbol_types and gt.symbol_type in symbol_types] \
+                    [gt for (_, p), (_, gt) in pairs if
+                     p.symbol_type not in symbol_types and gt.symbol_type in symbol_types] \
                     + [gt for (_, gt) in gt_symbols if gt.symbol_type in symbol_types]
 
                 tp, fp, fn = tuple(list(map(len, (l_tp, l_fp, l_fn))))
@@ -497,23 +588,298 @@ class SymbolDetectionEvaluator:
         return f_metrics.mean(axis=0), counts.sum(axis=0), acc_counts, acc_acc, total_diffs
 
 
+class SymbolMelodyEvaluator:
+    def __init__(self, params: EvaluatorParams = None):
+        self.params = params if params else EvaluatorParams()
+        self.codec = Codec()
+
+    def evaluate(self, gt_symbols: List[List[MusicSymbol]], pred_symbols: List[List[MusicSymbol]]):
+        acc_counts1 = np.zeros((0, 1, AccCounts.COUNT), dtype=int)
+
+        for gt, prediction in zip(gt_symbols, pred_symbols):
+            gt_sequence = self.codec.symbols_to_melody_sequence(gt)
+            pred_sequence = self.codec.symbols_to_melody_sequence(prediction)
+            sequence_ed = edit_distance(gt_sequence, pred_sequence)
+            to_ocncatendate = np.array([[
+                (sequence_ed[1], sequence_ed[0], sum(sequence_ed)),
+            ]])
+            acc_counts1 = np.concatenate((acc_counts1, [[
+                (sequence_ed[1], sequence_ed[0], sum(sequence_ed)),
+            ]]), axis=0)
+        acc_counts1 = acc_counts1.sum(axis=0)
+        acc_acc1 = (acc_counts1[:, AccCounts.TRUE] / acc_counts1[:, AccCounts.TOTAL]).reshape((-1, 1))
+
+        return acc_counts1, acc_acc1
+
+
+class SymbolErrorTypeDetectionEvaluator:
+    def __init__(self, params: EvaluatorParams = None):
+        self.params = params if params else EvaluatorParams()
+
+    def evaluate(self, predictions):
+        counts = Counts_Types()
+        counts2 = Clef_Error_Types()
+        min_distance_sqr = self.params.symbol_detected_min_distance ** 2
+
+        def extract_coords_of_symbols(symbols: List[MusicSymbol]) -> List[Tuple[Point, MusicSymbol]]:
+            return [(s.coord, s) for s in symbols]
+
+        for ind, page_pred in enumerate(predictions):
+
+            page = page_pred.pcgts.page
+            # print(page.location.page)
+            paragraph = page.blocks_of_type(BlockType.PARAGRAPH)
+            drop_capitals = page.blocks_of_type(BlockType.DROP_CAPITAL)
+            counts.n_para_drop_captial2 += len(drop_capitals)
+            counts.n_para_text2 += len(page.blocks_of_type(BlockType.PARAGRAPH))
+
+            for ml in page_pred.music_lines:
+                pairs = []
+                pair_dict = {}
+                symbols = ml.symbols
+                line = ml.line.operation.music_line
+                # print(ml.line.operation.music_line.id)
+                gt_symbols = ml.line.operation.music_line.symbols
+
+                pred = symbols[:]
+                gt = gt_symbols[:]
+                p_symbols = extract_coords_of_symbols(pred)
+                gt_symbols_orig = extract_coords_of_symbols(gt)
+                gt_symbols = gt_symbols_orig[:]
+                b_tl = page.closest_below_text_line_to_music_line(line, True)
+                a_tl = page.closest_above_text_line_to_music_line(line, True)
+                d_capitals = drop_captial_of_text_line_center(b_tl, line,
+                                                              drop_capitals)  ## p.drop_capitals_of_text_line(b_tl)
+
+                def symbol_after_x(x, symbols: List[MusicSymbol]):
+                    for symbol_1 in symbols:
+                        if symbol_1.coord.x > x:
+                            return symbol_1
+                    return None
+
+                para_text = para_text_of_text_line_center(b_tl, line, paragraph)
+                for p_i, (p_c, p_s) in reversed(list(enumerate(p_symbols))):
+                    best_d = 10000
+                    best_s = None
+                    best_gti = None
+                    # closest other symbol
+
+                    for gt_i, (gt_c, gt_s) in enumerate(gt_symbols):
+                        d = gt_c.distance_sqr(p_c)
+
+                        if d > min_distance_sqr:
+                            continue
+
+                        if d < best_d:
+                            best_s = (gt_c, gt_s)
+                            best_d = d
+                            best_gti = gt_i
+
+                    if best_s:
+                        pairs.append(((p_c, p_s), best_s))
+                        pair_dict[p_s.id] = best_s[1]
+                        # pair_dict[best_s[1].s_id] = p_s
+
+                        del gt_symbols[best_gti]
+                        del p_symbols[p_i]
+                n_tp = len(pairs)
+                n_fp = len(p_symbols)
+                n_fn = len(gt_symbols)
+
+                def clefs_stats(counts: Clef_Error_Types):
+                    pass
+
+                def check_if_clef_after_dp(symbols: List[MusicSymbol], d_capitals, symbol: MusicSymbol):
+                    def is_big_dc(dp, min_size=0.09):
+                        if cap.aabb.bottom() - cap.aabb.top() > min_size:
+                            return True
+                        else:
+                            return False
+
+                    for cap in d_capitals:
+                        center_x = cap.aabb.center.x
+
+                        next_symbol = symbol_after_x(center_x, symbols)
+                        if next_symbol and next_symbol.id == symbol.id:
+                            return True, is_big_dc(cap)
+                    return False, False
+
+                def is_system_beginning(symbol: MusicSymbol, symbols: List[MusicSymbol]):
+                    if symbol.id == symbols[0].id:
+                        return True
+                    else:
+                        return False
+
+                for coord, symbol in gt_symbols:
+                    if symbol.symbol_type == symbol.symbol_type.CLEF:
+                        counts2.n_clefs_fn += 1
+                        after_dp, after_dp_size = check_if_clef_after_dp(gt, d_capitals, symbol)
+                        if after_dp:
+                            counts2.n_clef_after_drop_capital_area_all_fn += 1
+                            if after_dp_size:
+                                counts2.n_clef_after_drop_capital_area_big_fn += 1
+                        elif is_system_beginning(symbol, gt):
+                            counts2.n_clef_beginning_fn += 1
+                        else:
+                            counts2.n_clef_unspecific_fn += 1
+
+                for coord, symbol in p_symbols:
+
+                    if symbol.symbol_type == symbol.symbol_type.CLEF:
+                        counts2.n_clefs_fp += 1
+                        after_dp, after_dp_size = check_if_clef_after_dp(pred, d_capitals, symbol)
+                        if after_dp:
+                            print(page.location.page)
+
+                            counts2.n_clef_after_drop_capital_area_all_fp += 1
+                            if after_dp_size:
+                                counts2.n_clef_after_drop_capital_area_big_fp += 1
+                        elif is_system_beginning(symbol, pred):
+                            print(page.location.page)
+
+                            counts2.n_clef_beginning_fp += 1
+                        else:
+                            print(page.location.page)
+
+                            counts2.n_clef_unspecific_fp += 1
+
+                for predict, gtruth in pairs:
+                    symbol = predict[1]
+                    if symbol.symbol_type == symbol.symbol_type.CLEF:
+                        counts2.n_clefs_tp += 1
+                        if gtruth[1].position_in_staff != symbol.position_in_staff:
+                            counts2.n_clefs_tp_pos += 1
+                        elif gtruth[1].symbol_type != symbol.symbol_type:
+                            counts2.n_clefs_tp_type += 1
+
+                        after_dp, after_dp_size = check_if_clef_after_dp(pred, d_capitals, symbol)
+                        if after_dp:
+                            counts2.n_clef_after_drop_capital_area_all_tp += 1
+                            if after_dp_size:
+                                counts2.n_clef_after_drop_capital_area_big_tp += 1
+                        elif is_system_beginning(symbol, pred):
+                            counts2.n_clef_beginning_tp += 1
+                        else:
+                            counts2.n_clef_unspecific_tp += 1
+
+                # page = ml.line.operation.page
+                # counts.n_pages += 1
+                # mls = p.all_music_lines()
+                # counts.n_staves += len(mls)
+
+                # print(pcgts.dataset_page().page)
+
+                # para_text = p.para_text_of_text_line(b_tl)
+                symbols_above_para_text = []
+                for para in para_text:
+                    ss = symbols_between_x1_x2(symbols, para.aabb.left(), para.aabb.right())
+                    # if len(ss) > 0:
+                    #    print(p.location.page)
+
+                    symbols_above_para_text += ss
+                # 1
+                symbols_above_para_text_tp = [i for i in symbols_above_para_text if i.id in pair_dict]
+
+                for cap in d_capitals:
+                    center_x = cap.aabb.center.x
+
+                    next_symbol = symbol_after_x(center_x, symbols)
+                    if next_symbol is not None:
+                        if next_symbol.symbol_type == SymbolType.CLEF:
+                            is_pair = True if next_symbol.id in pair_dict else False
+                            counts.n_clef_after_drop_capital_area_all += 1
+                            if is_pair is False:
+                                counts.n_clef_after_drop_capital_area_all_fp += 1
+                            if cap.aabb.bottom() - cap.aabb.top() > 0.09:
+                                counts.n_clef_after_drop_capital_area_big += 1
+                                if is_pair is False:
+                                    counts.n_clef_after_drop_capital_area_big_fp += 1
+                                counts.n_drop_capitals_big += 1
+
+                symbols_in_text_area = symbols_in_line(symbols, a_tl)
+                symbols_in_text_area += symbols_in_line(symbols, b_tl)
+                symbols_in_text_area_tp = [i for i in symbols_in_text_area if i.id in pair_dict]
+
+                # if len(symbols_in_text_area) > 0:
+                #    print(pcgts.dataset_page().page)
+                symbols_in_drop_capital = []
+                for d in d_capitals:
+                    symbols_in_drop_capital += symbols_in_block(symbols, d)
+                # 1
+                symbols_in_drop_capital_tp = [i for i in symbols_in_drop_capital if i.id in pair_dict]
+                counts.n_staff_lines += len(line.staff_lines)
+                counts.n_symbols += len(symbols)
+                counts.n_note_components += len([s for s in symbols if s.symbol_type == SymbolType.NOTE])
+                counts.n_clefs += len([s for s in symbols if s.symbol_type == SymbolType.CLEF])
+                counts.n_accids += len([s for s in symbols if s.symbol_type == SymbolType.ACCID])
+                counts.n_drop_capitals_all += len(d_capitals)
+                counts.n_para_text += len(para_text)
+                counts.n_symbol_above_para_text_area += len(symbols_above_para_text)
+                counts.n_symbols_in_text_area += len(symbols_in_text_area)
+                counts.n_symbol_in_drop_capital_area += len(symbols_in_drop_capital)
+
+                counts.n_symbols_in_text_area_fp += (len(symbols_in_text_area) - len(symbols_in_text_area_tp))
+                counts.n_symbol_in_drop_capital_area_fp += (
+                            len(symbols_in_drop_capital) - len(symbols_in_drop_capital_tp))
+
+                counts.n_symbol_above_para_text_area_fp += len(symbols_above_para_text) - len(
+                    symbols_above_para_text_tp)
+        # pt = PrettyTable([n for n, _ in counts.to_dict().items()])
+        # pt.add_row([v for _, v in counts.to_dict().items()])
+        # print(pt)
+
+        return counts, counts2
+
+
 if __name__ == '__main__':
-    from omr.symboldetection.predictor import SymbolDetectionPredictor, create_predictor, PredictorTypes, SymbolDetectionPredictorParameters
+    from omr.steps.algorithmpreditorparams import AlgorithmPredictorSettings
+    from omr.steps.symboldetection.pixelclassifier.predictor import PCPredictor
+    from omr.steps.symboldetection.pixelclassifier.meta import Meta
+
     from prettytable import PrettyTable
     from database import DatabaseBook
-    b = DatabaseBook('Graduel')
-    eval_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[12:13]]
-    print([e.page.location.local_path() for e in eval_pcgts])
-    predictor = create_predictor(
-        PredictorTypes.PIXEL_CLASSIFIER,
-        SymbolDetectionPredictorParameters([b.local_path(os.path.join('pc_symbol_detection', 'model'))]))
+    import django
+
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
+    django.setup()
+
+    b = DatabaseBook('Pa_14819_gt')
+    eval_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()]
+
+    # eval_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[12:13]]
+    # print([e.page.location.local_path() for e in eval_pcgts])
+    pred = PCPredictor(AlgorithmPredictorSettings(Meta.best_model_for_book(b)))
+    print(pred.settings.model.path)
+    # ps = list(pred.predict([p.page.location for p in val_pcgts]))
+    # predictor = create_predictor(
+    #    PredictorTypes.PIXEL_CLASSIFIER,
+    #    SymbolDetectionPredictorParameters([b.local_path(os.path.join('pc_symbol_detection', 'model'))]))
+    ps = [p.page.location for p in eval_pcgts]
+    for p in ps:
+        print(p.page)
+
     gt_symbols, pred_symbols = [], []
-    for p in predictor.predict(eval_pcgts):
-        pred_symbols.append(p.symbols)
-        gt_symbols.append(p.line.operation.music_line.symbols)
+    predictions = []
+    raw_gt = []
+    raw_pred = []
+    for p in pred.predict(ps):
+        for music_line in p.music_lines:
+            pred_symbols.append(music_line.symbols)
+            gt_symbols.append(music_line.line.operation.music_line.symbols)
+            raw_gt += music_line.line.operation.music_line.symbols
+            raw_pred += music_line.symbols
+
+        predictions.append(p)
 
     evaluator = SymbolDetectionEvaluator()
     metrics, counts, acc_counts, acc_acc, diffs = evaluator.evaluate(gt_symbols, pred_symbols)
+
+    evaluator2 = SymbolErrorTypeDetectionEvaluator()
+    counts1, counts2 = evaluator2.evaluate(predictions)
+    pt = PrettyTable([n for n, _ in counts1.to_dict().items()])
+    pt.add_row([v for _, v in counts1.to_dict().items()])
+    print(len(raw_gt))
+    print(len(raw_pred))
 
     at = PrettyTable()
 
@@ -528,9 +894,13 @@ if __name__ == '__main__':
     at.add_column("F1", prec_rec_f1[:, 2])
     print(at.get_string())
 
+    # print(acc_counts[:, AccCounts.FALSE])
+    # print(AccCounts.TRUE.value)
 
     at = PrettyTable()
-    at.add_column("Type", ["Note all", "Note GC", "Note NS", "Note PIS", "Clef type", "Clef PIS", "Accid type", "Sequence", "Sequence NC"])
+    at.add_column("Type", ["Note all", "Note PIS", "Clef All", "Clef PIS", "Accid All", "Sequence", "Sequence NC",
+                           "Sequence Neume"])
+
     at.add_column("True", acc_counts[:, AccCounts.TRUE])
     at.add_column("False", acc_counts[:, AccCounts.FALSE])
     at.add_column("Total", acc_counts[:, AccCounts.TOTAL])
@@ -538,3 +908,206 @@ if __name__ == '__main__':
 
     print(at.get_string())
 
+    import xlwt
+    from xlwt import Workbook
+
+    # Workbook is created
+    wb = Workbook()
+
+    # add_sheet is used to create sheet.
+    sheet1 = wb.add_sheet('Sheet 1')
+    types = ["Type", "Note all", "Note PIS", "Clef All", "Clef PIS", "Accid All", "Sequence", "Sequence NC",
+             "Sequence Neume"]
+    x, y = 0, 0
+    for xy in types:
+        sheet1.write(y, x, xy)
+        x += 1
+    y += 1
+    x = 0
+    for xy in ["True"] + list(acc_counts[:, AccCounts.TRUE]):
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+                sheet1.write(y, x, float(xy))
+        x += 1
+    x = 0
+    y += 1
+
+    for xy in ["False"] + list(acc_counts[:, AccCounts.FALSE]):
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+                sheet1.write(y, x, float(xy))
+        x += 1
+    x = 0
+    y += 1
+
+    for xy in ["Total"] + list(acc_counts[:, AccCounts.TOTAL]):
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+                sheet1.write(y, x, float(xy))
+        x += 1
+    x = 0
+    y += 1
+    for xy in ["Accuracy [%]"] + list(acc_acc[:, 0] * 100):
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+                sheet1.write(y, x, float(xy))
+        x += 1
+    y += 1
+    y += 1
+    types = ["Type", "All", "All", "Notes", "Clefs", "Accids"]
+    x = 0
+
+    for xy in types:
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            sheet1.write(y, x, float(xy))
+        x += 1
+    y += 1
+    x = 0
+    for xy in ["TP"] + list(counts[:, Counts.TP]):
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+
+                sheet1.write(y, x, float(xy))
+        x += 1
+    y += 1
+    x = 0
+    for xy in ["FP"] + list(counts[:, Counts.FP]):
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+
+                sheet1.write(y, x, float(xy))
+        x += 1
+    y += 1
+    x = 0
+    for xy in ["FN"] + list(counts[:, Counts.FN]):
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+
+                sheet1.write(y, x, float(xy))
+        x += 1
+    y += 1
+    x = 0
+    for xy in ["Precision"] + list(prec_rec_f1[:, 0]):
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+
+                sheet1.write(y, x, float(xy))
+        x += 1
+    y += 1
+    x = 0
+    for xy in ["Recall"] + list(prec_rec_f1[:, 1]):
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+
+                sheet1.write(y, x, float(xy))
+        x += 1
+    y += 1
+    x = 0
+    for xy in ["F1"] + list(prec_rec_f1[:, 2]):
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+
+                sheet1.write(y, x, float(xy))
+        x += 1
+    y += 1
+    y += 1
+    x = 0
+
+    for xy in [n for n, _ in counts1.to_dict().items()]:
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+
+                sheet1.write(y, x, float(xy))
+        x += 1
+    y += 1
+    x = 0
+
+    for xy in [v for _, v in counts1.to_dict().items()]:
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+
+                sheet1.write(y, x, float(xy))
+        x += 1
+    pt = PrettyTable([n for n, _ in counts2.to_dict().items()])
+    pt.add_row([v for _, v in counts2.to_dict().items()])
+    print(pt)
+    y += 1
+    y += 1
+
+    y_before = y
+    y += 1
+    x = 0
+    for xy in [n for n, _ in counts2.to_dict().items()]:
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+
+                sheet1.write(y, x, float(xy))
+        y += 1
+
+    y = y_before
+    x = 1
+    for xy in [v for _, v in counts2.to_dict().items()]:
+        if isinstance(xy, str):
+            sheet1.write(y, x, xy)
+        else:
+            if np.isnan(xy):
+                sheet1.write(y, x, "None")
+            else:
+
+                sheet1.write(y, x, float(xy))
+        y += 1
+    wb.save('wopp5.xls')
