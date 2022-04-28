@@ -9,10 +9,10 @@ if __name__ == '__main__':
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
 
-from calamari_ocr.proto import CheckpointParams, DataPreprocessorParams, TextProcessorParams, network_params_from_definition_string
-from calamari_ocr.ocr.trainer import Trainer, Codec
-from calamari_ocr.ocr.cross_fold_trainer import CrossFoldTrainer
-from calamari_ocr.ocr.augmentation import SimpleDataAugmenter
+#from calamari_ocr.proto import CheckpointParams, DataPreprocessorParams, TextProcessorParams, network_params_from_definition_string
+#from calamari_ocr.ocr.trainer import Trainer, Codec
+#from calamari_ocr.ocr.cross_fold_trainer import CrossFoldTrainer
+#from calamari_ocr.ocr.augmentation import SimpleDataAugmenter
 from typing import Optional
 from database import DatabaseBook
 from omr.dataset import DatasetParams
