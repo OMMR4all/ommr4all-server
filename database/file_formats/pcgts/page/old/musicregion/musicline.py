@@ -1,5 +1,5 @@
 from database.file_formats.pcgts import SymbolType, Point, MusicSymbolPositionInStaff, NoteName, \
-    GraphicalConnectionType, StaffLines, NoteType
+    GraphicalConnectionType, StaffLines, NoteType, StaffLine
 from database.file_formats.pcgts.page import BasicNeumeType
 from database.file_formats.pcgts.page.coords import Rect, Coords
 from typing import List, Tuple, Optional
@@ -23,7 +23,7 @@ class Symbol(ABC):
                  position_in_staff: MusicSymbolPositionInStaff = MusicSymbolPositionInStaff.UNDEFINED,
                  ):
         self.id = s_id if s_id else str(uuid4())
-        self.coord = coord if coord else Point()
+        self.coord: Point = coord if coord else Point()
         self.symbol_type = symbol_type
         self.fixed_sorting = fixed_sorting
         self.position_in_staff = position_in_staff

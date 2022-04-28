@@ -120,8 +120,12 @@ class Page:
 
         return None
 
-    def text_blocks(self):
-        return [b for b in self.blocks if b.block_type != BlockType.MUSIC]
+    def text_blocks(self, only_lyric=False):
+        if only_lyric:
+            return [b for b in self.blocks if b.block_type == BlockType.LYRICS]
+
+        else:
+            return [b for b in self.blocks if b.block_type != BlockType.MUSIC]
 
     def block_by_id(self, id: str) -> Optional[Block]:
         for b in self.blocks:
@@ -182,8 +186,9 @@ class Page:
 
         return [c['lines'] for c in columns]
 
-    def all_text_lines(self):
-        return sum([b.lines for b in self.text_blocks()], [])
+    def all_text_lines(self, only_lyric=False):
+        return sum([b.lines for b in self.text_blocks(only_lyric)], [])
+
 
     def all_staves_staff_line_coords(self, scale: Optional[PageScaleReference] = None) -> List[List[Coords]]:
         staves: List[List[Coords]] = []
@@ -199,6 +204,28 @@ class Page:
         staffs = self.all_music_lines()
         avg = np.mean([v for v in [d.avg_line_distance(default=-1) for d in staffs] if v > 0])
         return max([0.001, avg])
+
+    def closest_below_text_line_to_music_line(self, ml: Line, only_lyric=False):
+        closest = None
+        d = 10000000000
+        for tl in self.all_text_lines(only_lyric):
+            dp = abs(ml.aabb.bottom() - tl.aabb.top())
+            if d > dp:
+                d = dp
+                closest = tl
+
+        return closest
+
+    def closest_above_text_line_to_music_line(self, ml: Line, only_lyric=False):
+        closest = None
+        d = 10000000000
+        for tl in self.all_text_lines(only_lyric):
+            dp = abs(ml.aabb.top() - tl.aabb.bottom())
+            if d > dp:
+                d = dp
+                closest = tl
+
+        return closest
 
     def closest_music_line_to_text_line(self, tl: Line):
         closest = None

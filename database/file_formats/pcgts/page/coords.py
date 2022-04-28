@@ -235,6 +235,11 @@ class Coords(SerializableType):
         sub_image = image[int(aabb.tl[1]):int(aabb.br[1]), int(aabb.tl[0]):int(aabb.br[0])]
         return sub_image
 
+    def to_points_list(self):
+        points = []
+        for x in self.points:
+            points.append((x[0], x[1]))
+        return points
 
 class Rect:
     def __init__(self, origin: Point = None, size: Union[Point, Size] = None):

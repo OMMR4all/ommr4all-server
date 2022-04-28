@@ -112,11 +112,23 @@ class StaffLines(List[StaffLine]):
             r = r.union(sl.coords.aabb())
         return r
 
+
+
     def sort(self):
         super(StaffLines, self).sort(key=lambda s: s.center_y())
 
     def sorted(self):
         return StaffLines(sorted(self, key=lambda s: s.center_y()))
+
+    def max_x_start(self):
+        staff_lines = self.sorted()
+        x = [x.coords.to_points_list()[0][0] for x in staff_lines]
+        return max(x)
+
+    def min_x_start(self):
+        staff_lines = self.sorted()
+        x = [x.coords.to_points_list()[0][0] for x in staff_lines]
+        return min(x)
 
     def compute_position_in_staff(self, coord: Point, clef=False) -> MusicSymbolPositionInStaff:
         return self.position_in_staff(coord, clef)

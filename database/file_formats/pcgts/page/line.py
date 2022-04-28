@@ -57,6 +57,16 @@ class Line(Region):
             [MusicSymbol.from_json(s) for s in d.get('additionalSymbols', [])]
 
         )
+    def point_in_aabb(self, point):
+        aabb = self.aabb
+        left = aabb.left()
+        right = aabb.right()
+        top = aabb.top()
+        bot = aabb.bottom()
+        if left < point.x < right \
+                and top < point.y < bot:
+            return True
+        return False
 
     def to_json(self, block_type: Optional[BlockType] = None) -> dict:
         d = {

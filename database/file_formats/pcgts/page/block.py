@@ -7,6 +7,7 @@ from uuid import uuid4
 
 
 class Block(Region):
+
     def __init__(self,
                  block_type: BlockType,
                  id: Optional[str] = None,
@@ -41,6 +42,17 @@ class Block(Region):
                 'lines': [l.to_json(self.block_type) for l in self.lines],
             }
         }
+
+    def point_in_aabb(self, point):
+        aabb = self.aabb
+        left = aabb.left()
+        right = aabb.right()
+        top = aabb.top()
+        bot = aabb.bottom()
+        if left < point.x < right \
+                and top < point.y < bot:
+            return True
+        return False
 
     def line_by_id(self, id: str) -> Optional[Line]:
         for l in self.lines:
@@ -81,4 +93,3 @@ class Block(Region):
         for line in self.lines:
             self.coords.rotate(degree, origin)
             line.rotate(degree, origin)
-
