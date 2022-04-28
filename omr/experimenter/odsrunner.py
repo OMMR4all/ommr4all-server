@@ -142,6 +142,8 @@ else:
 
     print("Outputting {} results to ods".format(len(ex_results)))
     for ex_args, ex_result in zip(experiment_args, ex_results):
+        print(ex_args)
+        print(ex_result)
         data_row = ex_args['row']
         row = rows[data_row]
         print([r.value for r in row])

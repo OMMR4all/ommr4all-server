@@ -21,7 +21,8 @@ django.setup()
 from omr.dataset import DatasetParams, LyricsNormalization
 from omr.steps.algorithmtypes import AlgorithmTypes
 from omr.dataset.dataset import LyricsNormalizationParams
-from calamari_ocr.proto import CTCDecoderParams
+from calamari_ocr.ocr.model.ctcdecoder.ctc_decoder import CTCDecoderParams
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -79,12 +80,12 @@ if __name__ == "__main__":
     parser.add_argument("--calamari_single_folds", type=int, nargs='+')
     parser.add_argument("--calamari_network", type=str, default='cnn=40:3x3,pool=2x2,cnn=60:3x3,pool=2x2,lstm=200,dropout=0.5')
     parser.add_argument("--calamari_channels", type=int, default=1)
-    parser.add_argument("--calamari_ctc_decoder", type=str, choices=[CTCDecoderParams.CTCDecoderType.Name(x) for x in CTCDecoderParams.CTCDecoderType.values()], default=CTCDecoderParams.CTCDecoderType.Name(AlgorithmPredictorParams().ctcDecoder.params.type))
-    parser.add_argument("--calamari_ctc_word_separator", type=str, default=AlgorithmPredictorParams().ctcDecoder.params.word_separator)
-    parser.add_argument("--calamari_ctc_decoder_beam_width", type=int, default=AlgorithmPredictorParams().ctcDecoder.params.beam_width)
+    #parser.add_argument("--calamari_ctc_decoder", type=str, choices=[CTCDecoderParams.CTCDecoderType.Name(x) for x in CTCDecoderParams.CTCDecoderType.values()], default=CTCDecoderParams.CTCDecoderType.Name(AlgorithmPredictorParams().ctcDecoder.params.type))
+    #parser.add_argument("--calamari_ctc_word_separator", type=str, default=AlgorithmPredictorParams().ctcDecoder.params.word_separator)
+    #parser.add_argument("--calamari_ctc_decoder_beam_width", type=int, default=AlgorithmPredictorParams().ctcDecoder.params.beam_width)
     parser.add_argument("--calamari_ctc_dictionary_from_gt", action='store_true')
     parser.add_argument("--calamari_ctc_dictionary", type=str)
-    parser.add_argument("--calamari_ctc_decoder_non_word_chars", type=str, default="".join(AlgorithmPredictorParams().ctcDecoder.params.non_word_chars))
+    #parser.add_argument("--calamari_ctc_decoder_non_word_chars", type=str, default="".join(AlgorithmPredictorParams().ctcDecoder.params.non_word_chars))
 
     # evaluation parameters
     parser.add_argument("--seed", type=int, default=1)
@@ -145,13 +146,13 @@ if __name__ == "__main__":
         predictor_params=AlgorithmPredictorParams(
             minNumberOfStaffLines=args.min_number_of_staff_lines,
             maxNumberOfStaffLines=args.max_number_of_staff_lines,
-            ctcDecoder=SerializableCTCDecoderParams(
-                type=CTCDecoderParams.CTCDecoderType.Value(args.calamari_ctc_decoder),
-                beam_width=args.calamari_ctc_decoder_beam_width,
-                word_separator='' if args.calamari_ctc_word_separator.upper() == "BLANK" else ' ' if args.calamari_ctc_word_separator.upper() == "SPACE" else args.calamari_ctc_word_separator,
-                dictionary=None if not args.calamari_ctc_dictionary else open(args.calamari_ctc_dictionary, 'r').read().split(),
-                non_word_chars=args.calamari_ctc_decoder_non_word_chars,
-            )
+            #ctcDecoder=SerializableCTCDecoderParams(
+            #    type=CTCDecoderParams.CTCDecoderType.Value(args.calamari_ctc_decoder),
+            #    beam_width=args.calamari_ctc_decoder_beam_width,
+            #    word_separator='' if args.calamari_ctc_word_separator.upper() == "BLANK" else ' ' if args.calamari_ctc_word_separator.upper() == "SPACE" else args.calamari_ctc_word_separator,
+            #    dictionary=None if not args.calamari_ctc_dictionary else open(args.calamari_ctc_dictionary, 'r').read().split(),
+            #    non_word_chars=args.calamari_ctc_decoder_non_word_chars,
+            #)
         ),
         output_book=args.output_book,
         algorithm_type=args.type,
