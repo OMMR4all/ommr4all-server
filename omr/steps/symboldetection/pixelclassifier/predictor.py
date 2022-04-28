@@ -1,4 +1,9 @@
 import os
+import random
+
+import shapely.geometry
+from PIL import Image
+from shapely.geometry import Polygon
 
 from database.file_formats.pcgts.page import SymbolErrorType
 from omr.confidence.symbol_sequence_confidence import SymbolSequenceConfidenceLookUp, SequenceSetting
@@ -20,6 +25,8 @@ import numpy as np
 from omr.steps.symboldetection.pixelclassifier.meta import Meta
 from omr.imageoperations.music_line_operations import SymbolLabel
 from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePredictionResult
+from omr.steps.symboldetection.post_processing.initial_based_correction import correct_symbols_inside_wrong_blocks, \
+    correct_symbols_inside_text_blocks
 
 
 def render_prediction_labels(labels, img=None):
@@ -67,6 +74,192 @@ def filter_unique_symbols_by_coord(symbol_list1: List[MusicSymbol], symbol_list2
     return symbol_list
 
 
+def fix_overlapping_symbols(page, symbols: List[MusicSymbol], scale_reference, debug=False):
+    delete = []
+    if debug:
+        image2 = np.array(Image.open(page.location.file(scale_reference.file("color")).local_path()))
+
+    def scale(x):
+        return np.round(page.page_to_image_scale(x, scale_reference)).astype(int)
+
+    avg_line_distance = page.avg_staff_line_distance()
+    # print(avg_line_distance)
+    # print(scale(avg_line_distance))
+    avg_line_distance = scale(avg_line_distance)
+
+    ##print(avg_line_distance)
+    # self.img[int(pos[1] - self.avg_line_distance * 0.8):int(pos[1] + self.avg_line_distance * 0.8),
+    # int(pos[0] - self.avg_line_distance * 0.3):int(pos[0] + self.avg_line_distance * 0.3)] = color
+
+    def rect(symbol: MusicSymbol):
+        coord_symbol = scale(symbol.coord)
+        if symbol.symbol_type == symbol.symbol_type.CLEF:
+            if symbol.clef_type == symbol.clef_type.C:
+                return shapely.geometry.box(coord_symbol.x - avg_line_distance * 0.3,
+                                            coord_symbol.y - avg_line_distance * 0.8,
+                                            coord_symbol.x + avg_line_distance * 0.3,
+                                            coord_symbol.y + avg_line_distance * 0.8)
+
+            else:
+                return shapely.geometry.box(coord_symbol.x - avg_line_distance * 0.4,
+                                            coord_symbol.y - avg_line_distance * 0.8,
+                                            coord_symbol.x + avg_line_distance * 0.4,
+                                            coord_symbol.y + avg_line_distance * 0.8)
+
+        else:
+
+            return shapely.geometry.box(coord_symbol.x - avg_line_distance / 4 * 0.8,
+                                        coord_symbol.y - avg_line_distance / 4 * 0.8,
+                                        coord_symbol.x + avg_line_distance / 4 * 0.8,
+                                        coord_symbol.y + avg_line_distance / 4 * 0.8)
+
+    for symbol_ind in range(len(symbols)):
+        symbol = symbols[symbol_ind]
+        rect1 = rect(symbol)
+        # print(rect1.bounds)
+        # print(int(rect1.bounds[0]))
+        # print(int(random.random() * 255), int(random.random() * 255) ,int(random.random() * 255))
+        if debug:
+            image2[int(rect1.bounds[1]): int(rect1.bounds[3]), int(rect1.bounds[0]): int(rect1.bounds[2])] = int(
+                random.random() * 255), int(random.random() * 255), int(random.random() * 255)
+        for symbol_ind2 in range(len(symbols) - (symbol_ind + 1)):
+            symbol2 = symbols[symbol_ind2 + (symbol_ind + 1)]
+            rect2 = rect(symbol2)
+
+            # polygon = Polygon([(3, 3), (5, 3), (5, 5), (3, 5)])
+            # other_polygon = Polygon([(1, 1), (4, 1), (4, 3.5), (1, 3.5)])
+
+            intersection = rect1.intersection(rect2)
+            if intersection.area > 0:
+                # print("new")
+                # print(page.location.page)
+                # print(symbol.coord)
+                # print(symbol2.coord)
+                # print(intersection)
+                # print(intersection.area)
+                if symbol.symbol_type is symbol.symbol_type.CLEF or symbol2.symbol_type is symbol.symbol_type.CLEF:
+                    if symbol.symbol_type is symbol.symbol_type.CLEF:
+                        delete.append(symbol_ind2 + (symbol_ind + 1))
+                        # print(symbol_ind2 + (symbol_ind + 1))
+                    else:
+                        delete.append(symbol_ind)
+                        # print(symbol_ind)
+    if debug:
+        from matplotlib import pyplot as plt
+        plt.imshow(image2)
+        plt.show()
+    for i in reversed(delete):
+        # print("Overlapping clef")
+        del symbols[i]
+    return symbols
+
+
+def fix_missing_clef(symbols1: List[MusicSymbol], symbols2: List[MusicSymbol]):
+    if len(symbols1) > 0:
+        if symbols1[0].symbol_type != symbols1[0].symbol_type.CLEF:
+            if len(symbols2) > 0:
+                if symbols2[0].symbol_type == symbols2[0].symbol_type.CLEF:
+                    symbol = symbols2[0]
+                    symbol.symbol_confidence = None
+                    symbols1.insert(0, symbol)
+                    del symbols2[0]
+    return symbols1, True
+
+
+def fix_missing_clef2(symbols1: List[MusicSymbol], symbols2: List[MusicSymbol], page: Page, m: RegionLineMaskData):
+    avg_line_distance = page.avg_staff_line_distance()
+
+    def get_firstsymbols(symbols: List[MusicSymbol]):
+        symbol = [symbols[0]]
+        for symbol_next in symbols[1:]:
+            if symbol_next.coord.x - symbol[0].coord.x < avg_line_distance / 5:
+                symbol.append(symbol_next)
+        return symbol
+
+    m.operation.music_line.staff_lines.max_x_start()
+    if len(symbols1) > 0:
+        if symbols1[0].symbol_type != symbols1[0].symbol_type.CLEF:
+            symbols3 = symbols1 + symbols2
+            symbols3.sort(key=lambda key: key.coord.x)
+            symbol = get_firstsymbols(symbols3)
+
+            def average(list):
+                return sum(list) / len(list)
+
+            average_x = average([s.coord.x for s in symbol])
+            average_y = average([s.coord.y for s in symbol])
+            coord = Point(average_x, y=average_y)
+            position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=True)
+            # coord_updated = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(coord.x,
+            #                                                                                      position_in_staff)
+            if m.operation.music_line.staff_lines.max_x_start() + avg_line_distance * 3 / 4 > coord.x:
+                symbols1.insert(0, create_clef(ClefType.C, coord=coord, position_in_staff=position_in_staff,
+                                               confidence=None))
+            else:
+
+                pass
+
+    return symbols1
+
+
+def correct_looped_connection(symbols1: List[MusicSymbol], symbols2: List[MusicSymbol], page: Page,
+                              m: RegionLineMaskData):
+    if len(symbols1) > 0:
+        avg_line_distance = page.avg_staff_line_distance()
+        prev_symbol: MusicSymbol = symbols1[0]
+
+        def distance_bet_symbols(symbol1: MusicSymbol, symbol2: MusicSymbol):
+            distance = symbol2.coord.x - symbol1.coord.x
+            return distance
+
+        def get_symbols_between(x1, x2, symbols_22: List[MusicSymbol]):
+            filtered_symbols = []
+            for ind, i in enumerate(symbols_22):
+                if x1 < i.coord.x < x2:
+                    filtered_symbols.append((i, ind))
+                elif i.coord.x > x2:
+                    break
+            return filtered_symbols
+        insert_symbols = []
+        for ind, symbol in enumerate(symbols1[1:]):
+            distance = distance_bet_symbols(prev_symbol, symbol)
+            if symbol.symbol_type == symbol.symbol_type.NOTE \
+                    and symbol.graphical_connection == symbol.graphical_connection.LOOPED:
+                if distance > avg_line_distance:
+                    symbols_between = get_symbols_between(prev_symbol.coord.x, symbol.coord.x, symbols2)
+                    if len(symbols_between) > 0:
+                        if len(symbols_between) == 1:
+                            if symbols_between[0][0].position_in_staff != symbol.position_in_staff and \
+                                    symbols_between[0][0].graphical_connection == symbols_between[0][0].graphical_connection.NEUME_START:
+
+                                if 3 < symbols_between[0][0].position_in_staff < 10:
+                                    insert_symbols.append((symbols_between[0][0], ind + 1, symbols_between[0][1]))
+                                    # print(symbol.id)
+                                    # print(symbol.graphical_connection)
+                                    # print(m.operation.music_line.id)
+                                    #print(prev_symbol.position_in_staff)
+                                    #print("looped")
+                                    #print(page.location.page)
+                    else:
+                        symbol.graphical_connection = symbol.graphical_connection.NEUME_START
+                        # print(symbol.id)
+                        # print(symbol.graphical_connection)
+                        # print(m.operation.music_line.id)
+
+                    # print("looped")
+                    # print(page.location.page)
+            else:
+                if distance < avg_line_distance / 3:
+                    # print("prob looped")
+                    # print(page.location.page)
+                    symbol.graphical_connection = symbol.graphical_connection.LOOPED
+
+            prev_symbol = symbol
+        for x, s_ind, sa_ind in reversed(insert_symbols):
+            #x.note_type = x.note_type.ORISCUS
+            del symbols2[sa_ind]
+            symbols1.insert(s_ind, x)
+
 class PCPredictor(SymbolsPredictor):
     @staticmethod
     def meta() -> Meta.__class__:
@@ -84,23 +277,61 @@ class PCPredictor(SymbolsPredictor):
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[
         SingleLinePredictionResult, None, None]:
         dataset = SymbolDetectionDataset(pcgts_files, self.dataset_params)
+        clefs = []
         for p in self.predictor.predict(dataset.to_page_segmentation_dataset()):
             m: RegionLineMaskData = p.data.user_data
-            symbols = SingleLinePredictionResult(self.extract_symbols(p.probabilities, p.labels, m, dataset),
-                                                 p.data.user_data)
-            additional_symbols = filter_unique_symbols_by_coord(symbols.symbols,
+            symbols = self.extract_symbols(p.probabilities, p.labels, m, dataset,
+                                           clef=False)#self.settings.params.use_clef_pos_correction)
+            additional_symbols = filter_unique_symbols_by_coord(symbols,
                                                                 self.extract_symbols(p.probabilities, p.labels, m,
                                                                                      dataset,
-                                                                                     probability=0.8))
-            symbols2 = SingleLinePredictionResult(additional_symbols,
-                                                  p.data.user_data)
+                                                                                     probability=0.95,
+                                                                                     clef=False))#self.settings.params.use_clef_pos_correction))
+            if False:
+                symbols = correct_symbols_inside_wrong_blocks(m.operation.page, symbols)
+                symbols = correct_symbols_inside_text_blocks(m.operation.page, symbols)
+                symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
+
+
+                additional_symbols = correct_symbols_inside_text_blocks(m.operation.page, additional_symbols)
+                additional_symbols = correct_symbols_inside_wrong_blocks(m.operation.page, additional_symbols)
+                additional_symbols = correct_symbols_inside_text_blocks(m.operation.page, additional_symbols)
+
+                symbols, change = fix_missing_clef(symbols, additional_symbols)
+                symbols = fix_missing_clef2(symbols1=symbols, symbols2=additional_symbols, page=m.operation.page, m=m)
+                symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
+                correct_looped_connection(symbols, additional_symbols, page=m.operation.page, m=m)
+                initial_clef= None
+                if len(symbols) > 0:
+                    if symbols[0].symbol_type == symbols[0].symbol_type.CLEF:
+                        clefs.append(symbols[0])
+                        initial_clef = symbols[0]
+                    elif len(clefs) > 0:
+                        #symbols.insert(0, clefs[-1])
+                        initial_clef = clefs[-1]
+                line = Line(symbols=symbols)
+                line.update_note_names(initial_clef=initial_clef)
+                symbols = line.symbols
+                '''
+                if len(symbols) > 0:
+                    if symbols[0].symbol_type != symbols[0].symbol_type.CLEF:
+                        print(symbols[0].symbol_type)
+                        if len(additional_symbols) > 0:
+                            print(additional_symbols[0].symbol_type)
+                        print(m.operation.page.location.page)
+                '''
+            single_line_symbols = SingleLinePredictionResult(symbols,
+                                                             p.data.user_data)
+            single_line_symbols_2 = SingleLinePredictionResult(additional_symbols,
+                                                               p.data.user_data)
+
             if False:
                 from shared.pcgtscanvas import PcGtsCanvas
                 canvas = PcGtsCanvas(m.operation.page, PageScaleReference.NORMALIZED_X2)
-                for s in symbols.symbols:
-                    s.coord = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(s.coord.x,
-                                                                                                    s.position_in_staff)
-                canvas.draw(symbols.symbols, invert=True)
+                # for s in single_line_symbols.symbols:
+                #    s.coord = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(s.coord.x,
+                #                                                                                    s.position_in_staff)
+                canvas.draw(single_line_symbols.symbols, invert=True)
                 canvas.show()
             if False:
                 import matplotlib.pyplot as plt
@@ -111,10 +342,11 @@ class PCPredictor(SymbolsPredictor):
                 ax[3].imshow((p.probabilities[:, :, 0] <= 0.8) * (1 + np.argmax(p.probabilities[:, :, 1:], axis=-1)))
                 ax[4].imshow(render_prediction_labels(p.data.mask, p.data.image))
                 plt.show()
-            yield symbols, symbols2
+
+            yield single_line_symbols, single_line_symbols_2
 
     def extract_symbols(self, probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
-                        dataset: SymbolDetectionDataset, probability=0.5) -> List[MusicSymbol]:
+                        dataset: SymbolDetectionDataset, probability=0.5, clef=True) -> List[MusicSymbol]:
         # n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(((probs[:, :, 0] < 0.5) | (p > 0)).astype(np.uint8))
         p = (np.argmax(probs[:, :, 1:], axis=-1) + 1) * (probs[:, :, 0] < probability)
         n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
@@ -148,7 +380,8 @@ class PCPredictor(SymbolsPredictor):
             symbol_pred = SymbolPredictionConfidence(*avg_prob_cc.tolist())
             if label == SymbolLabel.NOTE_START:
                 position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
-
+                #confidence_position_in_staff = m.operation.music_line.compute_confidence_position_in_staff(coord)
+                #print(confidence_position_in_staff)
                 symbols.append(MusicSymbol(
                     symbol_type=SymbolType.NOTE,
                     coord=coord,
@@ -179,12 +412,16 @@ class PCPredictor(SymbolsPredictor):
 
                 ))
             elif label == SymbolLabel.CLEF_C:
-                position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=True)
-                symbols.append(create_clef(ClefType.C, coord=coord, position_in_staff=position_in_staff,
+                position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=clef)
+                coord_updated = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(coord.x,
+                                                                                                      position_in_staff)
+                symbols.append(create_clef(ClefType.C, coord=coord_updated, position_in_staff=position_in_staff,
                                            confidence=SymbolConfidence(symbol_pred, None)))
             elif label == SymbolLabel.CLEF_F:
-                position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=True)
-                symbols.append(create_clef(ClefType.F, coord=coord, position_in_staff=position_in_staff,
+                position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=clef)
+                coord_updated = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(coord.x,
+                                                                                                      position_in_staff)
+                symbols.append(create_clef(ClefType.F, coord=coord_updated, position_in_staff=position_in_staff,
                                            confidence=SymbolConfidence(symbol_pred, None)))
             elif label == SymbolLabel.ACCID_FLAT:
                 symbols.append(
@@ -219,8 +456,9 @@ class PCPredictor(SymbolsPredictor):
 if __name__ == '__main__':
     from database import DatabaseBook
 
-    b = DatabaseBook('Graduel_Fully_Annotated')
+    b = DatabaseBook('Pa_14819')
     val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[0:1]]
+
     pred = PCPredictor(AlgorithmPredictorSettings(Meta.best_model_for_book(b)))
     ps = list(pred.predict([p.page.location for p in val_pcgts]))
     import matplotlib.pyplot as plt
