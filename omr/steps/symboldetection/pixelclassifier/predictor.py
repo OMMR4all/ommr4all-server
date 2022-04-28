@@ -220,6 +220,7 @@ def correct_looped_connection(symbols1: List[MusicSymbol], symbols2: List[MusicS
                 elif i.coord.x > x2:
                     break
             return filtered_symbols
+
         insert_symbols = []
         for ind, symbol in enumerate(symbols1[1:]):
             distance = distance_bet_symbols(prev_symbol, symbol)
@@ -230,16 +231,17 @@ def correct_looped_connection(symbols1: List[MusicSymbol], symbols2: List[MusicS
                     if len(symbols_between) > 0:
                         if len(symbols_between) == 1:
                             if symbols_between[0][0].position_in_staff != symbol.position_in_staff and \
-                                    symbols_between[0][0].graphical_connection == symbols_between[0][0].graphical_connection.NEUME_START:
+                                    symbols_between[0][0].graphical_connection == symbols_between[0][
+                                0].graphical_connection.NEUME_START:
 
                                 if 3 < symbols_between[0][0].position_in_staff < 10:
                                     insert_symbols.append((symbols_between[0][0], ind + 1, symbols_between[0][1]))
                                     # print(symbol.id)
                                     # print(symbol.graphical_connection)
                                     # print(m.operation.music_line.id)
-                                    #print(prev_symbol.position_in_staff)
-                                    #print("looped")
-                                    #print(page.location.page)
+                                    # print(prev_symbol.position_in_staff)
+                                    # print("looped")
+                                    # print(page.location.page)
                     else:
                         symbol.graphical_connection = symbol.graphical_connection.NEUME_START
                         # print(symbol.id)
@@ -256,9 +258,10 @@ def correct_looped_connection(symbols1: List[MusicSymbol], symbols2: List[MusicS
 
             prev_symbol = symbol
         for x, s_ind, sa_ind in reversed(insert_symbols):
-            #x.note_type = x.note_type.ORISCUS
+            # x.note_type = x.note_type.ORISCUS
             del symbols2[sa_ind]
             symbols1.insert(s_ind, x)
+
 
 class PCPredictor(SymbolsPredictor):
     @staticmethod
@@ -281,17 +284,16 @@ class PCPredictor(SymbolsPredictor):
         for p in self.predictor.predict(dataset.to_page_segmentation_dataset()):
             m: RegionLineMaskData = p.data.user_data
             symbols = self.extract_symbols(p.probabilities, p.labels, m, dataset,
-                                           clef=False)#self.settings.params.use_clef_pos_correction)
+                                           clef=self.settings.params.use_clef_pos_correction)
             additional_symbols = filter_unique_symbols_by_coord(symbols,
                                                                 self.extract_symbols(p.probabilities, p.labels, m,
                                                                                      dataset,
                                                                                      probability=0.95,
-                                                                                     clef=False))#self.settings.params.use_clef_pos_correction))
-            if False:
+                                                                                     clef=self.settings.params.use_clef_pos_correction))
+            if True:
                 symbols = correct_symbols_inside_wrong_blocks(m.operation.page, symbols)
                 symbols = correct_symbols_inside_text_blocks(m.operation.page, symbols)
                 symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
-
 
                 additional_symbols = correct_symbols_inside_text_blocks(m.operation.page, additional_symbols)
                 additional_symbols = correct_symbols_inside_wrong_blocks(m.operation.page, additional_symbols)
@@ -301,13 +303,13 @@ class PCPredictor(SymbolsPredictor):
                 symbols = fix_missing_clef2(symbols1=symbols, symbols2=additional_symbols, page=m.operation.page, m=m)
                 symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
                 correct_looped_connection(symbols, additional_symbols, page=m.operation.page, m=m)
-                initial_clef= None
+                initial_clef = None
                 if len(symbols) > 0:
                     if symbols[0].symbol_type == symbols[0].symbol_type.CLEF:
                         clefs.append(symbols[0])
                         initial_clef = symbols[0]
                     elif len(clefs) > 0:
-                        #symbols.insert(0, clefs[-1])
+                        # symbols.insert(0, clefs[-1])
                         initial_clef = clefs[-1]
                 line = Line(symbols=symbols)
                 line.update_note_names(initial_clef=initial_clef)
@@ -380,8 +382,8 @@ class PCPredictor(SymbolsPredictor):
             symbol_pred = SymbolPredictionConfidence(*avg_prob_cc.tolist())
             if label == SymbolLabel.NOTE_START:
                 position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
-                #confidence_position_in_staff = m.operation.music_line.compute_confidence_position_in_staff(coord)
-                #print(confidence_position_in_staff)
+                # confidence_position_in_staff = m.operation.music_line.compute_confidence_position_in_staff(coord)
+                # print(confidence_position_in_staff)
                 symbols.append(MusicSymbol(
                     symbol_type=SymbolType.NOTE,
                     coord=coord,
