@@ -127,7 +127,8 @@ class CalamariPredictor(TextPredictor):
                     hyphenated = self.dict_corrector.segmentate_correct_and_hyphenate_text(sentence)
                 else:
                     hyphenated = sentence
-
+            else:
+                hyphenated = hyphen.apply_to_sentence(sentence)
             avg_sentence_confidence += prediction.avg_char_probability
             yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, m), m, hyphenated=hyphenated)
 
