@@ -10,6 +10,7 @@ class AlgorithmTypes(Enum):
     LAYOUT_SIMPLE_BOUNDING_BOXES = "layout_simple_bounding_boxes"
     LAYOUT_SIMPLE_LYRICS = "layout_simple_lyrics"
     LAYOUT_COMPLEX_STANDARD = "layout_complex_standard"
+    LAYOUT_SIMPLE_DROP_CAPITAL = "layout_drop_capital"
 
     SYMBOLS_PC = "symbols_pc"
     SYMBOLS_SEQUENCE_TO_SEQUENCE = 'symbols_sequence_to_sequence'
@@ -46,7 +47,7 @@ class AlgorithmGroups(Enum):
         return {
             AlgorithmGroups.PREPROCESSING: [AlgorithmTypes.PREPROCESSING, ],
             AlgorithmGroups.STAFF_LINES: [AlgorithmTypes.STAFF_LINES_PC, ],
-            AlgorithmGroups.LAYOUT: [AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES, AlgorithmTypes.LAYOUT_COMPLEX_STANDARD],
+            AlgorithmGroups.LAYOUT: [AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES, AlgorithmTypes.LAYOUT_COMPLEX_STANDARD, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL],
             AlgorithmGroups.SYMBOLS: [AlgorithmTypes.SYMBOLS_PC, AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE,
                                       AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE_NAUTILUS],
             AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_CALAMARI, AlgorithmTypes.OCR_NAUTILUS],

@@ -1,9 +1,13 @@
+from database.model import Model, MetaId
+from omr.steps.algorithmtypes import AlgorithmTypes
+from omr.steps.layout.drop_capitals.predictor import DropCapitalPredictor
 from omr.steps.layout.predictor import LayoutAnalysisPredictor, PredictionType, PredictionResult, \
     PredictionCallback, AlgorithmPredictorSettings, FinalPredictionResult, IdCoordsPair
 from typing import List, Optional
 from database.file_formats.pcgts import PcGts, BlockType, Coords, Line, Rect, Point, Size
 import numpy as np
 from omr.steps.layout.lyricsbbs.meta import Meta
+from omr.steps.step import Step
 
 
 class Predictor(LayoutAnalysisPredictor):
@@ -13,7 +17,15 @@ class Predictor(LayoutAnalysisPredictor):
 
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
-
+        meta = Step.meta(AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL)
+        from ommr4all.settings import BASE_DIR
+        model = Model(MetaId.from_custom_path(BASE_DIR + '/internal_storage/default_models/french14/layout_drop_capital/', meta.type()))
+        print(model.path)
+        settings = AlgorithmPredictorSettings(
+            model=model,
+        )
+        #settings.params.ctcDecoder.params.type = CTCDecoderParams.CTC_DEFAULT
+        self.drop_capital: DropCapitalPredictor = meta.create_predictor(settings)
     def _predict_single(self, pcgts_file: PcGts) -> FinalPredictionResult:
         mls_in_cols = pcgts_file.page.all_music_lines_in_columns()
         music_coords: List[IdCoordsPair] = []
@@ -62,11 +74,19 @@ class Predictor(LayoutAnalysisPredictor):
                 top_l.coords.points + pad_tup,
                 top_l.coords.points[::-1] + (0, avg_staff_distance - pad),
             ), axis=0))))
-
+        drop_capital = True
+        drop_capital_blocks = []
+        if drop_capital:
+            res =list(self.drop_capital._predict([pcgts_file]))[0]
+            for x in res.blocks.get(BlockType.DROP_CAPITAL):
+                drop_capital_blocks.append(IdCoordsPair(x))
+            pass
         return FinalPredictionResult(
             blocks={
                 BlockType.LYRICS: lyric_coords,
                 BlockType.MUSIC: music_coords,
+                BlockType.DROP_CAPITAL: drop_capital_blocks,
+
             },
             pcgts=pcgts_file,
         )
