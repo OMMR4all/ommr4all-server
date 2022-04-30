@@ -160,13 +160,14 @@ class ImageExtractDropCapitalsImages(ImageOperation):
 
 
 class ImageExtractDewarpedStaffLineImages(ImageOperation):
-    def __init__(self, dewarp, cut_region, pad, center, staff_lines_only):
+    def __init__(self, dewarp, cut_region, pad, center, staff_lines_only, keep_graphical_connection):
         super().__init__()
         self.dewarp = dewarp
         self.cut_region = cut_region
         self.center = center
         self.staff_lines_only = staff_lines_only
         self.cropper = ImageCropToSmallestBoxOperation(pad)
+        self.keep_graphical_connection = keep_graphical_connection
 
     def apply_single(self, data: ImageOperationData, debug=False) -> OperationOutput:
         image = data.images[0].image
@@ -193,7 +194,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                     labels[top:bot, left:right] = i
                 else:
                     data.page.page_to_image_scale(ml.coords, data.scale_reference).draw(labels, i, 0, fill=True)
-                self._symbols_to_mask(ml, marked_symbols, data.page, data.scale_reference)
+                self._symbols_to_mask(ml, marked_symbols, data.page, data.scale_reference, self.keep_graphical_connection)
                 i += 1
 
         if self.dewarp:
@@ -296,7 +297,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
     def _extract_image_op(self, data: ImageOperationData):
         data.images = [data.images[1], ImageData(data.images[0].image * data.images[1].image, False)] + data.images[2:]
 
-    def _symbols_to_mask(self, ml: Line, img: np.ndarray, page: Page, scale: PageScaleReference):
+    def _symbols_to_mask(self, ml: Line, img: np.ndarray, page: Page, scale: PageScaleReference, keep_graphical_connection=None):
         if len(ml.staff_lines) < 2:  # at least two staff lines required
             return None
 
@@ -314,12 +315,20 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
         for s in ml.symbols:
             if s.symbol_type == SymbolType.NOTE:
-                if s.graphical_connection == GraphicalConnectionType.NEUME_START:
-                    set(s.coord, SymbolLabel.NOTE_START)
-                elif s.graphical_connection == GraphicalConnectionType.LOOPED:
-                    set(s.coord, SymbolLabel.NOTE_LOOPED)
+                if keep_graphical_connection and len(keep_graphical_connection) == 3:
+                    if keep_graphical_connection[0] and s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                        set(s.coord, SymbolLabel.NOTE_START)
+                    elif keep_graphical_connection[2] and s.graphical_connection == GraphicalConnectionType.LOOPED:
+                        set(s.coord, SymbolLabel.NOTE_LOOPED)
+                    else:
+                        set(s.coord, SymbolLabel.NOTE_GAPPED)
                 else:
-                    set(s.coord, SymbolLabel.NOTE_GAPPED)
+                    if s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                        set(s.coord, SymbolLabel.NOTE_START)
+                    elif s.graphical_connection == GraphicalConnectionType.LOOPED:
+                        set(s.coord, SymbolLabel.NOTE_LOOPED)
+                    else:
+                        set(s.coord, SymbolLabel.NOTE_GAPPED)
 
             elif s.symbol_type == SymbolType.CLEF:
                 if s.clef_type == ClefType.F:

@@ -1,3 +1,4 @@
+from distutils.util import strtobool
 import logging
 import sys
 
@@ -59,6 +60,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--height", type=int, default=80)
     parser.add_argument("--pad", type=int, default=[0], nargs="+")
+    parser.add_argument("--keep_graphical_connection", type=str, default=None, nargs="+")
+
     parser.add_argument("--pad_to_power_of_2", type=int, default=None)
     parser.add_argument("--center", action='store_true')
     parser.add_argument("--cut_region", action='store_true')
@@ -105,7 +108,6 @@ if __name__ == "__main__":
     if not args.use_regions and args.cut_region:
         logger.warning("Cannot bot set 'cut_region' and 'staff_lines_only'. Setting 'cut_region=False'")
         args.cut_region = False
-
     global_args = GlobalDataArgs(
         args.magic_prefix,
         args.model_dir,
@@ -119,6 +121,7 @@ if __name__ == "__main__":
             gt_required=True,
             height=args.height,
             pad=list(args.pad),
+            keep_graphical_connection=list(map(bool, map(strtobool, args.keep_graphical_connection))),
             center=args.center,
             cut_region=args.cut_region,
             dewarp=args.dewarp,
