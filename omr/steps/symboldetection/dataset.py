@@ -21,7 +21,7 @@ class SymbolDetectionDataset(Dataset):
         operations = [
             ImageLoadFromPageOperation(invert=True, files=[('gray_norm_x2', False)]),
             ImageDrawRegions(block_types=[BlockType.DROP_CAPITAL] if params.cut_region else [], color=0),
-            ImageExtractDewarpedStaffLineImages(params.dewarp, params.cut_region, params.pad, params.center, params.staff_lines_only),
+            ImageExtractDewarpedStaffLineImages(params.dewarp, params.cut_region, params.pad, params.center, params.staff_lines_only, params.keep_graphical_connection),
         ]
         if params.apply_fcn_model is not None:
             operations += [
