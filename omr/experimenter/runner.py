@@ -121,7 +121,7 @@ if __name__ == "__main__":
             gt_required=True,
             height=args.height,
             pad=list(args.pad),
-            keep_graphical_connection=list(map(bool, map(strtobool, args.keep_graphical_connection))),
+            keep_graphical_connection=list(map(bool, map(strtobool, args.keep_graphical_connection))) if args.keep_graphical_connection else None,
             center=args.center,
             cut_region=args.cut_region,
             dewarp=args.dewarp,
