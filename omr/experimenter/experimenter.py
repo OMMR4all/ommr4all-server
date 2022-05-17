@@ -53,6 +53,7 @@ class GlobalDataArgs(NamedTuple):
     evaluation_params: EvaluatorParams
     predictor_params: AlgorithmPredictorParams
     output_book: Optional[str]
+    output_debug_images: Optional[str]
     algorithm_type: AlgorithmTypes
     trainer_params: AlgorithmTrainerParams
     page_segmentation_params: PageSegmentationTrainerParams
@@ -188,7 +189,10 @@ class Experimenter(ABC):
             predictions = self.extract_gt_prediction(full_predictions)
             with open(prediction_path, 'wb') as f:
                 pickle.dump(predictions, f)
+            if global_args.output_debug_images:
 
+                self.output_debug_images(full_predictions)
+                pass
             if global_args.output_book:
                 fold_log.info("Outputting data")
                 pred_book = DatabaseBook(global_args.output_book)
@@ -235,7 +239,9 @@ class Experimenter(ABC):
     @abstractmethod
     def output_prediction_to_book(self, pred_book: DatabaseBook, output_pcgts: List[PcGts], predictions):
         pass
-
+    @abstractmethod
+    def output_debug_images(self, predictions):
+        pass
     @abstractmethod
     def evaluate(self, predictions, evaluation_params):
         pass
