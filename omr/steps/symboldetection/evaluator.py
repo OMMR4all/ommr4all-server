@@ -442,10 +442,10 @@ class SymbolDetectionEvaluator:
             neume_sequence_ed = edit_distance(neume_gt_sequence, neume_pred_sequence)
             diffs = np.asarray(self.codec.compute_sequence_diffs(gt_sequence_nc, pred_sequence_nc))
             total_diffs += diffs
-            pairs = []
             p_symbols = extract_coords_of_symbols(pred)
             gt_symbols_orig = extract_coords_of_symbols(gt)
             gt_symbols = gt_symbols_orig[:]
+            pairs = []
 
             for p_i, (p_c, p_s) in reversed(list(enumerate(p_symbols))):
                 best_d = 10000

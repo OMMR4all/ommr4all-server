@@ -52,6 +52,9 @@ if __name__ == "__main__":
     parser.add_argument("--data_augmentation", action="store_true")
     parser.add_argument("--data_augmentation_factor", type=float, default=0)
     parser.add_argument("--output_book", default=None, type=str)
+    parser.add_argument("--output_debug_images", action="store_true", default=False)
+
+
     parser.add_argument("--type", type=lambda t: AlgorithmTypes[t], required=True, choices=list(AlgorithmTypes))
     parser.add_argument("--early_stopping_at_accuracy", type=float, default=0)
     parser.add_argument("--early_stopping_max_keep", type=int, default=-1)
@@ -158,6 +161,7 @@ if __name__ == "__main__":
             #)
         ),
         output_book=args.output_book,
+        output_debug_images=args.output_debug_images,
         algorithm_type=args.type,
         trainer_params=AlgorithmTrainerParams(
             n_iter=args.n_iter,
