@@ -78,6 +78,10 @@ class Clef_Error_Types:
     n_clef_after_drop_capital_area_all_fn: int = 0
     n_clef_after_drop_capital_area_big_fn: int = 0
 
+    n_clef_type_fn_fp: int = 0
+    n_clef_pos_fn_fp: int = 0
+
+
     def to_np_array(self):
         return np.array(list(asdict(self).values()))
 
@@ -729,38 +733,41 @@ class SymbolErrorTypeDetectionEvaluator:
                         counts2.n_clefs_fp += 1
                         after_dp, after_dp_size = check_if_clef_after_dp(pred, d_capitals, symbol)
                         if after_dp:
-                            print(page.location.page)
 
                             counts2.n_clef_after_drop_capital_area_all_fp += 1
                             if after_dp_size:
                                 counts2.n_clef_after_drop_capital_area_big_fp += 1
                         elif is_system_beginning(symbol, pred):
-                            print(page.location.page)
 
                             counts2.n_clef_beginning_fp += 1
                         else:
-                            print(page.location.page)
 
                             counts2.n_clef_unspecific_fp += 1
 
                 for predict, gtruth in pairs:
                     symbol = predict[1]
                     if symbol.symbol_type == symbol.symbol_type.CLEF:
-                        counts2.n_clefs_tp += 1
-                        if gtruth[1].position_in_staff != symbol.position_in_staff:
-                            counts2.n_clefs_tp_pos += 1
-                        elif gtruth[1].symbol_type != symbol.symbol_type:
-                            counts2.n_clefs_tp_type += 1
-
-                        after_dp, after_dp_size = check_if_clef_after_dp(pred, d_capitals, symbol)
-                        if after_dp:
-                            counts2.n_clef_after_drop_capital_area_all_tp += 1
-                            if after_dp_size:
-                                counts2.n_clef_after_drop_capital_area_big_tp += 1
-                        elif is_system_beginning(symbol, pred):
-                            counts2.n_clef_beginning_tp += 1
+                        if symbol.clef_type != gtruth[1].clef_type or symbol.position_in_staff != gtruth[1].position_in_staff:
+                            if symbol.clef_type != gtruth[1].clef_type:
+                                counts2.n_clef_type_fn_fp += 1
+                            else:
+                                counts2.n_clef_pos_fn_fp += 1
                         else:
-                            counts2.n_clef_unspecific_tp += 1
+                            counts2.n_clefs_tp += 1
+                            if gtruth[1].position_in_staff != symbol.position_in_staff:
+                                counts2.n_clefs_tp_pos += 1
+                            elif gtruth[1].symbol_type != symbol.symbol_type:
+                                counts2.n_clefs_tp_type += 1
+
+                            after_dp, after_dp_size = check_if_clef_after_dp(pred, d_capitals, symbol)
+                            if after_dp:
+                                counts2.n_clef_after_drop_capital_area_all_tp += 1
+                                if after_dp_size:
+                                    counts2.n_clef_after_drop_capital_area_big_tp += 1
+                            elif is_system_beginning(symbol, pred):
+                                counts2.n_clef_beginning_tp += 1
+                            else:
+                                counts2.n_clef_unspecific_tp += 1
 
                 # page = ml.line.operation.page
                 # counts.n_pages += 1

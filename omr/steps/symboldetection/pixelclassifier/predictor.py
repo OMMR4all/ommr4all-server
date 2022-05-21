@@ -303,12 +303,18 @@ def fix_pos_of_close_symbols2(page, symbols: List[MusicSymbol], scale_reference,
                 if pis != new_pis:
                     if its == 0:
                         #symbol.note_type = symbol.note_type.APOSTROPHA
+                        prev_symbol = None
+                        next_symbol = None
+                        distance_1 = None
+                        distance_2 = None
                         if ind > 1:
                             prev_symbol = symbols[ind -1]
                         if ind < len(symbols) -1:
                             next_symbol = symbols[ind +1]
-                        distance_1 = distance_bet_symbols(prev_symbol, symbol)
-                        distance_2 = distance_bet_symbols(symbol, next_symbol)
+                        if prev_symbol:
+                            distance_1 = distance_bet_symbols(prev_symbol, symbol)
+                        if next_symbol:
+                            distance_2 = distance_bet_symbols(symbol, next_symbol)
                         symbol_to_compare = None
                         if distance_1 and distance_1 < avg_line_distance / 2:
                             symbol_to_compare = prev_symbol

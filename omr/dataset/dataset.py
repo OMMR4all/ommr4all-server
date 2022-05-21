@@ -278,6 +278,7 @@ class Dataset(ABC):
             gts = [d.calamari_sequence(self.params.calamari_codec).calamari_neume_types_str for d in marked_symbols]
         else:
             gts = [d.calamari_sequence(self.params.calamari_codec).calamari_str for d in marked_symbols]
+        """
         if train:
             path = "/tmp/train/"
         else:
@@ -298,6 +299,7 @@ class Dataset(ABC):
                     f.write(t)
                 Image.fromarray(i).save(os.path.join(path, uuid + str(ind) + ".png"))
                 writer.writerow({'filename': uuid+ str(ind) + ".png", 'words': t})
+        """
         return images, gts
 
     def to_text_line_nautilus_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
