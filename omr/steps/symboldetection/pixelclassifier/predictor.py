@@ -329,6 +329,8 @@ def fix_pos_of_close_symbols2(page, symbols: List[MusicSymbol], scale_reference,
                     #print(its)
 
                     break
+                if its > 1:
+                    break
                 its +=1
 
     return symbols
