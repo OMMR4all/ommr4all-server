@@ -358,18 +358,20 @@ def fix_pos_of_close_symbols3(page, symbols: List[MusicSymbol], scale_reference,
             distance_to_snap = abs(symbol.coord.y - snapped_pos)
             distance_to_snap_prev_symbol = abs(prev_symbol.coord.y - prev_symbol_snapped_pos)
 
-            coord = symbol.coord
+            coord = None
             pis = symbol.position_in_staff
             its = 0
+            if distance_to_snap_prev_symbol < distance_to_snap:
+                symbol_to_check = prev_symbol
+                snap_to_check = prev_symbol_snapped_pos
+                coord = symbol_to_check.coord
+                other = symbol
+            else:
+                symbol_to_check = symbol
+                snap_to_check = prev_symbol_snapped_pos
+                other = prev_symbol
+                coord = symbol_to_check.coord
             while True:
-                if distance_to_snap_prev_symbol < distance_to_snap:
-                    symbol_to_check = prev_symbol
-                    snap_to_check = prev_symbol_snapped_pos
-                    other = symbol
-                else:
-                    symbol_to_check = symbol
-                    snap_to_check = prev_symbol_snapped_pos
-                    other = prev_symbol
 
                 if snap_to_check > symbol_to_check.coord.y:
                     coord = Point(x=coord.x, y=coord.y - avg_line_distance_step)
@@ -382,7 +384,7 @@ def fix_pos_of_close_symbols3(page, symbols: List[MusicSymbol], scale_reference,
                         # symbol.note_type = symbol.note_type.APOSTROPHA
                         distance = distance_bet_symbols(prev_symbol, symbol)
                         if distance < avg_line_distance / 2 and abs(other.position_in_staff.value - new_pis.value) == 1:
-                            # symbol.note_type = symbol.note_type.ORISCUS
+                            #symbol_to_check.note_type = symbol_to_check.note_type.ORISCUS
                             symbol_to_check.coord = coord
                             symbol_to_check.position_in_staff = new_pis
                             found = True
@@ -524,7 +526,7 @@ class PCPredictor(SymbolsPredictor):
                 symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
                 # symbols = fix_pos_of_close_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
                 correct_looped_connection(symbols, additional_symbols, page=m.operation.page, m=m)
-                symbols = fix_pos_of_close_symbols2(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
+                symbols = fix_pos_of_close_symbols3(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
 
                 initial_clef = None
                 if len(symbols) > 0:
