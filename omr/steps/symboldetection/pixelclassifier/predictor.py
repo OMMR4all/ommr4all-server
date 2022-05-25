@@ -241,7 +241,7 @@ def fix_pos_of_close_symbols(page, symbols: List[MusicSymbol], scale_reference, 
 
                     coord = symbol_closer_to_staff_line.coord
                     pos = symbol_closer_to_staff_line.position_in_staff
-                    #value =
+                    # value =
                     while True:
                         coord = Point(x=coord.x, y=coord.y + 0.001)
                         new_pos = m.operation.music_line.compute_position_in_staff(coord)
@@ -253,11 +253,11 @@ def fix_pos_of_close_symbols(page, symbols: List[MusicSymbol], scale_reference, 
             prev_symbol = symbol
     return symbols
 
+
 def fix_pos_of_close_symbols2(page, symbols: List[MusicSymbol], scale_reference, debug=False, m=None):
     if len(symbols) > 0:
         avg_line_distance = page.avg_staff_line_distance()
         avg_line_distance_step = avg_line_distance / 50
-
 
         def distance_bet_symbols(symbol1: MusicSymbol, symbol2: MusicSymbol):
             distance = symbol2.coord.x - symbol1.coord.x
@@ -279,14 +279,15 @@ def fix_pos_of_close_symbols2(page, symbols: List[MusicSymbol], scale_reference,
                     distance = distance_symbols
                     nearest_line = line
             return nearest_line
+
         def get_previous_symbols_with_same_pis(symbols: List[MusicSymbol], pis: MusicSymbolPositionInStaff):
-            symbols_new=[]
+            symbols_new = []
             for x in symbols:
                 if x.position_in_staff == pis:
                     symbols_new.append(x)
             return symbols_new
 
-        #print("newline")
+        # print("newline")
         for ind, symbol in enumerate(symbols):
             snapped_pos = m.operation.music_line.staff_lines.snap_to_pos(symbol.coord)
 
@@ -298,19 +299,19 @@ def fix_pos_of_close_symbols2(page, symbols: List[MusicSymbol], scale_reference,
                     coord = Point(x=coord.x, y=coord.y - avg_line_distance_step)
                 else:
                     coord = Point(x=coord.x, y=coord.y + avg_line_distance_step)
-                #print(coord.y)
+                # print(coord.y)
                 new_pis = m.operation.music_line.compute_position_in_staff(coord)
                 if pis != new_pis:
                     if its == 0:
-                        #symbol.note_type = symbol.note_type.APOSTROPHA
+                        # symbol.note_type = symbol.note_type.APOSTROPHA
                         prev_symbol = None
                         next_symbol = None
                         distance_1 = None
                         distance_2 = None
                         if ind > 1:
-                            prev_symbol = symbols[ind -1]
-                        if ind < len(symbols) -1:
-                            next_symbol = symbols[ind +1]
+                            prev_symbol = symbols[ind - 1]
+                        if ind < len(symbols) - 1:
+                            next_symbol = symbols[ind + 1]
                         if prev_symbol:
                             distance_1 = distance_bet_symbols(prev_symbol, symbol)
                         if next_symbol:
@@ -321,20 +322,82 @@ def fix_pos_of_close_symbols2(page, symbols: List[MusicSymbol], scale_reference,
                         elif distance_2 and distance_2 < avg_line_distance / 2:
                             symbol_to_compare = next_symbol
                         if symbol_to_compare and abs(symbol_to_compare.position_in_staff.value - new_pis.value) == 1:
-                            #symbol.note_type = symbol.note_type.ORISCUS
+                            # symbol.note_type = symbol.note_type.ORISCUS
                             symbol.coord = coord
                             symbol.position_in_staff = new_pis
 
-                        #symbol.coord= coord
-                    #print(its)
+                        # symbol.coord= coord
+                    # print(its)
 
                     break
                 if its > 1:
                     break
-                its +=1
+                its += 1
 
     return symbols
 
+def fix_pos_of_close_symbols3(page, symbols: List[MusicSymbol], scale_reference, debug=False, m=None):
+    if len(symbols) > 0:
+        avg_line_distance = page.avg_staff_line_distance()
+        avg_line_distance_step = avg_line_distance / 50
+
+        def distance_bet_symbols(symbol1: MusicSymbol, symbol2: MusicSymbol):
+            distance = symbol2.coord.x - symbol1.coord.x
+            return distance
+
+        prev_symbol =symbols[0]
+        prev_symbol_snapped_pos = m.operation.music_line.staff_lines.snap_to_pos(prev_symbol.coord)
+        found = False
+        for ind, symbol in enumerate(symbols[1:]):
+            if found:
+                found = False
+                prev_symbol = symbol
+                prev_symbol_snapped_pos = m.operation.music_line.staff_lines.snap_to_pos(symbol.coord)
+                continue
+            snapped_pos = m.operation.music_line.staff_lines.snap_to_pos(symbol.coord)
+            distance_to_snap = abs(symbol.coord.y - snapped_pos)
+            distance_to_snap_prev_symbol = abs(prev_symbol.coord.y - prev_symbol_snapped_pos)
+
+            coord = symbol.coord
+            pis = symbol.position_in_staff
+            its = 0
+            while True:
+                if distance_to_snap_prev_symbol < distance_to_snap:
+                    symbol_to_check = prev_symbol
+                    snap_to_check = prev_symbol_snapped_pos
+                    other = symbol
+                else:
+                    symbol_to_check = symbol
+                    snap_to_check = prev_symbol_snapped_pos
+                    other = prev_symbol
+
+                if snap_to_check > symbol_to_check.coord.y:
+                    coord = Point(x=coord.x, y=coord.y - avg_line_distance_step)
+                else:
+                    coord = Point(x=coord.x, y=coord.y + avg_line_distance_step)
+                # print(coord.y)
+                new_pis = m.operation.music_line.compute_position_in_staff(coord)
+                if pis != new_pis:
+                    if its == 0:
+                        # symbol.note_type = symbol.note_type.APOSTROPHA
+                        distance = distance_bet_symbols(prev_symbol, symbol)
+                        if distance < avg_line_distance / 2 and abs(other.position_in_staff.value - new_pis.value) == 1:
+                            # symbol.note_type = symbol.note_type.ORISCUS
+                            symbol_to_check.coord = coord
+                            symbol_to_check.position_in_staff = new_pis
+                            found = True
+
+                        # symbol.coord= coord
+                    # print(its)
+
+                    break
+                if its > 1:
+                    break
+                its += 1
+            prev_symbol = symbol
+            prev_symbol_snapped_pos = m.operation.music_line.staff_lines.snap_to_pos(symbol.coord)
+
+    return symbols
 def correct_looped_connection(symbols1: List[MusicSymbol], symbols2: List[MusicSymbol], page: Page,
                               m: RegionLineMaskData):
     if len(symbols1) > 0:
@@ -364,7 +427,8 @@ def correct_looped_connection(symbols1: List[MusicSymbol], symbols2: List[MusicS
                     if len(symbols_between) > 0:
                         if len(symbols_between) == 1:
                             if symbols_between[0][0].position_in_staff != symbol.position_in_staff and \
-                                    symbols_between[0][0].graphical_connection == symbols_between[0][0].graphical_connection.NEUME_START:
+                                    symbols_between[0][0].graphical_connection == symbols_between[0][
+                                0].graphical_connection.NEUME_START:
 
                                 if 3 < symbols_between[0][0].position_in_staff < 10:
                                     insert_symbols.append((symbols_between[0][0], ind + 1, symbols_between[0][1]))
@@ -458,7 +522,7 @@ class PCPredictor(SymbolsPredictor):
                 symbols, change = fix_missing_clef(symbols, additional_symbols)
                 symbols = fix_missing_clef2(symbols1=symbols, symbols2=additional_symbols, page=m.operation.page, m=m)
                 symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
-                #symbols = fix_pos_of_close_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
+                # symbols = fix_pos_of_close_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
                 correct_looped_connection(symbols, additional_symbols, page=m.operation.page, m=m)
                 symbols = fix_pos_of_close_symbols2(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
 
@@ -496,12 +560,14 @@ class PCPredictor(SymbolsPredictor):
                 canvas.show()
             if False:
                 import matplotlib.pyplot as plt
-                f, ax = plt.subplots(5, 1, sharey='all', sharex='all')
+                f, ax = plt.subplots(6, 1, sharey='all', sharex='all')
                 ax[0].imshow(p.probabilities[:, :, 0], vmin=0.0, vmax=1.0)
                 ax[1].imshow(p.data.image, vmin=0.0, vmax=255)
                 ax[2].imshow(render_prediction_labels(p.labels, p.data.image))
                 ax[3].imshow((p.probabilities[:, :, 0] <= 0.8) * (1 + np.argmax(p.probabilities[:, :, 1:], axis=-1)))
                 ax[4].imshow(render_prediction_labels(p.data.mask, p.data.image))
+                ax[5].imshow(render_prediction_labels(p.data.image, p.data.image))
+
                 plt.show()
 
             yield single_line_symbols, single_line_symbols_2
