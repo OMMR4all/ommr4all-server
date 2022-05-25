@@ -361,7 +361,7 @@ def fix_pos_of_close_symbols3(page, symbols: List[MusicSymbol], scale_reference,
             coord = None
             pis = symbol.position_in_staff
             its = 0
-            if distance_to_snap_prev_symbol < distance_to_snap:
+            if distance_to_snap_prev_symbol > distance_to_snap:
                 symbol_to_check = prev_symbol
                 snap_to_check = prev_symbol_snapped_pos
                 coord = symbol_to_check.coord
