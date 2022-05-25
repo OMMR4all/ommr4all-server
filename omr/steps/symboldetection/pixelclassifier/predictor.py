@@ -257,7 +257,7 @@ def fix_pos_of_close_symbols(page, symbols: List[MusicSymbol], scale_reference, 
 def fix_pos_of_close_symbols2(page, symbols: List[MusicSymbol], scale_reference, debug=False, m=None):
     if len(symbols) > 0:
         avg_line_distance = page.avg_staff_line_distance()
-        avg_line_distance_step = avg_line_distance / 50
+        avg_line_distance_step = avg_line_distance * 3 / 50
 
         def distance_bet_symbols(symbol1: MusicSymbol, symbol2: MusicSymbol):
             distance = symbol2.coord.x - symbol1.coord.x
@@ -339,7 +339,7 @@ def fix_pos_of_close_symbols2(page, symbols: List[MusicSymbol], scale_reference,
 def fix_pos_of_close_symbols3(page, symbols: List[MusicSymbol], scale_reference, debug=False, m=None):
     if len(symbols) > 0:
         avg_line_distance = page.avg_staff_line_distance()
-        avg_line_distance_step = avg_line_distance / 50
+        avg_line_distance_step = avg_line_distance * 3 / 50
 
         def distance_bet_symbols(symbol1: MusicSymbol, symbol2: MusicSymbol):
             distance = symbol2.coord.x - symbol1.coord.x
@@ -359,18 +359,18 @@ def fix_pos_of_close_symbols3(page, symbols: List[MusicSymbol], scale_reference,
             distance_to_snap_prev_symbol = abs(prev_symbol.coord.y - prev_symbol_snapped_pos)
 
             coord = None
-            pis = symbol.position_in_staff
             its = 0
             if distance_to_snap_prev_symbol > distance_to_snap:
                 symbol_to_check = prev_symbol
                 snap_to_check = prev_symbol_snapped_pos
-                coord = symbol_to_check.coord
                 other = symbol
             else:
                 symbol_to_check = symbol
-                snap_to_check = prev_symbol_snapped_pos
+                snap_to_check = snapped_pos
                 other = prev_symbol
-                coord = symbol_to_check.coord
+            coord = symbol_to_check.coord
+            pis = symbol_to_check.position_in_staff
+
             while True:
 
                 if snap_to_check > symbol_to_check.coord.y:
@@ -381,10 +381,10 @@ def fix_pos_of_close_symbols3(page, symbols: List[MusicSymbol], scale_reference,
                 new_pis = m.operation.music_line.compute_position_in_staff(coord)
                 if pis != new_pis:
                     if its == 0:
-                        # symbol.note_type = symbol.note_type.APOSTROPHA
+                        symbol_to_check.note_type = symbol.note_type.APOSTROPHA
                         distance = distance_bet_symbols(prev_symbol, symbol)
                         if distance < avg_line_distance / 2 and abs(other.position_in_staff.value - new_pis.value) == 1:
-                            #symbol_to_check.note_type = symbol_to_check.note_type.ORISCUS
+                            symbol_to_check.note_type = symbol_to_check.note_type.ORISCUS
                             symbol_to_check.coord = coord
                             symbol_to_check.position_in_staff = new_pis
                             found = True
