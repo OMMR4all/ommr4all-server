@@ -584,12 +584,13 @@ class SymbolDetectionEvaluator:
         acc_acc = (acc_counts[:, AccCounts.TRUE] / acc_counts[:, AccCounts.TOTAL]).reshape((-1, 1))
 
         # normalize errors
+        total_diffs_count = total_diffs
         total_diffs = total_diffs / total_diffs[-1]
         # transfer total / errors => acc = 1 - errors / total
         total_diffs[-2] = 1 - 1 / total_diffs[-2]
         cm.plot_confusion_matrix()
         cm.plot_confusion_matrix(normalize=True)
-        return f_metrics.mean(axis=0), counts.sum(axis=0), acc_counts, acc_acc, total_diffs
+        return f_metrics.mean(axis=0), counts.sum(axis=0), acc_counts, acc_acc, total_diffs, total_diffs_count
 
 
 class SymbolMelodyEvaluator:
@@ -754,9 +755,9 @@ class SymbolErrorTypeDetectionEvaluator:
                                 counts2.n_clef_pos_fn_fp += 1
                         else:
                             counts2.n_clefs_tp += 1
-                            if gtruth[1].position_in_staff != symbol.position_in_staff:
+                            if gtruth[1].position_in_staff == symbol.position_in_staff:
                                 counts2.n_clefs_tp_pos += 1
-                            elif gtruth[1].symbol_type != symbol.symbol_type:
+                            elif gtruth[1].symbol_type == symbol.symbol_type:
                                 counts2.n_clefs_tp_type += 1
 
                             after_dp, after_dp_size = check_if_clef_after_dp(pred, d_capitals, symbol)
