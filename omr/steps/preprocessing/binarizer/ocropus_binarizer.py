@@ -75,3 +75,7 @@ class OCRopusBin(Binarizer):
     def binarize(self, image: Image):
         return Image.fromarray(binarize(normalize_raw_image(np.array(image.convert('L')))).astype(np.uint8) * 255)
 
+    def binarize_from_array(self, image: np.array):
+        pil_image = Image.fromarray(image)
+        grayscale = pil_image.convert('L')
+        return binarize(normalize_raw_image(np.array(grayscale))).astype(np.uint8) * 255

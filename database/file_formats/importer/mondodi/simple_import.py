@@ -1,3 +1,9 @@
+from typing import List
+
+from database.file_formats.pcgts import MusicSymbol, SymbolType, NoteType, GraphicalConnectionType, NoteName
+from database.file_formats.pcgts.page import Syllable, SyllableConnection
+
+
 class MonodiDocument:
     def __init__(self, sentence):
         self.sentence = sentence
@@ -78,3 +84,72 @@ def simple_monodi_data_importer(json):
             else:
                 pass
     return MonodiDocument(sentence)
+
+
+def get_music_symbols(note_dict, ignore_liquescent = True):
+    symbols: List[MusicSymbol] = []
+    g_c = [GraphicalConnectionType.NEUME_START, GraphicalConnectionType.GAPED, GraphicalConnectionType.LOOPED]
+    last = 0
+    for spaced_note in note_dict["spaced"]:
+        for non_spaced_note in spaced_note["nonSpaced"]:
+            for grouped in non_spaced_note["grouped"]:
+
+                if ignore_liquescent:
+                    if not grouped["liquescent"]:
+                        symbols.append(MusicSymbol(symbol_type=SymbolType("note"),
+                                                   note_type=NoteType(0),
+                                                   octave=grouped["octave"],
+                                                   note_name=NoteName.from_string(grouped["base"]),
+                                                   graphical_connection=g_c[last]))
+                else:
+                    symbols.append(MusicSymbol(symbol_type=SymbolType("note"),
+                                               note_type=NoteType(0),
+                                               octave=grouped["octave"],
+                                               note_name=NoteName.from_string(grouped["base"]),
+                                               graphical_connection=g_c[last]))
+                last = 2
+            last = 1
+        last = 0
+    return symbols
+
+
+from dataclasses import dataclass
+
+
+@dataclass
+class Neume:
+    symbols: List[MusicSymbol]
+    syllable: Syllable
+
+
+@dataclass
+class Row:
+    neumes: List[Neume]
+
+
+def simple_monodi_data_importer2(json, ignore_liquescent=True) -> List[Row]:
+    rows: List[Row] = []
+    row_container = []
+    getRowContainer(json, row_container)
+    last_syllable = 0
+    neumes: List[Neume] = []
+    for x in row_container:
+        for z in x["children"]:
+            if z["kind"] == "Syllable":
+                symbols = get_music_symbols(z["notes"], ignore_liquescent=ignore_liquescent)
+                syllable = Syllable(text=z["text"],
+                                    connection=SyllableConnection.NEW if last_syllable == 0 else SyllableConnection.HIDDEN)
+                neumes.append(Neume(symbols=symbols, syllable=syllable))
+                if z["text"][-1] == "-":
+                    last_syllable = 1
+                else:
+                    last_syllable = 0
+            elif z["kind"] == "LineChange":
+                rows.append(Row(neumes))
+                neumes = []
+            elif z["kind"] == "FolioChange":
+                rows.append(Row(neumes))
+                neumes = []
+            else:
+                pass
+    return rows

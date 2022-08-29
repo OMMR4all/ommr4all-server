@@ -25,6 +25,7 @@ class AlgorithmTypes(Enum):
     SYLLABLES_FROM_TEXT = 'syllables_from_text'
     SYLLABLES_IN_ORDER = 'syllables_in_order'
 
+    DOCUMENT_ALIGNMENT = 'document_alignment'
     # Tools
     LAYOUT_CONNECTED_COMPONENTS_SELECTION = "layout_connected_components_selection"
     SYMBOLS_SEQUENCE_CONFIDENCE_CALCULATOR = "symbol_sequence_confidence_calculator"
@@ -52,7 +53,7 @@ class AlgorithmGroups(Enum):
                                       AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE_NAUTILUS],
             AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_CALAMARI, AlgorithmTypes.OCR_NAUTILUS],
             AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_FROM_TEXT, AlgorithmTypes.SYLLABLES_IN_ORDER],
-            AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION],
+            AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION, AlgorithmTypes.DOCUMENT_ALIGNMENT],
         }
 
     def types(self) -> List[AlgorithmTypes]:

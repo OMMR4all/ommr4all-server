@@ -59,13 +59,14 @@ class PCTrainer(SymbolDetectionTrainer):
 
         train_data = self.train_dataset.to_page_segmentation_dataset(callback)
         train_data.data = train_data.data * self.params.train_data_multiplier
+        #raise Exception(self.params.model_to_load().local_file('model.h5'))
         settings = TrainSettings(
             n_epoch=max(1, self.settings.params.n_iter // len(train_data)),
             n_classes=len(SymbolLabel),
             l_rate=self.params.l_rate,
             train_data=train_data,
             validation_data=self.validation_dataset.to_page_segmentation_dataset(callback),
-            load=None if not self.params.model_to_load() else self.params.model_to_load().local_file('model'),
+            load=None if not self.params.model_to_load() else self.params.model_to_load().local_file('model.h5'),
             display=self.params.display,
             output_dir=self.settings.model.path,
             model_name='model',

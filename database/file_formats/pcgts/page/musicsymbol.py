@@ -49,6 +49,9 @@ class NoteName(IntEnum):
                 return member
         return NoteName.UNDEFINED
 
+    def octave_value(self):
+        return [6, 7, 1, 2, 3, 4, 5][self.value]
+
 
 # See https://music-encoding.org/guidelines/v3/content/neumes.html (Fig. 1) for reference
 class BasicNeumeType(IntEnum):
