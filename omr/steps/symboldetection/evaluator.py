@@ -447,6 +447,7 @@ class SymbolDetectionEvaluator:
             diffs = np.asarray(self.codec.compute_sequence_diffs(gt_sequence_nc, pred_sequence_nc))
             total_diffs += diffs
             p_symbols = extract_coords_of_symbols(pred)
+            p_symbols_orig = p_symbols[:]
             gt_symbols_orig = extract_coords_of_symbols(gt)
             gt_symbols = gt_symbols_orig[:]
             pairs = []
@@ -542,9 +543,11 @@ class SymbolDetectionEvaluator:
                 except ZeroDivisionError:
                     return (true, false, true + false), None, (l_true, l_false, [])
 
+
             all_counts, all_metrics, all_ = sub_group([SymbolType.NOTE, SymbolType.ACCID, SymbolType.CLEF])
             note_counts, note_metrics, notes = sub_group([SymbolType.NOTE])
             clef_counts, clef_metrics, clefs = sub_group([SymbolType.CLEF])
+
             accid_counts, accid_metrics, accids = sub_group([SymbolType.ACCID])
 
             note_all_counts, note_all_metrics, note_all = note_sub_group(notes, PRF2Metrics.NOTE_ALL)
@@ -655,6 +658,45 @@ class SymbolErrorTypeDetectionEvaluator:
                 a_tl = page.closest_above_text_line_to_music_line(line, True)
                 d_capitals = drop_captial_of_text_line_center(b_tl, line,
                                                               drop_capitals)  ## p.drop_capitals_of_text_line(b_tl)
+
+                def clefs_type_count(lists, symbol_types):
+                    l_tp = [(p, gt) for (_, p), (_, gt) in pairs if
+                            gt.symbol_type in symbol_types and p.symbol_type in symbol_types]
+
+                    l_fp = [(p, True) for (_, p), (_, gt) in pairs if
+                            gt.symbol_type not in symbol_types and p.symbol_type in symbol_types] \
+                           + [(p, False) for (_, p) in p_symbols if p.symbol_type in symbol_types]
+
+                    l_fn = \
+                        [(gt, True) for (_, p), (_, gt) in pairs if
+                         p.symbol_type not in symbol_types and gt.symbol_type in symbol_types] \
+                        + [(gt, False) for (_, gt) in gt_symbols if gt.symbol_type in symbol_types]
+
+                    l_fp_type = [pad for pad in l_fp if pad[1] == True]
+                    l_fp_not_type = [pad for pad in l_fp if pad[1] == False]
+                    l_fn_type = [pad for pad in l_fn if pad[1] == True]
+                    l_fn_not_type = [pad for pad in l_fn if pad[1] == False]
+                    clef_l_true = [(p, gt) for p, gt in l_tp if gt.clef_type == p.clef_type]
+                    clef_l_false = [(p, gt) for p, gt in l_tp if gt.clef_type != p.clef_type]
+                    pis_l_true = [(p, gt) for p, gt in l_tp if p.position_in_staff == gt.position_in_staff]
+                    pis_l_false = [(p, gt) for p, gt in l_tp if p.position_in_staff != gt.position_in_staff]
+                    count_pis = len(pis_l_false)
+                    count_type = len(clef_l_false)
+                    # count_type_fp = len(l_fp_type)
+                    # count_type_fn = len(l_fn_type)
+                    count_beginning_fn = [s[0] for s in l_fn if s[0].id == gt_symbols_orig[0][1].id]
+                    count_beginning_fp = [s[0] for s in l_fn if s[0].id == pred_symbols[0][1].id]
+
+                    tp, fp, fn = tuple(list(map(len, (l_tp, l_fp, l_fn))))
+                    l_tp, l_fp, l_fn = lists
+                    count_tp = 0
+                    count_type_fp = len(l_fp)
+                    count_type_fn = len(l_fn)
+
+                    tp = len(pis_l_true) + len(clef_l_true)
+                    clef_l_start = [(p, gt) for p in l_tp if gt.clef_type == p.clef_type]
+
+                    return (true, false, true + false), None, (l_true, l_false, [])
 
                 def symbol_after_x(x, symbols: List[MusicSymbol]):
                     for symbol_1 in symbols:

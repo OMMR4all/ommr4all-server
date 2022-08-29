@@ -24,7 +24,6 @@ class TaskRunnerPrediction(TaskRunner):
                  ):
         super().__init__(algorithm_type, selection, [TaskWorkerGroup.NORMAL_TASKS_CPU])
         self.settings = settings
-
     def identifier(self) -> Tuple:
         return self.selection.identifier(), self.algorithm_type
 

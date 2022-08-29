@@ -105,7 +105,6 @@ class BookUploadView(APIView):
         book = DatabaseBook(book)
         if not os.path.exists(book.local_path()):
             os.mkdir(book.local_path())
-
         for type, file in request.FILES.items():
             logger.debug('Received new image of content type {}'.format(file.content_type))
             name = os.path.splitext(os.path.basename(file.name))[0]

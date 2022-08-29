@@ -232,7 +232,11 @@ class Coords(SerializableType):
 
     def extract_from_image(self, image: np.ndarray):
         aabb = self.aabb()
-        sub_image = image[int(aabb.tl[1]):int(aabb.br[1]), int(aabb.tl[0]):int(aabb.br[0])]
+        tl_y = int(aabb.tl.y)
+        br_y= int(aabb.br.y)
+        tl_x = int(aabb.tl.x)
+        br_x = int(aabb.br.x)
+        sub_image = image[tl_y:br_y, tl_x:br_x]
         return sub_image
 
     def to_points_list(self):

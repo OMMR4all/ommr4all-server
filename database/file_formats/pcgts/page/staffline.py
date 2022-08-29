@@ -176,6 +176,7 @@ class StaffLines(List[StaffLine]):
             top -= ld
             top_pos += 1
         elif not top_space and bot_space:
+
             bot += ld
             bot_pos -= 1
         elif top_space and bot_space:
@@ -186,6 +187,7 @@ class StaffLines(List[StaffLine]):
                 top_pos += 1
                 bot_pos = top_pos - 2
             else:
+
                 top = center
                 bot += ld / 2
                 top_pos -= 1

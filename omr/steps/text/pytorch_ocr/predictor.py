@@ -46,7 +46,7 @@ from typing import Generator
 class PytorchPredictor(TextPredictor):
     @staticmethod
     def meta() -> Type['AlgorithmMeta']:
-        from omr.steps.text.calamari.meta import Meta
+        from omr.steps.text.pytorch_ocr.meta import Meta
         return Meta
 
     def __init__(self, settings: AlgorithmPredictorSettings):
@@ -61,8 +61,7 @@ class PytorchPredictor(TextPredictor):
         #print(path)
         #print(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
         #                   'network_config', 'ocr_config.yaml'))
-        #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        #print(device)
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.network = Network(opt, path, self.chars, corpus='')
         if settings.params.useDictionaryCorrection:
             self.dict_corrector = DictionaryCorrector()

@@ -28,6 +28,8 @@ from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePred
 from omr.steps.symboldetection.post_processing.initial_based_correction import correct_symbols_inside_wrong_blocks, \
     correct_symbols_inside_text_blocks
 
+from ocr4all_pixel_classifier.lib.model import Architecture
+from ocr4all_pixel_classifier.lib.network import Network
 
 def render_prediction_labels(labels, img=None):
     from shared.pcgtscanvas import PcGtsCanvas
@@ -339,7 +341,7 @@ def fix_pos_of_close_symbols2(page, symbols: List[MusicSymbol], scale_reference,
 def fix_pos_of_close_symbols3(page, symbols: List[MusicSymbol], scale_reference, debug=False, m=None):
     if len(symbols) > 0:
         avg_line_distance = page.avg_staff_line_distance()
-        avg_line_distance_step = avg_line_distance * 3 / 50
+        avg_line_distance_step = avg_line_distance * 4 / 50
 
         def distance_bet_symbols(symbol1: MusicSymbol, symbol2: MusicSymbol):
             distance = symbol2.coord.x - symbol1.coord.x
@@ -381,10 +383,10 @@ def fix_pos_of_close_symbols3(page, symbols: List[MusicSymbol], scale_reference,
                 new_pis = m.operation.music_line.compute_position_in_staff(coord)
                 if pis != new_pis:
                     if its == 0:
-                        symbol_to_check.note_type = symbol.note_type.APOSTROPHA
+                        #symbol_to_check.note_type = symbol.note_type.APOSTROPHA
                         distance = distance_bet_symbols(prev_symbol, symbol)
                         if distance < avg_line_distance / 2 and abs(other.position_in_staff.value - new_pis.value) == 1:
-                            symbol_to_check.note_type = symbol_to_check.note_type.ORISCUS
+                            #symbol_to_check.note_type = symbol_to_check.note_type.ORISCUS
                             symbol_to_check.coord = coord
                             symbol_to_check.position_in_staff = new_pis
                             found = True
@@ -479,6 +481,7 @@ class PCPredictor(SymbolsPredictor):
         SingleLinePredictionResult, None, None]:
         dataset = SymbolDetectionDataset(pcgts_files, self.dataset_params)
         clefs = []
+        print(self.settings.model.local_file('model.h5'))
         for p in self.predictor.predict(dataset.to_page_segmentation_dataset()):
             m: RegionLineMaskData = p.data.user_data
             # from PIL import Image

@@ -104,7 +104,7 @@ class PcGtsCanvas:
                     x = int(scale(sc.note.coord.x))
                     self.img[t:b, x] = (0, 255, 0)
                     text = sc.syllable.text.replace(" ", "_")
-                    cv2.putText(self.img, text, (int(x) - 20, b + 20), fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=2, color=(20, 205, 100), thickness=2)
+                    cv2.putText(self.img, text, (int(x) - 20, b + 0), fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=1, color=(20, 205, 100), thickness=2)
 
         elif isinstance(elem, Iterable):
             for e in elem:
