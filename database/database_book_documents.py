@@ -73,15 +73,16 @@ class DatabaseBookDocuments:
         textinitium = ''
         documents: List[Document] = []
         start = None
+        line_count = 0
         for page_ind, db_page in enumerate(db_pages):
             page = db_page.pcgts().page
             if start is not None:
                 document_page_ids.append(page.p_id)
                 document_page_names.append(page.location.page)
 
-            for ind, t_line in enumerate(page.all_text_lines(), start=1):
+            for ind, t_line in enumerate(page.reading_order.reading_order, start=1):
 
-                if t_line.sentence.document_start:
+                if t_line.document_start:
                     if start is None:
                         start = DocumentConnection(line_id=t_line.id, page_id=page.p_id, row=ind,
                                                    page_name=page.location.page)
@@ -95,13 +96,17 @@ class DatabaseBookDocuments:
                                                   start=start,
                                                   end=DocumentConnection(line_id=t_line.id, page_id=page.p_id,
                                                                          row= end_row, page_name=end_page),
-                                                  textinitium=textinitium))
+                                                  textinitium=textinitium, textline_count=line_count))
                         document_page_ids = [page.p_id]
                         document_page_names = [page.location.page]
 
                         start = DocumentConnection(line_id=t_line.id, page_id=page.p_id, row=ind,
                                                    page_name=page.location.page)
                         textinitium = t_line.sentence.text(True)
+                        line_count = 0
+                if start is not None:
+                    line_count += 1
+
 
         if start is not None:
             db_page = db_pages[-1]
@@ -111,20 +116,21 @@ class DatabaseBookDocuments:
             documents.append(Document(document_page_ids, document_page_names,
                                       start=start,
                                       end=DocumentConnection(line_id=lines[-1].id if len(lines) > 0 else None, page_id=page.p_id, row=len(lines),
-                                                             page_name=page.location.page),
-                                      textinitium=textinitium))
+                                                             page_name=page.location.page), textinitium=textinitium, textline_count=line_count))
 
         updated_documents: List[Document] = []
         for doc in documents:
-            for orig_doc in d.database_documents.documents:
-                if doc.start == orig_doc.start:
-                    updated_doc = orig_doc
-                    updated_doc.pages_names = doc.pages_names
-                    updated_doc.pages_ids = doc.pages_ids
-                    updated_doc.end = doc.end
-                    updated_doc.textinitium = doc.textinitium
-                    updated_documents.append(updated_doc)
-                    break
+            if d.database_documents:
+                for orig_doc in d.database_documents.documents:
+                    if doc.start == orig_doc.start:
+                        updated_doc = orig_doc
+                        updated_doc.pages_names = doc.pages_names
+                        updated_doc.pages_ids = doc.pages_ids
+                        updated_doc.end = doc.end
+                        updated_doc.textinitium = doc.textinitium
+                        updated_doc.textline_count = doc.textline_count
+                        updated_documents.append(updated_doc)
+                        break
             else:
                 updated_documents.append(doc)
 
