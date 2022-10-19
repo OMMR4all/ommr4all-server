@@ -1,13 +1,17 @@
 from typing import NamedTuple, Union
 from .task import Task, TaskStatus, TaskNotFoundException
 from .taskqueue import TaskQueue
-from multiprocessing import Queue
+import multiprocessing as mp
 import threading
 import logging
-
+#mp.set_start_method('spawn')
+import torch
 logger = logging.getLogger(__name__)
-
-
+try:
+    # torch fork problem workaround
+    torch.set_num_threads(1)
+except RuntimeError:
+    pass
 class TaskCommunicationData(NamedTuple):
     task: Task
     status: TaskStatus
@@ -17,7 +21,7 @@ class TaskCommunicationData(NamedTuple):
 class TaskCommunicator:
     def __init__(self, task_queue: TaskQueue):
         self.task_queue: TaskQueue = task_queue
-        self.queue = Queue()
+        self.queue = mp.Queue()
         # use thread to be in same memory pool as task queue
         self.thread = threading.Thread(target=self.run, args=(), name='task_communicator')
         self.thread.daemon = True       # daemon thread to stop automatically on shutdown

@@ -62,6 +62,7 @@ class TaskRunnerPrediction(TaskRunner):
         results = [
             page_staves.to_dict() for page_staves in staves
         ]
+
         if self.settings.store_to_pcgts:
             for page_staves in staves:
                 page_staves.store_to_page()
