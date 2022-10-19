@@ -34,7 +34,7 @@ class PageScaleReference(IntEnum):
 
 class Page:
     def __init__(self,
-                 blocks: List[Block]=None,
+                 blocks: List[Block] = None,
                  image_filename="", image_height=0, image_width=0,
                  location: 'DatabasePage' = None, p_id=None):
         self.blocks: List[Block] = blocks if blocks else []
@@ -186,9 +186,23 @@ class Page:
 
         return [c['lines'] for c in columns]
 
+    def all_text_lines_in_columns(self, dc=False) -> List[List[Line]]:
+        columns = []
+        for block in self.text_blocks(not dc):
+            left = block.aabb.left()
+            right = block.aabb.right()
+            matching_columns = [c for c in columns if c['left'] <= right and c['right'] >= left]
+            columns.append({'blocks': sum([c['blocks'] for c in matching_columns], [block]),
+                            'lines': sum([c['lines'] for c in matching_columns], block.lines),
+                            'left': left, 'right': right,
+                            })
+            for c in matching_columns:
+                columns.remove(c)
+
+        return [c['lines'] for c in columns]
+
     def all_text_lines(self, only_lyric=False):
         return sum([b.lines for b in self.text_blocks(only_lyric)], [])
-
 
     def all_staves_staff_line_coords(self, scale: Optional[PageScaleReference] = None) -> List[List[Coords]]:
         staves: List[List[Coords]] = []
@@ -231,12 +245,15 @@ class Page:
         closest = None
         d = 10000000000
         for ml in self.all_music_lines():
-            dp = tl.aabb.top() - ml.aabb.top()
-            if dp < 0:
-                continue
-            elif d > dp:
-                d = dp
-                closest = ml
+            if ml.aabb.left() <tl.aabb.left()< ml.aabb.right() or ml.aabb.left() < tl.aabb.right()< ml.aabb.right() or \
+                    abs(ml.aabb.left() - tl.aabb.left()) < 0.1 or abs(ml.aabb.right() - tl.aabb.right()) < 0.1:
+
+                dp = tl.aabb.top() - ml.aabb.top()
+                if dp < 0:
+                    continue
+                elif d > dp:
+                    d = dp
+                    closest = ml
 
         return closest
 
@@ -271,10 +288,12 @@ class Page:
         else:
             return p * scale
 
-    def image_to_page_scale(self, p: Union[Coords, Point, float, int], ref: PageScaleReference = PageScaleReference.ORIGINAL):
+    def image_to_page_scale(self, p: Union[Coords, Point, float, int],
+                            ref: PageScaleReference = PageScaleReference.ORIGINAL):
         return self._scale(p, 1.0 / self.page_scale_size(ref)[1])
 
-    def page_to_image_scale(self, p: Union[Coords, Point, float, int], ref: PageScaleReference = PageScaleReference.ORIGINAL):
+    def page_to_image_scale(self, p: Union[Coords, Point, float, int],
+                            ref: PageScaleReference = PageScaleReference.ORIGINAL):
         return self._scale(p, self.page_scale_size(ref)[1])
 
     def rotate(self, degrees: float):
@@ -289,3 +308,85 @@ class Page:
         for b in sorted(self.music_blocks(), key=lambda b: b.aabb.top()):
             current_clef = b.update_note_names(current_clef)
 
+    def _computeColumns(self) -> List[Rect]:
+        ## Copy
+        columns = []
+        for i in self.music_blocks():
+            left = i.aabb.left()
+            right = i.aabb.right()
+            matching_columns = [x for x in columns if x["left"] <= right and x["right"] >= left]
+            columns.append({
+                "blocks": [c["blocks"] for c in matching_columns] + [i],  # ?
+                "lines": [c["lines"] for c in matching_columns] + i.lines,  # ?
+                "left": min(left, *[c["left"] for c in matching_columns]),
+                "right": max(right, *[c["right"] for c in matching_columns]),
+
+            })
+            for it in matching_columns:
+                del columns[columns.index(it)]
+
+            def nn(c):
+                blocks = c["blocks"]
+                blocks.sort(lambda x: x.aabb.top())
+                distances = []
+                for ist in range(len(blocks), 1):
+                    distances.append(blocks[ist].aabb.top() - blocks[ist - 1].aabb.bottom())
+                    pass
+                avg_textLine_height = np.median(distances)
+                top = min([b.aabb.top() for b in blocks])
+                bot = min([b.aabb.bottom() for b in blocks]) + avg_textLine_height
+                return Rect(Point(c["left", top]), Size(c["right"] - c["left"], bot - top))
+
+            return list(map(nn, sorted(columns, key=lambda x: x["left"])))
+
+    def update_reading_order2(self):
+        def indexOf(iter, elem):
+            try:
+                return iter.index(elem)
+            except:
+                return -1
+
+        textLines = []
+        newTextLines = []
+        columns = self._computeColumns()
+        for bl in self.blocks_of_type([BlockType.LYRICS]):
+            newTextLines.extend([i for i in bl.lines if indexOf(self.reading_order.reading_order, i) < 0])
+            textLines.extend(bl.lines)
+            pass
+        deletedTextLines = [i for i in self.reading_order.reading_order if indexOf(textLines, i) < 0]
+        newTextLinesInColumns = []
+        for c in columns:
+            for a in newTextLines:
+                if a.aabb.intersetcsWithRect(c):
+                    newTextLinesInColumns.append(a)
+
+        unassignedTextLines = [i for i in newTextLines if len([t for t in newTextLinesInColumns if t in i]) > 0]
+        for i in unassignedTextLines:
+            i.aabb.center()
+        pass
+
+    def get_reading_order(self):
+        columns = self.all_text_lines_in_columns()
+        columns = sorted(columns, key=lambda i: i[0].aabb.left())
+        readingorder = []
+        for lines in columns:
+            reading_order_column = []
+
+            for line in lines:
+                i = 0
+                for t in range(len(reading_order_column)):
+                    ll = reading_order_column[i]
+                    if line.aabb.bottom() < ll.aabb.top():
+                        break
+                    elif line.aabb.top() < ll.aabb.bottom():
+                        pass
+                    else:
+                        if line.aabb.left() < ll.aabb.left():
+                            break
+                reading_order_column.insert(i, line)
+                i += 1
+            readingorder += reading_order_column
+        return readingorder
+
+    def update_reading_order(self):
+        self.reading_order = ReadingOrder(self, self.get_reading_order())
