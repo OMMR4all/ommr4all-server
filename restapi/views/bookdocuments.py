@@ -1,8 +1,11 @@
+import base64
+import io
 import json
 import os
 import re
 import subprocess
 
+from PIL import Image
 from django.views.decorators.csrf import csrf_exempt
 
 from database.database_dictionary import DatabaseDictionary
@@ -95,7 +98,33 @@ class BookDocumentsOdsView(APIView):
             editor=str(request.user.username))
         return HttpResponse(bytes, content_type="application/vnd.oasis.opendocument.spreadsheet")
 
+class DocumentImageLineImageView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book, document, line):
+        book = DatabaseBook(book)
+        documents = DatabaseBookDocuments().load(book)
+        document: Document = documents.database_documents.get_document_by_id(document)
+        #response = HttpResponse(content_type="image/png")
+        img = Image.fromarray(document.get_image_of_document_by_line(book, line))
+        #img.save(response, "PNG")
+        buf = io.BytesIO()
+        img.save(buf, "png")
+        img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        return HttpResponse(img_b64)
+
+class DocumentImageLineTextView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book, document, line):
+        book = DatabaseBook(book)
+        documents = DatabaseBookDocuments().load(book)
+        document: Document = documents.database_documents.get_document_by_id(document)
+        text = document.get_text_of_document_by_line(book, line)
+
+        return Response(text)
 class DocumentView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -183,6 +212,19 @@ class DocumentOdsView(APIView):
         bytes = document.export_to_xls(filename, user)
         return HttpResponse(bytes, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+class DocumentImageView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book, document):
+        book = DatabaseBook(book)
+        documents = DatabaseBookDocuments().load(book)
+        document: Document = documents.database_documents.get_document_by_id(document)
+        filename = 'CM Default Metadatendatei'
+        editor = request.session.get('monodi_user', None)
+        user = editor if editor is not None else request.user.username
+        bytes = document.export_to_xls(filename, user)
+        return HttpResponse(bytes, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 class MonodiConnectionView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
