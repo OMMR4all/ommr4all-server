@@ -36,6 +36,7 @@ class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=Predicti
         return {'textLines': [l.to_dict() for l in self.text_lines]}
 
     def store_to_page(self):
+        #print(self.dataset_page.file('pcgts').local_path())
         for line in self.text_lines:
             line.line.operation.text_line.sentence = Sentence.from_string(line.hyphenated)
         self.pcgts.page.annotations.connections.clear()

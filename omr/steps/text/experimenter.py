@@ -59,13 +59,15 @@ class TextExperimenter(Experimenter):
         raise NotImplemented
         for pcgts, pred in zip(output_pcgts, predictions):
             pcgts.page.annotations = Annotations.from_json(pred.annotations.to_json(), pcgts.page)
+    def output_debug_images(self, predictions):
+        raise NotImplemented
 
     def evaluate(self, predictions: Tuple[List[str], List[str]], evaluation_params):
         from calamari_ocr.ocr.evaluator import Evaluator
         gt, pred = predictions
 
         def edit_on_tokens(gt: List[str], pred: List[str]):
-            return min(1, edit_distance(gt, pred)[0] / len(gt)), len(gt)
+            return min(1, edit_distance(gt, pred)[0] / len(gt) if len(gt)> 0 else 0), len(gt)
 
         def sentence_to_syllable_tokens(s: Sentence) -> List[str]:
             return [syl.text for syl in s.syllables]
@@ -78,8 +80,16 @@ class TextExperimenter(Experimenter):
 
         gt_sentence = [Sentence.from_string(s) for s in gt]
         pred_sentence = [Sentence.from_string(s) for s in pred]
+        for i, y in list(zip(gt_sentence, pred_sentence)):
+            print(i.text())
+            print(y.text())
+        #ocr_eval = Evaluator(data=None)
+        gt_data = [chars_only(s) for s in gt]
+        pred_data = [chars_only(s) for s in pred]
 
-        result = Evaluator.evaluate(gt_data=[chars_only(s) for s in gt], pred_data=[chars_only(s) for s in pred])
+        #result = [Evaluator.evaluate(gt_data=[chars_only(s) for s in gt], pred_data=[chars_only(s) for s in pred])
+        result = [Evaluator.evaluate_single(gt=i[0], pred=i[1]) for i in zip(gt_data, pred_data)]
+        result = Evaluator.evaluate_single_list(eval_results=result)
         syllable_result = [edit_on_tokens(sentence_to_syllable_tokens(a), sentence_to_syllable_tokens(b)) for a, b in zip(gt_sentence, pred_sentence)]
         words_result = [edit_on_tokens(sentence_to_words(a), sentence_to_words(b)) for a, b in zip(gt_sentence, pred_sentence)]
         result['total_syllables'] = sum([n for _, n in syllable_result])
