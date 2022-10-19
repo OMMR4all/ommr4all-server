@@ -24,7 +24,7 @@ def populate(path):
     return sentence
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class MonodiImportStructure:
     source_meta: str
     data: str
