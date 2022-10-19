@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'restapi.apps.RestApiConfig',
     'webapp.apps.WebappConfig',
     'database.apps.DatabaseConfig',
+    'database.lyric_database.apps.LyricsConfig',
 ]
 
 MIDDLEWARE = [
