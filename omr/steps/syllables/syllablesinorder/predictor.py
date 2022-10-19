@@ -38,16 +38,17 @@ class SyllablesInOrderPredictor(SyllablesPredictor):
             mrs = []
             for tl in pcgts.page.all_text_lines():
                 ml = pcgts.page.closest_music_line_to_text_line(tl)
-                neumes = [s for s in ml.symbols if s.symbol_type == SymbolType.NOTE and s.graphical_connection == GraphicalConnectionType.NEUME_START]
-                neumes.sort(key=lambda n: n.coord.x)
-                mrs.append(MatchResult(
-                    syllables=[SyllableMatchResult(
-                        xpos=neume.coord.x,
-                        syllable=syl,
-                    ) for syl, neume in zip(tl.sentence.syllables, neumes)],
-                    text_line=tl,
-                    music_line=ml,
-                ))
+                if ml:
+                    neumes = [s for s in ml.symbols if s.symbol_type == SymbolType.NOTE and s.graphical_connection == GraphicalConnectionType.NEUME_START]
+                    neumes.sort(key=lambda n: n.coord.x)
+                    mrs.append(MatchResult(
+                        syllables=[SyllableMatchResult(
+                            xpos=neume.coord.x,
+                            syllable=syl,
+                        ) for syl, neume in zip(tl.sentence.syllables, neumes)],
+                        text_line=tl,
+                        music_line=ml,
+                    ))
 
             percentage = (i + 1) / len(pages)
             if callback:
