@@ -196,7 +196,13 @@ class StaffLines(List[StaffLine]):
         d = y - top
         rel = d / (bot - top)
         snapped = -offset + StaffLines._round_to_staff_pos(2 * rel)
-        pis = int(top_pos - snapped)
+        a_lot = 1e6
+        pis = top_pos - snapped
+        #pis = int(max(min(pis, a_lot), a_lot))
+        if pis == float("inf") or pis == float("-inf"):
+            pis =int(1e6)
+        else:
+            pis = int(pis)
         if clef:
             if pis % 2 != 1:
                 pis = pis + 1
