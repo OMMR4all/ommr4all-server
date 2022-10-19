@@ -19,13 +19,16 @@ class Predictor(LayoutAnalysisPredictor):
         super().__init__(settings)
         meta = Step.meta(AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL)
         from ommr4all.settings import BASE_DIR
-        model = Model(MetaId.from_custom_path(BASE_DIR + '/internal_storage/default_models/french14/layout_drop_capital/', meta.type()))
-        print(model.path)
+        model = Model(
+            MetaId.from_custom_path(BASE_DIR + '/internal_storage/default_models/french14/layout_drop_capital/',
+                                    meta.type()))
+        # print(model.path)
         settings = AlgorithmPredictorSettings(
             model=model,
         )
-        #settings.params.ctcDecoder.params.type = CTCDecoderParams.CTC_DEFAULT
+        # settings.params.ctcDecoder.params.type = CTCDecoderParams.CTC_DEFAULT
         self.drop_capital: DropCapitalPredictor = meta.create_predictor(settings)
+
     def _predict_single(self, pcgts_file: PcGts) -> FinalPredictionResult:
         mls_in_cols = pcgts_file.page.all_music_lines_in_columns()
         music_coords: List[IdCoordsPair] = []
@@ -52,11 +55,13 @@ class Predictor(LayoutAnalysisPredictor):
                     ]
                 )), m.id))
 
-            avg_staff_distance = np.mean([m2.staff_lines[0].center_y() - m1.staff_lines[-1].center_y() for m1, m2 in zip(mls[:-1], mls[1:])])
+            avg_staff_distance = np.mean(
+                [m2.staff_lines[0].center_y() - m1.staff_lines[-1].center_y() for m1, m2 in zip(mls[:-1], mls[1:])])
             for m1, m2 in zip(mls[:-1], mls[1:]):
                 top_l = m1.staff_lines[-1]
                 bot_l = m2.staff_lines[0]
-                bot_points = bot_l.coords.points[np.where((top_l.coords.points[0][0] < bot_l.coords.points[:, 0]) & (bot_l.coords.points[:, 0] < top_l.coords.points[-1][0]))]
+                bot_points = bot_l.coords.points[np.where((top_l.coords.points[0][0] < bot_l.coords.points[:, 0]) & (
+                            bot_l.coords.points[:, 0] < top_l.coords.points[-1][0]))]
                 bot_points = np.concatenate([
                     [(top_l.coords.points[0][0], bot_l.interpolate_y(top_l.coords.points[0][0]))],
                     bot_points,
@@ -64,9 +69,11 @@ class Predictor(LayoutAnalysisPredictor):
                 ])
                 lyric_coords.append(IdCoordsPair(Coords(np.concatenate([
                     top_l.coords.points + pad_tup,
-                    [top_l.coords.points[-1] + (0, bot_points[-1][1] - top_l.coords.interpolate_y(bot_points[-1][0])) - pad_tup],
+                    [top_l.coords.points[-1] + (
+                    0, bot_points[-1][1] - top_l.coords.interpolate_y(bot_points[-1][0])) - pad_tup],
                     bot_points[::-1] - pad_tup,
-                    [top_l.coords.points[0] + (0, bot_points[0][1] - top_l.coords.interpolate_y(bot_points[0][0])) - pad_tup],
+                    [top_l.coords.points[0] + (
+                    0, bot_points[0][1] - top_l.coords.interpolate_y(bot_points[0][0])) - pad_tup],
                 ], axis=0))))
 
             top_l = mls[-1].staff_lines[-1]
@@ -74,12 +81,50 @@ class Predictor(LayoutAnalysisPredictor):
                 top_l.coords.points + pad_tup,
                 top_l.coords.points[::-1] + (0, avg_staff_distance - pad),
             ), axis=0))))
-        drop_capital = True
         drop_capital_blocks = []
-        if drop_capital:
-            res =list(self.drop_capital._predict([pcgts_file]))[0]
+        # Todo filter drop capitals
+        if self.settings.params.dropCapitals:
+            res = list(self.drop_capital._predict([pcgts_file]))[0]
             for x in res.blocks.get(BlockType.DROP_CAPITAL):
                 drop_capital_blocks.append(IdCoordsPair(x))
+
+        # Todo improve drop capital-lyric matching
+        if self.settings.params.documentStarts:
+            w_dc = []
+            for ind, i in enumerate(drop_capital_blocks):
+                dc_rec = i.coords.aabb()
+                dc_b = dc_rec.bottom()
+                dc_t = dc_rec.top()
+                dc_m = dc_rec.center
+                lines = []
+                for ind1, l in enumerate(lyric_coords):
+                    if dc_b > l.coords.aabb().top() > dc_t:
+                        lines.append(ind1)
+                nearest = None
+                min_distance = 99999999
+                for ind2, l in enumerate(lines):
+                    min_d = min(i.coords.smallest_distance_between_polys(lyric_coords[l].coords))
+                    if min_d < min_distance:
+                        nearest = l
+                        min_distance = min_d
+                if nearest is not None:
+                    if lyric_coords[nearest].coords.aabb().left() < dc_rec.left():
+                        # split lyric line
+                        p1, p2 = lyric_coords[nearest].coords.split_polygon_by_x(dc_rec.left())
+                        if p1.size > 0 and p2.size > 0:
+
+                            lyric_coords[nearest] = IdCoordsPair(Coords(p1), None, False)
+                            lyric_coords.insert(nearest + 1, IdCoordsPair(Coords(p2), None, True))
+                        else:
+                            lyric_coords[nearest] = IdCoordsPair(Coords(p1), None, True)
+
+                    else:
+                        lyric_coords[nearest] = IdCoordsPair(lyric_coords[nearest].coords, lyric_coords[nearest].id,
+                                                             True)
+                else:
+                    w_dc.append(ind)
+            for i in reversed(w_dc):
+                del (drop_capital_blocks[i])
             pass
         return FinalPredictionResult(
             blocks={
@@ -96,4 +141,3 @@ class Predictor(LayoutAnalysisPredictor):
             if callback:
                 callback.progress_updated(i / len(pcgts_files))
             yield r
-
