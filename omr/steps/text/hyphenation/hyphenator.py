@@ -17,10 +17,10 @@ class Hyphenator(ABC):
 
 
 class Pyphenator(Hyphenator):
-    def __init__(self, lang='la'):
+    def __init__(self, lang='la', left=2, right=2):
         super().__init__()
         from thirdparty.pyphen import Pyphen
-        self.pyphen = Pyphen(lang=lang)
+        self.pyphen = Pyphen(lang=lang, left=left, right=right)
 
     def apply_to_word(self, word: str):
         return self.pyphen.inserted(word)
