@@ -25,6 +25,7 @@ class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=Predicti
         return self.page().location
 
     def to_dict(self):
+
         return {
             'staffs': [l.to_json() for l in self.music_lines],
             'page': self.ds_page().page,

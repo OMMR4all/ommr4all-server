@@ -68,18 +68,21 @@ class PytorchPredictor(TextPredictor):
 
     def _predict(self, dataset: TextDataset, callback: Optional[PredictionCallback] = None) -> Generator[
         SingleLinePredictionResult, None, None]:
-        hyphen = Pyphenator()
+        hyphen = Pyphenator(lang="la_classic", left=2, right=2)
+
+
         """
         hyphen = HyphenatorFromDictionary(
             dictionary=os.path.join(BASE_DIR, 'internal_storage', 'resources', 'hyphen_dictionary.txt'),
             normalization=dataset.params.lyrics_normalization,
         )
         """
-        dataset_cal = dataset.to_text_line_nautilus_dataset()
+        #dataset_cal = dataset.to_text_line_nautilus_dataset()
         book = dataset.files[0].dataset_page().book
+        print(self.dict_corrector)
         if self.dict_corrector:
             self.dict_corrector.load_dict(book=book)
-        path = os.path.join(BASE_DIR, 'tools', 'sentence_dictionary.json')
+        #path = os.path.join(BASE_DIR, 'tools', 'sentence_dictionary.json')
         #exists = os.path.exists(path)
         ###with open(path, 'r') as file:
         #    text = file.read().replace('\n', '')
