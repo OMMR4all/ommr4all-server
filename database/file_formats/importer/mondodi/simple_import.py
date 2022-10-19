@@ -140,10 +140,13 @@ def simple_monodi_data_importer2(json, ignore_liquescent=True) -> List[Row]:
                 syllable = Syllable(text=z["text"],
                                     connection=SyllableConnection.NEW if last_syllable == 0 else SyllableConnection.HIDDEN)
                 neumes.append(Neume(symbols=symbols, syllable=syllable))
-                if z["text"][-1] == "-":
-                    last_syllable = 1
+                if len(z["text"]) > 0:
+                    if z["text"][-1] == "-":
+                        last_syllable = 1
+                    else:
+                        last_syllable = 0
                 else:
-                    last_syllable = 0
+                    last_syllable = 0 #?
             elif z["kind"] == "LineChange":
                 rows.append(Row(neumes))
                 neumes = []
@@ -152,4 +155,6 @@ def simple_monodi_data_importer2(json, ignore_liquescent=True) -> List[Row]:
                 neumes = []
             else:
                 pass
+    rows.append(Row(neumes))
+
     return rows
