@@ -899,7 +899,6 @@ if __name__ == '__main__':
     # eval_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[12:13]]
     # print([e.page.location.local_path() for e in eval_pcgts])
     pred = PCPredictor(AlgorithmPredictorSettings(Meta.best_model_for_book(b)))
-    print(pred.settings.model.path)
     # ps = list(pred.predict([p.page.location for p in val_pcgts]))
     # predictor = create_predictor(
     #    PredictorTypes.PIXEL_CLASSIFIER,
@@ -1130,7 +1129,6 @@ if __name__ == '__main__':
         x += 1
     pt = PrettyTable([n for n, _ in counts2.to_dict().items()])
     pt.add_row([v for _, v in counts2.to_dict().items()])
-    print(pt)
     y += 1
     y += 1
 
