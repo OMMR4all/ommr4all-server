@@ -93,13 +93,14 @@ class WordDictionaryGenerator:
 
     def populate(self, path):
         for x in documents_gen(path):
-            a = populate(x.data)
-            self.text += a.get_text() + " "
-            for x in a.get_text().split("\n"):
-                x = x.strip().lower().replace("-", "")
-                if len(x) > 0:
-                    self.sentence_list[x] = self.sentence_list[x] + 1
-            # populate_look_up_dict(a.get_text().split(" "), self.word_dict, self.text_normalizer1, self.text_normalizer2)
+            if os.path.exists(x.data):
+                a = populate(x.data)
+                self.text += a.get_text() + " "
+                for x in a.get_text().split("\n"):
+                    x = x.strip().lower().replace("-", "")
+                    if len(x) > 0:
+                        self.sentence_list[x] = self.sentence_list[x] + 1
+                populate_look_up_dict(a.get_text().split(" "), self.word_dict, self.text_normalizer1, self.text_normalizer2)
 
     def populate_bigram_look_up_dict(self, sentence, word_dict, t1, t2):
         last_word = None
@@ -167,9 +168,9 @@ class WordDictionaryGenerator:
             for x in self.sentence_list.keys():
                 outfile.write(x + seperator + str(self.sentence_list[x]) + "\n")
 if __name__ == "__main__":
-    a = WordDictionaryGenerator("/home/alexanderh/Downloads/OMMR4allEvaluationDatenAB/Evaluation/Buck/ommr4all/export")
-    # a.write_to_json_file(".")
-    #a.populate_bigram("/home/alexanderh/Downloads/OMMR4allEvaluationDatenAB/Evaluation/Buck/ommr4all/export")
-    #a.write_bigram_to_file(".")
+    a = WordDictionaryGenerator("/home/alexanderh/Downloads/mc_export/export/")
+    a.write_to_json_file(".")
+    a.populate_bigram("/home/alexanderh/Downloads/OMMR4allEvaluationDatenAB/Evaluation/Buck/ommr4all/export")
+    a.write_bigram_to_file(".")
     #a.write_language_model_text(".")
     a.write_sentence_file(".")
