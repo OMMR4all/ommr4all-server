@@ -75,17 +75,19 @@ def draw_segmentation_map(image, masks, boxes):
 
     return image
 
+
 def nothing(x):
     pass
+
 
 def detect_red_areas(img):
     from matplotlib import pyplot as plt
 
     img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     img2 = img.copy()
-    print(img_hsv[:, :,2])
-    print(img_hsv[:, :,2].shape)
-    img2[np.where(np.logical_and(img_hsv[:, :,2] < 175, 140 < img_hsv[:, :,2]))] = 0
+    print(img_hsv[:, :, 2])
+    print(img_hsv[:, :, 2].shape)
+    img2[np.where(np.logical_and(img_hsv[:, :, 2] < 175, 140 < img_hsv[:, :, 2]))] = 0
     fig, ax = plt.subplots(1, 5, figsize=(15, 5), sharex=True, sharey=True)
     ax[0].imshow(img)
     ax[0].set_title('prig', fontsize=15)
@@ -110,7 +112,7 @@ def detect_red_areas(img):
     mask1 = cv2.inRange(img_hsv, lower_red, upper_red)
 
     # join my masks
-    mask =  mask1
+    mask = mask1
 
     # set my output img to zero everywhere except my mask
     output_img = img.copy()
@@ -121,6 +123,7 @@ def detect_red_areas(img):
     output_hsv[np.where(mask == 0)] = 0
     plt.imshow(output_hsv)
     plt.show()
+
 
 def test(image):
     # Create a window
@@ -169,7 +172,7 @@ def test(image):
         # Print if there is a change in HSV value
         if ((phMin != hMin) | (psMin != sMin) | (pvMin != vMin) | (phMax != hMax) | (psMax != sMax) | (pvMax != vMax)):
             print("(hMin = %d , sMin = %d, vMin = %d), (hMax = %d , sMax = %d, vMax = %d)" % (
-            hMin, sMin, vMin, hMax, sMax, vMax))
+                hMin, sMin, vMin, hMax, sMax, vMax))
             phMin = hMin
             psMin = sMin
             pvMin = vMin
@@ -185,6 +188,8 @@ def test(image):
             break
 
     cv2.destroyAllWindows()
+
+
 class DropCapitalPredictor(LayoutAnalysisPredictor):
     @staticmethod
     def meta():
@@ -234,13 +239,6 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
                     BlockType.MUSIC: [],
                 },
             )
-            #detect_red_areas(o_image)
-            #test(o_image)
-            #result = draw_segmentation_map(dataset.imgs[x], masks, boxes)
-            #from matplotlib import pyplot as plt
-            #plt.imshow(result)
-            #plt.show()
-            # visualize the image
 
 
 if __name__ == '__main__':
@@ -248,7 +246,7 @@ if __name__ == '__main__':
 
     b = DatabaseBook('Pa_14819')
 
-    #b = DatabaseBook('test3')
+    # b = DatabaseBook('test3')
     # b = DatabaseBook('Cai_72')
 
     val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[1:50]]

@@ -18,11 +18,13 @@ PredictionType = Generator[PredictionResult, None, None]
 class IdCoordsPair(NamedTuple):
     coords: Coords
     id: str = None
+    start: bool = False
 
     def to_dict(self):
         return {
             'coords': self.coords.to_json(),
             'id': self.id,
+            'start': self.start,
         }
 
 
@@ -56,9 +58,9 @@ class FinalPredictionResult(NamedTuple, AlgorithmPredictionResult, metaclass=Fin
                     ml.coords = ic.coords
                 else:
                     pcgts.page.blocks.append(
-                        Block(type, ic.id, lines=[Line(coords=ic.coords)])
+                        Block(type, ic.id, lines=[Line(coords=ic.coords, document_start=ic.start)])
                     )
-
+        pcgts.page.update_reading_order()
         pcgts.to_file(page.file('pcgts').local_path())
 
 
