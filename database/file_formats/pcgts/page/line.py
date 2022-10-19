@@ -24,12 +24,14 @@ class Line(Region):
                  symbols: List[MusicSymbol] = None,
 
                  additional_symbols: List[MusicSymbol] = None,
+                 document_start: bool = False,
                  ):
         # general
         self.reconstructed = reconstructed
 
         # text line
         self.sentence: Sentence = sentence if sentence else Sentence([])
+        self.document_start = document_start
 
         # music line
         self.staff_lines = staff_lines if staff_lines else StaffLines()
@@ -54,7 +56,8 @@ class Line(Region):
             Sentence.from_json(d.get('sentence', {})),
             StaffLines.from_json(d.get('staffLines', [])),
             [MusicSymbol.from_json(s) for s in d.get('symbols', [])],
-            [MusicSymbol.from_json(s) for s in d.get('additionalSymbols', [])]
+            [MusicSymbol.from_json(s) for s in d.get('additionalSymbols', [])],
+            document_start=d.get('documentStart')
 
         )
     def point_in_aabb(self, point):
@@ -73,7 +76,9 @@ class Line(Region):
             **super().to_json(),
             **{
                 'reconstructed': self.reconstructed,
-            }
+                'documentStart': self.document_start,
+
+            },
         }
 
         if block_type == BlockType.MUSIC:

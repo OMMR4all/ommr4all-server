@@ -1,4 +1,8 @@
+import math
+
 import numpy as np
+import shapely.ops
+from shapely.geometry import Polygon, LineString
 from skimage.measure import approximate_polygon
 import cv2
 from typing import Type, Union
@@ -245,6 +249,85 @@ class Coords(SerializableType):
             points.append((x[0], x[1]))
         return points
 
+    def smallest_distance_between_polys(self, coord2: 'Coords'):
+        def segments_distance(x11, y11, x12, y12, x21, y21, x22, y22):
+            if segments_intersect(x11, y11, x12, y12, x21, y21, x22, y22): return 0
+            distances = []
+            distances.append(point_segment_distance(x11, y11, x21, y21, x22, y22))
+            distances.append(point_segment_distance(x12, y12, x21, y21, x22, y22))
+            distances.append(point_segment_distance(x21, y21, x11, y11, x12, y12))
+            distances.append(point_segment_distance(x22, y22, x11, y11, x12, y12))
+            return min(distances)
+
+        def segments_intersect(x11, y11, x12, y12, x21, y21, x22, y22):
+            dx1 = x12 - x11
+            dy1 = y12 - y11
+            dx2 = x22 - x21
+            dy2 = y22 - y21
+            delta = dx2 * dy1 - dy2 * dx1
+            if delta == 0: return False  # parallel segments
+            s = (dx1 * (y21 - y11) + dy1 * (x11 - x21)) / delta
+            t = (dx2 * (y11 - y21) + dy2 * (x21 - x11)) / (-delta)
+            return (0 <= s <= 1) and (0 <= t <= 1)
+
+        def point_segment_distance(px, py, x1, y1, x2, y2):
+            dx = x2 - x1
+            dy = y2 - y1
+            if dx == dy == 0:  # the segment's just a point
+                return math.hypot(px - x1, py - y1)
+
+            # Calculate the t that minimizes the distance.
+            t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
+
+            # See if this represents one of the segment's
+            # end points or a point in the middle.
+            if t < 0:
+                dx = px - x1
+                dy = py - y1
+            elif t > 1:
+                dx = px - x2
+                dy = py - y2
+            else:
+                near_x = x1 + t * dx
+                near_y = y1 + t * dy
+                dx = px - near_x
+                dy = py - near_y
+
+            return math.hypot(dx, dy)
+
+        px_coords = self.points[:, 0]
+        py_coords = self.points[:, 1]
+        qx_coords = coord2.points[:, 0]
+        qy_coords = coord2.points[:, 1]
+
+        px_edges = np.stack((px_coords, np.roll(px_coords, -1)), 1)
+        py_edges = np.stack((py_coords, np.roll(py_coords, -1)), 1)
+        p_edges = np.stack((px_edges, py_edges), axis=-1)[:-1]
+
+        qx_edges = np.stack((qx_coords, np.roll(qx_coords, -1)), 1)
+        qy_edges = np.stack((qy_coords, np.roll(qy_coords, -1)), 1)
+        q_edges = np.stack((qx_edges, qy_edges), axis=-1)[:-1]
+
+        edge_distances = [
+            segments_distance(p_edges[n][0][0], p_edges[n][0][1], p_edges[n][1][0], p_edges[n][1][1], q_edges[m][0][0],
+                              q_edges[m][0][1], q_edges[m][1][0], q_edges[m][1][1]) for m in range(0, len(q_edges)) for
+            n in range(0, len(p_edges))]
+
+        return edge_distances
+
+    def split_polygon_by_x(self, x):
+        c1 = np.zeros((0, 2), dtype=float)
+        c2 = np.zeros((0, 2), dtype=float)
+        x_p = Polygon(self.points)
+        l_p = LineString([(x, 0.0), (x, 1.1)])
+        res = shapely.ops.split(x_p, l_p)
+        c1 = np.array(res[0].exterior.coords)
+        c2 = np.array(res[1].exterior.coords) if len(res) > 1 else c2
+
+        return c1, c2
+
+
+
 class Rect:
     def __init__(self, origin: Point = None, size: Union[Point, Size] = None):
         self.origin = origin if origin else Point()
@@ -292,6 +375,12 @@ class Rect:
     def area(self):
         return self.size.h * self.size.w
 
+    def noIntersectionWithRect(self, rect: "Rect") -> bool:
+        return self.top > rect.bottom or self.bottom < rect.top or self.left > rect.right or self.right < rect.left
+
+    def intersetcsWithRect(self, rect: "Rect") -> bool:
+        return not self.noIntersectionWithRect(rect)
+
     @property
     def center(self):
         return self.origin + self.size / 2
@@ -317,7 +406,11 @@ class Rect:
 
 
 if __name__ == '__main__':
-    c = Coords(np.array([[0, 1], [1, 2], [6, -123]]))
+    c = Coords(np.array([[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]))
+    c2 = Coords(np.array([[0, 2], [1, 2], [1, 3], [0, 3], [0, 2]]))
+    print(c.smallest_distance_between_polys(c2))
+
+    exit()
     print(c.to_json())
     print(Coords.from_json(c.to_json()).to_json() == c.to_json())
     print(c.aabb())
