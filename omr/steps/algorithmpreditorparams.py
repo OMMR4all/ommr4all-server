@@ -48,6 +48,11 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
     automaticLd: bool = True
     avgLd: int = 10
 
+    # layout
+    dropCapitals: bool = True
+    documentStarts: bool = True
+    documentStartsDropCapitalMinHeight: float = 0.5
+
     # staff line detection
     minNumberOfStaffLines: Optional[int] = None
     maxNumberOfStaffLines: Optional[int] = None
@@ -66,6 +71,7 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
     documentText: str = None
 
     useDictionaryCorrection: bool = True
+
 
 @dataclass()
 class AlgorithmPredictorSettings:

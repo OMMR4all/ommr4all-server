@@ -23,6 +23,8 @@ class AlgorithmTypes(Enum):
     TEXT_DICTIONARY_CORRECTOR = "text_dictionary_corrector"
 
     SYLLABLES_FROM_TEXT = 'syllables_from_text'
+    SYLLABLES_FROM_TEXT_TORCH = 'syllables_from_text_torch'
+
     SYLLABLES_IN_ORDER = 'syllables_in_order'
 
     DOCUMENT_ALIGNMENT = 'document_alignment'
