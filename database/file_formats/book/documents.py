@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List
 
 from database.file_formats.book.document import Document
+from database.file_formats.pcgts import Page
 
 
 class Documents:
@@ -28,6 +29,13 @@ class Documents:
             if x.doc_id == id:
                 return x
         return None
+
+    def get_documents_of_page(self, page: Page):
+        docs: List[Document] = []
+        for x in self.documents:
+            if x.start.page_id == page.p_id:
+                docs.append(x)
+        return docs
 
     @staticmethod
     def export_documents_to_ods(documents: List[Document], filename, username):

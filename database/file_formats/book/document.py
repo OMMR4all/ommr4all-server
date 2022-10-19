@@ -3,8 +3,12 @@ from typing import List
 import uuid
 
 import ezodf
+import numpy as np
 
 from database import DatabasePage
+from PIL import Image
+
+from database.file_formats.pcgts import PageScaleReference
 
 
 class DocumentConnection:
@@ -37,7 +41,7 @@ class DocumentConnection:
 
 class Document:
     def __init__(self, page_ids, page_names, start: DocumentConnection, end: DocumentConnection,
-                 monody_id=None, doc_id=None, textinitium=''):
+                 monody_id=None, doc_id=None, textinitium='', textline_count=0):
         self.monody_id = monody_id if monody_id else str(uuid.uuid4())
         self.doc_id = doc_id if doc_id else str(uuid.uuid4())
         self.pages_ids: List[int] = page_ids
@@ -45,6 +49,7 @@ class Document:
         self.start: DocumentConnection = start
         self.end: DocumentConnection = end
         self.textinitium = textinitium
+        self.textline_count = textline_count
 
     @staticmethod
     def from_json(json: dict):
@@ -56,6 +61,7 @@ class Document:
             start=DocumentConnection.from_json(json.get('start_point', None)),
             end=DocumentConnection.from_json(json.get('end_point', None)),
             textinitium=json.get('textinitium', ''),
+            textline_count=json.get('textline_count', ''),
 
         )
 
@@ -68,7 +74,7 @@ class Document:
             "start_point": self.start.to_json(),
             "end_point": self.end.to_json(),
             "textinitium": self.textinitium,
-
+            "textline_count": self.textline_count,
         }
 
     def export_to_ods(self, filename, editor):
@@ -119,20 +125,48 @@ class Document:
         xlsx_data_bytes = output.getvalue()
         return xlsx_data_bytes
 
-    def get_text_of_document(self, book):
-        text = ""
+
+
+    def get_page_line_of_document(self, book):
+        line_page_pair = []
         started = False
         pages = [DatabasePage(book, x) for x in self.pages_names]
         for page in pages:
-            for line in page.pcgts().page.all_text_lines():
-
+            for line in page.pcgts().page.reading_order.reading_order:
                 if page.pcgts().page.p_id == self.end.page_id:
                     if line.id == self.end.line_id:
                         break
                 if line.id == self.start.line_id or started:
                     started = True
-                    text += line.text() + " "
+                    line_page_pair.append((line, page))
             else:
                 continue
             break
+        return line_page_pair
+
+    def get_text_list_of_line_document(self, book):
+        line_text = self.get_page_line_of_document(book)
+
+        line_text = [i[0].text() for i in line_text]
+
+        return line_text
+    def get_text_of_document(self, book):
+        line_text = self.get_text_list_of_line_document(book)
+        text = " ".join(line_text)
         return text
+
+
+    def get_text_of_document_by_line(self, book, index):
+        line_text = self.get_page_line_of_document(book)
+        return line_text[int(index)][0].text()
+
+    def get_image_of_document_by_line(self, book, index):
+        lines = self.get_page_line_of_document(book)
+        line, page = lines[int(index)]
+        page: DatabasePage = page
+        image = Image.open(page.file('color_highres_preproc').local_path())
+        coords = line.coords
+        coords = page.pcgts().page.page_to_image_scale(coords, PageScaleReference.HIGHRES)
+
+        image = coords.extract_from_image(np.array(image))
+        return image
