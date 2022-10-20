@@ -10,7 +10,7 @@ import multiprocessing
 logger = logging.getLogger(__name__)
 
 
-files = ['color_norm', 'color_norm_x2', 'color_highres_preproc', 'color_lowres_preproc', 'connected_components_norm']
+files = ['color_highres_preproc', 'color_lowres_preproc', 'color_norm', 'color_norm_x2', 'connected_components_norm']# 'gray_norm', 'gray_norm_x2', 'binary_norm_x2', 'binary_norm']
 
 
 def _process_single(args: Tuple[DatabasePage, AlgorithmPredictorParams]):
@@ -20,6 +20,8 @@ def _process_single(args: Tuple[DatabasePage, AlgorithmPredictorParams]):
     meta = page.meta()
     meta.preprocessing.average_line_distance = settings.avgLd
     meta.preprocessing.auto_line_distance = settings.automaticLd
+    meta.preprocessing.deskew = settings.deskew
+
     meta.save(page)
 
     # process all files

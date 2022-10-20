@@ -67,7 +67,6 @@ class PageContentView(APIView):
         book = DatabaseBook(book)
         page = DatabasePage(book, page)
         file = DatabaseFile(page, content)
-
         if not file.exists():
             file.create()
         return serve(request._request, file.local_request_path(), "/", False)

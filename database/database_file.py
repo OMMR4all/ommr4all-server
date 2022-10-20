@@ -158,8 +158,8 @@ mutex_dict = LockedDict()
 
 thumbnail_size = (200, 350)
 
-high_res_max_width = 2000
-low_res_max_width = 1000
+high_res_max_width = 2500
+low_res_max_width = 1250
 target_staff_line_distance = 10
 
 
@@ -275,14 +275,14 @@ class DatabaseFile:
                 img.save(self.local_thumbnail_path())
             elif self.definition.id == 'color_highres_preproc':
                 meta = self.page.meta()
-                preproc = Preprocessing()
+                preproc = Preprocessing(deskew=meta.preprocessing.deskew)
                 img = Image.open(self.page.local_file_path('color_original.jpg'))
                 w, h = img.size
                 out_w = min(high_res_max_width, w)
                 out_h = (out_w * h) // w
                 c_hr = img.resize((out_w, out_h), Image.BILINEAR)
                 c_hr, g_hr, b_hr = preproc.preprocess(c_hr)
-                meta.preprocessing.deskewing_degrees = preproc.deskewed_angle
+                meta.preprocessing.deskewing_degrees = preproc.deskewed_angle if meta.preprocessing.deskew else 0
                 meta.save(self.page)
                 self._save_and_thumbnail(c_hr, 0)
                 self._save_and_thumbnail(g_hr, 1)
@@ -348,12 +348,12 @@ class DatabaseFile:
                 c_hr = Image.open(self.page.local_file_path('color_highres_preproc.jpg'))
 
                 # rescale original image
+
                 scaling = line_distance / (target_staff_line_distance * 2)
                 size = (int(c_hr.size[0] / scaling), int(c_hr.size[1] / scaling))
                 c_hr = c_hr.resize(size, Image.BILINEAR)
-
                 # compute gray and binary based on normalized color image
-                preproc = Preprocessing()
+                preproc = Preprocessing(deskew=meta.preprocessing.deskew)
                 g_hr = preproc.im2gray(c_hr)
                 b_hr = preproc.binarize(c_hr)
 

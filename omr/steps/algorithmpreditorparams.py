@@ -47,6 +47,7 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
     # preprocessing
     automaticLd: bool = True
     avgLd: int = 10
+    deskew: bool = True
 
     # layout
     dropCapitals: bool = True
