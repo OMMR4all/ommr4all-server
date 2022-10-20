@@ -65,7 +65,6 @@ class BasicStaffLinePredictor(StaffLinePredictor):
             debug=False,
             debug_model=False,
         )
-        print(self.settings.model)
         self.line_detection = LineDetection(self.settings)
 
     def predict(self, pages: List[DatabasePage], callback: Optional[LineDetectionPredictorCallback] = None) -> AlgorithmPredictionResultGenerator:
@@ -76,7 +75,6 @@ class BasicStaffLinePredictor(StaffLinePredictor):
         if callback:
             # TODO: Line detection callback of line-detection not as class member variable
             self.line_detection.callback = PCPredictionCallback(callback)
-
         predictions = self.line_detection.detect(gray_images)
         for i, (data, r) in enumerate(zip(dataset, predictions)):
             rlmd: RegionLineMaskData = data
