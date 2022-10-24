@@ -20,7 +20,7 @@ if __name__ == '__main__':
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
 
-
+LAYOUT_DROP_CAPITAL_MODEL_DEFAULT_NAME = "layout_drop_capital.pt"
 def get_outputs(image, model, threshold):
     with torch.no_grad():
         # forward pass of the image through the modle
@@ -199,7 +199,7 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
         super().__init__(settings)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        self.model = torch.load(os.path.join(settings.model.local_file('layout_drop_capital.pt')),
+        self.model = torch.load(os.path.join(settings.model.local_file(LAYOUT_DROP_CAPITAL_MODEL_DEFAULT_NAME)),
                                 map_location=torch.device(device))
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> PredictionType:
