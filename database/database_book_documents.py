@@ -121,6 +121,7 @@ class DatabaseBookDocuments:
         updated_documents: List[Document] = []
         for doc in documents:
             if d.database_documents:
+                found = False
                 for orig_doc in d.database_documents.documents:
                     if doc.start == orig_doc.start:
                         updated_doc = orig_doc
@@ -130,7 +131,12 @@ class DatabaseBookDocuments:
                         updated_doc.textinitium = doc.textinitium
                         updated_doc.textline_count = doc.textline_count
                         updated_documents.append(updated_doc)
+                        found = True
                         break
+                if not found:
+                    updated_documents.append(doc)
+
+
             else:
                 updated_documents.append(doc)
 
