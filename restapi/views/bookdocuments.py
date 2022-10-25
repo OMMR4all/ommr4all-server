@@ -84,6 +84,7 @@ class BookDocumentsView(APIView):
         return Response()
 
 
+
 class BookDocumentsOdsView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -125,6 +126,7 @@ class DocumentImageLineTextView(APIView):
         text = document.get_text_of_document_by_line(book, line)
 
         return Response(text)
+
 class DocumentView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -146,7 +148,22 @@ class DocumentView(APIView):
         documents.to_file(book=book)
         return Response()
 
+class DocumentPCGTSUpdatesView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
+    @require_permissions([DatabaseBookPermissionFlag.SAVE])
+    def put(self, request, book, document):
+        book = DatabaseBook(book)
+        documents = DatabaseBookDocuments().load(book)
+        document: Document = documents.database_documents.get_document_by_id(document)
+        ## Todo Mutex/lock
+        obj = json.loads(request.body, encoding='utf-8')
+        document.update_pcgts(book=book, lines=obj)
+        #db = DatabaseBookDocuments.from_json(obj)
+        #db.to_file(book)
+        logger.debug('Successfully updated document text of DatabaseFile to {}'.format(book.local_path))
+
+        return Response()
 class DocumentsSVGView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
