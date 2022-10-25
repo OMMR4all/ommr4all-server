@@ -31,3 +31,8 @@ attrs
 requests
 openpyxl
 symspellpy
+torch
+nautilus-ocr
+-e git+https://github.com/githubharald/CTCWordBeamSearch.git@master#egg=word-beam-search
+-e git+https://github.com/githubharald/CTCDecoder.git@master#egg=ctc-decoder
+edlib
