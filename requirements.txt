@@ -16,7 +16,7 @@ djangorestframework-jwt
 prettytable
 ezodf
 cryptography
-mashumaro
+mashumaro==2.7
 unidecode
 pdf2image
 dataclasses-json==0.5.5
