@@ -9,6 +9,7 @@ from database import DatabasePage
 from PIL import Image
 
 from database.file_formats.pcgts import PageScaleReference
+from database.file_formats.pcgts.page import Sentence
 
 
 class DocumentConnection:
@@ -170,3 +171,14 @@ class Document:
 
         image = coords.extract_from_image(np.array(image))
         return image
+
+    def update_pcgts(self, book, lines):
+        pcgts_to_save = []
+        line_page_pairs = self.get_page_line_of_document(book=book)
+        for line, line_page_pair in zip(lines["lines"], line_page_pairs):
+            line_page_pair[0].sentence = Sentence.from_string(line["gt"])
+            pcgts_to_save.append(line_page_pair[1])
+        for i in set(pcgts_to_save):
+            pcgts = i.pcgts()
+            pcgts.page.annotations.connections.clear()
+            pcgts.to_file(i.file('pcgts').local_path())

@@ -39,6 +39,9 @@ class DatabasePage:
     def __eq__(self, other):
         return isinstance(other, DatabasePage) and self.book == other.book and self.page == other.page
 
+    def __hash__(self):
+        return hash(self.local_path())
+
     def exists(self):
         return os.path.isdir(self.local_path())
 
