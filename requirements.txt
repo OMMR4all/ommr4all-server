@@ -36,3 +36,4 @@ torch
 -e git+https://github.com/githubharald/CTCDecoder.git@master#egg=ctc-decoder
 edlib
 -e git+https://github.com/Gawajn/nautilus.git#egg=nautilus-ocr
+beautifulsoup4
