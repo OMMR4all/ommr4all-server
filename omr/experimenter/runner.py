@@ -22,7 +22,7 @@ django.setup()
 from omr.dataset import DatasetParams, LyricsNormalization
 from omr.steps.algorithmtypes import AlgorithmTypes
 from omr.dataset.dataset import LyricsNormalizationParams
-from calamari_ocr.ocr.model.ctcdecoder.ctc_decoder import CTCDecoderParams
+#from calamari_ocr.ocr.model.ctcdecoder.ctc_decoder import CTCDecoderParams
 
 import numpy as np
 

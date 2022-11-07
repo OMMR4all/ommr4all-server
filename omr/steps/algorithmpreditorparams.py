@@ -7,7 +7,7 @@ from mashumaro.types import SerializableType
 from typing import Optional, TYPE_CHECKING, List
 from .algorithmtypes import AlgorithmTypes
 from database.file_formats.pcgts import Coords
-from calamari_ocr.ocr.model.ctcdecoder.ctc_decoder import CTCDecoderParams, CTCDecoderType
+#from calamari_ocr.ocr.model.ctcdecoder.ctc_decoder import CTCDecoderParams, CTCDecoderType
 from google.protobuf.json_format import MessageToDict, ParseDict
 
 def dataclass_from_dict(klass, dikt):
@@ -17,9 +17,10 @@ def dataclass_from_dict(klass, dikt):
     except:
         return dikt
 
+"""
 @dataclass
 class SerializableCTCDecoderParams(CTCDecoderParams, DataClassJSONMixin):
-    type: CTCDecoderType = CTCDecoderType.Default
+    #type: CTCDecoderType = CTCDecoderType.Default
     blank_index: int = 0
     min_p_threshold: float = 0
 
@@ -37,7 +38,7 @@ class SerializableCTCDecoderParams(CTCDecoderParams, DataClassJSONMixin):
    #     params = SerializableCTCDecoderParams()
    #     params.params = ParseDict(value, CTCDecoderParams())
    #     return params
-
+"""
 
 @dataclass()
 class AlgorithmPredictorParams(DataClassJSONMixin):
@@ -59,7 +60,7 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
     maxNumberOfStaffLines: Optional[int] = None
 
     # ocr
-    ctcDecoder: SerializableCTCDecoderParams = field(default_factory=lambda: SerializableCTCDecoderParams())
+    #ctcDecoder: SerializableCTCDecoderParams = field(default_factory=lambda: SerializableCTCDecoderParams())
 
     # tools
     # symbol predicition

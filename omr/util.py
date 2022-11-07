@@ -12,10 +12,12 @@ class PerformanceCounter:
 
     def __enter__(self):
         self.start = timer()
+        print("123")
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         end = timer()
         logger.info("Time needed for function {}: {} secs \n".format(self.function_name, end - self.start))
+        print("1234")
 
 
 def pairwise(iterable):

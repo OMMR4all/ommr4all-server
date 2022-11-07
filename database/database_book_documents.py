@@ -90,12 +90,13 @@ class DatabaseBookDocuments:
                         document_page_ids.append(page.p_id)
                         document_page_names.append(page.location.page)
                     else:
-                        end_row = ind - 1 if ind-1 != 0 else len(db_pages[page_ind - 1].pcgts().page.all_text_lines())
-                        end_page = page.location.page if ind-1 != 0 else db_pages[page_ind - 1].pcgts().page.location.page
+                        end_row = ind - 1 if ind - 1 != 0 else len(db_pages[page_ind - 1].pcgts().page.all_text_lines())
+                        end_page = page.location.page if ind - 1 != 0 else db_pages[
+                            page_ind - 1].pcgts().page.location.page
                         documents.append(Document(document_page_ids, document_page_names,
                                                   start=start,
                                                   end=DocumentConnection(line_id=t_line.id, page_id=page.p_id,
-                                                                         row= end_row, page_name=end_page),
+                                                                         row=end_row, page_name=end_page),
                                                   textinitium=textinitium, textline_count=line_count))
                         document_page_ids = [page.p_id]
                         document_page_names = [page.location.page]
@@ -107,7 +108,6 @@ class DatabaseBookDocuments:
                 if start is not None:
                     line_count += 1
 
-
         if start is not None:
             db_page = db_pages[-1]
             page = db_page.pcgts().page
@@ -115,8 +115,10 @@ class DatabaseBookDocuments:
 
             documents.append(Document(document_page_ids, document_page_names,
                                       start=start,
-                                      end=DocumentConnection(line_id=lines[-1].id if len(lines) > 0 else None, page_id=page.p_id, row=len(lines),
-                                                             page_name=page.location.page), textinitium=textinitium, textline_count=line_count))
+                                      end=DocumentConnection(line_id=lines[-1].id if len(lines) > 0 else None,
+                                                             page_id=page.p_id, row=len(lines),
+                                                             page_name=page.location.page), textinitium=textinitium,
+                                      textline_count=line_count))
 
         updated_documents: List[Document] = []
         for doc in documents:
@@ -141,6 +143,7 @@ class DatabaseBookDocuments:
                 updated_documents.append(doc)
 
         d.database_documents = Documents(documents=updated_documents)
+
         return d
 
 

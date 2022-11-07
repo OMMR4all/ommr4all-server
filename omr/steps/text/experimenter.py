@@ -11,6 +11,107 @@ from prettytable import PrettyTable
 import numpy as np
 from edit_distance import edit_distance
 
+from .text_synchronizer import synchronize
+
+
+class EvaluatorParams:
+    progress_bar: bool = True
+    skip_empty_gt: bool = False
+    non_existing_pred_as_empty: bool = True
+
+
+class Evaluator:
+    def __init__(self, params: EvaluatorParams):
+        """Class to evaluation the CER and errors of two dataset"""
+        self.params = params
+
+    @staticmethod
+    def evaluate_single_args(args):
+        return Evaluator.evaluate_single(**args)
+
+    @staticmethod
+    def evaluate_single(_sentinel=None, gt="", pred="", skip_empty_gt=False):
+        """Evaluate a single pair of data
+
+        Parameters
+        ----------
+        _sentinel : None
+            Sentinel to force to specify gt and pred manually
+        gt : str
+            ground truth
+        pred : str
+            prediction
+        skip_empty_gt : bool
+            skip gt text lines that are empty
+
+        Returns
+        -------
+        int
+            length of ground truth
+        int
+            number of errors
+        int
+            number of synchronisation errors
+        dict
+            confusions dictionary
+        tuple(str, str)
+            ground_truth, prediction (same as input)
+
+        """
+        confusion = {}
+        total_sync_errs = 0
+
+        if len(gt) == 0 and skip_empty_gt:
+            return 0, 0, 0, confusion, (gt, pred)
+
+        errs, trues = edit_distance(gt, pred)
+        synclist = synchronize([gt, pred])
+        for sync in synclist:
+            gt_str, pred_str = sync.get_text()
+            if gt_str != pred_str:
+                key = (gt_str, pred_str)
+                total_sync_errs += max(len(gt_str), len(pred_str))
+                if key not in confusion:
+                    confusion[key] = 1
+                else:
+                    confusion[key] += 1
+
+        return len(gt), errs, total_sync_errs, confusion, (gt, pred)
+
+    @staticmethod
+    def evaluate_single_list(eval_results):
+        # sum all errors up
+        all_eval = []
+        total_instances = 0
+        total_chars = 0
+        total_char_errs = 0
+        confusion = {}
+        total_sync_errs = 0
+        for chars, char_errs, sync_errs, conf, gt_pred in eval_results:
+            total_instances += 1
+            total_chars += chars
+            total_char_errs += char_errs
+            total_sync_errs += sync_errs
+            for key, value in conf.items():
+                if key not in confusion:
+                    confusion[key] = value
+                else:
+                    confusion[key] += value
+
+        # Note the sync errs can be higher than the true edit distance because
+        # replacements are counted as 1
+        # e.g. ed(in ewych, ierg ch) = 5
+        #      sync(in ewych, ierg ch) = [{i: i}, {n: erg}, {ewy: }, {ch: ch}] = 6
+
+        return {
+            "single": all_eval,
+            "total_instances": total_instances,
+            "avg_ler": total_char_errs / total_chars,
+            "total_chars": total_chars,
+            "total_char_errs": total_char_errs,
+            "total_sync_errs": total_sync_errs,
+            "confusion": confusion,
+        }
 
 class TextExperimenter(Experimenter):
     @classmethod
@@ -63,7 +164,7 @@ class TextExperimenter(Experimenter):
         raise NotImplemented
 
     def evaluate(self, predictions: Tuple[List[str], List[str]], evaluation_params):
-        from calamari_ocr.ocr.evaluator import Evaluator
+
         gt, pred = predictions
 
         def edit_on_tokens(gt: List[str], pred: List[str]):
@@ -80,9 +181,7 @@ class TextExperimenter(Experimenter):
 
         gt_sentence = [Sentence.from_string(s) for s in gt]
         pred_sentence = [Sentence.from_string(s) for s in pred]
-        for i, y in list(zip(gt_sentence, pred_sentence)):
-            print(i.text())
-            print(y.text())
+
         #ocr_eval = Evaluator(data=None)
         gt_data = [chars_only(s) for s in gt]
         pred_data = [chars_only(s) for s in pred]
