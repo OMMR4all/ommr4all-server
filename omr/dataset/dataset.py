@@ -3,7 +3,7 @@ import string
 from abc import ABC, abstractmethod
 from types import MappingProxyType
 
-from tfaip import PipelineMode
+#from tfaip import PipelineMode
 
 from database.file_formats.pcgts import PcGts, Line, PageScaleReference, Point
 import numpy as np
@@ -273,7 +273,6 @@ class Dataset(ABC):
         from PIL import Image
         #for ind, i in enumerate(images):
         #    Image.fromarray(i).save("/tmp/images/image_" + str(ind) + ".png")
-        print()
         if self.params.neume_types_only:
             gts = [d.calamari_sequence(self.params.calamari_codec).calamari_neume_types_str for d in marked_symbols]
         else:
