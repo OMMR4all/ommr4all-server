@@ -21,7 +21,6 @@ from enum import Enum
 
 import json
 
-from omr.steps.text.calamari.calamari_interface import RawData
 
 logger = logging.getLogger(__name__)
 
@@ -219,6 +218,8 @@ class Dataset(ABC):
         return RawDataSet(DataSetMode.TRAIN if train else DataSetMode.PREDICT, images=images, texts=gts)
 
     def to_text_line_calamari_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
+        from omr.steps.text.calamari.calamari_interface import RawData
+
         lines = self.load(callback)
         def get_input_image(d: RegionLineMaskData):
             if self.params.cut_region:
