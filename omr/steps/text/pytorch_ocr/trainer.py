@@ -102,7 +102,6 @@ class PytorchTrainer(TextTrainerBase):
         train_dataset = self.train_dataset.to_text_line_calamari_dataset(train=True, callback=callback)
         #val_dataset = self.validation_dataset.to_text_line_calamari_dataset(train=True, callback=callback)
         output = self.settings.model.path
-        from calamari_ocr.scripts.train import main
 
 
 

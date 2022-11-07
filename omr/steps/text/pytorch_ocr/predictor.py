@@ -50,6 +50,7 @@ class PytorchPredictor(TextPredictor):
         return Meta
 
     def __init__(self, settings: AlgorithmPredictorSettings):
+        print(settings.params.to_json())
         super().__init__(settings)
         self.dict_corrector = None
         self.chars = ' "#,.abcdefghiklmnopqrstuvxyzſω'

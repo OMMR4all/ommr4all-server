@@ -12,7 +12,6 @@ from omr.dataset.datastructs import CalamariSequence, RegionLineMaskData
 from database.file_formats import PcGts
 from database import DatabaseBook
 import numpy as np
-from calamari_ocr.utils import glob_all
 
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset
 from omr.steps.symboldetection.predictor import SymbolsPredictor, AlgorithmPredictorSettings, PredictionCallback, \
@@ -48,9 +47,8 @@ class OMRPredictor(SymbolsPredictor):
 
             hidden_size = sentence.char_mapping.probability_map.shape[0]
             width = image.size[0]
-            print(sentence.decoded_string)
-            yield SingleLinePredictionResult(self.extract_symbols(dataset, sentence, y, width / hidden_size),
-                                             y)
+            #print(sentence.decoded_string)
+            yield SingleLinePredictionResult(self.extract_symbols(dataset, sentence, y, width / hidden_size), y)
         #for marked_symbols, (r, sample) in zip(dataset.load(callback), self.predictor.predict_dataset(dataset.to_calamari_dataset())):
         #    prediction = self.voter.vote_prediction_result(r)
         #    yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, marked_symbols), marked_symbols)
