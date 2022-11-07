@@ -39,6 +39,11 @@ repos: List[Repo] = [
         'https://github.com/OMMR4all/ommr4all-page-segmentation.git',
         '6894d996e1b06be0c9f81e9fc91059acc286c184',
     ),
+    Repo(
+        'nautilus',
+        'https://github.com/Gawajn/nautilus.git',
+        '90da1e689f41ff0f367667e8562377fa9994abee',
+    ),
 ]
 
 
