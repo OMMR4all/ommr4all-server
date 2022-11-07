@@ -1,21 +1,12 @@
 import os
 
-import scipy
-from dataclasses import field, dataclass
-
 import torch
 from PIL import Image
 from nautilus_ocr.decoder import DecoderType, DecoderOutput
-from symspellpy import SymSpell, Verbosity
 
 from omr.steps.text.pytorch_ocr.meta import Meta
 
-# from omr.dataset.dataset import LyricsNormalizationProcessor, LyricsNormalization, LyricsNormalizationParams
-from ctc_decoder import LanguageModel, beam_search, best_path
 from nautilus_ocr.predict import Network, get_config
-from tfaip.data.databaseparams import DataPipelineParams
-
-from omr.steps.text.calamari.calamari_interface import RawData
 from omr.steps.text.correction_tools.dictionary_corrector.predictor import DictionaryCorrector
 
 if __name__ == '__main__':
@@ -50,7 +41,6 @@ class PytorchPredictor(TextPredictor):
         return Meta
 
     def __init__(self, settings: AlgorithmPredictorSettings):
-        print(settings.params.to_json())
         super().__init__(settings)
         self.dict_corrector = None
         self.chars = ' "#,.abcdefghiklmnopqrstuvxyzſω'
@@ -80,7 +70,6 @@ class PytorchPredictor(TextPredictor):
         """
         #dataset_cal = dataset.to_text_line_nautilus_dataset()
         book = dataset.files[0].dataset_page().book
-        print(self.dict_corrector)
         if self.dict_corrector:
             self.dict_corrector.load_dict(book=book)
         #path = os.path.join(BASE_DIR, 'tools', 'sentence_dictionary.json')
