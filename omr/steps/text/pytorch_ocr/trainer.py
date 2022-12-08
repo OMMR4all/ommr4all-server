@@ -20,7 +20,7 @@ import pandas as pd
 from nautilus_ocr.utils import AttrDict
 
 
-def get_config(file_path, train_dir, val_dir, load, save_location):
+def get_config(file_path, train_dir, val_dir, load, save_location, iter=300000):
     with open(file_path, 'r', encoding="utf8") as stream:
         opt = yaml.safe_load(stream)
     opt = AttrDict(opt)
@@ -28,8 +28,7 @@ def get_config(file_path, train_dir, val_dir, load, save_location):
     opt['valid_data'] = val_dir
     opt['saved_model'] = load
     opt['model_save_location_dir'] = save_location
-    print(save_location)
-    print(load)
+    opt['num_iter'] = iter
     if opt.lang_char == 'None':
         characters = ''
         for data in opt['select_data'].split('-'):
