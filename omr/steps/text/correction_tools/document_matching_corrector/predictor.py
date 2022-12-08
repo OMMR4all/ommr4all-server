@@ -4,6 +4,7 @@ import re
 import edlib
 
 from database.database_book_documents import DatabaseBookDocuments
+from database.database_dictionary import DatabaseDictionary
 from database.file_formats.book.document import Document
 from database.file_formats.pcgts.page import Sentence
 from database.model import Model, MetaId
@@ -23,7 +24,7 @@ from database.start_up.load_text_variants_in_memory import lyrics
 
 from itertools import zip_longest
 
-from ...hyphenation.hyphenator import Pyphenator
+from ...hyphenation.hyphenator import Pyphenator, CombinedHyphenator
 
 
 def grouper(iterable, n, fillvalue=None):
@@ -73,6 +74,7 @@ class Predictor(AlgorithmPredictor):
         self.document_id = settings.params.documentId
         # self.document_similar_tester = SimilarDocumentChecker()
         self.text_normalizer = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.WORDS))
+        self.database_hyphen_dictionary = None
 
     @classmethod
     def unprocessed(cls, page: DatabasePage) -> bool:
@@ -84,7 +86,10 @@ class Predictor(AlgorithmPredictor):
         documents = DatabaseBookDocuments().load(book)
         single_document_result = []
         all_docs: List[Document] = []
-        hyphen = Pyphenator(lang="la_classic", left=2, right=2)
+        if self.database_hyphen_dictionary is None:
+            db = DatabaseDictionary.load(book=book)
+            self.database_hyphen_dictionary = db.to_hyphen_dict()
+        hyphen = CombinedHyphenator(lang="la_classic", left=2, right=2, dictionary=self.database_hyphen_dictionary)
 
         if self.document_id is not None:
             document: Document = documents.database_documents.get_document_by_id(self.document_id)

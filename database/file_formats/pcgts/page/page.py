@@ -204,6 +204,9 @@ class Page:
     def all_text_lines(self, only_lyric=False):
         return sum([b.lines for b in self.text_blocks(only_lyric)], [])
 
+    def all_lines_by_type(self, types:List[BlockType]):
+        return sum([b.lines for b in self.blocks_of_type(types)], [])
+
     def all_staves_staff_line_coords(self, scale: Optional[PageScaleReference] = None) -> List[List[Coords]]:
         staves: List[List[Coords]] = []
         for mr in self.music_blocks():

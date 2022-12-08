@@ -14,8 +14,11 @@ logger = logging.getLogger(__name__)
 
 
 class ImageExtractDeskewedLyrics(ImageOperation):
-    def __init__(self, pad = 0):
+    def __init__(self, pad = 0, blocktypes=None):
         super().__init__()
+        if blocktypes is None:
+            blocktypes = [BlockType.LYRICS, BlockType.PARAGRAPH, BlockType.DROP_CAPITAL]
+        self.blocktypes = blocktypes
         if isinstance(pad, tuple) or isinstance(pad, list):
             if len(pad) == 0:
                 self.pad = (0, 0, 0, 0)
@@ -37,8 +40,8 @@ class ImageExtractDeskewedLyrics(ImageOperation):
     def apply_single(self, data: ImageOperationData):
         image = data.images[0].image
         all_mls = data.page.all_music_lines()
-        all_tls = data.page.all_text_lines()
-
+        all_tls = data.page.all_lines_by_type(self.blocktypes)
+        #all_tls = data.page.all_text_lines()
         def extract_transformed_coords(ml: Line) -> List[Coords]:
             lines = ml.staff_lines.sorted()
             return [data.page.page_to_image_scale(sl.coords, data.scale_reference) for sl in lines]
@@ -47,7 +50,11 @@ class ImageExtractDeskewedLyrics(ImageOperation):
             return data.page.page_to_image_scale(p, data.scale_reference)
 
         s = [extract_transformed_coords(ml) for ml in all_mls]
-
+        #for i in all_mls:
+        #    print(i.coords.points)
+        #print("textlines")
+        #for i in all_tls:
+        #    print(i.coords.points)
         # dewarp
         images = [Image.fromarray(image)]
         dewarper = Dewarper(images[0].size, s)

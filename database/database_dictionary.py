@@ -10,7 +10,7 @@ from dataclasses_json import dataclass_json
 from database import DatabaseBook
 from ommr4all import settings
 
-
+from loguru import logger
 @dataclass_json
 @dataclass
 class WordFrequency:
@@ -99,7 +99,18 @@ class DatabaseDictionary:
             "dictionary": self.dictionary.to_dict() if self.dictionary else []
         }
     def to_frequent_list(self):
-        pass
+        return self.dictionary.freq_list
+
+    def to_hyphen_dict(self):
+
+        hyphen_dict = {}
+        for i in self.to_frequent_list():
+            if i.word in hyphen_dict:
+                logger.warning("{} found multiple time in list".format(i.word))
+            hyphen_dict[i.word] = (i.hyphenated, i.frequency)
+        logger.info("Successfully imported hyphen dictionary")
+        return hyphen_dict
+
 
 if __name__ == "__main__":
     b = DatabaseDictionary.load(DatabaseBook('demo'))

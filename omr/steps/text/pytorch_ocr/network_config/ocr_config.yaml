@@ -1,15 +1,16 @@
 number: ''
 symbol: "#,. "
 lang_char: 'None'
-experiment_name: 'en_filtered'
+experiment_name: 'latin_filtered'
 train_data: 'all_data'
 valid_data: 'all_data'
 manualSeed: 1111
 workers: 6
 batch_size: 32 #32
-num_iter: 300000
+num_iter: 30
 valInterval: 20
 saved_model: '' #'saved_models/en_filtered/iter_300000.pth'
+model_save_location_dir: ''
 FT: False
 optim: False # default is Adadelta
 lr: 1.
@@ -18,7 +19,7 @@ rho: 0.95
 eps: 0.00000001
 grad_clip: 5
 #Data processing
-select_data: 'images' # this is dataset folder in train_data
+select_data: 'train' # this is dataset folder in train_data
 batch_ratio: '1' 
 total_data_usage_ratio: 1.0
 batch_max_length: 68
@@ -40,6 +41,6 @@ input_channel: 1
 output_channel: 256
 hidden_size: 256
 decode: 'greedy'
-new_prediction: False
+new_prediction: True
 freeze_FeatureFxtraction: False
 freeze_SequenceModeling: False
