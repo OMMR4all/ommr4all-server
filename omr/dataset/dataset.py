@@ -5,7 +5,7 @@ from types import MappingProxyType
 
 #from tfaip import PipelineMode
 
-from database.file_formats.pcgts import PcGts, Line, PageScaleReference, Point
+from database.file_formats.pcgts import PcGts, Line, PageScaleReference, Point, BlockType
 import numpy as np
 from typing import List, Tuple, Generator, Union, Optional, Any
 from omr.dataset import RegionLineMaskData
@@ -113,6 +113,7 @@ class DatasetParams(DataClassJSONMixin):
 
     # text
     lyrics_normalization: LyricsNormalizationParams = field(default_factory=lambda: LyricsNormalizationParams())
+    text_types: List[BlockType] = field(default_factory=lambda:  [BlockType.LYRICS, BlockType.DROP_CAPITAL, BlockType.PARAGRAPH])#= #["lyrics", "dropCapital"]
 
     # symbol detection
     height: int = 80
@@ -259,7 +260,8 @@ class Dataset(ABC):
 
     def to_nautilus_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         marked_symbols = self.load(callback)
-
+        import tempfile
+        import shutil
         def get_input_image(d: RegionLineMaskData):
             if self.params.cut_region:
                 return d.line_image

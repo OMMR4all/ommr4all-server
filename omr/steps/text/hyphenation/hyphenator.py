@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Dict
 
 from omr.dataset.dataset import LyricsNormalizationParams, LyricsNormalizationProcessor, LyricsNormalization
-
+from loguru import logger
 
 class Hyphenator(ABC):
     def __init__(self, word_separator=' '):
@@ -16,6 +16,20 @@ class Hyphenator(ABC):
         return self.word_separator.join(map(self.apply_to_word, s.split(self.word_separator)))
 
 
+class CombinedHyphenator(Hyphenator):
+    def __init__(self, lang='la', left=2, right=2, dictionary=None):
+        super().__init__()
+        from thirdparty.pyphen import Pyphen
+        self.pyphen = Pyphen(lang=lang, left=left, right=right)
+        self.dictionary = dictionary
+    def apply_to_word(self, word: str):
+        if self.dictionary is not None and word in self.dictionary:
+            hyphenated = self.dictionary[word][0]
+            logger.info("Hyhenation db: {} Grammar: {}".format(hyphenated, self.pyphen.inserted(word)))
+            return hyphenated
+
+        else:
+            return self.pyphen.inserted(word)
 class Pyphenator(Hyphenator):
     def __init__(self, lang='la', left=2, right=2):
         super().__init__()

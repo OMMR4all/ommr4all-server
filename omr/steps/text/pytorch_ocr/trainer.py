@@ -1,58 +1,52 @@
-#from calamari_ocr.ocr.callbacks import TrainingCallback
-#from calamari_ocr.proto import CheckpointParams, DataPreprocessorParams, TextProcessorParams, network_params_from_definition_string
-#from calamari_ocr.ocr.trainer import Trainer
-#from calamari_ocr.ocr.cross_fold_trainer import CrossFoldTrainer
-#from calamari_ocr.ocr.augmentation import SimpleDataAugmenter
-from contextlib import ExitStack
-from typing import Optional, Type, Dict
+import csv
+from typing import Optional, Type, Dict, List, Tuple
 
-import dataclasses
-from calamari_ocr.ocr.scenario import CalamariEnsembleScenario
-from tfaip.util.logging import WriteToLogFile
-from tfaip.util.typing import AnyNumpy
+import numpy as np
+from nautilus_ocr.train import train
 
+from database.file_formats.pcgts import BlockType
 from database.file_formats.performance.pageprogress import Locks
-from ommr4all import settings
 from omr.dataset import DatasetParams, LyricsNormalization
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 from database import DatabaseBook
 import os
-
 from omr.steps.algorithm import AlgorithmTrainerParams, AlgorithmTrainerSettings, TrainerCallback, AlgorithmMeta
 from omr.steps.text.trainer import TextTrainerBase
-
-from tfaip.util.tfaipargparse import post_init
-
-
-class CalamariOmmr4allEnsembleScenario(CalamariEnsembleScenario):
-    @classmethod
-    def default_trainer_params(cls):
-
-        p = super().default_trainer_params()
-        p.gen.setup.val.batch_size = 1
-        p.gen.setup.val.num_processes = 1
-        p.gen.setup.train.batch_size = 1
-        p.gen.setup.train.num_processes = 1
-        p.epochs = 70
-        #p.samples_per_epoch = 2
-        p.scenario.data.pre_proc.run_parallel = False
-        #p.model.ensemble = 1
-
-        #p.scenario.data.pre_proc.
-        post_init(p)
-        return p
+import tempfile
+from PIL import Image
+import loguru
+import yaml
+import pandas as pd
+from nautilus_ocr.utils import AttrDict
 
 
-def setup_trainer_params( train_dataset, output_dir, debug=False):
-    p = CalamariOmmr4allEnsembleScenario.default_trainer_params()
-    p.force_eager = debug
-    p.gen.train = train_dataset
-    #p.scenario.model.    # p.gen.setup.val = val_dataset
-    p.output_dir = output_dir
-    p.best_model_prefix = "text"
-    p.write_checkpoints = False ##
-    post_init(p)
-    return p
+def get_config(file_path, train_dir, val_dir, load, save_location):
+    with open(file_path, 'r', encoding="utf8") as stream:
+        opt = yaml.safe_load(stream)
+    opt = AttrDict(opt)
+    opt['train_data'] = train_dir
+    opt['valid_data'] = val_dir
+    opt['saved_model'] = load
+    opt['model_save_location_dir'] = save_location
+    print(save_location)
+    print(load)
+    if opt.lang_char == 'None':
+        characters = ''
+        for data in opt['select_data'].split('-'):
+            csv_path = os.path.join(opt['train_data'], data, 'labels.csv')
+            df = pd.read_csv(csv_path, sep='^([^,]+),', engine='python', usecols=['filename', 'words'],
+                             keep_default_na=False)
+            all_char = ''.join(df['words'])
+            characters += ''.join(set(all_char))
+        characters = sorted(set(characters))
+        opt.character = ''.join(characters)
+    else:
+        opt.character = opt.number + opt.symbol + opt.lang_char
+    loguru.logger.info(f"Characters_in dataset: {opt.character}")
+    os.makedirs(f'./saved_models/{opt.experiment_name}', exist_ok=True)
+    return opt
+
+
 class CalamariTrainerCallback:
     def __init__(self, cb: TrainerCallback):
         self.cb = cb
@@ -68,7 +62,7 @@ class CalamariTrainerCallback:
 class PytorchTrainer(TextTrainerBase):
     @staticmethod
     def meta() -> Type['AlgorithmMeta']:
-        from omr.steps.text.calamari.meta import Meta
+        from omr.steps.text.pytorch_ocr.meta import Meta
         return Meta
 
     @staticmethod
@@ -86,137 +80,76 @@ class PytorchTrainer(TextTrainerBase):
     @staticmethod
     def force_dataset_params(params: DatasetParams):
         params.height = 64
-        #params.lyrics_normalization = params.lyrics_normalization.lyrics_normalization.WORDS
+        params.text_image_color_type = "color"
+        params.pad = (5, 5, 5, 5)
+        params.text_types = [BlockType.LYRICS]
+
+        # params.lyrics_normalization = params.lyrics_normalization.lyrics_normalization.WORDS
 
     def __init__(self, settings: AlgorithmTrainerSettings):
-        settings.calamari_params.network = 'cnn=40:3x3,pool=2x2,cnn=60:3x3,pool=2x2,lstm=200,dropout=0.5'
         super().__init__(settings)
 
     def _train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
-        if callback:
-            callback.resolving_files()
-            calamari_callback = CalamariTrainerCallback(callback)
-        else:
-            calamari_callback = None
+        from ommr4all.settings import BASE_DIR
 
-        train_dataset = self.train_dataset.to_text_line_calamari_dataset(train=True, callback=callback)
-        #val_dataset = self.validation_dataset.to_text_line_calamari_dataset(train=True, callback=callback)
-        output = self.settings.model.path
+        opt = os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
+                           'network_config', 'ocr_config.yaml')
+
+        def create_nautilus_tempfiles(dir: str, dataset: Tuple[List[np.array], List[str]], type="train",
+                                      subfolder: str = "train"):
+            header = ["filename", "words"]
+            path = os.path.join(dir, type, subfolder)
+            os.makedirs(path, exist_ok=True)
+            with open(os.path.join(path, "labels.csv"), 'w', encoding='UTF8') as labels_csv:
+                csv_writer = csv.writer(labels_csv)
+                csv_writer.writerow(header)
+                for ind, (image, gt) in enumerate(zip(dataset[0], dataset[1])):
+                    Image.fromarray(image).save(os.path.join(path, str(ind) + ".png"))
+                    with open(os.path.join(path, str(ind) + ".txt"), 'w', encoding='UTF8') as gt_txt:
+                        gt_txt.write(gt)
+                    csv_writer.writerow([os.path.join(str(ind) + ".png"), gt])
+
+        train_dataset = self.train_dataset.to_text_line_nautilus_dataset(train=True, callback=callback)
+        val_dataset = self.validation_dataset.to_text_line_nautilus_dataset(train=False, callback=callback)
+        val_dataset = train_dataset if len(val_dataset[0]) == 0 else val_dataset
+        with tempfile.TemporaryDirectory() as dirpath:
+            loguru.logger.info(f"Creating temporary train directory at {dirpath}")
+            create_nautilus_tempfiles(dirpath, train_dataset, type="train", subfolder="train")
+            create_nautilus_tempfiles(dirpath, val_dataset, type="val", subfolder="val")
+            opt = get_config(opt, os.path.join(dirpath, "train"), os.path.join(dirpath, "val"),
+                             load='' if not self.params.model_to_load() else self.params.model_to_load().local_file('model.h5'),
+                             save_location=self.settings.model.path)
+            train(opt, amp=False)
 
 
 
-        def mainp(trainer_params: "TrainerParams") -> Dict[str, AnyNumpy]:
-            with ExitStack() as stack:
-                if trainer_params.output_dir:
-                    stack.enter_context(WriteToLogFile(trainer_params.output_dir, append=False))
-
-                #logger.info("trainer_params=" + trainer_params.to_json(indent=2))
-
-                # create the trainer and run it
-                trainer = trainer_params.scenario.cls().create_trainer(trainer_params)
-                return trainer.train()
-        p = setup_trainer_params(train_dataset=train_dataset, output_dir=output)
-        mainp(p)
-        #weights = None if not self.params.model_to_load() else self.params.model_to_load().local_file('text_best.ckpt'),
-        #params.output_dir = output
-        #params.output_model_prefix = 'text'
-        """
-        params = CheckpointParams()
-
-        params.max_iters = self.params.n_iter
-        params.stats_size = 1000
-        params.batch_size = 1
-        params.checkpoint_frequency = 0
-        params.output_dir = output
-        params.output_model_prefix = 'text'
-        params.display = self.params.display
-        params.skip_invalid_gt = True
-        params.processes = 2
-        params.data_aug_retrain_on_original = True
-
-        params.early_stopping_at_acc = self.params.early_stopping_at_acc if self.params.early_stopping_at_acc else 0
-        params.early_stopping_frequency = self.params.early_stopping_test_interval
-        params.early_stopping_nbest = self.params.early_stopping_max_keep
-        params.early_stopping_best_model_prefix = 'text_best'
-        params.early_stopping_best_model_output_dir = output
-
-        params.model.data_preprocessor.type = DataPreprocessorParams.DEFAULT_NORMALIZER
-        params.model.data_preprocessor.pad = 5
-        params.model.data_preprocessor.line_height = self.settings.dataset_params.height
-        params.model.text_preprocessor.type = TextProcessorParams.NOOP_NORMALIZER
-        params.model.text_postprocessor.type = TextProcessorParams.NOOP_NORMALIZER
-
-        params.model.line_height = self.settings.dataset_params.height
-
-        network_str = self.settings.calamari_params.network
-        if self.params.l_rate > 0:
-            network_str += ',learning_rate={}'.format(self.params.l_rate)
-
-        if self.settings.calamari_params.n_folds > 1:
-            train_args = {
-                "max_iters": params.max_iters,
-                "stats_size": params.stats_size,
-                "checkpoint_frequency": params.checkpoint_frequency,
-                "pad": 0,
-                "network": network_str,
-                "early-stopping_at_accuracy": params.early_stopping_at_acc,
-                "early_stopping_frequency": params.early_stopping_frequency,
-                "early_stopping_nbest": params.early_stopping_nbest,
-                "line_height": params.model.line_height,
-                "data_preprocessing": ["RANGE_NORMALIZER", "FINAL_PREPARATION"],
-            }
-            trainer = CrossFoldTrainer(
-                self.settings.calamari_params.n_folds, train_dataset,
-                output, 'omr_best_{id}', train_args, progress_bars=True
-            )
-            temporary_dir = os.path.join(output, "temporary_dir")
-            trainer.run(
-                self.settings.calamari_params.single_folds,
-                temporary_dir=temporary_dir,
-                spawn_subprocesses=False, max_parallel_models=1,    # Force to run in same scope as parent process
-            )
-        else:
-            network_params_from_definition_string(network_str, params.model.network)
-            trainer = Trainer(
-                codec_whitelist='abcdefghijklmnopqrstuvwxyz ',      # Always keep space and all letters
-                checkpoint_params=params,
-                dataset=train_dataset,
-                validation_dataset=val_dataset,
-                n_augmentations=self.params.data_augmentation_factor if self.params.data_augmentation_factor else 0,
-                data_augmenter=SimpleDataAugmenter(),
-                weights=None if not self.params.model_to_load() else self.params.model_to_load().local_file('text_best.ckpt'),
-                preload_training=True,
-                preload_validation=True,
-            )
-            trainer.train(training_callback=calamari_callback,
-                          auto_compute_codec=True,
-                          )
-
-        """
 if __name__ == '__main__':
     import random
     import numpy as np
+
     random.seed(1)
     np.random.seed(1)
 
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
+
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ommr4all.settings')
     import django
-    django.setup()
-    b = DatabaseBook('test')
-    b = DatabaseBook('Pa1235_Hiwi_01')
 
-    train_pcgts, val_pcgts = dataset_by_locked_pages(1, [LockState(Locks.LAYOUT, True)], True, [b])
+    django.setup()
+    b = DatabaseBook('Graduel_Part_1_gt')
+    # b = DatabaseBook('Pa1235_Hiwi_01')
+
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.LAYOUT, True)], True, [b])
     trainer_params = PytorchTrainer.default_params()
     trainer_params.l_rate = 1e-3
-    trainer_params.load = '/home/ls6/wick/Documents/Projects/calamari_models/fraktur_historical_ligs/0.ckpt.json'
+    # trainer_params.load = '/home/ls6/wick/Documents/Projects/calamari_models/fraktur_historical_ligs/0.ckpt.json'
 
     params = DatasetParams(
         gt_required=True,
-        height=48,
-        cut_region=True,
-        pad=[0, 10, 0, 20],
-        #lyrics_normalization=LyricsNormalization.ONE_STRING,
+        # height=64,
+        # cut_region=True,
+        # pad=[0, 10, 0, 20],
+        # lyrics_normalization=LyricsNormalization.ONE_STRING,
     )
     train_params = AlgorithmTrainerSettings(
         params,
@@ -230,6 +163,3 @@ if __name__ == '__main__':
     )
     trainer = PytorchTrainer(train_params)
     trainer.train(b)
-
-
-

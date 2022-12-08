@@ -4,6 +4,7 @@ import torch
 from PIL import Image
 from nautilus_ocr.decoder import DecoderType, DecoderOutput
 
+from database.database_dictionary import DatabaseDictionary
 from omr.steps.text.pytorch_ocr.meta import Meta
 
 from nautilus_ocr.predict import Network, get_config
@@ -29,7 +30,7 @@ from omr.steps.text.predictor import \
     PredictionResult, Point, SingleLinePredictionResult
 import numpy as np
 from database.model.definitions import MetaId
-from omr.steps.text.hyphenation.hyphenator import HyphenatorFromDictionary, Pyphenator
+from omr.steps.text.hyphenation.hyphenator import HyphenatorFromDictionary, Pyphenator, CombinedHyphenator
 
 from typing import Generator
 
@@ -39,6 +40,7 @@ class PytorchPredictor(TextPredictor):
     def meta() -> Type['AlgorithmMeta']:
         from omr.steps.text.pytorch_ocr.meta import Meta
         return Meta
+
 
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
@@ -54,12 +56,12 @@ class PytorchPredictor(TextPredictor):
         #                   'network_config', 'ocr_config.yaml'))
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.network = Network(opt, path, self.chars, corpus='')
-        if settings.params.useDictionaryCorrection:
-            self.dict_corrector = DictionaryCorrector()
+        self.settings = settings
+        self.dict_corrector = None
+        self.database_hyphen_dictionary = None
 
     def _predict(self, dataset: TextDataset, callback: Optional[PredictionCallback] = None) -> Generator[
         SingleLinePredictionResult, None, None]:
-        hyphen = Pyphenator(lang="la_classic", left=2, right=2)
 
 
         """
@@ -70,19 +72,15 @@ class PytorchPredictor(TextPredictor):
         """
         #dataset_cal = dataset.to_text_line_nautilus_dataset()
         book = dataset.files[0].dataset_page().book
-        if self.dict_corrector:
-            self.dict_corrector.load_dict(book=book)
-        #path = os.path.join(BASE_DIR, 'tools', 'sentence_dictionary.json')
-        #exists = os.path.exists(path)
-        ###with open(path, 'r') as file:
-        #    text = file.read().replace('\n', '')
-        #chars = " #,.abcdefghiklmnopqrstuvxyzſω"
-        #sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
-        #loaded = sym_spell.load_dictionary(path, term_index=0, count_index=1, separator="$")
+        if self.database_hyphen_dictionary is None:
+            db = DatabaseDictionary.load(book=book)
+            self.database_hyphen_dictionary = db.to_hyphen_dict()
 
-        # lm = LanguageModel(text, chars)
-        # data_params = dataset_cal
-        # dictionary = os.path.join(BASE_DIR, 'tools', 'sentence_dictionary.json'),
+        hyphen = CombinedHyphenator(lang="la_classic", left=2, right=2, dictionary=self.database_hyphen_dictionary)
+        if self.settings.params.useDictionaryCorrection:
+            self.dict_corrector = DictionaryCorrector(hyphenator=hyphen)
+            self.dict_corrector.load_dict(book=book)
+
 
         for y in dataset.load():  # dataset_cal[0]:
             image = Image.fromarray(255 - y.line_image).convert('L')

@@ -15,7 +15,7 @@ from typing import List, Optional, NamedTuple
 from omr.steps.text.correction_tools.dictionary_corrector.meta import Meta
 from symspellpy import SymSpell
 
-from omr.steps.text.hyphenation.hyphenator import Pyphenator
+from omr.steps.text.hyphenation.hyphenator import Pyphenator, Hyphenator
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +26,15 @@ if __name__ == '__main__':
 
 
 class DictionaryCorrector(SymSpell):
-    def __init__(self, max_dictionary_edit_distance=2, prefix_length=7,
+    def __init__(self, hyphenator: Hyphenator = Pyphenator(), max_dictionary_edit_distance=2, prefix_length=7,
                  count_threshold=1):
         super().__init__(max_dictionary_edit_distance=max_dictionary_edit_distance, prefix_length=prefix_length,
                          count_threshold=count_threshold)
         self.sym_spell = SymSpell()
         self.book_id = None
-        self.hyphen = Pyphenator()
-
+        self.hyphen = hyphenator
     def segmentate_correct_and_hyphenate_text(self, text, hyphenate=True, edit_distance=2):
         sentence = self.word_segmentation(text, edit_distance)
-
         if hyphenate:
             sentence = self.hyphen.apply_to_sentence(sentence.corrected_string)
         return sentence
@@ -53,8 +51,6 @@ class DictionaryCorrector(SymSpell):
                                 'bigram_default_dictionary.txt')
             loaded = self.load_bigram_dictionary(path, 0, 2)
             logger.info("Successfully loaded bigram dict" if loaded else "Failed to load bigram dict")
-
-        pass
 
 
 class PredictionResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__class__):

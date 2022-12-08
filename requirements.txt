@@ -37,3 +37,4 @@ torch
 edlib
 -e git+https://github.com/Gawajn/nautilus.git#egg=nautilus-ocr
 beautifulsoup4
+loguru

@@ -23,7 +23,7 @@ class TextDataset(Dataset):
         operations = [
             ImageLoadFromPageOperation(invert=True, files=[(params.page_scale_reference.file(params.text_image_color_type), True)]),
             #ImageExtractTextLineImages({BlockType.LYRICS}, params.cut_region, params.pad),
-            ImageExtractDeskewedLyrics(params.pad),
+            ImageExtractDeskewedLyrics(params.pad, params.text_types),
             ImageRescaleToHeightOperation(height=params.height),
         ]
         return ImageOperationList(operations)
