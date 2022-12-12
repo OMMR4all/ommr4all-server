@@ -17,6 +17,14 @@ class PageCount(Enum):
 class PageSelectionParams(DataClassDictMixin):
     count: PageCount = PageCount.ALL
     pages: List[str] = field(default_factory=lambda: [])
+    selected_pages_range_as_regex: str = ''
+
+
+def check_if_page_range_regex_selector_valid(selected_pages: str):
+    regex = '(\s*\d+(\-\d+)?,)*(\s*\d+(\-\d+)?)'
+    import re
+    _rex = re.compile(regex)
+    return True if _rex.fullmatch(selected_pages) else False
 
 
 class PageSelection:
@@ -26,12 +34,14 @@ class PageSelection:
                  pages: Optional[List[DatabasePage]] = None,
                  pcgts: Optional[List[PcGts]] = None,
                  single_page: bool = False,
+                 selected_pages_range_as_regex: str = ''
                  ):
         self.book = book
         self.page_count = page_count
         self.pages = pages if pages else []
         self.pcgts = pcgts
         self.single_page = single_page
+        self.selected_pages_range_as_regex = selected_pages_range_as_regex
 
         if pcgts:
             self.pages = [p.page.location for p in pcgts]
@@ -45,7 +55,8 @@ class PageSelection:
         return PageSelection(
             book,
             PageCount(params.count),
-            [book.page(page) for page in params.pages]
+            [book.page(page) for page in params.pages],
+            selected_pages_range_as_regex=params.selected_pages_range_as_regex
         )
 
     @staticmethod
@@ -92,6 +103,29 @@ class PageSelection:
                     return [p for p in self.book.pages() if unprocessed(p)]
                 else:
                     return self.book.pages()
+            elif self.page_count == PageCount.CUSTOM:
+                if check_if_page_range_regex_selector_valid(self.selected_pages_range_as_regex):
+                    pages = self.book.pages()
+                    selected_pages = []
+                    selected = self.selected_pages_range_as_regex.replace(" ", "")
+                    page_ranges = selected.split(",")
+                    for i in page_ranges:
+                        values = i.split("-")
+                        if len(values) == 2:
+                            r0 = int(values[0]) - 1
+                            r1 = int(values[1])
+                            if r0 >= 0:
+                                if r0 <= r1:
+                                    if r0 <= len(pages) and r1 <= len(pages):
+                                        selected_pages += pages[r0:r1]
+                        else:
+                            r0 = int(values[0]) - 1
+                            if 0 <= r0 < len(pages):
+                                selected_pages += [pages[r0]]
+                    return list(set(selected_pages))
+                else:
+                    return self.pages
+
             else:
                 return self.pages
 
@@ -102,3 +136,8 @@ class PageSelection:
             return self.pcgts
         else:
             return [p.pcgts() for p in self.get_pages(unprocessed)]
+
+
+if __name__ == "__main__":
+    print(check_if_page_range_regex_selector_valid("1-12, 3-15, 5, 4-5, 13, 4444, 4-14"))
+    pass
