@@ -32,7 +32,6 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
         meta = Step.meta(AlgorithmTypes.OCR_NAUTILUS)
         from ommr4all.settings import BASE_DIR
         model = Model(MetaId.from_custom_path(BASE_DIR + '/internal_storage/default_models/french14/text_nautilus/', meta.type()))
-        print(model.path)
         settings = AlgorithmPredictorSettings(
             model=model,
         )
@@ -43,10 +42,13 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
         if callback:
             callback.progress_updated(0, len(pages), 0)
 
-        for i, r in enumerate(self.ocr_predictor.predict(pages)):
+        for i, r in enumerate(self.ocr_predictor.predict(pages, callback=callback)):
             ocr_r: TextPredictionResult = r
-            match_r = [self.match_text(text_line_r) for text_line_r in ocr_r.text_lines if len(text_line_r.line.operation.text_line.sentence.syllables) > 0]
-
+            try:
+                match_r = [self.match_text(text_line_r) for text_line_r in ocr_r.text_lines if len(text_line_r.line.operation.text_line.sentence.syllables) > 0]
+            except Exception as e:
+                print(e)
+                match_r = []
             percentage = (i + 1) / len(pages)
             if callback:
                 callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len(pages))

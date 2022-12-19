@@ -368,7 +368,7 @@ class Page:
             i.aabb.center()
         pass
 
-    def get_reading_order(self):
+    def get_reading_order(self) -> List[Line]:
         columns = self.all_text_lines_in_columns()
         columns = sorted(columns, key=lambda i: i[0].aabb.left())
         readingorder = []

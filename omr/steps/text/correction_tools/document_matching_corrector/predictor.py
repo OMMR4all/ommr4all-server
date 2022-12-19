@@ -135,37 +135,47 @@ class Predictor(AlgorithmPredictor):
                     i = i[locations[0]:locations[1]]
                     ed = edlib.align(text, i, mode="NW", task="path")
                 cigar = ed["cigar"]
-                a = edlib.getNiceAlignment(ed, text, i)
-                line_index = 0
-                aligned_text = ""
-                aligned_ocr_text = ""
-                for aligned in range(len(a["matched_aligned"])):
-                    if len(whitespaces) > 0:
-                        if whitespaces[0] <= len(aligned_text.replace("\n", "")):
-                            aligned_text += " "
-                            del (whitespaces[0])
-                    aligned_text += a['target_aligned'][aligned] if a['target_aligned'][aligned] != "-" else ""
-                    aligned_ocr_text += a['query_aligned'][aligned] if a['query_aligned'][aligned] != "-" else ""
+                if i != "":
+                    try :
+                        a = edlib.getNiceAlignment(ed, text, i)
+                    except Exception as e:
+                        print(ed)
+                        print(text)
+                        print(i)
+                        raise e
+                    line_index = 0
+                    aligned_text = ""
+                    aligned_ocr_text = ""
+                    for aligned in range(len(a["matched_aligned"])):
+                        if len(whitespaces) > 0:
+                            if whitespaces[0] <= len(aligned_text.replace("\n", "")):
+                                aligned_text += " "
+                                del (whitespaces[0])
+                        aligned_text += a['target_aligned'][aligned] if a['target_aligned'][aligned] != "-" else ""
+                        aligned_ocr_text += a['query_aligned'][aligned] if a['query_aligned'][aligned] != "-" else ""
 
-                    if len(text_list) > line_index:
-                        if text_list[line_index].replace(" ", "").replace("-", "") == aligned_ocr_text:
-                            aligned_ocr_text = ""
-                            aligned_text += "\n"
-                            line_index += 1
-                    else:
-                        aligned_text = aligned_text[:-1].rstrip("\n") + aligned_text[-1:] + "\n"
-                aligned_text_elements = []
-                for i in aligned_text.split("\n"):
-                    i = hyphen.apply_to_sentence(i)
-                    aligned_text_elements.append(i)
-                aligned_text = "\n".join(aligned_text_elements)
-                single_document_result.append(SingleDocumentResult(matched_document=aligned_text,
-                                                                   page_id=document.start.page_id,
-                                                                   document_id=document.doc_id,
-                                                                   document=document,
-                                                                   book=book)) #.append(aligned_text)
+                        if len(text_list) > line_index:
+                            if text_list[line_index].replace(" ", "").replace("-", "") == aligned_ocr_text:
+                                aligned_ocr_text = ""
+                                aligned_text += "\n"
+                                line_index += 1
+                        else:
+                            aligned_text = aligned_text[:-1].rstrip("\n") + aligned_text[-1:] + "\n"
+                    aligned_text_elements = []
+                    for i in aligned_text.split("\n"):
+                        i = hyphen.apply_to_sentence(i)
+                        aligned_text_elements.append(i)
+                    aligned_text = "\n".join(aligned_text_elements)
+                    single_document_result.append(SingleDocumentResult(matched_document=aligned_text,
+                                                                       page_id=document.start.page_id,
+                                                                       document_id=document.doc_id,
+                                                                       document=document,
+                                                                       book=book)) #.append(aligned_text)
+
+            percentage = (ind_doc) / len(all_docs)
             if callback:
-                callback.progress_updated(ind_doc / len(all_docs))
+                callback.progress_updated(percentage, n_processed_pages=ind_doc + 1, n_pages=len(all_docs))
+
             # for key, count in count.most_common(5):
             #    #print(self.document_similar_tester.document_dict[key].sentence)
             #    #print(self.document_similar_tester.document_dict[key].get_word_list())

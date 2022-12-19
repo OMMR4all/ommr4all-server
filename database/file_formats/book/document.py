@@ -5,7 +5,7 @@ import uuid
 import ezodf
 import numpy as np
 
-from database import DatabasePage
+from database import DatabasePage, DatabaseBook
 from PIL import Image
 
 from database.file_formats.pcgts import PageScaleReference
@@ -51,6 +51,7 @@ class Document:
         self.end: DocumentConnection = end
         self.textinitium = textinitium
         self.textline_count = textline_count
+
 
     @staticmethod
     def from_json(json: dict):
@@ -144,6 +145,8 @@ class Document:
                 continue
             break
         return line_page_pair
+    def update_textline_count(self, book:DatabaseBook):
+        self.textline_count = len(self.get_page_line_of_document(book))
 
     def get_text_list_of_line_document(self, book):
         line_text = self.get_page_line_of_document(book)
