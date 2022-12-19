@@ -10,7 +10,7 @@ from restapi.views.pageaccess import PagePcGtsView, PageProgressView, PageStatis
     PageMidiView
 from restapi.views.bookdocuments import BookDocumentsView, DocumentsSVGView, DocumentsMidiView, DocumentView, \
     DocumentOdsView, BookDocumentsOdsView, MonodiConnectionView, MonodiLoginView, BookDictionaryView, \
-    DocumentImageLineTextView, DocumentImageLineImageView, DocumentPCGTSUpdatesView
+    DocumentImageLineTextView, DocumentImageLineImageView, DocumentPCGTSUpdatesView, BookPageDocumentsUpdateView
 from restapi.views.virtualkeyboards import BookVirtualKeyboardView
 from restapi.views.bookoperations import BookOperationStatusView, BookOperationTaskView, BookOperationView, \
     BookPageSelectionView, BookOperationModelsView, BookOperationModelView
@@ -76,7 +76,6 @@ urlpatterns = \
         # documents
         re_path(r'^book/(?P<book>\w+)/documents/meta/ods', BookDocumentsOdsView.as_view()),
 
-
         re_path(r'^book/(?P<book>\w+)/documents', BookDocumentsView.as_view()),
 
         re_path(r'^book/(?P<book>\w+)/document/(?P<document>[0-9a-f-]+)/svg/(?P<width>.+)$',
@@ -109,6 +108,7 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/statistics$', PageStatisticsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/page_progress/verify$',
                 PageProgressVerifyView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/documents$', BookPageDocumentsUpdateView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/page_progress$', PageProgressView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/lock$', PageLockView.as_view()),
         re_path(r'^book/(?P<book>\w+)/page/(?P<page>\w+)/content/(?P<content>\w+)$', PageContentView.as_view()),

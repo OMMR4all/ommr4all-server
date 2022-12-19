@@ -83,6 +83,28 @@ class BookDocumentsView(APIView):
 
         return Response()
 
+class BookPageDocumentsUpdateView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book, page):
+        book = DatabaseBook(book)
+        page= DatabasePage(page=page, book=book)
+
+        documents = DatabaseBookDocuments().load(book)
+
+        def documents_of_book(documents, book, page):
+
+            d_b = documents.update_documents_of_page(page=page, book=book)
+
+            d_b.to_file(book)
+
+            return d_b.to_json()
+
+        data = documents_of_book(documents, book, page)
+
+        return Response(data)
+
 
 
 class BookDocumentsOdsView(APIView):

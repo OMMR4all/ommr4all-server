@@ -55,7 +55,9 @@ class PytorchPredictor(TextPredictor):
         #print(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
         #                   'network_config', 'ocr_config.yaml'))
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.network = Network(opt, path, self.chars, corpus='')
+        device = torch.device('cpu')
+        print(device)
+        self.network = Network(opt, path, self.chars, corpus='', device= device, parallel=False)
         self.settings = settings
         self.dict_corrector = None
         self.database_hyphen_dictionary = None
@@ -63,7 +65,7 @@ class PytorchPredictor(TextPredictor):
     def _predict(self, dataset: TextDataset, callback: Optional[PredictionCallback] = None) -> Generator[
         SingleLinePredictionResult, None, None]:
 
-
+        #print(callback)
         """
         hyphen = HyphenatorFromDictionary(
             dictionary=os.path.join(BASE_DIR, 'internal_storage', 'resources', 'hyphen_dictionary.txt'),
@@ -81,8 +83,8 @@ class PytorchPredictor(TextPredictor):
             self.dict_corrector = DictionaryCorrector(hyphenator=hyphen)
             self.dict_corrector.load_dict(book=book)
 
-
-        for y in dataset.load():  # dataset_cal[0]:
+        loaded_dataset = dataset.load()
+        for i, y in enumerate(loaded_dataset):  # dataset_cal[0]:
             image = Image.fromarray(255 - y.line_image).convert('L')
 
             sentence: DecoderOutput = self.network.predict_single_image(image, decoder_type=DecoderType(
@@ -97,6 +99,9 @@ class PytorchPredictor(TextPredictor):
                     hyphenated = sentence.decoded_string
             else:
                 hyphenated = hyphen.apply_to_sentence(sentence.decoded_string)
+            percentage = (i + 1) / len(loaded_dataset)
+            if callback:
+                callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len(loaded_dataset))
             yield SingleLinePredictionResult(self.extract_symbols(dataset, sentence, y, width / hidden_size),
                                              y, hyphenated=hyphenated)
 

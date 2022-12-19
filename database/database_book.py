@@ -1,5 +1,6 @@
 import os
 import logging
+from multiprocessing import Pool
 from typing import List, TYPE_CHECKING
 import ommr4all.settings as settings
 import shutil
@@ -12,6 +13,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 file_name_validator = re.compile(r'\w+')
+
+
+def load_pcgts_func(database_page: 'DatabasePage'):
+    _ = database_page.pcgts().page
+    return database_page
 
 
 class InvalidFileNameException(Exception):
@@ -64,11 +70,17 @@ class DatabaseBook:
     def __eq__(self, other):
         return isinstance(other, DatabaseBook) and other.book == self.book
 
-    def pages(self) -> List['DatabasePage']:
+    def pages(self, load_pcgts = False) -> List['DatabasePage']:
         assert(self.is_valid())
         from database.database_page import DatabasePage
 
         pages = [DatabasePage(self, p) for p in sorted(os.listdir(self.local_path('pages')))]
+
+        if load_pcgts:
+
+            with Pool() as p:
+                pages = list(p.map(load_pcgts_func, iterable=pages))
+
         return [p for p in pages if p.is_valid()]
 
     def pages_with_lock(self, locks: List['LockState']) -> List['DatabasePage']:

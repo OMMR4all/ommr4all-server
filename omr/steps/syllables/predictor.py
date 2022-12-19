@@ -106,7 +106,7 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
         pass
 
     def _match_syllables_to_symbols(self, mr: MatchResult, page: Page, annotations: Annotations):
-        if len(mr.syllables) == 0:
+        if len(mr.syllables) == 0 or mr.music_line is None:
             # no syllables present
             return
 

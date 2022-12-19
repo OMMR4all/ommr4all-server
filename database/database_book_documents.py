@@ -1,4 +1,6 @@
 import json
+import time
+from collections import namedtuple
 from dataclasses import dataclass, field
 
 from database import DatabasePage
@@ -11,8 +13,17 @@ from typing import Optional, Dict, List
 
 from database.file_formats.book.document import Document, DocumentConnection
 from database.file_formats.book.documents import Documents
+from database.file_formats.pcgts import Line, Page
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmTypes
 from restapi.models.auth import RestAPIUser
+
+
+@dataclass
+class DocSpanType:
+    p_start: str
+    p_end: str
+    doc: Document
+    index: int
 
 
 class DatabaseBookDocuments:
@@ -22,6 +33,9 @@ class DatabaseBookDocuments:
         self.name: str = name
         self.created: datetime = created
         self.database_documents: Documents = database_documents
+
+    def __iter__(self):
+        return iter(self.database_documents.documents)
 
     @staticmethod
     def load(book: DatabaseBook):
@@ -64,10 +78,144 @@ class DatabaseBookDocuments:
             "database_documents": self.database_documents.to_json() if self.database_documents else []
         }
 
+    def get_documents_of_page(self, page: Page) -> List[DocSpanType]:
+
+        docs: List[DocSpanType] = []
+        for ind, i in enumerate(self.database_documents.documents):
+            if i.start.page_id == page.p_id or i.end.page_id == page.p_id:
+                docs.append(DocSpanType(p_start=i.start.page_id, p_end=i.end.page_id, doc=i, index=ind))
+        return docs
+
+    def update_documents_of_page(self, page: DatabasePage, book: DatabaseBook):
+        def get_current_documents_of_page(page: Page):
+            doc_starts = namedtuple("DocStart", "line prev_line index")
+            line: List[doc_starts] = []
+            prev_line = None
+            for ind, t_line in enumerate(page.reading_order.reading_order):
+                if t_line.document_start:
+                    line.append(doc_starts(t_line, prev_line, ind))
+                prev_line = t_line
+            return line
+
+        page_p = page.pcgts().page
+
+        docs = self.get_documents_of_page(page_p)
+
+        pages = book.pages(load_pcgts=True)
+
+        index = [index for index, i in enumerate(pages) if i.pcgts().page.p_id == page_p.p_id][0]
+        prev_page = pages[index - 1].pcgts().page
+        if index > 0:
+            prev_docs = self.get_documents_of_page(prev_page)
+            prev_docs.sort(key=lambda i: i.index)
+            prev_doc = prev_docs[-1].doc if len(prev_docs) > 0 else None
+        else:
+            prev_doc = None
+        # prev_doc = [i for i in docs if i.p_start != page_p.p_id]
+        end_doc = [i for i in docs if i.p_end != page_p.p_id]
+        # db_pages: List[DatabasePage] = book.pages()
+        starts = get_current_documents_of_page(page_p)
+        new_docs = []
+
+        for ind, line in enumerate(starts):
+
+            if prev_doc:
+                if line.prev_line is not None:
+                    prev_doc.end = DocumentConnection(line_id=line.prev_line.id, page_id=page_p.p_id,
+                                                      row=line.index - 1,
+                                                      page_name=page_p.location.page)
+                    prev_doc.textline_count = 0
+                    prev_doc.update_textline_count(book=book)
+                else:
+                    all_text_lines = prev_page.get_reading_order()
+                    lline = all_text_lines[-1]
+                    prev_doc.end = DocumentConnection(line_id=lline, page_id=prev_page.p_id,
+                                                      row=len(all_text_lines),
+                                                      page_name=prev_page.location.page)
+                    prev_doc.update_textline_count(book=book)
+
+            if ind + 1 == len(starts):
+                if len(end_doc) > 0:
+                    end_doc[0].doc.start = DocumentConnection(line_id=line.line.id, page_id=page_p.p_id, row=line.index,
+                                                              page_name=page_p.location.page)
+                    end_doc[0].doc.update_textline_count(book=book)
+                    end_doc[0].doc.textinitium = line.line.sentence.text(True)
+
+                    continue
+                else:
+                    search = True
+                    i = 1
+                    pages_id = [page_p.p_id]
+                    page_location = [page_p.location.page]
+                    prev_page = page_p
+                    prev_line = line
+
+                    while search:
+                        if index + i < len(pages):
+                            next_page = pages[index + 1].pcgts().page
+                            pages_id.append(next_page.p_id)
+                            page_location.append(next_page.location.page)
+
+                            for ind, li in enumerate(next_page.get_reading_order()):
+                                if li.document_start:
+                                    if i == 1 and ind == 0:
+                                        pages_id = pages_id[:-1]
+                                        page_location = page_location[:-1]
+
+                                    new_docs.append(Document([pages_id], [page_location],
+                                                             start=DocumentConnection(line_id=line.line.id,
+                                                                                      page_id=page_p.p_id,
+                                                                                      row=line.index,
+                                                                                      page_name=page_p.location.page),
+                                                             end=DocumentConnection(line_id=prev_line.line.id,
+                                                                                    page_id=prev_page.p_id,
+                                                                                    row=prev_line.index,
+                                                                                    page_name=prev_page.location.page),
+                                                             textinitium=line.line.sentence.text(True),
+                                                             textline_count=0)
+                                                    )
+                                prev_line = li
+                                prev_page = next_page
+                                search = False
+                                break
+                        else:
+                            new_docs.append(Document([pages_id], [page_location],
+                                                     start=DocumentConnection(line_id=line.line.id,
+                                                                              page_id=page_p.p_id,
+                                                                              row=line.index,
+                                                                              page_name=page_p.location.page),
+                                                     end=DocumentConnection(line_id=prev_line.id,
+                                                                            page_id=prev_page.p_id,
+                                                                            row=prev_line.index,
+                                                                            page_name=prev_page.location.page),
+                                                     textinitium=line.line.sentence.text(True),
+                                                     textline_count=0)
+                                            )
+                            search = False
+                            break
+                    continue
+            next_line = starts[ind + 1]
+            new_docs.append(Document([page_p.p_id], [page_p.location.page],
+                                     start=DocumentConnection(line_id=line.line.id, page_id=page_p.p_id, row=line.index,
+                                                              page_name=page_p.location.page),
+                                     end=DocumentConnection(line_id=next_line.prev_line.id, page_id=page_p.p_id,
+                                                            row=next_line.index -1,
+                                                            page_name=page_p.location.page),
+                                     textinitium=line.line.sentence.text(True), textline_count=0)
+                            )
+        for doc in new_docs:
+            doc.update_textline_count(book)
+
+        for line in sorted(docs, key=lambda x: x.index, reverse= True):
+            del self.database_documents.documents[line.index]
+        self.database_documents.documents += new_docs
+
+        return self
+
     @staticmethod
     def update_book_documents(book: DatabaseBook):
         d: DatabaseBookDocuments = DatabaseBookDocuments.load(book)
-        db_pages: List[DatabasePage] = book.pages()
+        db_pages: List[DatabasePage] = book.pages(True)
         document_page_ids = []
         document_page_names = []
         textinitium = ''
