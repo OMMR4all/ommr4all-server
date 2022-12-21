@@ -24,7 +24,7 @@ from database.start_up.load_text_variants_in_memory import lyrics
 
 from itertools import zip_longest
 
-from ...hyphenation.hyphenator import Pyphenator, CombinedHyphenator
+from ...hyphenation.hyphenator import Pyphenator, CombinedHyphenator, HyphenDicts, Hyphenator
 
 
 def grouper(iterable, n, fillvalue=None):
@@ -86,10 +86,10 @@ class Predictor(AlgorithmPredictor):
         documents = DatabaseBookDocuments().load(book)
         single_document_result = []
         all_docs: List[Document] = []
-        if self.database_hyphen_dictionary is None:
-            db = DatabaseDictionary.load(book=book)
-            self.database_hyphen_dictionary = db.to_hyphen_dict()
-        hyphen = CombinedHyphenator(lang="la_classic", left=2, right=2, dictionary=self.database_hyphen_dictionary)
+        #if self.database_hyphen_dictionary is None:
+        #    db = DatabaseDictionary.load(book=book)
+        #    self.database_hyphen_dictionary = db.to_hyphen_dict()
+        hyphen = Pyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1, right=1) #dictionary=self.database_hyphen_dictionary)
 
         if self.document_id is not None:
             document: Document = documents.database_documents.get_document_by_id(self.document_id)

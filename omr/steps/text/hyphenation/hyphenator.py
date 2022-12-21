@@ -1,8 +1,29 @@
+import enum
 from abc import ABC, abstractmethod
 from typing import Dict
 
+import dataclasses
+
 from omr.dataset.dataset import LyricsNormalizationParams, LyricsNormalizationProcessor, LyricsNormalization
 from loguru import logger
+
+
+class HyphenDicts(enum.Enum):
+    classic = "classic"
+    classic_ec = "classic_ec"
+    liturgical = "liturgical"
+    modern = "modern"
+
+    def get_internal_file_path(self):
+        from ommr4all.settings import BASE_DIR
+        import os
+        path = os.path.join(BASE_DIR, 'internal_storage', 'hyphen_dictionaries')
+
+        return os.path.join(path, {"classic": "hyph_la_classical.dic",
+                                   "classic_ec": "hyph_la_classical_ec.dic",
+                                   "liturgical": "hyph_la_liturgical.dic",
+                                   "modern": "hyph_la_modern.dic"}[self.value])
+
 
 class Hyphenator(ABC):
     def __init__(self, word_separator=' '):
@@ -17,24 +38,29 @@ class Hyphenator(ABC):
 
 
 class CombinedHyphenator(Hyphenator):
-    def __init__(self, lang='la', left=2, right=2, dictionary=None):
+    def __init__(self, lang='la', left=1, right=1, dictionary=None):
         super().__init__()
-        from thirdparty.pyphen import Pyphen
-        self.pyphen = Pyphen(lang=lang, left=left, right=right)
+        # from thirdparty.pyphen import Pyphen
+        import pyphen
+        self.pyphen = pyphen.Pyphen(filename=lang, lang=lang, left=left, right=right)
         self.dictionary = dictionary
+
     def apply_to_word(self, word: str):
         if self.dictionary is not None and word in self.dictionary:
             hyphenated = self.dictionary[word][0]
-            logger.info("Hyhenation db: {} Grammar: {}".format(hyphenated, self.pyphen.inserted(word)))
+            if True or hyphenated != self.pyphen.inserted(word):
+                logger.info("Hyhenation db: {} Grammar: {}".format(hyphenated, self.pyphen.inserted(word)))
             return hyphenated
 
         else:
             return self.pyphen.inserted(word)
+
+
 class Pyphenator(Hyphenator):
     def __init__(self, lang='la', left=2, right=2):
         super().__init__()
         from thirdparty.pyphen import Pyphen
-        self.pyphen = Pyphen(lang=lang, left=left, right=right)
+        self.pyphen = Pyphen(filename=lang, lang=lang, left=left, right=right)
 
     def apply_to_word(self, word: str):
         return self.pyphen.inserted(word)
@@ -63,3 +89,32 @@ class HyphenatorFromDictionary(Hyphenator):
 
     def apply_to_word(self, word: str):
         return self.words[word]
+
+
+if __name__ == "__main__":
+    from database import DatabaseBook
+    from database.database_dictionary import DatabaseDictionary
+    import os
+
+    db = DatabaseDictionary.load(book=DatabaseBook("mulhouse_mass_transcription"))
+    database_hyphen_dictionary = db.to_hyphen_dict()
+
+
+    def test(hyphenators, word):
+        for ind, i in enumerate(hyphenators):
+            print(f'{i.apply_to_word(word)}')
+
+
+    HyphenDicts.classic.get_internal_file_path()
+
+    # hyphen1 = CombinedHyphenator(lang=os.path.join(path, "hyph_la.dic"), left=1, right=1, dictionary=
+    # database_hyphen_dictionary)
+    hyphen2 = CombinedHyphenator(lang=HyphenDicts.classic.get_internal_file_path(), left=1, right=1, dictionary=
+    database_hyphen_dictionary)
+    hyphen3 = CombinedHyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1, right=1, dictionary=
+    database_hyphen_dictionary)
+    hyphen4 = CombinedHyphenator(lang=HyphenDicts.modern.get_internal_file_path(), left=1, right=1, dictionary=
+    database_hyphen_dictionary)
+    hyphenators = [hyphen2, hyphen3, hyphen4]
+
+    test(hyphenators, "faciam")

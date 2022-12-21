@@ -27,7 +27,7 @@ class SyllableConnector:
                 mr.note_by_id(json['noteID'], True)
             )
         except ValueError as e:
-            logger.exception(e)
+            #logger.exception(e)
             return None
 
     def to_json(self):
