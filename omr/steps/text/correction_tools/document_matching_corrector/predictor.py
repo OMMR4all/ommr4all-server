@@ -104,6 +104,8 @@ class Predictor(AlgorithmPredictor):
             text = self.text_normalizer.apply(text)
             lowest_ed = 999999
             lowest_text = ""
+            ed = edlib.align("abc", "abc", mode="SHW", k=lowest_ed)
+
             for b in lyrics.lyrics:
                 b: Lyric_info = b
                 text2 = b.latine.lower().replace("[", "").replace("]", "")
@@ -111,7 +113,11 @@ class Predictor(AlgorithmPredictor):
                 if 0 < ed["editDistance"] < lowest_ed:
                     lowest_ed = ed["editDistance"]
                     lowest_text = text2
+                elif text.replace(" ", "") == text2.replace(" ", ""):
+                    lowest_ed = 0
+                    lowest_text = text2
 
+            #print((len(lowest_text.replace(" ", "")) - lowest_ed) / len(lowest_text.replace(" ", "")))
             text_list = document.get_text_list_of_line_document(book)
             text = text.replace(" ", "")
             for i in [lowest_text]:
@@ -175,11 +181,5 @@ class Predictor(AlgorithmPredictor):
             percentage = (ind_doc) / len(all_docs)
             if callback:
                 callback.progress_updated(percentage, n_processed_pages=ind_doc + 1, n_pages=len(all_docs))
-
-            # for key, count in count.most_common(5):
-            #    #print(self.document_similar_tester.document_dict[key].sentence)
-            #    #print(self.document_similar_tester.document_dict[key].get_word_list())
-            #    #print(self.document_similar_tester.document_dict[key].get_text())
-            #    texts.append(self.document_similar_tester.document_dict[key].get_text())
 
         yield Result(single_document_result)
