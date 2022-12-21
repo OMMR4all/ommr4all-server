@@ -30,7 +30,7 @@ from omr.steps.text.predictor import \
     PredictionResult, Point, SingleLinePredictionResult
 import numpy as np
 from database.model.definitions import MetaId
-from omr.steps.text.hyphenation.hyphenator import HyphenatorFromDictionary, Pyphenator, CombinedHyphenator
+from omr.steps.text.hyphenation.hyphenator import HyphenatorFromDictionary, Pyphenator, CombinedHyphenator, HyphenDicts
 
 from typing import Generator
 
@@ -74,11 +74,11 @@ class PytorchPredictor(TextPredictor):
         """
         #dataset_cal = dataset.to_text_line_nautilus_dataset()
         book = dataset.files[0].dataset_page().book
-        if self.database_hyphen_dictionary is None:
-            db = DatabaseDictionary.load(book=book)
-            self.database_hyphen_dictionary = db.to_hyphen_dict()
+        #if self.database_hyphen_dictionary is None:
+        #    db = DatabaseDictionary.load(book=book)
+        #    self.database_hyphen_dictionary = db.to_hyphen_dict()
 
-        hyphen = CombinedHyphenator(lang="la_classic", left=2, right=2, dictionary=self.database_hyphen_dictionary)
+        hyphen = Pyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1, right=1)#, dictionary=self.database_hyphen_dictionary)
         if self.settings.params.useDictionaryCorrection:
             self.dict_corrector = DictionaryCorrector(hyphenator=hyphen)
             self.dict_corrector.load_dict(book=book)

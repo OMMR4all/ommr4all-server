@@ -26,7 +26,7 @@ if __name__ == '__main__':
 
 
 class DictionaryCorrector(SymSpell):
-    def __init__(self, hyphenator: Hyphenator = Pyphenator(), max_dictionary_edit_distance=2, prefix_length=7,
+    def __init__(self, hyphenator: Hyphenator, max_dictionary_edit_distance=2, prefix_length=7,
                  count_threshold=1):
         super().__init__(max_dictionary_edit_distance=max_dictionary_edit_distance, prefix_length=prefix_length,
                          count_threshold=count_threshold)

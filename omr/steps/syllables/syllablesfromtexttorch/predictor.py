@@ -81,7 +81,11 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
         gt = clean_text("".join([s.text for s in syls]))
         pred_txt = clean_text("".join([t for t, pos in pred]))
         sm = SequenceMatcher(a=pred_txt, b=gt, autojunk=False, isjunk=False)
+        #print(f'GT1: {r.line.operation.text_line.sentence.text()}')
+        #print(f'PR1: {r.hyphenated}')
 
+        #print(f'GT: {gt}')
+        #print(f'PR: {pred_txt}')
         if debug:
             pt = PrettyTable(list(range(len(sm.get_opcodes()))))
             pt.add_row([gt[gt_start:gt_end] for _, _, _, gt_start, gt_end in sm.get_opcodes()])
@@ -124,10 +128,12 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
             out_matches.append({'s': syl, 'x': x})
             pos += len(syl.text)
 
+
         # interpolate syllables without any match
         ix = np.array([(i, match['x']) for i, match in enumerate(out_matches) if match['x'] >= 0])
         x_pos = np.interp(range(len(out_matches)), ix[:, 0], ix[:, 1])
-
+        for m, x in zip(out_matches, x_pos):
+            print(f'Text: {m["s"].text}, Pos: {str(x)}, Pos2: {str(m["x"])}' )
         return MatchResult(
             syllables=[SyllableMatchResult(
                 xpos=x,
