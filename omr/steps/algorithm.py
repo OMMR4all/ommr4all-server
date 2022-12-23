@@ -158,11 +158,11 @@ class AlgorithmTrainer(ABC):
 
     def _pre_train(self):
         with open(self.settings.model.local_file("dataset_params.json"), 'w') as f:
-            f.write(self.settings.dataset_params.to_json(indent=2))
+            f.write(self.settings.dataset_params.to_json())
 
     def _post_train(self, target_book: Optional[DatabaseBook] = None):
         with open(self.settings.model.local_file("dataset_params.json"), 'w') as f:
-            f.write(self.settings.dataset_params.to_json(indent=2))
+            f.write(self.settings.dataset_params.to_json())
 
 
 class AlgorithmPredictionResult(ABC):

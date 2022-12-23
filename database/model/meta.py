@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
-from mashumaro import DataClassJSONMixin
+#from mashumaro import DataClassJSONMixin
 import datetime
+from mashumaro.mixins.json import DataClassJSONMixin
 
 
 @dataclass()

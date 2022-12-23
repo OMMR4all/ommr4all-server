@@ -16,6 +16,7 @@ from omr.steps.symboldetection.trainer import SymbolDetectionTrainer
 
 if __name__ == '__main__':
     import django
+
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
 
@@ -25,11 +26,12 @@ from database import DatabaseBook
 from database.file_formats.performance.pageprogress import Locks
 from omr.steps.algorithm import TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
 from omr.imageoperations.music_line_operations import SymbolLabel
-#from ocr4all_pixel_classifier.lib.trainer import Trainer, Loss, Monitor, Architecture
+# from ocr4all_pixel_classifier.lib.trainer import Trainer, Loss, Monitor, Architecture
 from omr.steps.symboldetection.torchpixelclassifier.meta import Meta
 from segmentation.network import Network, NetworkTrainer
 from segmentation.dataset import MemoryDataset
-from omr.steps.symboldetection.torchpixelclassifier.callback import PCTorchTrainerCallback
+
+
 class PCTorchTrainer(SymbolDetectionTrainer):
     @staticmethod
     def meta() -> Meta.__class__:
@@ -64,13 +66,13 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         super().__init__(settings)
 
     def _train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
-        pc_callback = PCTorchTrainerCallback(callback) if callback else None
+        # pc_callback = PCTorchTrainerCallback(callback) if callback else None
         if callback:
             callback.resolving_files()
 
         train_data = self.train_dataset.to_memory_dataset(callback)
 
-        augmentation = self.settings.page_segmentation_torch_params.augmentation\
+        augmentation = self.settings.page_segmentation_torch_params.augmentation \
             if self.settings.page_segmentation_torch_params.data_augmentation else None
         train_data = MemoryDataset(df=train_data, transform=augmentation)
         val_data = MemoryDataset(self.validation_dataset.to_memory_dataset(callback))
@@ -78,27 +80,28 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         val_loader = DataLoader(dataset=val_data, batch_size=1)
         color_map = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
 
-        predfined_nw_settings = PredefinedNetworkSettings(architecture=self.settings.page_segmentation_torch_params.architecture,
-                                  encoder=self.settings.page_segmentation_torch_params.encoder,
-                                  classes=len(SymbolLabel),
-                                  encoder_depth=self.settings.page_segmentation_torch_params.predefined_encoder_depth,
-                                  decoder_channel=self.settings.page_segmentation_torch_params.predefined_decoder_channel)
+        predfined_nw_settings = PredefinedNetworkSettings(
+            architecture=self.settings.page_segmentation_torch_params.architecture,
+            encoder=self.settings.page_segmentation_torch_params.encoder,
+            classes=len(SymbolLabel),
+            encoder_depth=self.settings.page_segmentation_torch_params.predefined_encoder_depth,
+            decoder_channel=self.settings.page_segmentation_torch_params.predefined_decoder_channel)
         custon_nw_settings = CustomModelSettings(
-                                    encoder_filter=self.settings.page_segmentation_torch_params.custom_model_encoder_filter,
-                                    decoder_filter=self.settings.page_segmentation_torch_params.custom_model_encoder_filter,
-                                    attention_encoder_filter=CustomModelSettings.attention_encoder_filter,
-                                    attention=CustomModelSettings.attention,
-                                    classes=len(color_map),
-                                    attention_depth=CustomModelSettings.attention_depth,
-                                    encoder_depth=self.settings.page_segmentation_torch_params.custom_model_encoder_depth,
-                                    attention_encoder_depth=CustomModelSettings.attention_encoder_depth,
-                                    stride=CustomModelSettings.stride,
-                                    padding=CustomModelSettings.padding,
-                                    kernel_size=CustomModelSettings.kernel_size,
-                                    weight_sharing=False if CustomModelSettings.weight_sharing else True,
-                                    scaled_image_input=CustomModelSettings.scaled_image_input
-                                )
-        config = ModelConfiguration(use_custom_model= self.settings.page_segmentation_torch_params.custom_model,
+            encoder_filter=self.settings.page_segmentation_torch_params.custom_model_encoder_filter,
+            decoder_filter=self.settings.page_segmentation_torch_params.custom_model_encoder_filter,
+            attention_encoder_filter=[12, 32, 64, 128],
+            attention=CustomModelSettings.attention,
+            classes=len(color_map),
+            attention_depth=CustomModelSettings.attention_depth,
+            encoder_depth=self.settings.page_segmentation_torch_params.custom_model_encoder_depth,
+            attention_encoder_depth=CustomModelSettings.attention_encoder_depth,
+            stride=CustomModelSettings.stride,
+            padding=CustomModelSettings.padding,
+            kernel_size=CustomModelSettings.kernel_size,
+            weight_sharing=False if CustomModelSettings.weight_sharing else True,
+            scaled_image_input=CustomModelSettings.scaled_image_input
+        )
+        config = ModelConfiguration(use_custom_model=self.settings.page_segmentation_torch_params.custom_model,
                                     network_settings=predfined_nw_settings if not self.settings.page_segmentation_torch_params.custom_model else None,
                                     custom_model_settings=custon_nw_settings if self.settings.page_segmentation_torch_params.custom_model else None,
                                     preprocessing_settings=ProcessingSettings(input_padding_value=32,
@@ -108,13 +111,14 @@ class PCTorchTrainer(SymbolDetectionTrainer):
                                                                                   self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name)),
                                     color_map=color_map)
         network = ModelBuilderMeta(config, device=get_default_device()).get_model()
-        mw = ModelWriterCallback(network, config, save_path=Path(self.settings.model.path + "/model"), prefix="", metric_watcher_index=0)
+        mw = ModelWriterCallback(network, config, save_path=Path(self.settings.model.path), prefix="",
+                                 metric_watcher_index=0)
         callbacks = [mw]
         trainer = NetworkTrainer(network, NetworkTrainSettings(classes=len(color_map),
                                                                optimizer=Optimizers("adam"),
                                                                learningrate_seghead=self.params.l_rate,
-                                                               learningrate_encoder = self.params.l_rate,
-                                                               learningrate_decoder = self.params.l_rate,
+                                                               learningrate_encoder=self.params.l_rate,
+                                                               learningrate_decoder=self.params.l_rate,
                                                                batch_accumulation=1,
                                                                processes=self.params.processes,
                                                                metrics=[Metrics("accuracy")],
@@ -122,7 +126,7 @@ class PCTorchTrainer(SymbolDetectionTrainer):
                                                                loss=Losses.cross_entropy_loss,
                                                                ), get_default_device(),
                                  callbacks=callbacks, debug_color_map=config.color_map)
-        #train_data.data = train_data.data * self.params.train_data_multiplier
+        # train_data.data = train_data.data * self.params.train_data_multiplier
         """
         settings = TrainSettings(
             EPOCHS=max(1, self.settings.params.n_iter // len(train_data)),
@@ -144,16 +148,16 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         trainer.train_epochs(train_loader=train_loader, val_loader=val_loader, n_epoch=15, lr_schedule=None)
 
 
-
 if __name__ == '__main__':
     from omr.dataset import DatasetParams
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
-    b = DatabaseBook('Graduel_Part_1')
-    c = DatabaseBook('Graduel_Part_2')
-    d = DatabaseBook('Graduel_Part_3')
-    e = DatabaseBook('Pa_14819')
 
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b, c, d, e])
+    b = DatabaseBook('Graduel_Part_1_gt')
+    #c = DatabaseBook('Graduel_Part_2_gt')
+    #d = DatabaseBook('Graduel_Part_3_gt')
+    #e = DatabaseBook('Pa_14819_gt')
+
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b])
     settings = AlgorithmTrainerSettings(
         DatasetParams(),
         train,
@@ -162,4 +166,3 @@ if __name__ == '__main__':
     )
     trainer = PCTorchTrainer(settings)
     trainer.train(b)
-

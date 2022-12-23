@@ -2,7 +2,9 @@ from dataclasses import dataclass, field
 from dataclasses import dataclass, field as datafields
 from database.file_formats.book.document import Document
 from database.model import Model, MetaId
-from mashumaro import DataClassJSONMixin
+#from mashumaro import DataClassJSONMixin
+from mashumaro.mixins.json import DataClassJSONMixin
+
 from mashumaro.types import SerializableType
 from typing import Optional, TYPE_CHECKING, List
 from .algorithmtypes import AlgorithmTypes

@@ -5,7 +5,8 @@ from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 from database.model import Model
 from dataclasses import dataclass
-from mashumaro import DataClassJSONMixin
+#from mashumaro import DataClassJSONMixin
+from mashumaro.mixins.json import DataClassJSONMixin
 
 from omr.steps.symboldetection.torchpixelclassifier.params import PageSegmentationTrainerTorchParams
 

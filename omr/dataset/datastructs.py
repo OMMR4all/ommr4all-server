@@ -5,7 +5,8 @@ from database.file_formats.pcgts.page import MusicSymbol, SymbolType, \
     MusicSymbolPositionInStaff, StaffLines, create_clef, create_accid
 from typing import List, Tuple, Union, Optional, Any, Dict, NamedTuple
 from dataclasses import dataclass, field
-from mashumaro import DataClassJSONMixin
+#from mashumaro import DataClassJSONMixin
+from mashumaro.mixins.json import DataClassJSONMixin
 
 from mashumaro.types import SerializableType
 

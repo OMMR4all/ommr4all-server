@@ -2,7 +2,9 @@ from typing import DefaultDict, NamedTuple
 import json
 from enum import Enum
 from dataclasses import dataclass, field
-from mashumaro import DataClassJSONMixin
+#from mashumaro import DataClassJSONMixin
+from mashumaro.mixins.json import DataClassJSONMixin
+
 import logging
 
 logger = logging.getLogger(__name__)

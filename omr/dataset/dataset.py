@@ -18,7 +18,9 @@ from omr.dataset.datastructs import CalamariCodec
 from omr.imageoperations import ImageOperationList, ImageOperationData
 from omr.dewarping.dummy_dewarper import NoStaffLinesAvailable, NoStaffsAvailable
 from dataclasses import dataclass, field
-from mashumaro import DataClassJSONMixin
+#from mashumaro import DataClassJSONMixin
+from mashumaro.mixins.json import DataClassJSONMixin
+
 from enum import Enum
 
 import json

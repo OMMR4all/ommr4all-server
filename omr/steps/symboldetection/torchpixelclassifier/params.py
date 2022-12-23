@@ -25,8 +25,8 @@ class PageSegmentationTrainerTorchParams(NamedTuple):
     predefined_encoder_depth = PredefinedNetworkSettings.encoder_depth
     predefined_decoder_channel = PredefinedNetworkSettings.decoder_channel
 
-    custom_model_encoder_filter = CustomModelSettings.encoder_filter
-    custom_model_decoder_filter = CustomModelSettings.decoder_filter
+    custom_model_encoder_filter = [16, 32, 64, 256, 512]
+    custom_model_decoder_filter = [16, 32, 64, 256, 512]
     custom_model_encoder_depth = CustomModelSettings.encoder_depth
 
     # augmentation_settings: AugmentationSettings = AugmentationSettings(
