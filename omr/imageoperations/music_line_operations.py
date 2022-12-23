@@ -41,7 +41,16 @@ class SymbolLabel(IntEnum):
             SymbolLabel.ACCID_FLAT: MusicSymbol(SymbolType.ACCID, accid_type=AccidType.FLAT),
         }[self]
 
-
+    def get_color(self):
+        return {0: [255, 255, 255],
+                1: [255, 0, 0],
+                2: [255, 120, 120],
+                3: [120, 0, 0],
+                4: [120, 255, 120],
+                5: [0, 255, 0],
+                6: [0, 0, 255],
+                7: [50, 50, 255],
+                8: [0, 0, 120]}[self.value]
 # extract image of a staff line, and as mask, the highlighted staff lines
 class ImageExtractStaffLineImages(ImageOperation):
     def __init__(self, full_page=True, pad=0, extract_region_only=True, gt_line_thickness=3):

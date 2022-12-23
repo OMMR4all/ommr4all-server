@@ -13,6 +13,7 @@ class AlgorithmTypes(Enum):
     LAYOUT_SIMPLE_DROP_CAPITAL = "layout_drop_capital"
 
     SYMBOLS_PC = "symbols_pc"
+    SYMBOLS_PC_TORCH = "symbols_pc_torch"
     SYMBOLS_SEQUENCE_TO_SEQUENCE = 'symbols_sequence_to_sequence'
     SYMBOLS_SEQUENCE_TO_SEQUENCE_NAUTILUS = 'symbols_sequence_to_sequence_nautilus'
 

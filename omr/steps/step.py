@@ -53,6 +53,7 @@ import omr.steps.layout.lyricsbbs.meta
 import omr.steps.layout.simplelyrics.meta
 import omr.steps.layout.standard.meta
 import omr.steps.symboldetection.pixelclassifier.meta
+import omr.steps.symboldetection.torchpixelclassifier.meta
 import omr.steps.symboldetection.sequencetosequence.meta
 import omr.steps.symboldetection.sequence_to_sequence_nautilus.meta
 
