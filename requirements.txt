@@ -1,7 +1,7 @@
 django==3.2.7
 channels
 locked_dict
-opencv-python-headless>=4,!=4.1.2.30
+opencv-python-headless==4.2.0.32
 Pillow
 scikit-image
 tqdm
@@ -16,7 +16,7 @@ djangorestframework-jwt
 prettytable
 ezodf
 cryptography
-mashumaro==2.7
+mashumaro==3.1
 unidecode
 pdf2image
 dataclasses-json==0.5.5

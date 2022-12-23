@@ -52,7 +52,7 @@ class Model:
         if self._meta:
             self._meta.id = self.id()
             with open(self.meta_path, 'w') as f:
-                f.write(self._meta.to_json(indent=2))
+                f.write(self._meta.to_json())
 
     def local_file(self, file: str) -> str:
         return os.path.join(self.path, file)
