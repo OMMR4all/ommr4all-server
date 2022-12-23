@@ -2,7 +2,10 @@ from distutils.util import strtobool
 import logging
 import sys
 
+from segmentation.modules import ENCODERS
+
 from database.model import MetaId
+from omr.steps.symboldetection.torchpixelclassifier.params import PageSegmentationTrainerTorchParams
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                     stream=sys.stdout)
@@ -10,9 +13,9 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(level
 import os
 
 from ocr4all_pixel_classifier.lib.model import Architecture
-
+from segmentation.settings import Architecture as TorchArchitecture
 from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
-from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, SerializableCTCDecoderParams
+from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from omr.steps.algorithmtrainerparams import AlgorithmTrainerParams
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 import django
@@ -79,6 +82,11 @@ if __name__ == "__main__":
     parser.add_argument("--max_number_of_staff_lines", default=4, type=int)
 
     parser.add_argument("--page_segmentation_architecture", type=lambda t: Architecture[t], choices=list(Architecture), default=PageSegmentationTrainerParams().architecture)
+    parser.add_argument("--page_segmentation_torch_architecture", type=lambda t: TorchArchitecture[t],
+                             choices=list(TorchArchitecture), default=PageSegmentationTrainerTorchParams().architecture)
+    parser.add_argument("--page_segmentation_torch_encoder", type=str, choices=list(ENCODERS),
+                        default=PageSegmentationTrainerTorchParams().encoder)
+
     parser.add_argument("--lyrics_normalization", type=lambda t: LyricsNormalization[t], choices=list(LyricsNormalization), default=DatasetParams().lyrics_normalization.lyrics_normalization)
     parser.add_argument("--lyrics_mixed_case", action='store_true')
 
@@ -177,6 +185,11 @@ if __name__ == "__main__":
         page_segmentation_params=PageSegmentationTrainerParams(
             data_augmentation=args.data_augmentation,
             architecture=args.page_segmentation_architecture,
+        ),
+        page_segmentation_torch_params=PageSegmentationTrainerTorchParams(
+            architecture=args.page_segmentation_torch_architecture,
+            encoder=args.page_segmentation_torch_encoder,
+            data_augmentation=args.data_augmentation
         ),
         calamari_params=CalamariParams(
             network=args.calamari_network,

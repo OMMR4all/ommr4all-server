@@ -3,6 +3,8 @@ import string
 from abc import ABC, abstractmethod
 from types import MappingProxyType
 
+import pandas as pd
+
 #from tfaip import PipelineMode
 
 from database.file_formats.pcgts import PcGts, Line, PageScaleReference, Point, BlockType
@@ -174,6 +176,32 @@ class Dataset(ABC):
     def to_line_detection_dataset(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:
         return self.load(callback)
 
+    def to_memory_dataset(self, callback: Optional[DatasetCallback] = None):
+        if self.params.origin_staff_line_distance == self.params.target_staff_line_distance:
+            images = []
+            masks = []
+            data = []
+            # import matplotlib.pyplot as plt
+            # cmap = plt.get_cmap('Set1')
+
+            for ind, x in enumerate(self.load(callback)):
+                # from PIL import Image
+                # rgba_img = cmap(x.mask)
+                # rgb_img = np.delete(rgba_img, 3, 2)*255
+                # rgb_img = rgb_img.astype(np.uint8)
+                # backgorund = Image.fromarray(x.region).convert("RGBA")
+                # overlay= Image.fromarray(rgb_img).convert("RGBA")
+                # overlay.save(str(ind)+"overlay.png")
+                # new_image = Image.blend(backgorund, overlay, 0.5)
+                # new_image.save(str(ind)+".png")
+                images.append(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
+                masks.append(x.mask)
+                data.append(x)
+            df = pd.DataFrame(data={'images': images, 'masks': masks, 'original': data})
+            return df
+        else:
+            raise NotImplementedError()
+            pass
     def to_drop_capital_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         from omr.steps.layout.drop_capitals.torch_dataset import DropCapitalDataset
         d = self.load(callback)

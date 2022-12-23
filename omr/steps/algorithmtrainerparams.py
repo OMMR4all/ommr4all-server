@@ -7,6 +7,8 @@ from database.model import Model
 from dataclasses import dataclass
 from mashumaro import DataClassJSONMixin
 
+from omr.steps.symboldetection.torchpixelclassifier.params import PageSegmentationTrainerTorchParams
+
 
 @dataclass()
 class AlgorithmTrainerParams(DataClassJSONMixin):
@@ -44,5 +46,6 @@ class AlgorithmTrainerSettings:
     model: Optional[Model] = None
     params: Optional[AlgorithmTrainerParams] = None
     page_segmentation_params: PageSegmentationTrainerParams = PageSegmentationTrainerParams()
+    page_segmentation_torch_params: PageSegmentationTrainerTorchParams = PageSegmentationTrainerTorchParams()
     calamari_params: CalamariParams = CalamariParams()
 
