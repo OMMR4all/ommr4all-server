@@ -62,11 +62,11 @@ class PCTorchPredictor(SymbolsPredictor):
         use_cuda = torch.cuda.is_available()
 
         # print(os.environ['CUDA_VISIBLE_DEVICES'])
-        modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(settings.model.local_file('model.torch')), device=get_default_device())
+        modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(settings.model.local_file('best.torch')), device=get_default_device())
         base_model = modelbuilder.get_model()
         config = modelbuilder.get_model_configuration()
         preprocessing_settings = modelbuilder.get_model_configuration().preprocessing_settings
-        self.predictor = EnsemblePredictor([base_model], preprocessing_settings)
+        self.predictor = EnsemblePredictor([base_model], [preprocessing_settings])
         self.nmaskpredictor = NetworkMaskPostProcessor(self.predictor, config.color_map)
 
 
@@ -81,6 +81,7 @@ class PCTorchPredictor(SymbolsPredictor):
             mask, image, data = row['masks'], row['images'], row['original']
             source_image = SourceImage.from_numpy(image)
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(source_image)
+            output.generated_mask.show()
             #output = self.predictor.predict_single_image(image=image)
             labels = np.argmax(output.prediction_result.probability_map, axis=-1)
             m: RegionLineMaskData = data

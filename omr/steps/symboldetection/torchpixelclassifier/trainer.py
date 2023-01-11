@@ -101,14 +101,14 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             weight_sharing=False if CustomModelSettings.weight_sharing else True,
             scaled_image_input=CustomModelSettings.scaled_image_input
         )
+
         config = ModelConfiguration(use_custom_model=self.settings.page_segmentation_torch_params.custom_model,
                                     network_settings=predfined_nw_settings if not self.settings.page_segmentation_torch_params.custom_model else None,
                                     custom_model_settings=custon_nw_settings if self.settings.page_segmentation_torch_params.custom_model else None,
                                     preprocessing_settings=ProcessingSettings(input_padding_value=32,
                                                                               rgb=True,
                                                                               scale_max_area=999999999,
-                                                                              preprocessing=Preprocessingfunction(
-                                                                                  self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name)),
+                                                                              preprocessing=Preprocessingfunction(self.settings.page_segmentation_torch_params.encoder) if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction()),
                                     color_map=color_map)
         network = ModelBuilderMeta(config, device=get_default_device()).get_model()
         mw = ModelWriterCallback(network, config, save_path=Path(self.settings.model.path), prefix="",
