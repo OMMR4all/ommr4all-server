@@ -43,6 +43,32 @@ class SymbolDetectionDataset(Dataset):
         super().__init__(pcgts, params)
 
 
+class SymbolDetectionDatasetTorch(Dataset):
+    @staticmethod
+    def create_image_operation_list(params: DatasetParams) -> ImageOperationList:
+        params.image_input = ImageInput.REGION_IMAGE
+        params.page_scale_reference = PageScaleReference.NORMALIZED_X2
+
+        operations = [
+            ImageLoadFromPageOperation(invert=False, files=[('color_norm_x2', False)]),
+            #ImageDrawRegions(block_types=[BlockType.DROP_CAPITAL] if params.cut_region else [], color=0),
+            ImageExtractDewarpedStaffLineImages(params.dewarp, params.cut_region, params.pad, params.center, params.staff_lines_only, params.keep_graphical_connection),
+        ]
+
+
+        operations += [
+            ImageRescaleToHeightOperation(height=params.height),
+        ]
+
+        #if params.pad_power_of_2:
+        #    operations.append(ImagePadToPowerOf2(params.pad_power_of_2))
+
+        return ImageOperationList(operations)
+
+    def __init__(self, pcgts: List[PcGts], params: DatasetParams):
+        super().__init__(pcgts, params)
+
+
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from imageio import imsave

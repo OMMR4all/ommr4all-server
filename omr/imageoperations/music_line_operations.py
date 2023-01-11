@@ -180,7 +180,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
     def apply_single(self, data: ImageOperationData, debug=False) -> OperationOutput:
         image = data.images[0].image
-        labels = np.zeros(image.shape, dtype=np.uint8)
+        labels = np.zeros(image.shape[:2], dtype=np.uint8)
         marked_symbols = np.zeros(labels.shape, dtype=np.uint8)
         i = 1
         s: List[List[Coords]] = []
@@ -234,12 +234,16 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                     img_data.music_region = mr
                     img_data.music_line = ml
                     img_data.images = [ImageData(mask, True), ImageData(dew_page, False), ImageData(dew_symbols, True)]
+                    #from matplotlib import pyplot as plt
+                    #plt.imshow(dew_page)
+                    #plt.show()
                     cropped = self.cropper.apply_single(img_data)[0]
                     self._extract_image_op(img_data)
 
                     if self.center:
                         coords = extract_transformed_coords(ml)
                         r = self._resize_to_height(cropped.images, coords, rect=cropped.params)
+
                         if r is not None:  # Invalid resize (probably no staff lines present)
                             img_data.images, r_params = r
                             img_data.params = (i, cropped.params, r_params, s, dewarper)
@@ -269,8 +273,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         t, b, l, r = rect
         for l in lines:
             assert(lines[0].image.shape == l.image.shape)
-
-        height, width = lines[0].image.shape
+        height, width = lines[0].image.shape[:2]
         top = int(coords[0].center_y()) - t
         bot = int(coords[-1].center_y()) - t
         if top > height or bot > height:
@@ -304,7 +307,12 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         return [single(t) for t in lines], (top_to_add, )
 
     def _extract_image_op(self, data: ImageOperationData):
-        data.images = [data.images[1], ImageData(data.images[0].image * data.images[1].image, False)] + data.images[2:]
+        if len(data.images[1].image.shape) == 3:
+            gray = np.stack([data.images[0].image, data.images[0].image, data.images[0].image], axis=-1)
+        else:
+            gray = data.images[0].image
+
+        data.images = [data.images[1], ImageData(gray * data.images[1].image, False)] + data.images[2:]
 
     def _symbols_to_mask(self, ml: Line, img: np.ndarray, page: Page, scale: PageScaleReference, keep_graphical_connection=None):
         if len(ml.staff_lines) < 2:  # at least two staff lines required

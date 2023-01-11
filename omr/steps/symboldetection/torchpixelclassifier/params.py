@@ -1,10 +1,38 @@
 from typing import NamedTuple
+
+import albumentations
+
 from segmentation.modules import Architecture
 from segmentation.dataset import compose
 import albumentations as albu
+
+from segmentation.preprocessing.workflow import BinarizeDoxapy
 from segmentation.settings import PredefinedNetworkSettings, CustomModelSettings
 
 
+def remove_nones(x):
+    return [y for y in x if y is not None]
+
+
+def default_transform():
+    result = albumentations.Compose([
+        albumentations.RandomScale(),
+        #albumentations.HorizontalFlip(p=0.25),
+        albumentations.RandomGamma(),
+        albumentations.RandomBrightnessContrast(),
+        albumentations.OneOf([
+            albumentations.OneOf([
+                BinarizeDoxapy("sauvola"),
+                BinarizeDoxapy("ocropus"),
+                BinarizeDoxapy("isauvola"),
+            ]),
+            albumentations.OneOf([
+                albumentations.ToGray(),
+                albumentations.CLAHE()
+            ])
+        ], p=0.3)
+    ])
+    return result
 def symbol_transform():
     result = [
         # albu.HorizontalFlip(),
