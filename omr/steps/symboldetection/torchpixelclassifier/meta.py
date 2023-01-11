@@ -1,5 +1,5 @@
 from omr.steps.algorithm import AlgorithmMeta, AlgorithmPredictor, AlgorithmTrainer, Type, AlgorithmTypes, Experimenter
-from ..dataset import SymbolDetectionDataset, Dataset
+from ..dataset import SymbolDetectionDataset, Dataset, SymbolDetectionDatasetTorch
 from omr.steps.step import Step
 
 
@@ -25,7 +25,7 @@ class Meta(AlgorithmMeta):
 
     @staticmethod
     def dataset_class() -> Type[Dataset]:
-        return SymbolDetectionDataset
+        return SymbolDetectionDatasetTorch
 
 
 Step.register(Meta)

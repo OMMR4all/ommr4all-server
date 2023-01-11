@@ -373,5 +373,4 @@ class Dataset(ABC):
             except (NoStaffsAvailable, NoStaffLinesAvailable):
                 pass
             except Exception as e:
-
                 logger.info("Exception during processing of page: {}".format(f.page.location.local_path()))
