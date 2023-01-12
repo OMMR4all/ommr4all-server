@@ -139,6 +139,7 @@ class PCTorchTrainer(SymbolDetectionTrainer):
                                                                               scale_max_area=999999999,
                                                                               preprocessing=Preprocessingfunction(self.settings.page_segmentation_torch_params.encoder) if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction(),
                                                                               transforms=transforms.to_dict()),
+
                                     color_map=color_map)
         network = ModelBuilderMeta(config, device=get_default_device()).get_model()
         print(get_default_device())
