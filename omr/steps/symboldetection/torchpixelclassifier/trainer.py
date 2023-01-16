@@ -100,14 +100,10 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             post_transforms=post_transforms,
         )
 
-
-
-
-
         train_data = MemoryDataset(df=train_data, transforms=transforms.get_train_transforms())
         val_data = MemoryDataset(self.validation_dataset.to_memory_dataset(callback), transforms=transforms.get_test_transforms())
-        train_loader = DataLoader(dataset=train_data, batch_size=1)
-        val_loader = DataLoader(dataset=val_data, batch_size=1)
+        train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
+        val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
 
         predfined_nw_settings = PredefinedNetworkSettings(
             architecture=self.settings.page_segmentation_torch_params.architecture,
@@ -186,13 +182,13 @@ if __name__ == '__main__':
 
 
     b = DatabaseBook('Graduel_Part_1_gt')
-    #c = DatabaseBook('Graduel_Part_2_gt')
-    #d = DatabaseBook('Graduel_Part_3_gt')
-    #e = DatabaseBook('Pa_14819_gt')
-    #f = DatabaseBook('Assisi')
-    #g = DatabaseBook('Cai_72')
+    c = DatabaseBook('Graduel_Part_2_gt')
+    d = DatabaseBook('Graduel_Part_3_gt')
+    e = DatabaseBook('Pa_14819_gt')
+    f = DatabaseBook('Assisi')
+    g = DatabaseBook('Cai_72')
 
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b])#, c, d, e, f, g])
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b, c, d, e, f, g])
     settings = AlgorithmTrainerSettings(
         DatasetParams(),
         train,
