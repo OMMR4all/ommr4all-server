@@ -45,8 +45,8 @@ def symbol_transform():
 
 
 class PageSegmentationTrainerTorchParams(NamedTuple):
-    data_augmentation: bool = False
-    augmentation = symbol_transform()
+    data_augmentation: bool = True
+    augmentation = default_transform()
     architecture: Architecture = Architecture.UNET
     encoder: str = 'efficientnet-b3'
     custom_model: bool = False
