@@ -2,43 +2,42 @@ import os
 from pathlib import Path
 
 import albumentations
+import matplotlib.pyplot as plt
 from albumentations.pytorch import ToTensorV2
-
-from omr.steps.symboldetection.torchpixelclassifier.params import remove_nones
-from segmentation.callback import ModelWriterCallback
-from segmentation.losses import Losses
-from segmentation.metrics import Metrics, MetricReduction
-from segmentation.model_builder import ModelBuilderMeta
-from segmentation.optimizer import Optimizers
-from segmentation.preprocessing.workflow import GrayToRGBTransform, ColorMapTransform, PreprocessingTransforms, \
-    NetworkEncoderTransform
-from segmentation.scripts.train import get_default_device
-from segmentation.settings import ModelConfiguration, ClassSpec, ColorMap, PredefinedNetworkSettings, \
-    CustomModelSettings, ProcessingSettings, Preprocessingfunction, NetworkTrainSettings
 from torch.utils.data import DataLoader
 
-from omr.dataset import DatasetParams
-from omr.steps.symboldetection.trainer import SymbolDetectionTrainer
+from omr.imageoperations.music_line_operations import SymbolLabel
+from omr.steps.stafflines.detection.trainer import StaffLineDetectionTrainer
+from omr.steps.symboldetection.torchpixelclassifier.params import remove_nones
+from segmentation.callback import ModelWriterCallback
+from segmentation.dataset import MemoryDataset
+from segmentation.losses import Losses
+from segmentation.metrics import Metrics
+from segmentation.model_builder import ModelBuilderMeta
+from segmentation.network import NetworkTrainer
+from segmentation.optimizer import Optimizers
+from segmentation.preprocessing.workflow import GrayToRGBTransform, ColorMapTransform, NetworkEncoderTransform, \
+    PreprocessingTransforms
+from segmentation.scripts.train import get_default_device
+from segmentation.settings import ColorMap, ClassSpec, Preprocessingfunction, PredefinedNetworkSettings, \
+    CustomModelSettings, ModelConfiguration, ProcessingSettings, NetworkTrainSettings
 
 if __name__ == '__main__':
     import django
-
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
-
-from typing import Optional
+from database.file_formats.performance.pageprogress import Locks, LockState
 from database import DatabaseBook
-
-from database.file_formats.performance.pageprogress import Locks
+import logging
+from omr.steps.stafflines.detection.dataset import DatasetParams
 from omr.steps.algorithm import TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
-from omr.imageoperations.music_line_operations import SymbolLabel
-# from ocr4all_pixel_classifier.lib.trainer import Trainer, Loss, Monitor, Architecture
-from omr.steps.symboldetection.torchpixelclassifier.meta import Meta
-from segmentation.network import Network, NetworkTrainer
-from segmentation.dataset import MemoryDataset
+from omr.steps.stafflines.detection.pixelclassifier_torch.meta import Meta
+from typing import Optional, List
+
+logger = logging.getLogger(__name__)
 
 
-class PCTorchTrainer(SymbolDetectionTrainer):
+class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
     @staticmethod
     def meta() -> Meta.__class__:
         return Meta
@@ -46,39 +45,25 @@ class PCTorchTrainer(SymbolDetectionTrainer):
     @staticmethod
     def default_params() -> AlgorithmTrainerParams:
         return AlgorithmTrainerParams(
-            n_iter=20000,
-            l_rate=1e-4,
-            display=100,
-            early_stopping_test_interval=500,
+            n_iter=2000,
+            l_rate=1e-3,
+            display=10,
             early_stopping_max_keep=10,
-            processes=1,
+            early_stopping_test_interval=200,
         )
-
-    @staticmethod
-    def default_dataset_params() -> DatasetParams:
-        return DatasetParams(
-            pad=[0, 10, 0, 40],
-            dewarp=False,
-            center=False,
-            staff_lines_only=True,
-            cut_region=False,
-        )
-
-    @staticmethod
-    def force_dataset_params(params: DatasetParams):
-        params.pad_power_of_2 = False
-        params.center = False
 
     def __init__(self, settings: AlgorithmTrainerSettings):
         super().__init__(settings)
 
     def _train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
-        # pc_callback = PCTorchTrainerCallback(callback) if callback else None
+
         if callback:
             callback.resolving_files()
 
+
         train_data = self.train_dataset.to_memory_dataset(callback)
-        color_map = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
+
+        color_map = ColorMap([ClassSpec(label=0, name="background", color=[255, 255, 255]), ClassSpec(label=1, name="line", color=[255, 0, 0])])
 
         input_transforms = albumentations.Compose(remove_nones([
             GrayToRGBTransform() if True else None,
@@ -157,11 +142,9 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         os.makedirs(os.path.dirname(self.settings.model.path), exist_ok=True)
         trainer.train_epochs(train_loader=train_loader, val_loader=val_loader, n_epoch=25, lr_schedule=None)
 
-
-if __name__ == '__main__':
-    from omr.dataset import DatasetParams
+if __name__ == "__main__":
+    from database import DatabaseBook
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
-
 
     b = DatabaseBook('Graduel_Part_1_gt')
     c = DatabaseBook('Graduel_Part_2_gt')
@@ -169,13 +152,10 @@ if __name__ == '__main__':
     e = DatabaseBook('Pa_14819_gt')
     f = DatabaseBook('Assisi')
     g = DatabaseBook('Cai_72')
-
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b, c, d, e, f, g])
-    settings = AlgorithmTrainerSettings(
-        DatasetParams(),
-        train,
-        val,
-
-    )
-    trainer = PCTorchTrainer(settings)
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b,c,d,e,f,g])
+    trainer = BasicStaffLinesTrainerTorch(AlgorithmTrainerSettings(
+        dataset_params=DatasetParams(),
+        train_data=train,
+        validation_data=val,
+    ))
     trainer.train(b)
