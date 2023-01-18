@@ -6,6 +6,7 @@ class AlgorithmTypes(Enum):
     PREPROCESSING = "preprocessing"
 
     STAFF_LINES_PC = "staff_lines_pc"
+    STAFF_LINES_PC_Torch = "staff_lines_pc_torch"
 
     LAYOUT_SIMPLE_BOUNDING_BOXES = "layout_simple_bounding_boxes"
     LAYOUT_SIMPLE_LYRICS = "layout_simple_lyrics"

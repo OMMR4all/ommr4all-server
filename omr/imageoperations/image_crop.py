@@ -58,7 +58,7 @@ def calculate_padding(image: np.ndarray, scaling_factor: int) -> Tuple[Tuple[int
     def scale(i: int, f: int) -> int:
         return (f - i % f) % f
 
-    x, y = image.shape
+    x, y = image.shape[:2]
     px = scale(x, scaling_factor)
     py = scale(y, scaling_factor)
 
@@ -73,7 +73,7 @@ class ImagePadToPowerOf2(ImageOperation):
 
     def apply_single(self, data: ImageOperationData) -> OperationOutput:
         assert(all([i.image.dtype == np.uint8 for i in data.images]))
-        x, y = data.images[0].image.shape
+        x, y = data.images[0].image.shape[:2]
         for d in data:
             assert(tuple(d.image.shape[0:2]) == (x, y))
 

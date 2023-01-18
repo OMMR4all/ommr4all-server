@@ -63,8 +63,8 @@ class ImageExtractStaffLineImages(ImageOperation):
 
     def apply_single(self, data: ImageOperationData):
         image = data.images[0].image
-        marked_regions = np.zeros(image.shape, dtype=np.uint8)
-        marked_staff_lines = np.zeros(image.shape, dtype=np.uint8)
+        marked_regions = np.zeros(image.shape[:2], dtype=np.uint8)
+        marked_staff_lines = np.zeros(image.shape[:2], dtype=np.uint8)
         page = data.page
 
         def scale(p):

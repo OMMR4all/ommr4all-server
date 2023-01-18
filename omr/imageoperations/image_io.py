@@ -21,7 +21,6 @@ class ImageLoadFromPageOperation(ImageOperation):
             img = Image.open(book_page.file(file, create_if_not_existing=True).local_path())
             if self.invert:
                 img = PIL.ImageOps.invert(img)
-
             d.images.append(ImageData(np.array(img), nn_rescale))
         d.params = None
         return [d]
