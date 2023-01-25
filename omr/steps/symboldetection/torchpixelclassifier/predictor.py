@@ -54,6 +54,7 @@ class PCTorchPredictor(SymbolsPredictor):
             mask, image, data = row['masks'], row['images'], row['original']
             source_image = SourceImage.from_numpy(image)
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(source_image)
+
             # output.generated_mask.show()
             # output = self.predictor.predict_single_image(image=image)
             labels = np.argmax(output.prediction_result.probability_map, axis=-1)

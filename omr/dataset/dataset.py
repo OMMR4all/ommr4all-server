@@ -25,6 +25,8 @@ from enum import Enum
 
 import json
 
+from omr.imageoperations.music_line_operations import SymbolLabel
+from segmentation.settings import ColorMap, ClassSpec
 
 logger = logging.getLogger(__name__)
 
@@ -185,9 +187,11 @@ class Dataset(ABC):
             data = []
             # import matplotlib.pyplot as plt
             # cmap = plt.get_cmap('Set1')
+            color_map = ColorMap(
+                [ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
 
             for ind, x in enumerate(self.load(callback)):
-                # from PIL import Image
+                from PIL import Image
                 # rgba_img = cmap(x.mask)
                 # rgb_img = np.delete(rgba_img, 3, 2)*255
                 # rgb_img = rgb_img.astype(np.uint8)
@@ -196,6 +200,15 @@ class Dataset(ABC):
                 # overlay.save(str(ind)+"overlay.png")
                 # new_image = Image.blend(backgorund, overlay, 0.5)
                 # new_image.save(str(ind)+".png")
+                #import uuid
+                #uuid4 = uuid.uuid4()
+                #i1 = Image.fromarray(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
+                #i = NewImageReconstructor.label_to_colors(x.mask, color_map)
+                #i2 = Image.fromarray(i)
+                #i1.save(f"/tmp/symbols/{str(uuid4)}.png")
+
+                #i2.save(f"/tmp/symbols/{str(uuid4)}_mask.png")
+
                 images.append(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
                 masks.append(x.mask)
                 data.append(x)
