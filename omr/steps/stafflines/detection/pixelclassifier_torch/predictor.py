@@ -19,7 +19,7 @@ import os
 import logging
 from typing import List, Optional, NamedTuple
 from omr.steps.stafflines.detection.dataset import PCDataset, PCDatasetTorch
-from omr.steps.stafflines.detection.pixelclassifier.meta import Meta, AlgorithmMeta
+from omr.steps.stafflines.detection.pixelclassifier_torch.meta import Meta, AlgorithmMeta
 from linesegmentation.detection.callback import LineDetectionCallback
 from linesegmentation.detection.settings import PostProcess
 from omr.steps.algorithm import AlgorithmPredictor, AlgorithmPredictorSettings
@@ -55,10 +55,9 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
         super().__init__(settings)
 
         params = StaffLinePredictorParameters()
-        #modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(settings.model.local_file('best.torch')),
-        #                                          device=get_default_device())
-        modelbuilder = ModelBuilderLoad.from_disk(model_weights="/home/alexander/PycharmProjects/ommr4all/ommr4all-deploy/modules/ommr4all-server/storage/Graduel_Part_1_gt/models/staff_lines_pc_torch/2023-01-18T10:56:17/best.torch",
+        modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(settings.model.local_file('best.torch')),
                                                   device=get_default_device())
+
         base_model = modelbuilder.get_model()
         config = modelbuilder.get_model_configuration()
         preprocessing_settings = modelbuilder.get_model_configuration().preprocessing_settings
@@ -72,11 +71,10 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
             line_interpolation=True,
             line_space_height=self.dataset_params.origin_staff_line_distance,
             target_line_space_height=self.dataset_params.target_staff_line_distance,
-            model=os.path.join(settings.model.local_file('model.h5')),
             post_process=params.post_processing,
             best_fit_scale=params.best_fit_scale,
-            debug=False,
-            debug_model=False,
+            debug=True,
+            debug_model=True,
         )
         self.line_detection = LineDetection(self.settings)
 
@@ -87,18 +85,12 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
 
         for i in dataset:
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(SourceImage.from_numpy(i.line_image))
-            output.generated_mask.show()
-        return
+            from scipy.special import softmax
+            prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
+            r = self.line_detection.detect_prob_map(output.prediction_result.source_image.get_grayscale_array(), prob_map_softmax)
 
-        gray_images = [(255 - data.line_image).astype(np.uint8) for data in dataset]
-        #if callback:
-        #    # TODO: Line detection callback of line-detection not as class member variable
-        #    self.line_detection.callback = PCPredictionCallback(callback)
-        predictions = self.line_detection.detect(gray_images)
-        for i, (data, r) in enumerate(zip(dataset, predictions)):
-            rlmd: RegionLineMaskData = data
+            rlmd: RegionLineMaskData = i
             page: Page = rlmd.operation.page
-            logger.debug("Predicted {}/{}. File {}".format(i + 1, len(dataset), rlmd.operation.page.location.local_path()))
             if len(r) == 0:
                 logger.warning('No staff lines detected.')
                 yield PredictionResult([], [], rlmd)
