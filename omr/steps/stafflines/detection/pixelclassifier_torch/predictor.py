@@ -73,8 +73,8 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
             target_line_space_height=self.dataset_params.target_staff_line_distance,
             post_process=params.post_processing,
             best_fit_scale=params.best_fit_scale,
-            debug=True,
-            debug_model=True,
+            debug=False,
+            debug_model=False,
         )
         self.line_detection = LineDetection(self.settings)
 
