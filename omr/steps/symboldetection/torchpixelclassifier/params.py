@@ -1,13 +1,17 @@
 from typing import NamedTuple
 
 import albumentations
+import cv2
+from albumentations import RandomScale, RandomGamma, RandomBrightnessContrast, OneOf, ToGray, CLAHE, Compose, Affine, \
+    ShiftScaleRotate
+from segmentation.dataset import compose
 
 from segmentation.modules import Architecture
-from segmentation.dataset import compose
 import albumentations as albu
 
 from segmentation.preprocessing.workflow import BinarizeDoxapy
 from segmentation.settings import PredefinedNetworkSettings, CustomModelSettings
+
 
 
 def remove_nones(x):
@@ -15,22 +19,14 @@ def remove_nones(x):
 
 
 def default_transform():
-    result = albumentations.Compose([
-        albumentations.RandomScale(),
+    result = Compose([
+        #RandomScale(),
+        ShiftScaleRotate(rotate_limit=2, scale_limit=(-0.1, 0.1), shift_limit_x=0.2, shift_limit_y=0.2, border_mode=cv2.BORDER_CONSTANT, value=0, mask_value=0),
+        Affine(shear=2, cval=0, cval_mask=0),
         #albumentations.HorizontalFlip(p=0.25),
-        albumentations.RandomGamma(),
-        albumentations.RandomBrightnessContrast(),
-        albumentations.OneOf([
-            albumentations.OneOf([
-                BinarizeDoxapy("sauvola"),
-                BinarizeDoxapy("ocropus"),
-                BinarizeDoxapy("isauvola"),
-            ]),
-            albumentations.OneOf([
-                albumentations.ToGray(),
-                albumentations.CLAHE()
-            ])
-        ], p=0.3)
+        RandomGamma(),
+        RandomBrightnessContrast(),
+
     ])
     return result
 def symbol_transform():
@@ -51,8 +47,8 @@ class PageSegmentationTrainerTorchParams(NamedTuple):
     encoder: str = 'efficientnet-b3'
     custom_model: bool = False
     predefined_encoder_depth = PredefinedNetworkSettings.encoder_depth
-    predefined_decoder_channel = PredefinedNetworkSettings.decoder_channel
-
+    predefined_decoder_channel = PredefinedNetworkSettings.decoder_channel #(256, 256, 196, 128, 64) #(256, 128, 64, 32, 16) #(256, 256, 196, 128, 64)
+    use_batch_norm_layer = True
     custom_model_encoder_filter = [16, 32, 64, 256, 512]
     custom_model_decoder_filter = [16, 32, 64, 256, 512]
     custom_model_encoder_depth = CustomModelSettings.encoder_depth
