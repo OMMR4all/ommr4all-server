@@ -186,6 +186,7 @@ class Predictor(AlgorithmPredictor):
                     def correct_line_splits(aligned_text: str, orig_text: str):
                         orig_word = orig_text.split(" ")
                         lines = aligned_text.split("\n")
+                        lines = [i.strip() for i in lines if len(i.strip()) > 0]
                         stop_while = False
                         while not stop_while:
                             for line_ind in range(len(lines)):
@@ -195,8 +196,8 @@ class Predictor(AlgorithmPredictor):
                                 if line_ind + 1 < len(lines) - 1:
                                     words_l2 = lines[line_ind + 1].lstrip(" ").rstrip(" ").split(" ")
                                     if last_word + words_l2[0] in orig_word:
-                                        hyphenated_word = hyphen.apply_to_sentence(last_word + words_l2[0]).split("-")
-                                        if words_l2[0] == hyphenated_word[-1]:
+                                        hyphenated_word = hyphen.apply_to_word(last_word + words_l2[0]).split("-")
+                                        if words_l2[0] == hyphenated_word[-1] or words_l2[0] == '':
                                             pass
                                         else:
                                             lines[line_ind] = lines[line_ind][:-len(last_word)] + last_word + words_l2[0]
