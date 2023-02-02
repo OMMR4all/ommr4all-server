@@ -5,7 +5,7 @@ from types import MappingProxyType
 
 import pandas as pd
 
-#from tfaip import PipelineMode
+# from tfaip import PipelineMode
 
 from database.file_formats.pcgts import PcGts, Line, PageScaleReference, Point, BlockType
 import numpy as np
@@ -18,7 +18,7 @@ from omr.dataset.datastructs import CalamariCodec
 from omr.imageoperations import ImageOperationList, ImageOperationData
 from omr.dewarping.dummy_dewarper import NoStaffLinesAvailable, NoStaffsAvailable
 from dataclasses import dataclass, field
-#from mashumaro import DataClassJSONMixin
+# from mashumaro import DataClassJSONMixin
 from mashumaro.mixins.json import DataClassJSONMixin
 
 from enum import Enum
@@ -119,7 +119,8 @@ class DatasetParams(DataClassJSONMixin):
 
     # text
     lyrics_normalization: LyricsNormalizationParams = field(default_factory=lambda: LyricsNormalizationParams())
-    text_types: List[BlockType] = field(default_factory=lambda:  [BlockType.LYRICS, BlockType.DROP_CAPITAL, BlockType.PARAGRAPH])#= #["lyrics", "dropCapital"]
+    text_types: List[BlockType] = field(default_factory=lambda: [BlockType.LYRICS, BlockType.DROP_CAPITAL,
+                                                                 BlockType.PARAGRAPH])  # = #["lyrics", "dropCapital"]
 
     # symbol detection
     height: int = 80
@@ -127,7 +128,8 @@ class DatasetParams(DataClassJSONMixin):
     cut_region: bool = False
     center: bool = True
     staff_lines_only: bool = True
-    keep_graphical_connection: Optional[List[bool]] = None # [ns, gapped, looped] all note graphical connection are merged to gapped type if true
+    keep_graphical_connection: Optional[
+        List[bool]] = None  # [ns, gapped, looped] all note graphical connection are merged to gapped type if true
     masks_as_input: bool = False
     apply_fcn_pad_power_of_2: int = 3
     apply_fcn_model: Optional[str] = None
@@ -180,15 +182,15 @@ class Dataset(ABC):
     def to_line_detection_dataset(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:
         return self.load(callback)
 
-    def to_memory_dataset(self, callback: Optional[DatasetCallback] = None):
+    def to_memory_dataset(self, callback: Optional[DatasetCallback] = None, same_dim=False):
         if self.params.origin_staff_line_distance == self.params.target_staff_line_distance:
             images = []
             masks = []
             data = []
             # import matplotlib.pyplot as plt
             # cmap = plt.get_cmap('Set1')
-            color_map = ColorMap(
-                [ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
+            # color_map = ColorMap(
+            #    [ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
 
             for ind, x in enumerate(self.load(callback)):
                 from PIL import Image
@@ -200,23 +202,63 @@ class Dataset(ABC):
                 # overlay.save(str(ind)+"overlay.png")
                 # new_image = Image.blend(backgorund, overlay, 0.5)
                 # new_image.save(str(ind)+".png")
-                #import uuid
-                #uuid4 = uuid.uuid4()
-                #i1 = Image.fromarray(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
-                #i = NewImageReconstructor.label_to_colors(x.mask, color_map)
-                #i2 = Image.fromarray(i)
-                #i1.save(f"/tmp/symbols/{str(uuid4)}.png")
+                # import uuid
+                # uuid4 = uuid.uuid4()
+                # i1 = Image.fromarray(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
+                # i = NewImageReconstructor.label_to_colors(x.mask, color_map)
+                # i2 = Image.fromarray(i)
+                # i1.save(f"/tmp/symbols/{str(uuid4)}.png")
 
-                #i2.save(f"/tmp/symbols/{str(uuid4)}_mask.png")
+                # i2.save(f"/tmp/symbols/{str(uuid4)}_mask.png")
+                from matplotlib import pyplot as plt
+                # plt.imshow(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
+                # plt.show()
+                # f, ax = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True)
+                ##ax[0].imshow(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
+                # ax[1].imshow(x.mask)
+                # plt.show()
 
                 images.append(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
                 masks.append(x.mask)
                 data.append(x)
+            if same_dim:
+                images_s = []
+                mask_s = []
+                max_width = 0
+                max_height = 0
+                dim = 0
+                for i in images:
+                    width, height = 0, 0
+                    if len(i.shape) == 3:
+                        height, width, dim = i.shape
+                    else:
+                        height, width = i.shape
+                    if width > max_width:
+                        max_width = width
+                    if height > max_height:
+                        max_height = height
+                for i in images:
+                    h, w = i.shape[:2]
+                    dif = max_width - w
+                    if dim > 0:
+                        i = np.pad(i, ((0, 0), (0, dif), (0, 0)), 'constant', constant_values=255)
+                    else:
+                        i = np.pad(i, ((0, 0), (0, dif)), 'constant', constant_values=255)
+                    images_s.append(i)
+                for i in masks:
+                    h, w = i.shape[:2]
+                    dif = max_width - w
+                    i = np.pad(i, ((0, 0), (0, dif)), 'constant', constant_values=0)
+                    mask_s.append(i)
+                images = images_s
+                masks = mask_s
+
             df = pd.DataFrame(data={'images': images, 'masks': masks, 'original': data})
             return df
         else:
             raise NotImplementedError()
             pass
+
     def to_drop_capital_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         from omr.steps.layout.drop_capitals.torch_dataset import DropCapitalDataset
         d = self.load(callback)
@@ -230,13 +272,14 @@ class Dataset(ABC):
             if not train:
                 additional_data.append(instance)
             #        from matplotlib import pyplot as plt
-            #f, axarr = plt.subplots(2, 1)
-            #axarr[0].imshow(instance.operation.images[0].image)
-            #axarr[1].imshow(instance.operation.images[1].image)
+            # f, axarr = plt.subplots(2, 1)
+            # axarr[0].imshow(instance.operation.images[0].image)
+            # axarr[1].imshow(instance.operation.images[1].image)
 
-            #plt.show()
+            # plt.show()
 
         return DropCapitalDataset(imgs=images, masks=masks, additional_data=additional_data)
+
     def to_calamari_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         from calamari_ocr.ocr.datasets.dataset import RawDataSet, DataSetMode
         marked_symbols = self.load(callback)
@@ -265,6 +308,7 @@ class Dataset(ABC):
         from omr.steps.text.calamari.calamari_interface import RawData
 
         lines = self.load(callback)
+
         def get_input_image(d: RegionLineMaskData):
             if self.params.cut_region:
                 return d.line_image
@@ -280,15 +324,15 @@ class Dataset(ABC):
 
         images = [255 - get_input_image(d).astype(np.uint8) for d in lines]
         gts = [extract_text(d) for d in lines]
-        #print(gts)
-        #import uuid
-        #uuid = str(uuid.uuid4()) + "_"
-        #path = "/tmp/images/"
-        #if not os.path.exists(path):
+        # print(gts)
+        # import uuid
+        # uuid = str(uuid.uuid4()) + "_"
+        # path = "/tmp/images/"
+        # if not os.path.exists(path):
         #    os.mkdir(path)
-        #from PIL import Image
-        #import csv
-        #with open(os.path.join(path, "labels.csv"), 'w', newline='') as csvfile:
+        # from PIL import Image
+        # import csv
+        # with open(os.path.join(path, "labels.csv"), 'w', newline='') as csvfile:
         #    fieldnames = ['filename', 'words']
         #    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         #    writer.writeheader()
@@ -297,8 +341,8 @@ class Dataset(ABC):
         #            f.write(t)
         #        Image.fromarray(i).save(os.path.join(path, uuid + str(ind) + ".png"))
         #        writer.writerow({'filename': uuid+ str(ind) + ".png", 'words': t})
-        #print("123")
-        #exit()
+        # print("123")
+        # exit()
         return RawData(images=images, gt_files=gts)
 
     def to_nautilus_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
@@ -317,7 +361,7 @@ class Dataset(ABC):
 
         images = [get_input_image(d).astype(np.uint8) for d in marked_symbols]
         from PIL import Image
-        #for ind, i in enumerate(images):
+        # for ind, i in enumerate(images):
         #    Image.fromarray(i).save("/tmp/images/image_" + str(ind) + ".png")
         if self.params.neume_types_only:
             gts = [d.calamari_sequence(self.params.calamari_codec).calamari_neume_types_str for d in marked_symbols]
@@ -349,6 +393,7 @@ class Dataset(ABC):
 
     def to_text_line_nautilus_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         lines = self.load(callback)
+
         def get_input_image(d: RegionLineMaskData):
             if self.params.cut_region:
                 return d.line_image
@@ -366,6 +411,7 @@ class Dataset(ABC):
         gts = [extract_text(d) for d in lines]
 
         return (images, gts)
+
     def load(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:
         if self.loaded is None:
             self.loaded = list(self._load(callback))
