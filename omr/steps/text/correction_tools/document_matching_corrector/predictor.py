@@ -35,16 +35,20 @@ def grouper(iterable, n, fillvalue=None):
 class ResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__class__):
     pass
 
+
 class SingleDocumentResult(NamedTuple, AlgorithmPredictionResult, metaclass=ResultMeta):
     matched_document: str
     page_id: str
     document_id: str
     document: Document
     book: DatabaseBook
+
     def to_dict(self):
         return {'similarText': self.matched_document,
                 "page_id": self.page_id,
                 "document_id": self.document_id}
+
+
 class Result(NamedTuple, AlgorithmPredictionResult, metaclass=ResultMeta):
     documents: List[SingleDocumentResult]
 
@@ -61,7 +65,7 @@ class Result(NamedTuple, AlgorithmPredictionResult, metaclass=ResultMeta):
                     line.sentence = Sentence.from_string(matched_lines[line_ind])
                     page.pcgts().page.annotations.connections.clear()
                     page.pcgts().to_file(page.file('pcgts').local_path())
-                #self.pcgts.to_file(self.dataset_page.file('pcgts').local_path())
+                # self.pcgts.to_file(self.dataset_page.file('pcgts').local_path())
 
 
 class Predictor(AlgorithmPredictor):
@@ -86,10 +90,11 @@ class Predictor(AlgorithmPredictor):
         documents = DatabaseBookDocuments().load(book)
         single_document_result = []
         all_docs: List[Document] = []
-        #if self.database_hyphen_dictionary is None:
+        # if self.database_hyphen_dictionary is None:
         #    db = DatabaseDictionary.load(book=book)
         #    self.database_hyphen_dictionary = db.to_hyphen_dict()
-        hyphen = Pyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1, right=1) #dictionary=self.database_hyphen_dictionary)
+        hyphen = Pyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1,
+                            right=1)  # dictionary=self.database_hyphen_dictionary)
 
         if self.document_id is not None:
             document: Document = documents.database_documents.get_document_by_id(self.document_id)
@@ -117,10 +122,12 @@ class Predictor(AlgorithmPredictor):
                     lowest_ed = 0
                     lowest_text = text2
 
-            #print((len(lowest_text.replace(" ", "")) - lowest_ed) / len(lowest_text.replace(" ", "")))
+            # print((len(lowest_text.replace(" ", "")) - lowest_ed) / len(lowest_text.replace(" ", "")))
             text_list = document.get_text_list_of_line_document(book)
+            # text_whitespaces = [ind for ind, i in enumerate(text) if i == " "]
             text = text.replace(" ", "")
             for i in [lowest_text]:
+                orig_text = i
                 if len(i) == 0:
                     single_document_result.append(SingleDocumentResult(matched_document="",
                                                                        page_id=document.start.page_id,
@@ -137,12 +144,19 @@ class Predictor(AlgorithmPredictor):
                 if len(i) - locations[1] <= max(5, math.ceil(0.1 * len(i))):
                     ed = edlib.align(text, i, mode="NW", task="path")
                 else:
+                    def get_nearest_higher_number(ind: int, w_array: List[int]):
+                        for i in w_array:
+                            if i > ind:
+                                return i
+                        return ind
+
                     locations = ed["locations"][0]
-                    i = i[locations[0]:locations[1]]
+                    end_location = get_nearest_higher_number(locations[1], whitespaces)
+                    i = i[locations[0]:end_location + 1]
                     ed = edlib.align(text, i, mode="NW", task="path")
                 cigar = ed["cigar"]
                 if i != "":
-                    try :
+                    try:
                         a = edlib.getNiceAlignment(ed, text, i)
                     except Exception as e:
                         print(ed)
@@ -168,15 +182,43 @@ class Predictor(AlgorithmPredictor):
                         else:
                             aligned_text = aligned_text[:-1].rstrip("\n") + aligned_text[-1:] + "\n"
                     aligned_text_elements = []
+
+                    def correct_line_splits(aligned_text: str, orig_text: str):
+                        orig_word = orig_text.split(" ")
+                        lines = aligned_text.split("\n")
+                        stop_while = False
+                        while not stop_while:
+                            for line_ind in range(len(lines)):
+                                line = lines[line_ind]
+                                words_l1 = line.lstrip(" ").rstrip(" ").split(" ")
+                                last_word = words_l1[-1]
+                                if line_ind + 1 < len(lines) - 1:
+                                    words_l2 = lines[line_ind + 1].lstrip(" ").rstrip(" ").split(" ")
+                                    if last_word + words_l2[0] in orig_word:
+                                        hyphenated_word = hyphen.apply_to_sentence(last_word + words_l2[0]).split("-")
+                                        if words_l2[0] == hyphenated_word[-1]:
+                                            pass
+                                        else:
+                                            lines[line_ind] = lines[line_ind][:-len(last_word)] + last_word + words_l2[0]
+                                            lines[line_ind + 1] = lines[line_ind + 1][len(words_l2[0]):] #.replace(words_l2[0], "")
+                                            break
+                                else:
+                                    stop_while = True
+                                    break
+                        lines = [i.strip() for i in lines if len(i) > 0]
+                        a_text = "\n".join(lines)
+                        return a_text
+                    aligned_text = correct_line_splits(aligned_text, orig_text)
                     for i in aligned_text.split("\n"):
                         i = hyphen.apply_to_sentence(i)
                         aligned_text_elements.append(i)
                     aligned_text = "\n".join(aligned_text_elements)
+
                     single_document_result.append(SingleDocumentResult(matched_document=aligned_text,
                                                                        page_id=document.start.page_id,
                                                                        document_id=document.doc_id,
                                                                        document=document,
-                                                                       book=book)) #.append(aligned_text)
+                                                                       book=book))  # .append(aligned_text)
 
             percentage = (ind_doc) / len(all_docs)
             if callback:

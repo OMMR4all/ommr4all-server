@@ -38,3 +38,4 @@ edlib
 -e git+https://github.com/Gawajn/nautilus.git#egg=nautilus-ocr
 beautifulsoup4
 loguru
+-e git+https://github.com/Gawajn/segmentation-pytorch.git#egg=pixel_classifier_torch
