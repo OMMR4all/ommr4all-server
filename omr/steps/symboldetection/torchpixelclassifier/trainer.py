@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 
 import albumentations
+import torch
+from albumentations import Compose
 from albumentations.pytorch import ToTensorV2
 
 from omr.steps.symboldetection.torchpixelclassifier.params import remove_nones
@@ -37,6 +39,8 @@ from omr.steps.symboldetection.torchpixelclassifier.meta import Meta
 from segmentation.network import Network, NetworkTrainer
 from segmentation.dataset import MemoryDataset
 
+from torch.nn.utils.rnn import pad_sequence
+
 
 class PCTorchTrainer(SymbolDetectionTrainer):
     @staticmethod
@@ -67,7 +71,7 @@ class PCTorchTrainer(SymbolDetectionTrainer):
     @staticmethod
     def force_dataset_params(params: DatasetParams):
         params.pad_power_of_2 = False
-        params.center = False
+        params.center = True
 
     def __init__(self, settings: AlgorithmTrainerSettings):
         super().__init__(settings)
@@ -77,10 +81,9 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         if callback:
             callback.resolving_files()
 
-        train_data = self.train_dataset.to_memory_dataset(callback)
+        train_data = self.train_dataset.to_memory_dataset(callback, same_dim=False)
         color_map = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
-
-        input_transforms = albumentations.Compose(remove_nones([
+        input_transforms = Compose(remove_nones([
             GrayToRGBTransform() if True else None,
             ColorMapTransform(color_map=color_map.to_albumentation_color_map())
 
@@ -88,9 +91,9 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         aug_transforms = self.settings.page_segmentation_torch_params.augmentation \
             if self.settings.page_segmentation_torch_params.data_augmentation else None
         tta_transforms = None
-        post_transforms = albumentations.Compose(remove_nones([
-            NetworkEncoderTransform(
-            self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name),
+        post_transforms = Compose(remove_nones([
+            NetworkEncoderTransform(Preprocessingfunction.name),
+            #self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name),
             ToTensorV2()
         ]))
         transforms = PreprocessingTransforms(
@@ -110,7 +113,8 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             encoder=self.settings.page_segmentation_torch_params.encoder,
             classes=len(SymbolLabel),
             encoder_depth=self.settings.page_segmentation_torch_params.predefined_encoder_depth,
-            decoder_channel=self.settings.page_segmentation_torch_params.predefined_decoder_channel)
+            decoder_channel=self.settings.page_segmentation_torch_params.predefined_decoder_channel,
+            use_batch_norm_layer=self.settings.page_segmentation_torch_params.use_batch_norm_layer)
         custom_nw_settings = CustomModelSettings(
             encoder_filter=self.settings.page_segmentation_torch_params.custom_model_encoder_filter,
             decoder_filter=self.settings.page_segmentation_torch_params.custom_model_encoder_filter,
@@ -170,7 +174,7 @@ if __name__ == '__main__':
     f = DatabaseBook('Assisi')
     g = DatabaseBook('Cai_72')
 
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b, c, d, e, f, g])
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.SYMBOLS, True)], datasets=[b, c, d, e, f, g])
     settings = AlgorithmTrainerSettings(
         DatasetParams(),
         train,
