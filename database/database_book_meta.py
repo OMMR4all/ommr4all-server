@@ -70,7 +70,7 @@ class DatabaseBookMeta(DataClassJSONMixin):
 
     def to_file(self, book: DatabaseBook):
         self.id = book.book
-        s = self.to_json(indent=2)
+        s = self.to_json()
         with open(book.local_path('book_meta.json'), 'w') as f:
             f.write(s)
 
