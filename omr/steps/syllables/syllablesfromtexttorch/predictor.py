@@ -44,11 +44,11 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
 
         for i, r in enumerate(self.ocr_predictor.predict(pages, callback=callback)):
             ocr_r: TextPredictionResult = r
-            try:
-                match_r = [self.match_text(text_line_r) for text_line_r in ocr_r.text_lines if len(text_line_r.line.operation.text_line.sentence.syllables) > 0]
-            except Exception as e:
-                print(e)
-                match_r = []
+            #try:
+            match_r = [self.match_text(text_line_r) for text_line_r in ocr_r.text_lines if len(text_line_r.line.operation.text_line.sentence.syllables) > 0]
+            #except Exception as e:
+               # print(e)
+               # match_r = []
             percentage = (i + 1) / len(pages)
             if callback:
                 callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len(pages))
@@ -68,6 +68,8 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
 
         pred = [(t, pos) for t, pos in r.text if t not in ' -']
         syls = r.line.operation.text_line.sentence.syllables
+        #print(pred)
+        #print([i.text for i in syls])
         assert(len(syls) > 0)
 
         # remove all "noisy" chars: ligatures/whitespace, ... for better match results
@@ -128,10 +130,13 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
             out_matches.append({'s': syl, 'x': x})
             pos += len(syl.text)
 
-
+        if len(pred) > 0:
         # interpolate syllables without any match
-        ix = np.array([(i, match['x']) for i, match in enumerate(out_matches) if match['x'] >= 0])
-        x_pos = np.interp(range(len(out_matches)), ix[:, 0], ix[:, 1])
+            ix = np.array([(i, match['x']) for i, match in enumerate(out_matches) if match['x'] >= 0])
+            x_pos = np.interp(range(len(out_matches)), ix[:, 0], ix[:, 1])
+        else:
+            x_pos = np.linspace(0, 1, len(out_matches), endpoint=False)
+
         for m, x in zip(out_matches, x_pos):
             print(f'Text: {m["s"].text}, Pos: {str(x)}, Pos2: {str(m["x"])}' )
         return MatchResult(
