@@ -4,7 +4,7 @@ from database import DatabaseBook
 import numpy as np
 
 from omr.imageoperations import ImageExtractDewarpedStaffLineImages, ImageOperationList, ImageLoadFromPageOperation, \
-     ImageRescaleToHeightOperation, ImagePadToPowerOf2, ImageDrawRegions, ImageApplyFCN
+     ImageRescaleToHeightOperation, ImagePadToPowerOf2, ImageDrawRegions#, ImageApplyFCN
 
 from omr.dataset import DatasetParams, Dataset, ImageInput
 
@@ -27,7 +27,7 @@ class SymbolDetectionDataset(Dataset):
             operations += [
                 ImageRescaleToHeightOperation(height=params.apply_fcn_height if params.apply_fcn_height else params.height),
                 ImagePadToPowerOf2(params.apply_fcn_pad_power_of_2),
-                ImageApplyFCN(params.apply_fcn_model),
+                #ImageApplyFCN(params.apply_fcn_model),
             ]
 
         operations += [
@@ -50,8 +50,8 @@ class SymbolDetectionDatasetTorch(Dataset):
         params.page_scale_reference = PageScaleReference.NORMALIZED_X2
 
         operations = [
-            ImageLoadFromPageOperation(invert=False, files=[('color_norm_x2', False)]),
-            #ImageDrawRegions(block_types=[BlockType.DROP_CAPITAL] if params.cut_region else [], color=0),
+            ImageLoadFromPageOperation(invert=True, files=[('gray_norm_x2', False)]),
+            ImageDrawRegions(block_types=[BlockType.DROP_CAPITAL] if params.cut_region else [], color=0),
             ImageExtractDewarpedStaffLineImages(params.dewarp, params.cut_region, params.pad, params.center, params.staff_lines_only, params.keep_graphical_connection),
         ]
 
@@ -60,8 +60,8 @@ class SymbolDetectionDatasetTorch(Dataset):
             ImageRescaleToHeightOperation(height=params.height),
         ]
 
-        #if params.pad_power_of_2:
-        #    operations.append(ImagePadToPowerOf2(params.pad_power_of_2))
+        if params.pad_power_of_2:
+            operations.append(ImagePadToPowerOf2(params.pad_power_of_2))
 
         return ImageOperationList(operations)
 

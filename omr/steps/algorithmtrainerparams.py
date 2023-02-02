@@ -1,7 +1,7 @@
 from database.file_formats.pcgts import PcGts
 from typing import List, Optional
 from omr.dataset import DatasetParams
-from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
+#from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 from database.model import Model
 from dataclasses import dataclass
@@ -46,7 +46,7 @@ class AlgorithmTrainerSettings:
     validation_data: List[PcGts]
     model: Optional[Model] = None
     params: Optional[AlgorithmTrainerParams] = None
-    page_segmentation_params: PageSegmentationTrainerParams = PageSegmentationTrainerParams()
+    #page_segmentation_params: PageSegmentationTrainerParams = PageSegmentationTrainerParams()
     page_segmentation_torch_params: PageSegmentationTrainerTorchParams = PageSegmentationTrainerTorchParams()
     calamari_params: CalamariParams = CalamariParams()
 
