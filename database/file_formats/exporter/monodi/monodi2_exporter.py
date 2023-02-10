@@ -6,6 +6,7 @@ from enum import Enum
 import numpy as np
 
 from database.file_formats.book.document import Document
+from database.file_formats.pcgts import Page
 
 
 class NoteType(Enum):
@@ -436,6 +437,24 @@ class PcgtsToMonodiConverter:
             page = p.page
 
             elements.sort(key=lambda r: np.mean([line.coords.aabb().center.y for line in r.lines]))
+            def elements_sort_music_blocks_by_reading_order(elements: List[ns_pcgts.Block], page_: Page):
+                sorted = []
+                rest = []
+                r_or = page_.reading_order.reading_order
+                m_ids = []
+                for i in r_or:
+                    ml = page_.closest_music_line_to_text_line(i)
+                    if ml.id not in m_ids:
+                        for block in elements:
+                            for bl in block.lines:
+                                if bl.id == ml.id:
+                                    sorted.append(block)
+                                    break
+
+                        m_ids.append(ml.id)
+
+                return sorted + rest
+            elements = elements_sort_music_blocks_by_reading_order(elements, page)
             for element in elements:
                 self.current_line_container = None
 
