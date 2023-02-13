@@ -10,7 +10,7 @@ from segmentation.preprocessing.source_image import SourceImage
 
 from database.file_formats.pcgts import *
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset, SymbolDetectionDatasetTorch
-from omr.dataset import RegionLineMaskData
+from omr.dataset import RegionLineMaskData, DatasetParams
 from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorSettings
 import cv2
 import numpy as np
@@ -33,40 +33,55 @@ class PCTorchPredictor(SymbolsPredictor):
         super().__init__(settings)
         import torch
         use_cuda = torch.cuda.is_available()
-
-        # print(os.environ['CUDA_VISIBLE_DEVICES'])
-        modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(settings.model.local_file('best.torch')),
+        path = os.path.join(settings.model.path)
+        modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(path, 'best.torch'),
                                                   device=get_default_device())
+        #model_path = "/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/modules/ommr4all-server/storage/Graduel_Part_1_gt/models/symbols_pc_torch/2023-02-02T14:01:14/"
+        #modelbuilder = ModelBuilderLoad.from_disk(model_weights= model_path + 'best.torch',
+        #                                          device=get_default_device())
+        with open(os.path.join(path + 'dataset_params.json', 'r')) as f:
+            self.dataset_params = DatasetParams.from_json(f.read())
+
         base_model = modelbuilder.get_model()
         config = modelbuilder.get_model_configuration()
         preprocessing_settings = modelbuilder.get_model_configuration().preprocessing_settings
         self.predictor = EnsemblePredictor([base_model], [preprocessing_settings])
         self.nmaskpredictor = NetworkMaskPostProcessor(self.predictor, config.color_map)
         self.look_up = SymbolSequenceConfidenceLookUp(SequenceSetting.NOTE_3GRAM)
+        #print(self.dataset_params.to_json())
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[
         SingleLinePredictionResult, None, None]:
         dataset = SymbolDetectionDatasetTorch(pcgts_files, self.dataset_params)
         df = dataset.to_memory_dataset()
         clefs = []
-
         for index, row in df.iterrows():
             mask, image, data = row['masks'], row['images'], row['original']
+            from matplotlib import pyplot as plt
+            #plt.imshow(image)
+            #plt.show()
+            #plt.imshow(mask)
+            #plt.show()
             source_image = SourceImage.from_numpy(image)
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(source_image)
+            #f, ax = plt.subplots(ncols=1,nrows=3, sharex=True, sharey=True)
+            #ax[0].imshow(np.array(output.generated_mask))
+            #ax[1].imshow(np.transpose(np.squeeze(output.prediction_result.network_input), (1,2,0)) )
+            #ax[2].imshow(output.prediction_result.source_image.array())
+            #plt.show()
 
-            # output.generated_mask.show()
+
             # output = self.predictor.predict_single_image(image=image)
             labels = np.argmax(output.prediction_result.probability_map, axis=-1)
             from scipy.special import softmax
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
             m: RegionLineMaskData = data
-            symbols = extract_symbols(prob_map_softmax, labels, m, dataset=dataset, min_symbol_area=-1, clef=self.settings.params.use_clef_pos_correction, lookup= self.look_up)
+            symbols = extract_symbols(prob_map_softmax, labels, m, dataset=dataset, min_symbol_area=-1, clef=self.settings.params.use_clef_pos_correction, lookup= self.look_up, probability=0.5)
             additional_symbols = filter_unique_symbols_by_coord(symbols,
                                                                 extract_symbols(prob_map_softmax, labels, m,
                                                                                      dataset,
                                                                                      probability=0.95,
-                                                                                     clef=self.settings.params.use_clef_pos_correction, min_symbol_area=-1, lookup= self.look_up) )
+                                                                                     clef=self.settings.params.use_clef_pos_correction, min_symbol_area=4, lookup= self.look_up) )
 
             if True:
                 #symbols = correct_symbols_inside_wrong_blocks(m.operation.page, symbols)

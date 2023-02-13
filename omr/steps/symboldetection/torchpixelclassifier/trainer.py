@@ -71,7 +71,7 @@ class PCTorchTrainer(SymbolDetectionTrainer):
     @staticmethod
     def force_dataset_params(params: DatasetParams):
         params.pad_power_of_2 = False
-        params.center = True
+        params.center = False
 
     def __init__(self, settings: AlgorithmTrainerSettings):
         super().__init__(settings)
@@ -81,7 +81,7 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         if callback:
             callback.resolving_files()
 
-        train_data = self.train_dataset.to_memory_dataset(callback, same_dim=False)
+        train_data_pd = self.train_dataset.to_memory_dataset(callback, same_dim=False)
         color_map = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
         input_transforms = Compose(remove_nones([
             GrayToRGBTransform() if True else None,
@@ -92,8 +92,8 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             if self.settings.page_segmentation_torch_params.data_augmentation else None
         tta_transforms = None
         post_transforms = Compose(remove_nones([
-            NetworkEncoderTransform(Preprocessingfunction.name),
-            #self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name),
+            #NetworkEncoderTransform(Preprocessingfunction.name),
+            NetworkEncoderTransform(self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name),
             ToTensorV2()
         ]))
         transforms = PreprocessingTransforms(
@@ -102,9 +102,9 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             # tta_transforms=tta_transforms,
             post_transforms=post_transforms,
         )
-
-        train_data = MemoryDataset(df=train_data, transforms=transforms.get_train_transforms())
-        val_data = MemoryDataset(self.validation_dataset.to_memory_dataset(callback), transforms=transforms.get_test_transforms())
+        val_data_pd = self.validation_dataset.to_memory_dataset(callback)
+        train_data = MemoryDataset(df=train_data_pd, transforms=transforms.get_train_transforms())
+        val_data = MemoryDataset(df=val_data_pd, transforms=transforms.get_test_transforms())
         train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
         val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
 
@@ -173,8 +173,9 @@ if __name__ == '__main__':
     e = DatabaseBook('Pa_14819_gt')
     f = DatabaseBook('Assisi')
     g = DatabaseBook('Cai_72')
+    h = DatabaseBook('pa_904')
 
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.SYMBOLS, True)], datasets=[b, c, d, e, f, g])
+    train, val = dataset_by_locked_pages(0.999, [LockState(Locks.SYMBOLS, True)], datasets=[b, c, d, e, f, g, h])
     settings = AlgorithmTrainerSettings(
         DatasetParams(),
         train,
