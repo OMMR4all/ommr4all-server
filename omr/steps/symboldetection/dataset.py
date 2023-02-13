@@ -50,8 +50,8 @@ class SymbolDetectionDatasetTorch(Dataset):
         params.page_scale_reference = PageScaleReference.NORMALIZED_X2
 
         operations = [
-            ImageLoadFromPageOperation(invert=True, files=[('gray_norm_x2', False)]),
-            ImageDrawRegions(block_types=[BlockType.DROP_CAPITAL] if params.cut_region else [], color=0),
+            ImageLoadFromPageOperation(invert=False, files=[('color_norm_x2', False)]),
+            #ImageDrawRegions(block_types=[BlockType.DROP_CAPITAL] if params.cut_region else [], color=0),
             ImageExtractDewarpedStaffLineImages(params.dewarp, params.cut_region, params.pad, params.center, params.staff_lines_only, params.keep_graphical_connection),
         ]
 
