@@ -248,7 +248,7 @@ class Page:
         closest = None
         d = 10000000000
         for ml in self.all_music_lines():
-            if ml.aabb.left() <tl.aabb.left()< ml.aabb.right() or ml.aabb.left() < tl.aabb.right()< ml.aabb.right() or \
+            if ml.aabb.left() < tl.aabb.left() < ml.aabb.right() or ml.aabb.left() < tl.aabb.right()< ml.aabb.right() or \
                     abs(ml.aabb.left() - tl.aabb.left()) < 0.1 or abs(ml.aabb.right() - tl.aabb.right()) < 0.1:
 
                 dp = tl.aabb.top() - ml.aabb.top()
