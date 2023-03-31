@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from database.database_page import DatabasePage
-from mashumaro import DataClassJSONMixin
+from mashumaro.mixins.json import DataClassJSONMixin
 
 
 @dataclass()
@@ -27,6 +27,6 @@ class DatabasePageMeta(DataClassJSONMixin):
             )
 
     def save(self, page: DatabasePage):
-        dump = self.to_json(indent=2)
+        dump = self.to_json()
         with open(page.file('meta').local_path(), 'w') as f:
             f.write(dump)

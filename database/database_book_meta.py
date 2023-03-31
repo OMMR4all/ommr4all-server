@@ -1,14 +1,20 @@
 from dataclasses import dataclass, field
+
+import dateutil
+from mashumaro import field_options
+from mashumaro.types import SerializationStrategy
+
 from database.database_book import DatabaseBook
 import os
 from database.database_internal import DEFAULT_MODELS
 from datetime import datetime
-#from mashumaro import DataClassJSONMixin
+# from mashumaro import DataClassJSONMixin
 from mashumaro.mixins.json import DataClassJSONMixin
 
 from typing import Optional, Dict
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmTypes
 from restapi.models.auth import RestAPIUser
+from dateutil import parser
 
 
 def get_default_book_style():
@@ -16,11 +22,20 @@ def get_default_book_style():
     return DEFAULT_BOOK_STYLE
 
 
+class FormattedDateTime(SerializationStrategy):
+    def serialize(self, value: datetime) -> str:
+        return value.isoformat()
+
+    def deserialize(self, value: str) -> datetime:
+        return parser.parse(value)
+
+
 @dataclass
 class DatabaseBookMeta(DataClassJSONMixin):
     id: str = ''
     name: str = ''
-    created: datetime = field(default_factory=lambda: datetime.now())
+    created: datetime = field(default_factory=lambda: datetime.now(),
+                              metadata=field_options(serialization_strategy=FormattedDateTime()))
     creator: Optional[RestAPIUser] = None
     last_opened: str = ''
     notationStyle: str = field(default_factory=lambda: get_default_book_style())
