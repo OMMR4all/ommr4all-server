@@ -2,8 +2,9 @@ import json
 from datetime import datetime
 from typing import List
 
-from database.file_formats.book.document import Document
+from database.file_formats.book.document import Document, DocumentMetaInfos
 from database.file_formats.pcgts import Page
+from tools.simple_gregorianik_text_export import Lyric_info
 
 
 class Documents:
@@ -23,6 +24,26 @@ class Documents:
         return {
             "documents": [document.to_json() for document in self.documents] if self.documents else [],
         }
+
+    def update_document_meta_infos(self, m_infos: Lyric_info, doc_uuid):
+        for i in self.documents:
+            if i.doc_id == doc_uuid:
+                festum = ""
+                d = m_infos
+                if m_infos:
+                    if m_infos.meta_infos_extended:
+                        if len(m_infos.meta_infos_extended) > 0:
+                            if m_infos.meta_infos_extended[0].festum is not None:
+                                festum += m_infos.meta_infos_extended[0].festum
+                            if m_infos.meta_infos_extended[0].dies is not None:
+                                festum += m_infos.meta_infos_extended[0].dies
+
+                    d = DocumentMetaInfos(cantus_id=m_infos.cantus_id, initium=m_infos.initium, genre=m_infos.genre,
+                                          url=m_infos.url, dataset_source=m_infos.dataset_source, festum=festum)
+
+                i.document_meta_infos = d
+                return
+        pass
 
     def get_document_by_id(self, id):
         for x in self.documents:
@@ -49,11 +70,12 @@ class Documents:
         for x in config.entries:
             sheet[x.cell.get_entry()].set_value(x.value)
         for doc_ind, doc in enumerate(documents, start=2):
-            sheet[''.join([config.dict['Textinitium Editionseinheit'].cell.column, str(doc_ind)])].set_value(doc.textinitium)
-            sheet[''.join([config.dict['Startseite'].cell.column, str(doc_ind)])].set_value( doc.start.page_name)
-            sheet[''.join([config.dict['Startzeile'].cell.column, str(doc_ind)])].set_value( doc.start.row)
-            sheet[''.join([config.dict['Endseite'].cell.column, str(doc_ind)])].set_value( doc.end.page_name)
-            sheet[''.join([config.dict['Endzeile'].cell.column, str(doc_ind)])].set_value( doc.end.row)
+            sheet[''.join([config.dict['Textinitium Editionseinheit'].cell.column, str(doc_ind)])].set_value(
+                doc.textinitium)
+            sheet[''.join([config.dict['Startseite'].cell.column, str(doc_ind)])].set_value(doc.start.page_name)
+            sheet[''.join([config.dict['Startzeile'].cell.column, str(doc_ind)])].set_value(doc.start.row)
+            sheet[''.join([config.dict['Endseite'].cell.column, str(doc_ind)])].set_value(doc.end.page_name)
+            sheet[''.join([config.dict['Endzeile'].cell.column, str(doc_ind)])].set_value(doc.end.row)
             sheet[''.join([config.dict['Editor'].cell.column, str(doc_ind)])].set_value(username)
             sheet[''.join([config.dict['Doc-Id\' (intern)'].cell.column, str(doc_ind)])].set_value(doc.monody_id)
             sheet[''.join([config.dict['Quellen-ID (intern)'].cell.column, str(doc_ind)])].set_value('Editorenordner')
@@ -87,6 +109,7 @@ class Documents:
         workbook.close()
         xlsx_data_bytes = output.getvalue()
         return xlsx_data_bytes
+
 
 if __name__ == '__main__':
     documents = Documents([Document("1", ["page1", "page2"], 1000), Document("2", ["page2", "page3"], 1002)])

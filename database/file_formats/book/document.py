@@ -1,9 +1,12 @@
+import enum
+from dataclasses import dataclass
 from datetime import datetime
 from typing import List
 import uuid
 
 import ezodf
 import numpy as np
+from mashumaro.mixins.json import DataClassJSONMixin
 
 from database import DatabasePage, DatabaseBook
 from PIL import Image
@@ -11,6 +14,21 @@ from PIL import Image
 from database.file_formats.pcgts import PageScaleReference
 from database.file_formats.pcgts.page import Sentence
 
+class DatasetSource(str, enum.Enum):
+    GR = "gregorianik_gr"
+    AN = "gregorianik_an"
+    CM = "corpus_monodicum"
+    CT = "cantus_db"
+@dataclass
+class DocumentMetaInfos(DataClassJSONMixin):
+    cantus_id: str = ""
+    initium: str = ""
+    genre: str = ""
+    url: str = ""
+    dataset_source: DatasetSource = None
+    festum: str = ""
+
+    pass
 
 class DocumentConnection:
     def __init__(self, page_id=None, page_name=None, line_id=None, row: int = None):
@@ -42,7 +60,7 @@ class DocumentConnection:
 
 class Document:
     def __init__(self, page_ids, page_names, start: DocumentConnection, end: DocumentConnection,
-                 monody_id=None, doc_id=None, textinitium='', textline_count=0):
+                 monody_id=None, doc_id=None, textinitium='', textline_count=0, document_meta_infos: DocumentMetaInfos = None):
         self.monody_id = monody_id if monody_id else str(uuid.uuid4())
         self.doc_id = doc_id if doc_id else str(uuid.uuid4())
         self.pages_ids: List[int] = page_ids
@@ -51,7 +69,7 @@ class Document:
         self.end: DocumentConnection = end
         self.textinitium = textinitium
         self.textline_count = textline_count
-
+        self.document_meta_infos = document_meta_infos
 
     @staticmethod
     def from_json(json: dict):
@@ -64,6 +82,7 @@ class Document:
             end=DocumentConnection.from_json(json.get('end_point', None)),
             textinitium=json.get('textinitium', ''),
             textline_count=json.get('textline_count', ''),
+            document_meta_infos=DocumentMetaInfos.from_dict(json.get('document_meta_infos', None)) if json.get('document_meta_infos', None) is not None else DocumentMetaInfos(),
 
         )
 
@@ -77,6 +96,7 @@ class Document:
             "end_point": self.end.to_json(),
             "textinitium": self.textinitium,
             "textline_count": self.textline_count,
+            "document_meta_infos": self.document_meta_infos.to_dict() if self.document_meta_infos else DocumentMetaInfos().to_dict()
         }
 
     def export_to_ods(self, filename, editor):
@@ -127,8 +147,6 @@ class Document:
         xlsx_data_bytes = output.getvalue()
         return xlsx_data_bytes
 
-
-
     def get_page_line_of_document(self, book):
         line_page_pair = []
         started = False
@@ -145,7 +163,8 @@ class Document:
                 continue
             break
         return line_page_pair
-    def update_textline_count(self, book:DatabaseBook):
+
+    def update_textline_count(self, book: DatabaseBook):
         self.textline_count = len(self.get_page_line_of_document(book))
 
     def get_text_list_of_line_document(self, book):
@@ -154,11 +173,11 @@ class Document:
         line_text = [i[0].text() for i in line_text]
 
         return line_text
+
     def get_text_of_document(self, book):
         line_text = self.get_text_list_of_line_document(book)
         text = " ".join(line_text)
         return text
-
 
     def get_text_of_document_by_line(self, book, index):
         line_text = self.get_page_line_of_document(book)

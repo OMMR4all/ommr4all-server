@@ -187,7 +187,7 @@ class DatabaseBookDocuments:
                                                                             page_id=prev_page.p_id,
                                                                             row=prev_line.index,
                                                                             page_name=prev_page.location.page),
-                                                     textinitium=line.line.sentence.text(True),
+                                                     textinitium=line.line.sentence.text(True).replace("-", "").replace("~", ""),
                                                      textline_count=0)
                                             )
                             search = False
@@ -200,7 +200,7 @@ class DatabaseBookDocuments:
                                      end=DocumentConnection(line_id=next_line.prev_line.id, page_id=page_p.p_id,
                                                             row=next_line.index -1,
                                                             page_name=page_p.location.page),
-                                     textinitium=line.line.sentence.text(True), textline_count=0)
+                                     textinitium=line.line.sentence.text(True).replace("-", "").replace("~", ""), textline_count=0)
                             )
         for doc in new_docs:
             doc.update_textline_count(book)
