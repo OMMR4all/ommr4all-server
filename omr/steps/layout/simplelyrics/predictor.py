@@ -93,6 +93,24 @@ class Predictor(LayoutAnalysisPredictor):
             res = list(self.drop_capital._predict([pcgts_file]))[0]
             for x in res.blocks.get(BlockType.DROP_CAPITAL):
                 drop_capital_blocks.append(IdCoordsPair(x))
+            loop = True
+            while loop:
+                loop = False
+                for x in range(len(drop_capital_blocks)):
+
+                    for y in range(x + 1, len(drop_capital_blocks)):
+                        rec1 = drop_capital_blocks[x].coords.aabb()
+                        rec2 = drop_capital_blocks[y].coords.aabb()
+
+                        if rec1.intersetcsWithRect(rec2):
+                            smaller = x if rec1.area() < rec2.area() else y
+                            del drop_capital_blocks[smaller]
+                            loop = True
+                            break
+
+
+
+
 
         # Todo improve drop capital-lyric matching
         if self.settings.params.documentStarts:
@@ -109,10 +127,14 @@ class Predictor(LayoutAnalysisPredictor):
                 nearest = None
                 min_distance = 99999999
                 for ind2, l in enumerate(lines):
-                    min_d = min(i.coords.smallest_distance_between_polys(lyric_coords[l].coords))
-                    if min_d < min_distance:
-                        nearest = l
-                        min_distance = min_d
+                    #min_d = min(i.coords.smallest_distance_between_polys(lyric_coords[l].coords))
+                    if lyric_coords[l].coords.aabb().left() < i.coords.aabb().left() < lyric_coords[l].coords.aabb().right() or abs(i.coords.aabb().right() - lyric_coords[l].coords.aabb().left()) < 0.1:
+                        point_1: Point = lyric_coords[l].coords.aabb().tl
+                        point_2: Point = i.coords.aabb().tl
+                        min_d = point_1.distance_sqr(point_2)
+                        if min_d < min_distance:
+                            nearest = l
+                            min_distance = min_d
                 if nearest is not None:
                     if lyric_coords[nearest].coords.aabb().left() < dc_rec.left():
                         # split lyric line
