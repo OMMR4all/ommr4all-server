@@ -22,8 +22,6 @@ from omr.steps.symboldetection.postprocessing.symbol_extraction_from_prob_map im
 from omr.steps.symboldetection.postprocessing.symobl_background_knwoledge_postprocessing import *
 
 
-
-
 class PCTorchPredictor(SymbolsPredictor):
     @staticmethod
     def meta() -> Meta.__class__:
@@ -36,10 +34,10 @@ class PCTorchPredictor(SymbolsPredictor):
         path = os.path.join(settings.model.path)
         modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(path, 'best.torch'),
                                                   device=get_default_device())
-        #model_path = "/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/modules/ommr4all-server/storage/Graduel_Part_1_gt/models/symbols_pc_torch/2023-02-02T14:01:14/"
-        #modelbuilder = ModelBuilderLoad.from_disk(model_weights= model_path + 'best.torch',
+        # model_path = "/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/modules/ommr4all-server/storage/Graduel_Part_1_gt/models/symbols_pc_torch/2023-02-02T14:01:14/"
+        # modelbuilder = ModelBuilderLoad.from_disk(model_weights= model_path + 'best.torch',
         #                                          device=get_default_device())
-        with open(os.path.join(path + 'dataset_params.json', 'r')) as f:
+        with open(os.path.join(path, 'dataset_params.json'), 'r') as f:
             self.dataset_params = DatasetParams.from_json(f.read())
 
         base_model = modelbuilder.get_model()
@@ -48,7 +46,7 @@ class PCTorchPredictor(SymbolsPredictor):
         self.predictor = EnsemblePredictor([base_model], [preprocessing_settings])
         self.nmaskpredictor = NetworkMaskPostProcessor(self.predictor, config.color_map)
         self.look_up = SymbolSequenceConfidenceLookUp(SequenceSetting.NOTE_3GRAM)
-        #print(self.dataset_params.to_json())
+        # print(self.dataset_params.to_json())
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[
         SingleLinePredictionResult, None, None]:
@@ -58,34 +56,36 @@ class PCTorchPredictor(SymbolsPredictor):
         for index, row in df.iterrows():
             mask, image, data = row['masks'], row['images'], row['original']
             from matplotlib import pyplot as plt
-            #plt.imshow(image)
-            #plt.show()
-            #plt.imshow(mask)
-            #plt.show()
+            # plt.imshow(image)
+            # plt.show()
+            # plt.imshow(mask)
+            # plt.show()
             source_image = SourceImage.from_numpy(image)
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(source_image)
-            #f, ax = plt.subplots(ncols=1,nrows=3, sharex=True, sharey=True)
-            #ax[0].imshow(np.array(output.generated_mask))
-            #ax[1].imshow(np.transpose(np.squeeze(output.prediction_result.network_input), (1,2,0)) )
-            #ax[2].imshow(output.prediction_result.source_image.array())
-            #plt.show()
-
+            # f, ax = plt.subplots(ncols=1,nrows=3, sharex=True, sharey=True)
+            # ax[0].imshow(np.array(output.generated_mask))
+            # ax[1].imshow(np.transpose(np.squeeze(output.prediction_result.network_input), (1,2,0)) )
+            # ax[2].imshow(output.prediction_result.source_image.array())
+            # plt.show()
 
             # output = self.predictor.predict_single_image(image=image)
             labels = np.argmax(output.prediction_result.probability_map, axis=-1)
             from scipy.special import softmax
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
             m: RegionLineMaskData = data
-            symbols = extract_symbols(prob_map_softmax, labels, m, dataset=dataset, min_symbol_area=-1, clef=self.settings.params.use_clef_pos_correction, lookup= self.look_up, probability=0.5)
+            symbols = extract_symbols(prob_map_softmax, labels, m, dataset=dataset, min_symbol_area=-1,
+                                      clef=self.settings.params.use_clef_pos_correction, lookup=self.look_up,
+                                      probability=0.5)
             additional_symbols = filter_unique_symbols_by_coord(symbols,
                                                                 extract_symbols(prob_map_softmax, labels, m,
-                                                                                     dataset,
-                                                                                     probability=0.95,
-                                                                                     clef=self.settings.params.use_clef_pos_correction, min_symbol_area=4, lookup= self.look_up) )
+                                                                                dataset,
+                                                                                probability=0.95,
+                                                                                clef=self.settings.params.use_clef_pos_correction,
+                                                                                min_symbol_area=4, lookup=self.look_up))
 
             if True:
-                #symbols = correct_symbols_inside_wrong_blocks(m.operation.page, symbols)
-                #symbols = correct_symbols_inside_text_blocks(m.operation.page, symbols)
+                # symbols = correct_symbols_inside_wrong_blocks(m.operation.page, symbols)
+                # symbols = correct_symbols_inside_text_blocks(m.operation.page, symbols)
                 symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
 
                 additional_symbols = correct_symbols_inside_text_blocks(m.operation.page, additional_symbols)
@@ -142,7 +142,7 @@ class PCTorchPredictor(SymbolsPredictor):
             yield single_line_symbols, single_line_symbols_2
 
     def extract_symbols123(self, probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
-                        dataset: SymbolDetectionDataset) -> List[MusicSymbol]:
+                           dataset: SymbolDetectionDataset) -> List[MusicSymbol]:
         # n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(((probs[:, :, 0] < 0.5) | (p > 0)).astype(np.uint8))
         p = (np.argmax(probs[:, :, 1:], axis=-1) + 1) * (probs[:, :, 0] < 0.5)
         n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
@@ -213,8 +213,6 @@ class PCTorchPredictor(SymbolsPredictor):
             plt.show()
 
         return symbols
-
-
 
 
 if __name__ == '__main__':
