@@ -8,22 +8,45 @@ from tqdm import tqdm
 
 from tools.evaluate_initium import documents_gen, generate_initiums, to_string
 from tools.extract_full_text import get_csv_text
-from tools.simple_gregorianik_text_export import Lyrics, Lyric_info
+from tools.simple_gregorianik_text_export import Lyrics, Lyric_info, Metainfo, DatasetSource
 
+"""
+        meta_infos.append(Metainfo(festum=festum, dies=dies, versus=versus, sources=sources))
 
+    lyric_info = Lyric_info(index=str(index), id=id, meta_info=meta_info, latine=latine, variants=variants,
+                            meta_infos_extended=meta_infos, genre=genre, initium=initium, url=url, cantus_id=cantus_id)
+                            """
 def populate(path):
     documents_memory_db = {}
+    lyrics = []
     documents = documents_gen(path)
     for i in tqdm(tqdm(documents)):
         if os.path.exists(i.data):
-            initium = generate_initiums(i)
-            if len(initium) > 0:
-                gt_text = [s.syllable.text for s in initium[0].neumes]
+            text = generate_initiums(i)
+            festum = None
+            genre = None
+            initium=None
+            if os.path.exists(i.document_meta):
+                pass
+                meta_infs = json.load(open(i.document_meta))
+                genre = meta_infs["gattung1"]
+                festum=meta_infs["festtag"]
+                initium=meta_infs["textinitium"]
+
+            if len(text) > 0:
+                gt_text = [s.syllable.text for s in text[0].neumes]
                 # print(to_string(gt_text) + " " + i.document_id)
                 documents_memory_db[i] = [to_string(gt_text),
-                                          to_string([t.syllable.text for s in initium for t in s.neumes])]
+                                          to_string([t.syllable.text for s in text for t in s.neumes])]
+                metainfo = Metainfo(festum=festum, dies=None, versus=None, sources=None)
+                lyric = Lyric_info(index="", id="", meta_info=None, latine=to_string([t.syllable.text for s in text for t in s.neumes]), variants=None,
+                           meta_infos_extended=[metainfo], genre=genre, initium=initium, url=None, cantus_id=None, dataset_source=DatasetSource("corpus_monodicum"))
+                print(lyric)
+                lyrics.append(lyric)
 
-    return documents_memory_db
+
+
+    return documents_memory_db, Lyrics(lyrics)
 
 
 if __name__ == "__main__":
