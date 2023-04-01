@@ -49,6 +49,7 @@ class Step(ABC):
 # * New metas must be added here
 import omr.steps.preprocessing.meta
 import omr.steps.stafflines.detection.pixelclassifier.meta
+import omr.steps.stafflines.detection.pixelclassifier_torch.meta
 import omr.steps.layout.lyricsbbs.meta
 import omr.steps.layout.simplelyrics.meta
 import omr.steps.layout.standard.meta
@@ -56,6 +57,7 @@ import omr.steps.symboldetection.pixelclassifier.meta
 import omr.steps.symboldetection.torchpixelclassifier.meta
 import omr.steps.symboldetection.sequencetosequence.meta
 import omr.steps.symboldetection.sequence_to_sequence_nautilus.meta
+import omr.steps.postprocessing.meta
 
 import omr.steps.layout.correction_tools.connectedcomponentsselector.meta
 import omr.steps.text.calamari.meta
