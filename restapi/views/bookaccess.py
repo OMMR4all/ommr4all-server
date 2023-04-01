@@ -186,7 +186,7 @@ class BooksView(APIView):
     def put(self, request, format=None):
         from database.database_book_meta import DatabaseBookMeta
         import datetime
-        meta = DatabaseBookMeta.from_json(request.body, dict_params={'use_datetime': True})
+        meta = DatabaseBookMeta.from_json(request.body)
 
         if not meta.name or len(meta.name) == 0:
             return APIError(status.HTTP_400_BAD_REQUEST,

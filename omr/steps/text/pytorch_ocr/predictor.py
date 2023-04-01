@@ -9,6 +9,7 @@ from omr.steps.text.pytorch_ocr.meta import Meta
 
 from nautilus_ocr.predict import Network, get_config
 from omr.steps.text.correction_tools.dictionary_corrector.predictor import DictionaryCorrector
+from ommr4all.settings import BASE_DIR
 
 if __name__ == '__main__':
     import django
@@ -16,10 +17,6 @@ if __name__ == '__main__':
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
 from typing import List, Tuple, Type, Optional, Generator
-from ommr4all.settings import BASE_DIR
-from copy import deepcopy
-
-from database.model import Model
 from omr.dataset.datastructs import RegionLineMaskData
 from database import DatabaseBook
 from omr.steps.algorithm import AlgorithmMeta, PredictionCallback
@@ -29,7 +26,6 @@ from omr.steps.text.predictor import \
     TextPredictor, \
     PredictionResult, Point, SingleLinePredictionResult
 import numpy as np
-from database.model.definitions import MetaId
 from omr.steps.text.hyphenation.hyphenator import HyphenatorFromDictionary, Pyphenator, CombinedHyphenator, HyphenDicts
 
 from typing import Generator
@@ -89,7 +85,6 @@ class PytorchPredictor(TextPredictor):
 
             sentence: DecoderOutput = self.network.predict_single_image(image, decoder_type=DecoderType(
                 DecoderType.greedy_decoder))
-
             hidden_size = sentence.char_mapping.probability_map.shape[0]
             width = image.size[0]
             if self.dict_corrector:
@@ -102,8 +97,9 @@ class PytorchPredictor(TextPredictor):
             percentage = (i + 1) / len(loaded_dataset)
             if callback:
                 callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len(loaded_dataset))
-            yield SingleLinePredictionResult(self.extract_symbols(dataset, sentence, y, width / hidden_size),
-                                             y, hyphenated=hyphenated)
+            text, chars = self.extract_symbols(dataset, sentence, y, width / hidden_size)
+            yield SingleLinePredictionResult(text=text,
+                                             line=y, hyphenated=hyphenated, chars= chars)
 
     def extract_symbols(self, dataset: TextDataset, p, m: RegionLineMaskData, factor: float = 1) -> List[
         Tuple[str, Point]]:
@@ -113,14 +109,26 @@ class PytorchPredictor(TextPredictor):
         dec_str = p.decoded_string
         positions = p.char_mapping
         sentence = []
+        chars = []
         for x in p.char_mapping.charLocationInfo:
             a = p.char_mapping.chars[x.char]
             sentence.append((a,
                              i2p(dataset.local_to_global_pos(Point((x.char_start + x.char_end) / 2 * factor,
                                                                    m.operation.text_line.aabb.bottom()),
                                                              m.operation.params).x)))
+            chars.append((a,
+                             [i2p(dataset.local_to_global_pos(Point(x.char_start * factor,
+                                                                    m.operation.text_line.aabb.bottom()),
+                                                              m.operation.params)),
+                              i2p(dataset.local_to_global_pos(Point(x.char_end * factor,
+                                                                    m.operation.text_line.aabb.bottom()),
+                                                              m.operation.params))
 
-        return sentence
+                              ]
+                             )
+                            )
+
+        return sentence, chars
 
 
 if __name__ == '__main__':

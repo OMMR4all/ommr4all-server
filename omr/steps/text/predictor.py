@@ -16,6 +16,7 @@ class SingleLinePredictionResult(NamedTuple):
     text: List[Tuple[str, Point]]
     line: RegionLineMaskData
     hyphenated: str
+    chars: List[Tuple[str, List[Point]]] = None
 
     def to_dict(self):
         return {'sentence': self.hyphenated,
