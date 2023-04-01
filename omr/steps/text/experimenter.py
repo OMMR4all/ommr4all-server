@@ -140,6 +140,7 @@ class TextExperimenter(Experimenter):
         if args.magic_prefix:
             all_diffs = np.array(np.transpose([np.mean(r, axis=0), np.std(r, axis=0)])).reshape([-1])
             print("{}{}".format(args.magic_prefix, ','.join(map(str, list(all_diffs)))))
+            return "{}{}".format(args.magic_prefix, ','.join(map(str, list(all_diffs))))
 
     def extract_gt_prediction(self, full_predictions: List[PredictionResult]):
         from omr.dataset.dataset import LyricsNormalizationProcessor, LyricsNormalizationParams, LyricsNormalization
