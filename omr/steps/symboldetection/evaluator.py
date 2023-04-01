@@ -245,9 +245,11 @@ class ConfusionMatrix:
             plt.show()
 
 
-def precision_recall_f1(tp, fp, fn) -> Tuple[float, float, float]:
+def precision_recall_f1(tp, fp, fn, debug=False) -> Tuple[float, float, float]:
     if tp == 0:
         return 0.0, 0.0, 0.0
+    if debug:
+        print(f'TP: {tp}, FP: {fp}, FN {fn}')
     return tp / (tp + fp), tp / (tp + fn), 2 * tp / (2 * tp + fp + fn)
 
 
@@ -957,7 +959,6 @@ if __name__ == '__main__':
 
     print(at.get_string())
 
-    import xlwt
     from xlwt import Workbook
 
     # Workbook is created
