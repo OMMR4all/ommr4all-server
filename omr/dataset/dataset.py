@@ -72,6 +72,7 @@ class LyricsNormalizationParams(DataClassJSONMixin):
     lyrics_normalization: LyricsNormalization = LyricsNormalization.WORDS
     lower_only: bool = True
     unified_u: bool = False
+    unified_s: bool = False
     remove_brackets: bool = True
     remove_punctuation: bool = False
 
@@ -91,11 +92,17 @@ class LyricsNormalizationProcessor:
 
         if self.params.remove_brackets:
             text = text.replace('<', '').replace('>', '')
+            text = text.replace('[', '').replace(']', '')
+
+        if self.params.unified_s:
+            text = text.replace('ſ', 's')
+
 
         if self.params.lyrics_normalization == LyricsNormalization.ONE_STRING:
             text = text.replace('-', '').replace(' ', '')
         elif self.params.lyrics_normalization == LyricsNormalization.WORDS:
             text = text.replace('-', '')
+
 
         return text
 
