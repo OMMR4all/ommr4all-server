@@ -107,7 +107,11 @@ class StaffLineDetectionEvaluator:
                         target_line = target_lines[target_line_idx]
                         target_canvas = np.zeros(canvas.shape, dtype=np.int32)
                         single_data.page_to_eval_scale(target_line.coords).draw(target_canvas, 10, thickness=line_thickness)
+
                         canvas += target_canvas
+                        #from matplotlib import pyplot as plt
+                        #plt.imshow(canvas)
+                        #plt.show()
                         total_line_hit = canvas.max(axis=0)
                         tp = (total_line_hit == 13).sum()
                         fp = (total_line_hit == 3).sum()
@@ -115,6 +119,9 @@ class StaffLineDetectionEvaluator:
                         overlap = tp / (tp + fp + fn)
 
                         if overlap > self.params.line_hit_overlap_threshold:
+                            if fn != 0 or fp != 0:
+
+                                print(precision_recall_f1(tp, fp, fn, True))
                             hit_lines.append((line, target_line, precision_recall_f1(tp, fp, fn)))
                         else:
                             single_lines.append(line)

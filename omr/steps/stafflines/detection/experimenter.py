@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 class StaffLinesExperimenter(Experimenter):
+    def output_debug_images(self, predictions):
+        pass
+
     def extract_gt_prediction(self, full_predictions):
         return [
             EvaluationData(
@@ -41,7 +44,7 @@ class StaffLinesExperimenter(Experimenter):
             at.add_column("Recall", prf1[:, 1])
             at.add_column("F1", prf1[:, 2])
             self.fold_log.debug(at.get_string())
-
+            print(at.get_string())
             metrics = prf1
         else:
             self.fold_log.warning("Empty file without ground truth lines")
@@ -87,6 +90,7 @@ class StaffLinesExperimenter(Experimenter):
         if args.magic_prefix:
             all_values = np.array(sum([[prf1_mean[:, i], prf1_std[:, i]] for i in range(3)], [])).transpose().reshape(-1)
             print("{}{}".format(args.magic_prefix, ','.join(map(str, all_values))))
+            return "{}{}".format(args.magic_prefix, ','.join(map(str, all_values)))
 
     def output_prediction_to_book(self, pred_book: DatabaseBook, output_pcgts: List[PcGts], predictions):
         output_pcgts_by_page_name = {}
