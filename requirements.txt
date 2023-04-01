@@ -1,4 +1,4 @@
-django==3.2.7
+django==3.2.18
 channels
 locked_dict
 opencv-python-headless==4.2.0.32
