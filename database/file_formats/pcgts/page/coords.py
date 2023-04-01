@@ -321,8 +321,8 @@ class Coords(SerializableType):
         x_p = Polygon(self.points)
         l_p = LineString([(x, 0.0), (x, 1.1)])
         res = shapely.ops.split(x_p, l_p)
-        c1 = np.array(res[0].exterior.coords)
-        c2 = np.array(res[1].exterior.coords) if len(res) > 1 else c2
+        c1 = np.array(res.geoms[0].exterior.coords)
+        c2 = np.array(res.geoms[1].exterior.coords) if len(res.geoms) > 1 else c2
 
         return c1, c2
 
@@ -376,7 +376,7 @@ class Rect:
         return self.size.h * self.size.w
 
     def noIntersectionWithRect(self, rect: "Rect") -> bool:
-        return self.top > rect.bottom or self.bottom < rect.top or self.left > rect.right or self.right < rect.left
+        return (self.br.x < rect.tl.x or self.tl.x > rect.br.x or self.br.y < rect.tl.y or self.tl.y > rect.br.y)
 
     def intersetcsWithRect(self, rect: "Rect") -> bool:
         return not self.noIntersectionWithRect(rect)
