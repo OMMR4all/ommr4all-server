@@ -141,10 +141,10 @@ class OperationTests(APITestCase):
             self.assertEqual(len(staff['staffLines']), n_lines_per_staff)
 
     def test_line_detection_001(self):
-        self._test_line_detection_of_page('page_test_staff_line_detection_001', 9, 4, AlgorithmTypes.STAFF_LINES_PC)
+        self._test_line_detection_of_page('page_test_staff_line_detection_001', 9, 4, AlgorithmTypes.STAFF_LINES_PC_Torch)
 
     def test_line_detection_002(self):
-        self._test_line_detection_of_page('page_test_staff_line_detection_002', 9, 4, AlgorithmTypes.STAFF_LINES_PC)
+        self._test_line_detection_of_page('page_test_staff_line_detection_002', 9, 4, AlgorithmTypes.STAFF_LINES_PC_Torch)
 
     def test_layout_detection_complex_standard_001(self):
         self._test_predictor('page_test_layout_detection_001', AlgorithmTypes.LAYOUT_COMPLEX_STANDARD)
@@ -165,10 +165,10 @@ class OperationTests(APITestCase):
         self._test_predictor('page_test_layout_detection_002', AlgorithmTypes.LAYOUT_SIMPLE_LYRICS)
 
     def test_symbol_detection_001(self):
-        self._test_predictor('page_test_symbol_detection_001', AlgorithmTypes.SYMBOLS_PC)
+        self._test_predictor('page_test_symbol_detection_001', AlgorithmTypes.SYMBOLS_PC_TORCH)
 
     def test_symbol_detection_002(self):
-        self._test_predictor('page_test_symbol_detection_002', AlgorithmTypes.SYMBOLS_PC)
+        self._test_predictor('page_test_symbol_detection_002', AlgorithmTypes.SYMBOLS_PC_TORCH)
 
     def test_text_recognition_001(self):
         self._test_predictor('page_test_text_recognition_001', AlgorithmTypes.OCR_NAUTILUS)
