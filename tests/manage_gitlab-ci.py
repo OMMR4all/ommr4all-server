@@ -42,7 +42,7 @@ repos: List[Repo] = [
     Repo(
         'nautilus',
         'https://github.com/Gawajn/nautilus.git',
-        '90da1e689f41ff0f367667e8562377fa9994abee',
+        'cff1f9cd53dda3d143dc14f07c4c3406cf0c726f',
     ),
 ]
 
