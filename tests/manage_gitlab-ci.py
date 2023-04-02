@@ -32,7 +32,7 @@ repos: List[Repo] = [
     Repo(
         'ommr4all-layout-analysis',
         'https://github.com/OMMR4all/ommr4all-layout-analysis.git',
-        'c2c05b5181ae692693cda6655bbed3a5984a38c7',
+        '73897fa31561ff670f95e512e6cb8f63f921ab20',
     ),
     Repo(
         'ommr4all-page-segmentation',
