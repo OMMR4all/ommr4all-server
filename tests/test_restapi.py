@@ -214,7 +214,7 @@ class OperationTests(APITestCase):
         response = self.client.get('/api/book/{}/operation/{}/models'.format(book.book, operation.value))
         self.assertEqual(response.status_code, status.HTTP_200_OK, response)
 
-        models_id = ModelsId.from_internal('french14', AlgorithmTypes.STAFF_LINES_PC)
+        models_id = ModelsId.from_internal('french14', AlgorithmTypes.STAFF_LINES_PC_Torch)
         models = DatabaseAvailableModels.from_dict(response.data)
         self.assertEqual(models.newest_model, None)
         self.assertEqual(models.selected_model.id, str(MetaId(models_id, models_id.algorithm_type.value)))
@@ -223,7 +223,7 @@ class OperationTests(APITestCase):
         self.assertListEqual(models.models_of_same_book_style, [])
 
     def test_list_models(self):
-        self._test_list_models(AlgorithmTypes.STAFF_LINES_PC)
+        self._test_list_models(AlgorithmTypes.STAFF_LINES_PC_Torch)
 
     def save_page(self, page, data):
         return self.client.put('/api/book/demo/page/{}/content/pcgts'.format(page), data, format='json')
@@ -293,7 +293,7 @@ class OperationTests(APITestCase):
                 pages=['page_test_staff_line_detection_001', 'page_test_staff_line_detection_002'],
             )
         )
-        self.call_book_operation(book, AlgorithmTypes.STAFF_LINES_PC, params)
+        self.call_book_operation(book, AlgorithmTypes.STAFF_LINES_PC_Torch, params)
 
     def test_book_layout_detection_complex(self):
         book = DatabaseBook('demo')
@@ -332,7 +332,7 @@ class OperationTests(APITestCase):
                 pages=['page_test_symbol_detection_001', 'page_test_symbol_detection_002'],
             )
         )
-        self.call_book_operation(book, AlgorithmTypes.SYMBOLS_PC, params)
+        self.call_book_operation(book, AlgorithmTypes.SYMBOLS_PC_TORCH, params)
 
     def call_book_operation(self, book: DatabaseBook, operation: AlgorithmTypes, data: AlgorithmRequest = None):
         data = data if data else AlgorithmRequest()
