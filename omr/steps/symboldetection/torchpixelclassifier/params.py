@@ -4,7 +4,7 @@ import albumentations
 import cv2
 from albumentations import RandomScale, RandomGamma, RandomBrightnessContrast, OneOf, ToGray, CLAHE, Compose, Affine, \
     ShiftScaleRotate
-from segmentation.dataset import compose
+from segmentation.datasets.dataset import compose
 
 from segmentation.modules import Architecture
 import albumentations as albu
