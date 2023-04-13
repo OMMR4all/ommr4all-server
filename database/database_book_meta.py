@@ -41,6 +41,8 @@ class DatabaseBookMeta(DataClassJSONMixin):
     notationStyle: str = field(default_factory=lambda: get_default_book_style())
     numberOfStaffLines: int = 4
     algorithmPredictorParams: Dict[AlgorithmTypes, AlgorithmPredictorParams] = field(default_factory=lambda: {})
+    dateOfOrigin: str = ''
+    placeOfOrigin: str = ''
 
     def algorithm_predictor_params(self, algorithm_type: AlgorithmTypes) -> AlgorithmPredictorParams:
         params = self.algorithmPredictorParams.get(algorithm_type, AlgorithmPredictorParams())
