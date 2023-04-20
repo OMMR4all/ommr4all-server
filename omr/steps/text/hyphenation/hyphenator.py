@@ -38,17 +38,29 @@ class Hyphenator(ABC):
 
 
 class CombinedHyphenator(Hyphenator):
-    def __init__(self, lang='la', left=1, right=1, dictionary=None):
+    from database.start_up.load_text_variants_in_memory import syllable_dictionary
+
+    def __init__(self, lang='la', left=2, right=2):
         super().__init__()
-        # from thirdparty.pyphen import Pyphen
-        import pyphen
-        self.pyphen = pyphen.Pyphen(filename=lang, lang=lang, left=left, right=right)
-        self.dictionary = dictionary
+        from thirdparty.pyphen import Pyphen
+        self.pyphen = Pyphen(filename=lang, lang=lang, left=left, right=right)
+        self.dictionary = syllable_dictionary
 
     def apply_to_word(self, word: str):
-        if self.dictionary is not None and word in self.dictionary:
-            hyphenated = self.dictionary[word][0]
-            if True or hyphenated != self.pyphen.inserted(word):
+        l_word = word.lower()
+        if self.dictionary is not None and l_word in self.dictionary:
+            hyphenated = self.dictionary[l_word]
+
+            # correct lower/upper chars
+            def correct_l_u_case(hyph_word: str, o_word: str):
+                syl_indexes = [i for i, c in enumerate(hyph_word) if c == "-"]
+                for i in syl_indexes:
+                    o_word = o_word[:i] + "-" + o_word[i:]
+
+                return o_word
+            hyphenated = correct_l_u_case(hyph_word=hyphenated, o_word=word)
+
+            if False or hyphenated != self.pyphen.inserted(word):
                 logger.info("Hyhenation db: {} Grammar: {}".format(hyphenated, self.pyphen.inserted(word)))
             return hyphenated
 
@@ -95,9 +107,15 @@ if __name__ == "__main__":
     from database import DatabaseBook
     from database.database_dictionary import DatabaseDictionary
     import os
+    import django
+    import os
 
-    db = DatabaseDictionary.load(book=DatabaseBook("mulhouse_mass_transcription"))
-    database_hyphen_dictionary = db.to_hyphen_dict()
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
+    django.setup()
+    from database.start_up.load_text_variants_in_memory import lyrics, syllable_dictionary
+
+    #db = DatabaseDictionary.load(book=DatabaseBook("mulhouse_mass_transcription"))
+    #database_hyphen_dictionary = db.to_hyphen_dict()
 
 
     def test(hyphenators, word):
@@ -109,12 +127,12 @@ if __name__ == "__main__":
 
     # hyphen1 = CombinedHyphenator(lang=os.path.join(path, "hyph_la.dic"), left=1, right=1, dictionary=
     # database_hyphen_dictionary)
-    hyphen2 = CombinedHyphenator(lang=HyphenDicts.classic.get_internal_file_path(), left=1, right=1, dictionary=
-    database_hyphen_dictionary)
+    #hyphen2 = CombinedHyphenator(lang=HyphenDicts.classic.get_internal_file_path(), left=1, right=1, dictionary=
+    #database_hyphen_dictionary)
     hyphen3 = CombinedHyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1, right=1, dictionary=
-    database_hyphen_dictionary)
-    hyphen4 = CombinedHyphenator(lang=HyphenDicts.modern.get_internal_file_path(), left=1, right=1, dictionary=
-    database_hyphen_dictionary)
-    hyphenators = [hyphen2, hyphen3, hyphen4]
+    syllable_dictionary)
+    #hyphen4 = CombinedHyphenator(lang=HyphenDicts.modern.get_internal_file_path(), left=1, right=1, dictionary=
+    #database_hyphen_dictionary)
+    hyphenators = [hyphen3]
 
-    test(hyphenators, "faciam")
+    test(hyphenators, "domino")
