@@ -20,6 +20,7 @@ def populate(path):
     documents_memory_db = {}
     lyrics = []
     documents = documents_gen(path)
+    lyrics_with_syllabels = []
     for i in tqdm(tqdm(documents)):
         if os.path.exists(i.data):
             text = generate_initiums(i)
@@ -43,10 +44,11 @@ def populate(path):
                            meta_infos_extended=[metainfo], genre=genre, initium=initium, url=None, cantus_id=None, dataset_source=DatasetSource("corpus_monodicum"))
                 print(lyric)
                 lyrics.append(lyric)
+                lyrics_with_syllabels.append([t.syllable.text for s in text for t in s.neumes])
 
 
 
-    return documents_memory_db, Lyrics(lyrics)
+    return documents_memory_db, Lyrics(lyrics), lyrics_with_syllabels
 
 
 if __name__ == "__main__":

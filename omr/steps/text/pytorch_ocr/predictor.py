@@ -74,7 +74,9 @@ class PytorchPredictor(TextPredictor):
         #    db = DatabaseDictionary.load(book=book)
         #    self.database_hyphen_dictionary = db.to_hyphen_dict()
 
-        hyphen = Pyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1, right=1)#, dictionary=self.database_hyphen_dictionary)
+        hyphen = CombinedHyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1,
+                            right=1)
+
         if self.settings.params.useDictionaryCorrection:
             self.dict_corrector = DictionaryCorrector(hyphenator=hyphen)
             self.dict_corrector.load_dict(book=book)

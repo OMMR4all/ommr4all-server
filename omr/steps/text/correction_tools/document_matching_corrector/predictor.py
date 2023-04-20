@@ -514,7 +514,7 @@ class Predictor(AlgorithmPredictor):
         self.document_id = settings.params.documentId
         # self.document_similar_tester = SimilarDocumentChecker()
         self.text_normalizer = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.WORDS))
-        self.database_hyphen_dictionary = None
+        self.database_hyphen_dictionary = syllable_dictionary
 
     @classmethod
     def unprocessed(cls, page: DatabasePage) -> bool:
@@ -529,8 +529,8 @@ class Predictor(AlgorithmPredictor):
         # if self.database_hyphen_dictionary is None:
         #    db = DatabaseDictionary.load(book=book)
         #    self.database_hyphen_dictionary = db.to_hyphen_dict()
-        hyphen = Pyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1,
-                            right=1)  # dictionary=self.database_hyphen_dictionary)
+        hyphen = CombinedHyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1,
+                            right=1)
 
         if self.document_id is not None:
             document: Document = documents.database_documents.get_document_by_id(self.document_id)

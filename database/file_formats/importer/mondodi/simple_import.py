@@ -145,8 +145,8 @@ def simple_monodi_data_importer2(json, ignore_liquescent=True) -> List[Row]:
                         last_syllable = 1
                     else:
                         last_syllable = 0
-                else:
-                    last_syllable = 0 #?
+                    #else:
+                    #    last_syllable = 0 #?
             elif z["kind"] == "LineChange":
                 rows.append(Row(neumes))
                 neumes = []
