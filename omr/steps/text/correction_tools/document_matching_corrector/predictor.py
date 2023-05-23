@@ -22,7 +22,7 @@ from omr.text_matching.populate_db import SimilarDocumentChecker
 from tools.simple_gregorianik_text_export import Lyric_info
 from .meta import Meta
 from database.file_formats.pcgts import Coords, PageScaleReference
-from database.start_up.load_text_variants_in_memory import lyrics
+from database.start_up.load_text_variants_in_memory import lyrics, syllable_dictionary
 
 from itertools import zip_longest
 

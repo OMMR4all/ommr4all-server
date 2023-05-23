@@ -76,6 +76,7 @@ class PCTorchPredictor(SymbolsPredictor):
             symbols = extract_symbols(prob_map_softmax, labels, m, dataset=dataset, min_symbol_area=-1,
                                       clef=self.settings.params.use_clef_pos_correction, lookup=self.look_up,
                                       probability=0.5)
+
             additional_symbols = filter_unique_symbols_by_coord(symbols,
                                                                 extract_symbols(prob_map_softmax, labels, m,
                                                                                 dataset,
@@ -110,6 +111,7 @@ class PCTorchPredictor(SymbolsPredictor):
                 line = Line(symbols=symbols)
                 line.update_note_names(initial_clef=initial_clef)
                 symbols = line.symbols
+
                 '''
                 if len(symbols) > 0:
                     if symbols[0].symbol_type != symbols[0].symbol_type.CLEF:
@@ -118,6 +120,7 @@ class PCTorchPredictor(SymbolsPredictor):
                             print(additional_symbols[0].symbol_type)
                         print(m.operation.page.location.page)
                 '''
+
             single_line_symbols = SingleLinePredictionResult(symbols,
                                                              data)
             single_line_symbols_2 = SingleLinePredictionResult(additional_symbols,

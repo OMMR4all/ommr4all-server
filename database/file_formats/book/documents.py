@@ -51,6 +51,18 @@ class Documents:
                 return x
         return None
 
+    def get_document_by_monodi_id(self, id):
+        for x in self.documents:
+            if x.monody_id == id:
+                return x
+        return None
+
+    def get_document_by_b_uid(self, b_uid):
+        for x in self.documents:
+            if x.get_book_u_id() == b_uid:
+                return x
+        return None
+
     def get_documents_of_page(self, page: Page):
         docs: List[Document] = []
         for x in self.documents:
@@ -98,7 +110,15 @@ class Documents:
         for x in config.entries:
             worksheet.write(x.cell.row, x.cell.column, x.value)
         for doc_ind, doc in enumerate(documents, start=1):
-            worksheet.write(doc_ind, config.dict['Textinitium Editionseinheit'].cell.column, doc.textinitium)
+            if doc.document_meta_infos:
+                worksheet.write(doc_ind, config.dict['Gattung1'].cell.column, doc.document_meta_infos.genre)
+                worksheet.write(doc_ind, config.dict['Fest'].cell.column, doc.document_meta_infos.festum)
+                worksheet.write(doc_ind, config.dict['Verlinkung'].cell.column, doc.document_meta_infos.url)
+
+            if doc.document_meta_infos and doc.document_meta_infos.initium and len(doc.document_meta_infos.initium) > 0:
+                worksheet.write(doc_ind, config.dict['Textinitium Editionseinheit'].cell.column, doc.document_meta_infos.initium)
+            else:
+                worksheet.write(doc_ind, config.dict['Textinitium Editionseinheit'].cell.column, doc.textinitium)
             worksheet.write(doc_ind, config.dict['Startseite'].cell.column, doc.start.page_name)
             worksheet.write(doc_ind, config.dict['Startzeile'].cell.column, doc.start.row)
             worksheet.write(doc_ind, config.dict['Endseite'].cell.column, doc.end.page_name)
@@ -106,6 +126,7 @@ class Documents:
             worksheet.write(doc_ind, config.dict['Editor'].cell.column, str(editor))
             worksheet.write(doc_ind, config.dict['Doc-Id\' (intern)'].cell.column, doc.monody_id)
             worksheet.write(doc_ind, config.dict['Quellen-ID (intern)'].cell.column, 'Editorenordner')
+
         workbook.close()
         xlsx_data_bytes = output.getvalue()
         return xlsx_data_bytes
