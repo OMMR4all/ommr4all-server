@@ -77,12 +77,15 @@ class DatabaseBookDocuments:
             "database_documents": self.database_documents.to_json() if self.database_documents else []
         }
 
-    def get_documents_of_page(self, page: Page) -> List[DocSpanType]:
+    def get_documents_of_page(self, page: Page, only_start=False) -> List[DocSpanType]:
 
         docs: List[DocSpanType] = []
         for ind, i in enumerate(self.database_documents.documents):
-            if i.start.page_id == page.p_id or i.end.page_id == page.p_id:
+            if i.start.page_id == page.p_id:
                 docs.append(DocSpanType(p_start=i.start.page_id, p_end=i.end.page_id, doc=i, index=ind))
+            if only_start and i.end.page_id == page.p_id:
+                docs.append(DocSpanType(p_start=i.start.page_id, p_end=i.end.page_id, doc=i, index=ind))
+
         return docs
 
     def update_documents_of_page(self, page: DatabasePage, book: DatabaseBook):

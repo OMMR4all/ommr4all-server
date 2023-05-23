@@ -6,7 +6,8 @@ from enum import Enum
 import numpy as np
 
 from database.file_formats.book.document import Document
-from database.file_formats.pcgts import Page
+from database.file_formats.pcgts import Page, Line, SymbolType
+from database.file_formats.pcgts.page import SyllableConnector
 
 
 class NoteType(Enum):
@@ -292,21 +293,22 @@ class PcgtsToMonodiConverter:
         self.miscContainer = MiscContainer([])
         self.line_containers = self.miscContainer.children
         self.root = RootContainer([self.miscContainer])
-        self.run(pcgts, document=document)
+        self.run2(pcgts, document=document)
 
     def get_Monodi_json(self, document: Document, editor):
         doc = {"id": document.monody_id,
                "quelle_id": "Editorenordner",
                "dokumenten_id": document.monody_id,
-               "gattung1": "",
+               "gattung1": document.document_meta_infos.genre if document.document_meta_infos else "",
                "gattung2": "",
-               "festtag": "",
+               "festtag": document.document_meta_infos.festum if document.document_meta_infos else "",
                "feier": "",
-               "textinitium": document.textinitium,
+               "textinitium": document.document_meta_infos.initium if document.document_meta_infos and document.document_meta_infos.initium and len(
+                   document.document_meta_infos.initium) > 0 else document.textinitium,
                "bibliographischerverweis": "",
                "druckausgabe": "",
                "zeilenstart": str(document.start.row),
-               "foliostart": document.textinitium,
+               "foliostart": document.start.page_name,
                "kommentar": "",
                "editionsstatus": "",
                "additionalData": {
@@ -322,7 +324,7 @@ class PcgtsToMonodiConverter:
                    "Nachtragsschicht": "",
                    "\u00dcberlieferungszustand": "",
                    "Melodie_Quelle": ""
-                    }
+               }
                }
         return {"document": doc, "notes": self.root.to_json()}
 
@@ -341,6 +343,217 @@ class PcgtsToMonodiConverter:
             return s
         else:
             return clc.children[-1]
+
+    """
+    def run2(self, pcgts: List[ns_pcgts.PcGts], document: Document = None):
+        for i in r_or:
+            symbols = [con.note for c in p.page.annotations.connections for con in c.syllable_connections if
+                       con.syllable in i.sentence.syllables]
+            current_symbol_index = 0
+
+            if document is not None:
+                line_id_start = document.start.line_id
+                line_id_end = document.end.line_id
+
+                # connection = connections[0]
+
+                # line_ids = [line.id for line in connection.text_region.lines]
+                if page.p_id == document.end.page_id:
+                    if line_id_end == i.id:
+                        break
+                if page.p_id == document.start.page_id or document_started:
+
+                    if line_id_start == i.id or document_started:
+                        add_block(symbols)
+                        document_started = True
+
+            else:
+                add_block(symbols)
+        break
+        """
+
+    def run2(self, pcgts: List[ns_pcgts.PcGts], document: Document = None):
+        if not document:
+            self.run(pcgts, document)
+        else:
+            def add_line_symbols(line_symbols: List[ns_pcgts.MusicSymbol]):
+                clc = self.get_or_create_current_line_container()
+                current_syllable: Optional[Syllable] = None
+                for line_symbol in line_symbols:
+                    if line_symbol.symbol_type != ns_pcgts.SymbolType.NOTE:
+                        current_syllable = None
+
+                    if line_symbol.symbol_type == ns_pcgts.SymbolType.CLEF:
+                        clc.children.append(
+                            Clef(
+                                base=BaseNote.from_name(line_symbol.note_name),
+                                octave=line_symbol.octave,
+                                shape=line_symbol.clef_type.value.upper(),
+                            )
+                        )
+                    elif line_symbol.symbol_type == ns_pcgts.SymbolType.ACCID:
+                        syllable = self.get_or_create_syllables()
+                        syllable.notes.spaced.append(
+                            NonSpacesNotes([GroupedNotes([
+                                Note(
+                                    base=BaseNote.from_name(line_symbol.note_name),
+                                    octave=line_symbol.octave,
+                                    noteType=NoteType.from_accid(line_symbol),
+                                    liquecent=False,
+                                )
+                            ])])
+                        )
+                    elif line_symbol.symbol_type == ns_pcgts.SymbolType.NOTE:
+                        if not current_syllable:
+                            current_syllable = self.get_or_create_syllables()
+
+                        syllable = current_syllable
+                        if len(syllable.notes.spaced) == 0 or line_symbol.graphical_connection == ns_pcgts.GraphicalConnectionType.NEUME_START:
+                            nsn = NonSpacesNotes([])
+                            syllable.notes.spaced.append(nsn)
+                        else:
+                            nsn = syllable.notes.spaced[-1]
+
+                        if line_symbol.graphical_connection == ns_pcgts.GraphicalConnectionType.LOOPED:
+                            nsn.non_spaced[-1].grouped.append(
+                                Note(
+                                    base=BaseNote.from_symbol(line_symbol),
+                                    octave=line_symbol.octave,
+                                    noteType=NoteType.from_note(line_symbol),
+                                    liquecent=line_symbol.note_type in [ns_pcgts.NoteType.LIQUESCENT_FOLLOWING_D,
+                                                                        ns_pcgts.NoteType.LIQUESCENT_FOLLOWING_U],
+                                )
+                            )
+                        else:
+                            gn = GroupedNotes([
+                                Note(
+                                    base=BaseNote.from_symbol(line_symbol),
+                                    octave=line_symbol.octave,
+                                    noteType=NoteType.from_note(line_symbol),
+                                    liquecent=line_symbol.note_type in [ns_pcgts.NoteType.LIQUESCENT_FOLLOWING_D,
+                                                                        ns_pcgts.NoteType.LIQUESCENT_FOLLOWING_U],
+                                )
+                            ])
+                            nsn.non_spaced.append(gn)
+
+                    else:
+                        raise TypeError(type(line_symbol))
+
+            document_started = False
+            regions_to_export = [ns_pcgts.BlockType.HEADING, ns_pcgts.BlockType.FOLIO_NUMBER, ns_pcgts.BlockType.PARAGRAPH,
+                                 ns_pcgts.BlockType.MUSIC]
+            stop = False
+            for p in pcgts:
+                elements: List[ns_pcgts.Block] = p.page.blocks_of_type(regions_to_export)
+                page = p.page
+
+                elements.sort(key=lambda r: np.mean([line.coords.aabb().center.y for line in r.lines]))
+
+                r_or: List[Line] = page.reading_order.reading_order
+
+                for i in r_or:
+                    self.current_line_container = None
+
+                    line_id_start = document.start.line_id
+                    line_id_end = document.end.line_id
+                    if page.p_id == document.end.page_id:
+                        if line_id_end == i.id:
+                            stop = True
+                            break
+                    if page.p_id == document.start.page_id or document_started:
+
+                        if line_id_start == i.id or document_started:
+                            document_started = True
+                            connections_b = page.annotations.connections
+                            connections_d = [c.music_region for c in connections_b for con in
+                                                                    c.syllable_connections if
+                                                                    con.syllable in i.sentence.syllables]
+
+                            connections: List[SyllableConnector] = [con for c in connections_b for con in
+                                                                    c.syllable_connections if
+                                                                    con.syllable in i.sentence.syllables]
+                            connections = sorted(connections, key=lambda x: x.note.coord.x)
+                            music_block = page.closest_music_block_to_text_line(i)
+
+                            all_connections = sorted(sum([c.syllable_connections for c in p.page.annotations.connections if
+                                                          c.music_region == music_block], []),
+                                                     key=lambda x: x.note.coord.x)
+                            music_region = page.closest_music_line_to_text_line(i)
+                            all_symbols = music_region.symbols
+
+                            if len(connections) > 0:
+
+                                note = connections[0].note
+                                current_symbol_index = all_symbols.index(note)
+                                first = True
+                                for sc in connections:
+                                    note = sc.note
+                                    try:
+                                        neume_pos = all_symbols.index(note)
+                                    except ValueError as e:
+                                        print(e)
+                                        continue
+                                    if first:
+                                        types = [x.symbol_type for x in all_symbols[0:current_symbol_index]]
+                                        ind = [ind for ind, i in enumerate(types) if i != SymbolType.NOTE]
+                                        for i in ind[::-1]:
+                                            if current_symbol_index - i == 1:
+                                                current_symbol_index = i
+                                            else:
+                                                break
+
+
+                                    line_symbols = all_symbols[current_symbol_index:neume_pos]
+                                    add_line_symbols(line_symbols)
+                                    current_symbol_index = neume_pos
+
+                                    # add the syllable
+                                    self.get_or_create_current_line_container().children.append(
+                                        Syllable(sc.syllable.text, SpacedNotes([]))
+                                    )
+                                    first = False
+                                #new_start = [ind for ind, s in enumerate(all_symbols[current_symbol_index:]) if s.symbol_type == s.symbol_type.NOTE and s.graphical_connection == s.graphical_connection.NEUME_START][0] + current_symbol_index
+                                index = all_connections.index(connections[-1])
+                                if index == len(all_connections) - 1:
+                                    new_start = len(all_symbols) - 1
+                                else:
+                                    new_start = all_symbols.index(all_connections[index +1].note)
+                                add_line_symbols(all_symbols[current_symbol_index:new_start + 1]) #todo
+                            else:
+                                if len(all_connections) > 0:
+                                    new_start = all_symbols.index(all_connections[0].note)
+                                    add_line_symbols(all_symbols[0:new_start])  # todo
+
+                                    pass
+                                else:
+                                    add_line_symbols(all_symbols)  # todo
+
+
+                            """
+                            nonlocal current_symbol_index
+                            all_syllable_connections = sum([c.syllable_connections for c in connections], [])
+                            all_syllable_connections.sort(key=lambda sc: sc.note.coord.x)
+                            for sc in all_syllable_connections:
+                                note = sc.note
+                                try:
+                                    neume_pos = symbols.index(note, current_symbol_index)
+                                except ValueError as e:
+                                    print(e)
+                                    continue
+                                line_symbols = symbols[current_symbol_index:neume_pos]
+                                # add symbols until position of connection
+                                add_line_symbols(line_symbols)
+                                current_symbol_index = neume_pos
+    
+                                # add the syllable
+                                self.get_or_create_current_line_container().children.append(
+                                    Syllable(sc.syllable.text, SpacedNotes([]))
+                                )
+    
+                            add_line_symbols(symbols[current_symbol_index:])
+                            """
+                if stop:
+                    break
 
     def run(self, pcgts: List[ns_pcgts.PcGts], document: Document = None):
         def add_block(symbols):
@@ -437,6 +650,7 @@ class PcgtsToMonodiConverter:
             page = p.page
 
             elements.sort(key=lambda r: np.mean([line.coords.aabb().center.y for line in r.lines]))
+
             def elements_sort_music_blocks_by_reading_order(elements: List[ns_pcgts.Block], page_: Page):
                 sorted = []
                 rest = []
@@ -445,15 +659,20 @@ class PcgtsToMonodiConverter:
                 for i in r_or:
                     ml = page_.closest_music_line_to_text_line(i)
                     if ml.id not in m_ids:
+                        stop = False
                         for block in elements:
                             for bl in block.lines:
                                 if bl.id == ml.id:
                                     sorted.append(block)
+                                    stop = True
                                     break
+                            if stop:
+                                break
 
                         m_ids.append(ml.id)
 
                 return sorted + rest
+
             elements = elements_sort_music_blocks_by_reading_order(elements, page)
             for element in elements:
                 self.current_line_container = None
@@ -477,7 +696,7 @@ class PcgtsToMonodiConverter:
                         line_id_end = document.end.line_id
                         connection = connections[0]
 
-                        line_ids = [line.id for line in connection.text_region.lines]
+                        line_ids = [line.id for connection in connections for line in connection.text_region.lines]
                         if page.p_id == document.end.page_id:
                             if line_id_end in line_ids:
                                 break

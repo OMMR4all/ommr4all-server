@@ -83,18 +83,18 @@ class BookDocumentsView(APIView):
 
         return Response()
 
+
 class BookPageDocumentsUpdateView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, page):
         book = DatabaseBook(book)
-        page= DatabasePage(page=page, book=book)
+        page = DatabasePage(page=page, book=book)
 
         documents = DatabaseBookDocuments().load(book)
 
         def documents_of_book(documents, book, page):
-
             d_b = documents.update_documents_of_page(page=page, book=book)
 
             d_b.to_file(book)
@@ -104,7 +104,6 @@ class BookPageDocumentsUpdateView(APIView):
         data = documents_of_book(documents, book, page)
 
         return Response(data)
-
 
 
 class BookDocumentsOdsView(APIView):
@@ -121,6 +120,7 @@ class BookDocumentsOdsView(APIView):
             editor=str(request.user.username))
         return HttpResponse(bytes, content_type="application/vnd.oasis.opendocument.spreadsheet")
 
+
 class DocumentImageLineImageView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -129,13 +129,14 @@ class DocumentImageLineImageView(APIView):
         book = DatabaseBook(book)
         documents = DatabaseBookDocuments().load(book)
         document: Document = documents.database_documents.get_document_by_id(document)
-        #response = HttpResponse(content_type="image/png")
+        # response = HttpResponse(content_type="image/png")
         img = Image.fromarray(document.get_image_of_document_by_line(book, line))
-        #img.save(response, "PNG")
+        # img.save(response, "PNG")
         buf = io.BytesIO()
         img.save(buf, "png")
         img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
         return HttpResponse(img_b64)
+
 
 class DocumentImageLineTextView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
@@ -148,6 +149,7 @@ class DocumentImageLineTextView(APIView):
         text = document.get_text_of_document_by_line(book, line)
 
         return Response(text)
+
 
 class DocumentView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
@@ -170,6 +172,7 @@ class DocumentView(APIView):
         documents.to_file(book=book)
         return Response()
 
+
 class DocumentPCGTSUpdatesView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -181,11 +184,13 @@ class DocumentPCGTSUpdatesView(APIView):
         ## Todo Mutex/lock
         obj = json.loads(request.body, encoding='utf-8')
         document.update_pcgts(book=book, lines=obj)
-        #db = DatabaseBookDocuments.from_json(obj)
-        #db.to_file(book)
+        # db = DatabaseBookDocuments.from_json(obj)
+        # db.to_file(book)
         logger.debug('Successfully updated document text of DatabaseFile to {}'.format(book.local_path))
 
         return Response()
+
+
 class DocumentsSVGView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -251,6 +256,7 @@ class DocumentOdsView(APIView):
         bytes = document.export_to_xls(filename, user)
         return HttpResponse(bytes, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+
 class DocumentImageView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -264,6 +270,7 @@ class DocumentImageView(APIView):
         user = editor if editor is not None else request.user.username
         bytes = document.export_to_xls(filename, user)
         return HttpResponse(bytes, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 class MonodiConnectionView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]

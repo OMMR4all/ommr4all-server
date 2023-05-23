@@ -250,7 +250,6 @@ class Page:
         for ml in self.all_music_lines():
             if ml.aabb.left() < tl.aabb.left() < ml.aabb.right() or ml.aabb.left() < tl.aabb.right()< ml.aabb.right() or \
                     abs(ml.aabb.left() - tl.aabb.left()) < 0.1 or abs(ml.aabb.right() - tl.aabb.right()) < 0.1:
-
                 dp = tl.aabb.top() - ml.aabb.top()
                 if dp < 0:
                     continue
@@ -259,7 +258,20 @@ class Page:
                     closest = ml
 
         return closest
+    def closest_music_block_to_text_line(self, tl: Line):
+        closest = None
+        d = 10000000000
+        for mb in self.music_blocks():
+            if mb.aabb.left() < tl.aabb.left() < mb.aabb.right() or mb.aabb.left() < tl.aabb.right()< mb.aabb.right() or \
+                    abs(mb.aabb.left() - tl.aabb.left()) < 0.1 or abs(mb.aabb.right() - tl.aabb.right()) < 0.1:
+                dp = tl.aabb.top() - mb.aabb.top()
+                if dp < 0:
+                    continue
+                elif d > dp:
+                    d = dp
+                    closest = mb
 
+        return closest
     def draw(self, canvas, color=(0, 255, 0), thickness=-1):
         avg = self.avg_staff_line_distance()
 

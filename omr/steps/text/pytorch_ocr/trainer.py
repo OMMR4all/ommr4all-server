@@ -116,10 +116,12 @@ class PytorchTrainer(TextTrainerBase):
             create_nautilus_tempfiles(dirpath, train_dataset, type="train", subfolder="train")
             create_nautilus_tempfiles(dirpath, val_dataset, type="val", subfolder="val")
             opt = get_config(opt, os.path.join(dirpath, "train"), os.path.join(dirpath, "val"),
-                             load='' if not self.params.model_to_load() else self.params.model_to_load().local_file('model.h5'),
+                             load='' if not self.params.model_to_load() else self.params.model_to_load().local_file(
+                                 'model.h5'),
                              save_location=self.settings.model.path)
+            while True:
+                print(dirpath)
             train(opt, amp=False)
-
 
 
 if __name__ == '__main__':
@@ -135,20 +137,27 @@ if __name__ == '__main__':
     import django
 
     django.setup()
-    b = DatabaseBook('Graduel_Part_1_gt')
+    #b = DatabaseBook('Graduel_Part_1_gt')
+    #c = DatabaseBook('Graduel_Part_2_gt')
+    #d = DatabaseBook('Graduel_Part_3_gt')
+    #e = DatabaseBook('Pa_14819_gt')
+    #f = DatabaseBook('Assisi')
+    #g = DatabaseBook('Cai_72')
+    c = DatabaseBook('mul_2_tim')
+
     # b = DatabaseBook('Pa1235_Hiwi_01')
 
-    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.LAYOUT, True)], True, [b])
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.TEXT, True)], True, [c])
     trainer_params = PytorchTrainer.default_params()
     trainer_params.l_rate = 1e-3
     # trainer_params.load = '/home/ls6/wick/Documents/Projects/calamari_models/fraktur_historical_ligs/0.ckpt.json'
 
     params = DatasetParams(
         gt_required=True,
-        # height=64,
-        # cut_region=True,
-        # pad=[0, 10, 0, 20],
-        # lyrics_normalization=LyricsNormalization.ONE_STRING,
+        height=64,
+        text_image_color_type="color",
+        pad=(5, 5, 5, 5),
+        text_types=[BlockType.LYRICS]
     )
     train_params = AlgorithmTrainerSettings(
         params,
@@ -161,4 +170,4 @@ if __name__ == '__main__':
         )
     )
     trainer = PytorchTrainer(train_params)
-    trainer.train(b)
+    trainer.train(c)

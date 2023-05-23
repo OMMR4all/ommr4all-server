@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 if __name__ == '__main__':
     import django
+
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
 
@@ -33,6 +34,7 @@ class DictionaryCorrector(SymSpell):
         self.sym_spell = SymSpell()
         self.book_id = None
         self.hyphen = hyphenator
+
     def segmentate_correct_and_hyphenate_text(self, text, hyphenate=True, edit_distance=2):
         sentence = self.word_segmentation(text, edit_distance)
         if hyphenate:
@@ -42,7 +44,7 @@ class DictionaryCorrector(SymSpell):
     def load_dict(self, book):
 
         if self.book_id != book.book:
-            #self.sym_spell = SymSpell()
+            # self.sym_spell = SymSpell()
             self.book_id = book.book
             b = DatabaseDictionary.load(book)
             for entry in b.dictionary.freq_list:

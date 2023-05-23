@@ -137,8 +137,8 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
         else:
             x_pos = np.linspace(0, 1, len(out_matches), endpoint=False)
 
-        for m, x in zip(out_matches, x_pos):
-            print(f'Text: {m["s"].text}, Pos: {str(x)}, Pos2: {str(m["x"])}' )
+        #for m, x in zip(out_matches, x_pos):
+        #    print(f'Text: {m["s"].text}, Pos: {str(x)}, Pos2: {str(m["x"])}' )
         return MatchResult(
             syllables=[SyllableMatchResult(
                 xpos=x,

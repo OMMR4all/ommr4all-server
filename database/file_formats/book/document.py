@@ -14,11 +14,14 @@ from PIL import Image
 from database.file_formats.pcgts import PageScaleReference
 from database.file_formats.pcgts.page import Sentence
 
+
 class DatasetSource(str, enum.Enum):
     GR = "gregorianik_gr"
     AN = "gregorianik_an"
     CM = "corpus_monodicum"
     CT = "cantus_db"
+
+
 @dataclass
 class DocumentMetaInfos(DataClassJSONMixin):
     cantus_id: str = ""
@@ -29,6 +32,15 @@ class DocumentMetaInfos(DataClassJSONMixin):
     festum: str = ""
 
     pass
+
+
+@dataclass
+class LineMetaInfos:
+    line_id: str
+    left_p: float
+    right_p: float
+    page: str
+
 
 class DocumentConnection:
     def __init__(self, page_id=None, page_name=None, line_id=None, row: int = None):
@@ -60,7 +72,8 @@ class DocumentConnection:
 
 class Document:
     def __init__(self, page_ids, page_names, start: DocumentConnection, end: DocumentConnection,
-                 monody_id=None, doc_id=None, textinitium='', textline_count=0, document_meta_infos: DocumentMetaInfos = None):
+                 monody_id=None, doc_id=None, textinitium='', textline_count=0,
+                 document_meta_infos: DocumentMetaInfos = None):
         self.monody_id = monody_id if monody_id else str(uuid.uuid4())
         self.doc_id = doc_id if doc_id else str(uuid.uuid4())
         self.pages_ids: List[int] = page_ids
@@ -82,7 +95,8 @@ class Document:
             end=DocumentConnection.from_json(json.get('end_point', None)),
             textinitium=json.get('textinitium', ''),
             textline_count=json.get('textline_count', ''),
-            document_meta_infos=DocumentMetaInfos.from_dict(json.get('document_meta_infos', None)) if json.get('document_meta_infos', None) is not None else DocumentMetaInfos(),
+            document_meta_infos=DocumentMetaInfos.from_dict(json.get('document_meta_infos', None)) if json.get(
+                'document_meta_infos', None) is not None else DocumentMetaInfos(),
 
         )
 
@@ -204,3 +218,31 @@ class Document:
             pcgts = i.pcgts()
             pcgts.page.annotations.connections.clear()
             pcgts.to_file(i.file('pcgts').local_path())
+
+    def get_book_u_id(self, book_str=""):
+        return self.start.page_name + "-" + str(self.start.row) + "-" + str(self.end.row)
+
+    def get_symbols(self, book):
+
+        lines = self.get_page_line_of_document(book)
+        symbols = []
+        meta = []
+        for line, page in lines:
+            page: DatabasePage = page
+            music_line = page.pcgts().page.closest_music_line_to_text_line(line)
+            text_lines_of_page = page.pcgts().page.all_text_lines(True)
+            m_lines = [i for i in text_lines_of_page if
+                       page.pcgts().page.closest_music_line_to_text_line(i).id == music_line.id]
+            lefts_text_lines = sorted([i.coords.aabb().left() for i in m_lines])
+            if len(m_lines) > 1:
+                left = line.coords.aabb().left()
+                right = line.coords.aabb().right()
+                l_p = -1 if lefts_text_lines.index(left) == 0 else left + 0.03
+                r_p = 1 if lefts_text_lines.index(left) == len(lefts_text_lines) else right + 0.03
+                filtered_symbols = [i for i in music_line.symbols if l_p < i.coord.x < r_p]
+                symbols.append(filtered_symbols), meta.append(LineMetaInfos(music_line.id, l_p, r_p, page.page))
+
+            else:
+                symbols.append(music_line.symbols), meta.append(LineMetaInfos(music_line.id, -1, -1, page.page))
+        return symbols, meta
+        ##line.
