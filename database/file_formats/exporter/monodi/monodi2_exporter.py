@@ -303,8 +303,8 @@ class PcgtsToMonodiConverter:
                "gattung2": "",
                "festtag": document.document_meta_infos.festum if document.document_meta_infos else "",
                "feier": "",
-               "textinitium": document.document_meta_infos.initium if document.document_meta_infos and document.document_meta_infos.initium and len(
-                   document.document_meta_infos.initium) > 0 else document.textinitium,
+               "textinitium": document.document_meta_infos.initium.replace("-", "") if document.document_meta_infos and document.document_meta_infos.initium and len(
+                   document.document_meta_infos.initium) > 0 else document.textinitium.replace("-", ""),
                "bibliographischerverweis": "",
                "druckausgabe": "",
                "zeilenstart": str(document.start.row),
@@ -515,7 +515,7 @@ class PcgtsToMonodiConverter:
                                 #new_start = [ind for ind, s in enumerate(all_symbols[current_symbol_index:]) if s.symbol_type == s.symbol_type.NOTE and s.graphical_connection == s.graphical_connection.NEUME_START][0] + current_symbol_index
                                 index = all_connections.index(connections[-1])
                                 if index == len(all_connections) - 1:
-                                    new_start = len(all_symbols) - 1
+                                    new_start = len(all_symbols)
                                 else:
                                     new_start = all_symbols.index(all_connections[index +1].note)
                                 add_line_symbols(all_symbols[current_symbol_index:new_start + 1]) #todo
