@@ -96,7 +96,7 @@ class Documents:
         return bytes
 
     @staticmethod
-    def export_documents_to_xls(documents: List[Document], filename, editor):
+    def export_documents_to_xls(documents: List[Document], filename, editor, book=None):
         import xlsxwriter
         from database.file_formats.exporter.monodi.ods import MonodiXlsxConfig
         from io import BytesIO
@@ -118,7 +118,8 @@ class Documents:
             if doc.document_meta_infos and doc.document_meta_infos.initium and len(doc.document_meta_infos.initium) > 0:
                 worksheet.write(doc_ind, config.dict['Textinitium Editionseinheit'].cell.column, doc.document_meta_infos.initium)
             else:
-                worksheet.write(doc_ind, config.dict['Textinitium Editionseinheit'].cell.column, doc.textinitium)
+                if  doc.textinitium:
+                    worksheet.write(doc_ind, config.dict['Textinitium Editionseinheit'].cell.column, doc.textinitium.replace("-", ""))
             worksheet.write(doc_ind, config.dict['Startseite'].cell.column, doc.start.page_name)
             worksheet.write(doc_ind, config.dict['Startzeile'].cell.column, doc.start.row)
             worksheet.write(doc_ind, config.dict['Endseite'].cell.column, doc.end.page_name)

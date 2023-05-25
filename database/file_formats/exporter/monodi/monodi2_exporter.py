@@ -509,7 +509,7 @@ class PcgtsToMonodiConverter:
 
                                     # add the syllable
                                     self.get_or_create_current_line_container().children.append(
-                                        Syllable(sc.syllable.text, SpacedNotes([]))
+                                        Syllable(sc.syllable.text if sc.syllable.connection == sc.syllable.connection.NEW else "-" + sc.syllable.text, SpacedNotes([]))
                                     )
                                     first = False
                                 #new_start = [ind for ind, s in enumerate(all_symbols[current_symbol_index:]) if s.symbol_type == s.symbol_type.NOTE and s.graphical_connection == s.graphical_connection.NEUME_START][0] + current_symbol_index
@@ -634,10 +634,9 @@ class PcgtsToMonodiConverter:
                 # add symbols until position of connection
                 add_line_symbols(line_symbols)
                 current_symbol_index = neume_pos
-
                 # add the syllable
                 self.get_or_create_current_line_container().children.append(
-                    Syllable(sc.syllable.text, SpacedNotes([]))
+                    Syllable(sc.syllable.text if sc.syllable.connection == sc.syllable.connection.NEW else "-" + sc.syllable.text, SpacedNotes([]))
                 )
 
             add_line_symbols(symbols[current_symbol_index:])
