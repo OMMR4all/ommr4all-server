@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import database.file_formats.pcgts as ns_pcgts
 from typing import List, NamedTuple, Union, Optional
 import json
@@ -127,7 +129,7 @@ class Clef(NamedTuple):
 
         }
 
-
+@dataclass
 class FolioChange:
     text: str
 
@@ -156,8 +158,8 @@ class SyllableType(Enum):
     SOURCE_ELLIPSIS = 'SourceEllipsis'
     WITHOUT_NOTES = 'WithoutNotes'
 
-
-class Syllable(NamedTuple):
+@dataclass
+class Syllable():
     text: str
     notes: SpacedNotes
     syllableType: SyllableType = SyllableType.NORMAL
@@ -232,7 +234,12 @@ class FormContainer(NamedTuple):
             'kind': ContainerKind.FORM_CONTAINER.value,
             'uuid': str(uuid.uuid4()),
             'children': [c.to_json() for c in self.children],
-            'data': None,
+            'data': [
+                {
+                    "name": "Signatur",
+                    "data": ""
+                }
+            ],
         }
 
 
@@ -287,32 +294,45 @@ RootContainer:
 """
 
 
+class FormatUrl:
+    def __init__(self, url="https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/"):
+        self.base_url = "https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/"
+
+    def get_url(self, source, page, suffix=".jpg"):
+        return self.base_url + source + "%2F" + page + suffix
+    # url = "https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/mul_2%2Ffolio_0202v.jpg/full/max/0/default.jpg"
+
+
 class PcgtsToMonodiConverter:
-    def __init__(self, pcgts: List[ns_pcgts.PcGts], document: Document = None):
+    def __init__(self, pcgts: List[ns_pcgts.PcGts], document: Document = None, replace_filename="folio_"):
         self.current_line_container: Optional[LineContainer] = None
-        self.miscContainer = MiscContainer([])
+        self.miscContainer = FormContainer([])
         self.line_containers = self.miscContainer.children
         self.root = RootContainer([self.miscContainer])
-        self.run2(pcgts, document=document)
+        self.run2(pcgts, document=document, replace_fn=replace_filename)
 
     def get_Monodi_json(self, document: Document, editor):
         doc, notes = self.get_meta_and_notes(document, editor)
         return {"document": doc, "notes": notes}
 
-    def get_meta_and_notes(self, document: Document, editor):
+    def get_meta_and_notes(self, document: Document, editor, replace="folio_",
+                           url="https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/", sourceIIF="mul_2",
+                           doc_source="Mul 2"):
+        formatstring = FormatUrl(url)
         doc = {"id": document.monody_id,
-               "quelle_id": "Editorenordner",
+               "quelle_id": doc_source,
                "dokumenten_id": document.monody_id,
                "gattung1": document.document_meta_infos.genre if document.document_meta_infos else "",
                "gattung2": "",
                "festtag": document.document_meta_infos.festum if document.document_meta_infos else "",
                "feier": "",
-               "textinitium": document.document_meta_infos.initium.replace("-", "") if document.document_meta_infos and document.document_meta_infos.initium and len(
+               "textinitium": document.document_meta_infos.initium.replace("-",
+                                                                           "") if document.document_meta_infos and document.document_meta_infos.initium and len(
                    document.document_meta_infos.initium) > 0 else document.textinitium.replace("-", ""),
                "bibliographischerverweis": "",
                "druckausgabe": "",
                "zeilenstart": str(document.start.row),
-               "foliostart": document.start.page_name,
+               "foliostart": document.start.page_name.replace(replace, ""),
                "kommentar": "",
                "editionsstatus": "",
                "additionalData": {
@@ -320,17 +340,20 @@ class PcgtsToMonodiConverter:
                    "Editor": str(editor),
                    "Bezugsgesang": "",
                    "Melodie_Standard": "",
-                   "Endseite": document.end.page_name,
+                   "Endseite": document.end.page_name.replace(replace, ""),
                    "Startposition": "",
                    "Zusatz_zu_Textinitium": "",
                    "Referenz_auf_Spiel": "",
                    "Endzeile": str(document.end.row),
                    "Nachtragsschicht": "",
                    "\u00dcberlieferungszustand": "",
-                   "Melodie_Quelle": ""
-                }
+                   "Melodie_Quelle": [formatstring.get_url(source=sourceIIF, page=i, suffix=".jpg") for i in
+                                      document.pages_names]
+               },
+               "publish": None
                }
-        return doc,  self.root.to_json()
+        return doc, self.root.to_json()
+
     def get_or_create_current_line_container(self):
         if self.current_line_container is None:
             self.current_line_container = LineContainer([])
@@ -347,6 +370,24 @@ class PcgtsToMonodiConverter:
         else:
             return clc.children[-1]
 
+    def get_last_syllables(self):
+        clc = self.get_or_create_current_line_container()
+        if len(clc.children) == 0 or not isinstance(clc.children[-1], Syllable):
+            return None
+        else:
+            return clc.children[-1]
+
+    def create_folio_change(self, page):
+        lc = self.get_current_line_container()
+        if lc:
+            f = FolioChange(text=page)
+            lc.children.append(f)
+        pass
+    def get_current_line_container(self):
+        if self.current_line_container is None:
+            return None
+
+        return self.current_line_container
     """
     def run2(self, pcgts: List[ns_pcgts.PcGts], document: Document = None):
         for i in r_or:
@@ -375,7 +416,7 @@ class PcgtsToMonodiConverter:
         break
         """
 
-    def run2(self, pcgts: List[ns_pcgts.PcGts], document: Document = None):
+    def run2(self, pcgts: List[ns_pcgts.PcGts], document: Document = None, replace_fn=""):
         if not document:
             self.run(pcgts, document)
         else:
@@ -443,10 +484,14 @@ class PcgtsToMonodiConverter:
                         raise TypeError(type(line_symbol))
 
             document_started = False
-            regions_to_export = [ns_pcgts.BlockType.HEADING, ns_pcgts.BlockType.FOLIO_NUMBER, ns_pcgts.BlockType.PARAGRAPH,
+            regions_to_export = [ns_pcgts.BlockType.HEADING, ns_pcgts.BlockType.FOLIO_NUMBER,
+                                 ns_pcgts.BlockType.PARAGRAPH,
                                  ns_pcgts.BlockType.MUSIC]
             stop = False
+            last_syllable = None
             for p in pcgts:
+                fn = p.page.location.page.replace(replace_fn, "") if len(replace_fn) > 0 else p.page.location.page
+                self.create_folio_change(fn)
                 elements: List[ns_pcgts.Block] = p.page.blocks_of_type(regions_to_export)
                 page = p.page
 
@@ -469,8 +514,8 @@ class PcgtsToMonodiConverter:
                             document_started = True
                             connections_b = page.annotations.connections
                             connections_d = [c.music_region for c in connections_b for con in
-                                                                    c.syllable_connections if
-                                                                    con.syllable in i.sentence.syllables]
+                                             c.syllable_connections if
+                                             con.syllable in i.sentence.syllables]
 
                             connections: List[SyllableConnector] = [con for c in connections_b for con in
                                                                     c.syllable_connections if
@@ -478,9 +523,10 @@ class PcgtsToMonodiConverter:
                             connections = sorted(connections, key=lambda x: x.note.coord.x)
                             music_block = page.closest_music_block_to_text_line(i)
 
-                            all_connections = sorted(sum([c.syllable_connections for c in p.page.annotations.connections if
-                                                          c.music_region == music_block], []),
-                                                     key=lambda x: x.note.coord.x)
+                            all_connections = sorted(
+                                sum([c.syllable_connections for c in p.page.annotations.connections if
+                                     c.music_region == music_block], []),
+                                key=lambda x: x.note.coord.x)
                             music_region = page.closest_music_line_to_text_line(i)
                             all_symbols = music_region.symbols
 
@@ -505,23 +551,28 @@ class PcgtsToMonodiConverter:
                                             else:
                                                 break
 
-
                                     line_symbols = all_symbols[current_symbol_index:neume_pos]
                                     add_line_symbols(line_symbols)
                                     current_symbol_index = neume_pos
 
                                     # add the syllable
-                                    self.get_or_create_current_line_container().children.append(
-                                        Syllable(sc.syllable.text if sc.syllable.connection == sc.syllable.connection.NEW else "-" + sc.syllable.text, SpacedNotes([]))
+                                    #ls = self.get_last_syllables()
+                                    syllable = Syllable(sc.syllable.text ,
+                                            SpacedNotes([]))
+                                    if sc.syllable.connection != sc.syllable.connection.NEW:
+                                        last_syllable.text = last_syllable.text + "-"
+                                    self.get_or_create_current_line_container().children.append(syllable
+
                                     )
+                                    last_syllable = syllable
                                     first = False
-                                #new_start = [ind for ind, s in enumerate(all_symbols[current_symbol_index:]) if s.symbol_type == s.symbol_type.NOTE and s.graphical_connection == s.graphical_connection.NEUME_START][0] + current_symbol_index
+                                # new_start = [ind for ind, s in enumerate(all_symbols[current_symbol_index:]) if s.symbol_type == s.symbol_type.NOTE and s.graphical_connection == s.graphical_connection.NEUME_START][0] + current_symbol_index
                                 index = all_connections.index(connections[-1])
                                 if index == len(all_connections) - 1:
                                     new_start = len(all_symbols)
                                 else:
-                                    new_start = all_symbols.index(all_connections[index +1].note)
-                                add_line_symbols(all_symbols[current_symbol_index:new_start + 1]) #todo
+                                    new_start = all_symbols.index(all_connections[index + 1].note)
+                                add_line_symbols(all_symbols[current_symbol_index:new_start + 1])  # todo
                             else:
                                 if len(all_connections) > 0:
                                     new_start = all_symbols.index(all_connections[0].note)
@@ -530,7 +581,6 @@ class PcgtsToMonodiConverter:
                                     pass
                                 else:
                                     add_line_symbols(all_symbols)  # todo
-
 
                             """
                             nonlocal current_symbol_index
@@ -555,6 +605,7 @@ class PcgtsToMonodiConverter:
     
                             add_line_symbols(symbols[current_symbol_index:])
                             """
+
                 if stop:
                     break
 
@@ -639,7 +690,9 @@ class PcgtsToMonodiConverter:
                 current_symbol_index = neume_pos
                 # add the syllable
                 self.get_or_create_current_line_container().children.append(
-                    Syllable(sc.syllable.text if sc.syllable.connection == sc.syllable.connection.NEW else "-" + sc.syllable.text, SpacedNotes([]))
+                    Syllable(
+                        sc.syllable.text if sc.syllable.connection == sc.syllable.connection.NEW else "-" + sc.syllable.text,
+                        SpacedNotes([]))
                 )
 
             add_line_symbols(symbols[current_symbol_index:])

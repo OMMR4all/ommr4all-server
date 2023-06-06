@@ -106,7 +106,7 @@ class Evaluator:
         return {
             "single": all_eval,
             "total_instances": total_instances,
-            "avg_ler": total_char_errs / total_chars,
+            "avg_ler": total_char_errs / total_chars if total_chars > 0 else 0,
             "total_chars": total_chars,
             "total_char_errs": total_char_errs,
             "total_sync_errs": total_sync_errs,
@@ -197,7 +197,7 @@ class TextExperimenter(Experimenter):
         result['total_words'] = sum([n for _, n in words_result])
         result['avg_wer'] = np.mean([n for n, _ in words_result])
         result['confusion_count'] = sum([c for k, c in result['confusion'].items()])
-        result['confusion_err'] = result['confusion_count'] / result['total_syllables']
+        result['confusion_err'] = result['confusion_count'] / result['total_syllables'] if result['total_syllables'] > 0 else 0
 
         pt = PrettyTable(['#', 'avg_ler', '#chars', '#errs', '#sync_errs', '#ser', 'avg_ser', '#words', 'avg_wer', '#confusions', '#confusions/sylls'])
         pt.add_row([result['total_instances'], result['avg_ler'], result['total_chars'], result['total_char_errs'], result['total_sync_errs'],
