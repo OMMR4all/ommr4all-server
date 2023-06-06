@@ -593,8 +593,8 @@ class SymbolDetectionEvaluator:
         total_diffs = total_diffs / total_diffs[-1]
         # transfer total / errors => acc = 1 - errors / total
         total_diffs[-2] = 1 - 1 / total_diffs[-2]
-        cm.plot_confusion_matrix()
-        cm.plot_confusion_matrix(normalize=True)
+        #cm.plot_confusion_matrix()
+        #cm.plot_confusion_matrix(normalize=True)
         return f_metrics.mean(axis=0), counts.sum(axis=0), acc_counts, acc_acc, total_diffs, total_diffs_count
 
 

@@ -229,6 +229,13 @@ class MusicSymbol:
         self.graphical_connection = graphical_connection
         self.symbol_confidence = confidence
 
+    def get_str_representation(self):
+        if self.symbol_type == self.symbol_type.NOTE:
+            return str(self.note_name)
+        elif self.symbol_type == self.symbol_type.CLEF:
+            return "Clef_C" if self.clef_type == self.clef_type.C else "Clef_F"
+        else:
+            return str(self.accid_type.name)
     @staticmethod
     def from_json(d: dict) -> 'MusicSymbol':
         if d.get('accidType') == 'neutral':
