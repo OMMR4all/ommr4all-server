@@ -25,7 +25,7 @@ def soruce_meta(id):
         "jahrhundert": "",
         "manifest": "",
         "foliooffset": 0,
-        "publish": ""
+        "publish": None
     }
     return meta
 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
                 document = documents.database_documents.get_document_by_monodi_id(cell_obj)
                 pages = [DatabasePage(book, x) for x in document.pages_names]
                 pcgts = [DatabaseFile(page, 'pcgts', create_if_not_existing=True).page.pcgts() for page in pages]
-                root = PcgtsToMonodiConverter(pcgts, document=document)
+                root = PcgtsToMonodiConverter(pcgts, document=document, replace_filename="folio")
                 meta, nodes = root.get_meta_and_notes(document=document, editor=str("OMMR4all"))
                 os.mkdir(f"/tmp/export/{source}/{document.monody_id}")
                 with open(f"/tmp/export/{source}/{document.monody_id}/data.json", "w") as f:
