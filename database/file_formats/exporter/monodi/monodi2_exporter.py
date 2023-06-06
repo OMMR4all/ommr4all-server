@@ -296,6 +296,10 @@ class PcgtsToMonodiConverter:
         self.run2(pcgts, document=document)
 
     def get_Monodi_json(self, document: Document, editor):
+        doc, notes = self.get_meta_and_notes(document, editor)
+        return {"document": doc, "notes": notes}
+
+    def get_meta_and_notes(self, document: Document, editor):
         doc = {"id": document.monody_id,
                "quelle_id": "Editorenordner",
                "dokumenten_id": document.monody_id,
@@ -324,10 +328,9 @@ class PcgtsToMonodiConverter:
                    "Nachtragsschicht": "",
                    "\u00dcberlieferungszustand": "",
                    "Melodie_Quelle": ""
+                }
                }
-               }
-        return {"document": doc, "notes": self.root.to_json()}
-
+        return doc,  self.root.to_json()
     def get_or_create_current_line_container(self):
         if self.current_line_container is None:
             self.current_line_container = LineContainer([])

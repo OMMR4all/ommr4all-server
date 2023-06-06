@@ -109,9 +109,6 @@ def evaluate_text(pred_text: List[str], gt_text: List[str]):
         ['#', "~", 'avg_ler', "~", '#chars', "~", '#errs', "~", '#sync_errs', "~", '#sylls', "~", 'avg_ser', "~",
          '#words', "~", "avg_wer", "~", "#conf", "~", 'conf_err', "~"])
     excel_lines.append(output_array)
-    for i in excel_lines:
-        print(i)
-        print(len(i))
     return excel_lines
 
 @dataclass
@@ -161,15 +158,15 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
                 if not found:
                     fn += 1
             fp += len(syl_connectors_pred)
-        print(tp)
-        print(fp)
-        print(fn)
-        p = tp / (tp + fp)
-        r = tp / (tp + fn)
-        f1 = 2 * p * r / (p + r)
-        acc = tp / (tp + fp + fn)
-        print(f1)
-        print(acc)
+        #print(tp)
+        #print(fp)
+        #print(fn)
+        p = tp / (tp + fp) if (tp + fp) > 0 else 1
+        r = tp / (tp + fn) if (tp + fn) > 0 else 1
+        f1 = 2 * p * r / (p + r) if (p + r) > 0 else 1
+        acc = tp / (tp + fp + fn) if (tp + fn + fp) > 0 else 1
+        #print(f1)
+        #print(acc)
         return tp, fn, fp, f1, acc
 
     def prepare_syllable_gt_continuation_error(eval_data: List[SyllableEvalInput]):
@@ -212,10 +209,10 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
         tp = tp + cn
         fn = fn - cn
         fp = fp - cn
-        p = tp / (tp + fp)
-        r = tp / (tp + fn)
-        f1 = 2 * p * r / (p + r)
-        acc = tp / (tp + fp + fn)
+        p = tp / (tp + fp) if (tp + fp) > 0 else 1
+        r = tp / (tp + fn) if (tp + fn) > 0 else 1
+        f1 = 2 * p * r / (p + r) if (p + r) > 0 else 1
+        acc = tp / (tp + fp + fn) if (tp + fn + fp) > 0 else 1
         print(f1)
         print(acc)
         return tp, fn, fp, f1, acc
