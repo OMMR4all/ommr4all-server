@@ -38,9 +38,10 @@ class Hyphenator(ABC):
 
 
 class CombinedHyphenator(Hyphenator):
-    from database.start_up.load_text_variants_in_memory import syllable_dictionary
 
     def __init__(self, lang='la', left=2, right=2):
+        from database.start_up.load_text_variants_in_memory import syllable_dictionary
+
         super().__init__()
         from thirdparty.pyphen import Pyphen
         self.pyphen = Pyphen(filename=lang, lang=lang, left=left, right=right)
@@ -59,9 +60,11 @@ class CombinedHyphenator(Hyphenator):
 
                 return o_word
             hyphenated = correct_l_u_case(hyph_word=hyphenated, o_word=word)
-
-            if False or hyphenated != self.pyphen.inserted(word):
+            hyph_grammar = self.pyphen.inserted(word)
+            if False or hyphenated != hyph_grammar:
                 logger.info("Hyhenation db: {} Grammar: {}".format(hyphenated, self.pyphen.inserted(word)))
+            if len(hyphenated.split("-")) == len(hyph_grammar.split("-")):
+                return hyph_grammar
             return hyphenated
 
         else:
