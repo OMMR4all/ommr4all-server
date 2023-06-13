@@ -111,12 +111,14 @@ def evaluate_text(pred_text: List[str], gt_text: List[str]):
     excel_lines.append(output_array)
     return excel_lines
 
+
 @dataclass
 class SyllableEvalInput:
     pred_annotation: List[Connection]
     gt_annotation: List[Connection]
     p_line: Line
     gt_line: Line
+
 
 def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
     def get_all_connections_of_music_line(line: Line, connections: List[Connection]) -> List[SyllableConnector]:
@@ -127,9 +129,8 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
                     syl_connectors += i.syllable_connections
                 pass
         return syl_connectors
+
     def prepare_syllable_gt(eval_data: List[SyllableEvalInput]):
-
-
 
         tp = 0
         fp = 0
@@ -147,8 +148,9 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
                 index = -1
 
                 for ind, p in enumerate(syl_connectors_pred):
-                    if i.note.coord.x == p.note.coord.x:
-                        if i.syllable.text == p.syllable.text:
+                    if abs(i.note.coord.x - p.note.coord.x) < 0.005:
+                        # (i.syllable.text in p.syllable.text or p.syllable.text in i.syllable.text) when different grammar used to split words in syllabels
+                        if i.syllable.text == p.syllable.text or (i.syllable.text in p.syllable.text or p.syllable.text in i.syllable.text):
                             tp += 1
                             found = True
                             del syl_connectors_pred[ind]
@@ -158,15 +160,13 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
                 if not found:
                     fn += 1
             fp += len(syl_connectors_pred)
-        #print(tp)
-        #print(fp)
-        #print(fn)
+
         p = tp / (tp + fp) if (tp + fp) > 0 else 1
         r = tp / (tp + fn) if (tp + fn) > 0 else 1
         f1 = 2 * p * r / (p + r) if (p + r) > 0 else 1
         acc = tp / (tp + fp + fn) if (tp + fn + fp) > 0 else 1
-        #print(f1)
-        #print(acc)
+        # print(f1)
+        # print(acc)
         return tp, fn, fp, f1, acc
 
     def prepare_syllable_gt_continuation_error(eval_data: List[SyllableEvalInput]):
@@ -174,7 +174,6 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
         tp = 0
         fp = 0
         fn = 0
-        cn = 0
         for i in eval_data:
             pred_annotations = i.pred_annotation
             gt_annotations = i.gt_annotation
@@ -184,11 +183,13 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
             syl_connectors_pred = get_all_connections_of_music_line(p_line, pred_annotations)
             syl_connectors_gt: List[SyllableConnector] = get_all_connections_of_music_line(gt_line, gt_annotations)
             consecutive = False
+            cn = 0
+
             for i in sorted(syl_connectors_gt, key=lambda x: x.note.coord.x):
                 found = False
                 index = -1
                 for ind, p in enumerate(syl_connectors_pred):
-                    if i.note.coord.x == p.note.coord.x:
+                    if abs(i.note.coord.x - p.note.coord.x) < 0.005:
                         if i.syllable.text == p.syllable.text:
                             consecutive = False
                             tp += 1
@@ -199,29 +200,61 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
                             print(f'gt {i.syllable.text} p: {p.syllable.text}')
                 if not found:
                     if consecutive:
-                        cn+= 1
-                    fn += 1
-                    consecutive = True
+                        cn += 1
+                        tp += 1
+                    else:
+                        fn += 1
+                        consecutive = True
             fp += len(syl_connectors_pred)
-        print(tp)
-        print(fp)
-        print(fn)
-        tp = tp + cn
-        fn = fn - cn
-        fp = fp - cn
         p = tp / (tp + fp) if (tp + fp) > 0 else 1
         r = tp / (tp + fn) if (tp + fn) > 0 else 1
         f1 = 2 * p * r / (p + r) if (p + r) > 0 else 1
         acc = tp / (tp + fp + fn) if (tp + fn + fp) > 0 else 1
-        print(f1)
-        print(acc)
+
         return tp, fn, fp, f1, acc
+
+    def evaluate_melody_blocks(eval_data: List[SyllableEvalInput]):
+        tp = 0
+        fp = 0
+        fn = 0
+        for i in eval_data:
+            pred_annotations = i.pred_annotation
+            gt_annotations = i.gt_annotation
+            p_line = i.p_line
+            gt_line = i.gt_line
+
+            syl_connectors_pred = get_all_connections_of_music_line(p_line, pred_annotations)
+            syl_connectors_gt: List[SyllableConnector] = get_all_connections_of_music_line(gt_line, gt_annotations)
+            syl_connectors_pred = list(set([i.note for i in syl_connectors_pred if len(i.syllable.text) > 0]))
+            syl_connectors_gt = list(set([i.note for i in syl_connectors_gt if len(i.syllable.text) > 0]))
+            for t in sorted(syl_connectors_gt, key=lambda x: x.coord.x):
+                found = False
+                index = -1
+                for ind, p in enumerate(syl_connectors_pred):
+                    if abs(t.coord.x - p.coord.x) < 0.005:
+                        tp += 1
+                        found = True
+                        del syl_connectors_pred[ind]
+                        break
+                if not found:
+                    fn += 1
+            fp += len(syl_connectors_pred)
+
+        p = tp / (tp + fp) if (tp + fp) > 0 else 1
+        r = tp / (tp + fn) if (tp + fn) > 0 else 1
+        f1 = 2 * p * r / (p + r) if (p + r) > 0 else 1
+        acc = tp / (tp + fp + fn) if (tp + fn + fp) > 0 else 1
+
+        return tp, fn, fp, f1, acc
+        pass
 
     result = prepare_syllable_gt(eval_data)
     result2 = prepare_syllable_gt_continuation_error(eval_data)
+    result3 = evaluate_melody_blocks(eval_data)
     excel_lines = []
     res2_labels = ["cTp", "cFn", "cFP", "cF1", "c_acc"]
-    excel_lines.append(["Tp", "Fn", "FP", "F1", "acc"] + res2_labels)
+    res3_labels = ["bTp", "bFn", "bFP", "bF1", "b_acc"]
 
-    excel_lines.append(result + result2)
+    excel_lines.append(["Tp", "Fn", "FP", "F1", "acc"] + res2_labels + res3_labels)
+    excel_lines.append(result + result2 + result3)
     return excel_lines

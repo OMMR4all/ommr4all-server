@@ -326,6 +326,15 @@ class Coords(SerializableType):
 
         return c1, c2
 
+    def polygon_contains_point(self, p: Point):
+        from shapely.geometry import Point
+        from shapely.geometry.polygon import Polygon
+
+        point = Point(p.x, p.y)
+        polygon = Polygon(self.to_points_list())
+        return polygon.contains(point)
+
+
 
 
 class Rect:
