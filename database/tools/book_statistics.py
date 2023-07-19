@@ -19,6 +19,9 @@ class Counts:
     n_note_components: int = 0
     n_clefs: int = 0
     n_accids: int = 0
+    n_chars: int = 0
+    n_syllabels: int = 0
+    n_words: int = 0
 
 
 class Callback(ABC):
@@ -54,6 +57,11 @@ def get_counts(pages: List[PcGts], callback: Callback = None) -> Counts:
             counts.n_note_components += len([s for s in ml.symbols if s.symbol_type == SymbolType.NOTE])
             counts.n_clefs += len([s for s in ml.symbols if s.symbol_type == SymbolType.CLEF])
             counts.n_accids += len([s for s in ml.symbols if s.symbol_type == SymbolType.ACCID])
+        tls = p.all_text_lines()
+        for tl in tls:
+            counts.n_syllabels += len(tl.sentence.syllables)
+            counts.n_chars += len(tl.text())
+            counts.n_words += len(tl.text().split(" "))
 
         if callback:
             callback.updated(counts, i + 1, len(pages))

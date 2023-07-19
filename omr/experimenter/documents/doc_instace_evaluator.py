@@ -1,36 +1,46 @@
+import json
+import os
 from dataclasses import dataclass
-from typing import List
+from typing import List, Tuple
+
+import edlib
 
 from database import DatabaseBook, DatabasePage
 from database.database_book_documents import DatabaseBookDocuments, DocSpanType
 from database.file_formats import PcGts
 from database.file_formats.book.document import LineMetaInfos
-from database.file_formats.pcgts import MusicSymbol, Line
+from database.file_formats.pcgts import MusicSymbol, Line, Rect, Point
 from database.file_formats.pcgts.page import Connection, SyllableConnector
 from database.file_formats.performance import LockState
 from database.file_formats.performance.pageprogress import Locks
+from omr.dataset.dataset import LyricsNormalizationProcessor, LyricsNormalizationParams, LyricsNormalization
 from omr.experimenter.documents.b_evalluator import evaluate_symbols, evaluate_text, SyllableEvalInput, \
     evaluate_syllabels
-from omr.experimenter.documents.evaluater import evaluate_stafflines
+from omr.experimenter.documents.evaluater import evaluate_stafflines, logger
+from tools.simple_gregorianik_text_export import Lyrics, Lyric_info
 
 
-def prepare_document(pred_book: DatabaseBook, gt_book: DatabaseBook, ignore=None, ignore_char="$") -> List[DocSpanType]:
+def prepare_document(pred_book: DatabaseBook, gt_book: DatabaseBook, ignore=None, ignore_char="$") -> Tuple[List[DocSpanType], int, int]:
     documents = DatabaseBookDocuments().load(gt_book)
     documents_pred = DatabaseBookDocuments().load(pred_book)
 
     pcgts = []
     docs: List[DocSpanType] = []
+    total_docs = 0
+    skipped = 0
     for page in gt_book.pages():
         pcgts_file = PcGts.from_file(page.file('pcgts'))
         pcgts.append(pcgts_file)
-        for i in documents.get_documents_of_page(pcgts_file.page, only_start=True):
+        for i in documents.get_documents_of_page(pcgts_file.page, only_start=False):
             whole_text = i.doc.get_text_of_document(gt_book)
+            total_docs +=1
             if ignore_char in whole_text:
                 print("skipping")
+                skipped +=1
                 continue
             docs.append(i)
 
-    return docs
+    return docs, total_docs, skipped
 
 
 def filter_docs(docs: List[DocSpanType], below_page=253):
@@ -61,7 +71,7 @@ class DocSymbolEvalData:
     eval_symbols: List[LineSymbolEvalData]
     doc_id: str
 
-    def get_doc_symbol_data(self):
+    def get_doc_symbol_data(self) ->Tuple[List[List[MusicSymbol]], List[List[MusicSymbol]]]:
         pred_symbols = []
         gt_symbols = []
         for i in self.eval_symbols:
@@ -85,6 +95,10 @@ class SymbolEvalData:
                 gt_symbols += gt
             else:
                 print("Mismatch in len of Lines")
+        gt_s = [t for i in gt_symbols for t in i]
+        pred_s = [t for i in pred_symbols for t in i]
+
+        print(f"gt_symvbols:{len(gt_s)} pred_symbols: {len(pred_s)}")
         return pred_symbols, gt_symbols
 
 
@@ -199,13 +213,14 @@ class LineTextEvalData:
 class DocTextEvalData:
     eval_text: List[LineTextEvalData]
     doc_id: str
+    start_page_name: str = ""
 
-    def get_doc_symbol_data(self):
+    def get_doc_text_data(self):
         pred_texts = []
         gt_texts = []
         for i in self.eval_text:
-            pred_texts.append(i.pred.replace("j", "i").replace("v", "u"))
-            gt_texts.append(i.gt.replace("j", "i").replace("v", "u"))
+            pred_texts.append(i.pred.replace("j", "i").replace("v", "u").lower())
+            gt_texts.append(i.gt.replace("j", "i").replace("v", "u").lower())
 
         return pred_texts, gt_texts
 
@@ -216,7 +231,8 @@ class DocTextEvalData:
             pred_texts += i.pred
             gt_texts += i.gt
 
-        return [pred_texts.replace("j", "i").replace("v", "u").replace(" ","")], [gt_texts.replace("j", "i").replace("v", "u").replace(" ","")]
+        return [pred_texts.replace("j", "i").replace("v", "u").replace(" ", "").lower()], [
+            gt_texts.replace("j", "i").replace("v", "u").replace(" ", "").lower()]
 
 
 @dataclass
@@ -227,7 +243,7 @@ class TextEvalData:
         pred_texts = []
         gt_texts = []
         for i in self.doc_data:
-            pred, gt = i.get_doc_symbol_data()
+            pred, gt = i.get_doc_text_data()
             if len(pred) == len(gt):
                 pred_texts += pred
                 gt_texts += gt
@@ -273,7 +289,7 @@ def gen_eval_text_documents_data(pred_book: DatabaseBook, gt_book: DatabaseBook,
                 print(gt)
                 eval_lines.append(LineTextEvalData(pred=pred.replace("-", "").lower(), gt=gt.replace("-", "").lower()))
 
-            eval_data.append(DocTextEvalData(eval_text=eval_lines, doc_id=i.doc.doc_id))
+            eval_data.append(DocTextEvalData(eval_text=eval_lines, doc_id=i.doc.doc_id, start_page_name=i.doc.start.page_name))
         else:
             print("Missing")
     return TextEvalData(eval_data)
@@ -287,18 +303,20 @@ def eval_texts_line_instance(symbol_eval_data: TextEvalData, sheet):
             excel_data = evaluate_text([pred], [gt])
             pred_str = pred
             gt_str = gt
-            docs_instance_eval_data.append([(pred_str, gt_str), excel_data, i.doc_id])
+            docs_instance_eval_data.append([(pred_str, gt_str), excel_data, i.doc_id, i.start_page_name])
     ind = 3
-    left = 3
+    left = 4
     first = False
     for ind_d, d in enumerate(docs_instance_eval_data):
-        eval_data1, lines, docs_id = d
+        eval_data1, lines, docs_id,  start_page = d
         p_str, gt_str = eval_data1
         if not first:
             for ind2, line in enumerate(lines[:-1]):
                 sheet.write(ind, 0, "Doc_id")
                 sheet.write(ind, 1, "p_str")
                 sheet.write(ind, 2, "gt_str")
+                sheet.write(ind, 3, "start_page")
+
                 for ind1, cell in enumerate(line):
                     sheet.write(ind, ind1 + left, str(cell))
                 ind += 1
@@ -306,29 +324,84 @@ def eval_texts_line_instance(symbol_eval_data: TextEvalData, sheet):
         sheet.write(ind, 0, str(docs_id))
         sheet.write(ind, 1, str(p_str))
         sheet.write(ind, 2, str(gt_str))
+        sheet.write(ind, 3, str(start_page))
 
         for ind1, cell in enumerate(lines[-1]):
             sheet.write(ind, ind1 + left, cell)
         ind += 1
 
+def check_document_error_type(doc_string_gt, docstring_pred, t: DocTextEvalData):
+    lowest_ed = 999999
+    text_normalizer = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.WORDS))
+    doc_string = text_normalizer.apply(doc_string_gt)
+    docstring_pred = text_normalizer.apply(docstring_pred)
+    lowest_text = None
+    lyric_info = None
 
+
+    for b in lyrics.lyrics:
+        b: Lyric_info = b
+        text2 = text_normalizer.apply(b.latine).replace("j", "i").replace("v", "u")
+        ed = edlib.align(doc_string.replace(" ", "").lower(), text2.replace(" ", "").lower(), mode="SHW", k=lowest_ed)
+        if 0 < ed["editDistance"] < lowest_ed:
+            lowest_ed = ed["editDistance"]
+            lowest_text = text2
+            lyric_info = b
+        elif doc_string.replace(" ", "") == text2.replace(" ", ""):
+            lowest_ed = 0
+            lowest_text = text2
+            lyric_info = b
+    if lyric_info:
+        ed = edlib.align(doc_string.replace(" ", ""), lowest_text.replace(" ", ""), mode="NW", task="path")
+        locations = ed["locations"][0]
+        """
+        print(lowest_ed)
+        print(ed["locations"])
+        print(len(lowest_text.replace(" ", "")))
+        print(locations)
+        print(lowest_text.replace(" ", ""))
+        print(doc_string)
+        print("_____")
+        """
+        ed_pred = edlib.align(docstring_pred.replace(" ", ""), lowest_text.replace(" ", "")[:locations[1]], mode="NW", task="path")
+
+        if lowest_ed == 0:
+            total_errors = 0
+            total_lines = 0
+            for s in t.eval_text:
+                ed_pred_line = edlib.align(s.pred.replace(" ", ""), s.gt.replace(" ", ""), mode="NW", task="path")
+                """
+                print(s.pred)
+                print(s.gt)
+                print(ed_pred["editDistance"])
+                """
+                total_errors += ed_pred_line["editDistance"]
+                total_lines += 1
+            #print(f"total_errors {total_errors}, tl: {total_lines}")
+            return lowest_text.replace(" ", ""), len(lowest_text.replace(" ", "")) - len(doc_string.replace(" ", "")), lowest_ed, ed_pred["editDistance"], total_errors, total_lines
+
+        return lowest_text.replace(" ", ""), len(lowest_text.replace(" ", "")) - len(doc_string.replace(" ", "")), lowest_ed, ed_pred["editDistance"], -1, -1
+    return "", -1, -1, -1, -1, -1
+    pass
 def eval_texts_docs_instance(symbol_eval_data: TextEvalData, sheet):
     docs_instance_eval_data = []
     for i in symbol_eval_data.doc_data:
-        pred, gt = i.get_doc_symbol_data()
-        excel_data = evaluate_text(pred, gt)
-        docs_instance_eval_data.append([(pred[0], gt[0]), excel_data, i.doc_id])
+        pred, gt = i.get_doc_text_data()
+        excel_data = evaluate_text(["".join(pred)], ["".join(gt)])
+        docs_instance_eval_data.append([("".join(pred), "".join(gt)), excel_data, i.doc_id, i.start_page_name])
     ind = 3
-    left = 3
+    left = 4
     first = False
     for ind_d, d in enumerate(docs_instance_eval_data):
-        eval_data1, lines, docs_id = d
+        eval_data1, lines, docs_id, start_page = d
         p_str, gt_str = eval_data1
         if not first:
             for ind2, line in enumerate(lines[:-1]):
                 sheet.write(ind, 0, "Doc_id")
                 sheet.write(ind, 1, "p_str")
                 sheet.write(ind, 2, "gt_str")
+                sheet.write(ind, 3, "start_page")
+
                 for ind1, cell in enumerate(line):
                     sheet.write(ind, ind1 + left, str(cell))
                 ind += 1
@@ -336,6 +409,7 @@ def eval_texts_docs_instance(symbol_eval_data: TextEvalData, sheet):
         sheet.write(ind, 0, str(docs_id))
         sheet.write(ind, 1, str(p_str))
         sheet.write(ind, 2, str(gt_str))
+        sheet.write(ind, 3, str(start_page))
 
         for ind1, cell in enumerate(lines[-1]):
             sheet.write(ind, ind1 + left, cell)
@@ -349,18 +423,29 @@ def eval_texts_docs_instance_ignore_lines(symbol_eval_data: TextEvalData, sheet)
         excel_data = evaluate_text(pred, gt)
         pred_str = " ".join([iz for iz in pred])
         gt_str = " ".join([iz for iz in gt])
-        docs_instance_eval_data.append([(pred_str, gt_str), excel_data, i.doc_id])
+        best_match, b_cut, n_ed, pred_ed, t_line_errors, t_lines = check_document_error_type(gt_str, pred_str, i)
+        docs_instance_eval_data.append([(pred_str, gt_str), excel_data, i.doc_id, i.start_page_name, best_match, b_cut, n_ed, pred_ed, t_line_errors, t_lines ])
     ind = 3
-    left = 3
+    left = 10
     first = False
     for ind_d, d in enumerate(docs_instance_eval_data):
-        eval_data1, lines, docs_id = d
+        eval_data1, lines, docs_id, start_page, best_match, b_cut, n_ed, pred_ed, t_line_errors, t_lines  = d
         p_str, gt_str = eval_data1
         if not first:
             for ind2, line in enumerate(lines[:-1]):
                 sheet.write(ind, 0, "Doc_id")
                 sheet.write(ind, 1, "p_str")
                 sheet.write(ind, 2, "gt_str")
+                sheet.write(ind, 3, "start_page")
+
+                sheet.write(ind, 4, "best_match_with_gt")
+                sheet.write(ind, 5, "len Diff between gt, best_match")
+                sheet.write(ind, 6, "edit_errors gt, best_match (mit abgeschnittenen bestMatch)")
+                sheet.write(ind, 7, "edit_errors pred, best_match (mit abgeschnittenen bestMatch)")
+                sheet.write(ind, 8, "Zeilen Fehler")
+                sheet.write(ind, 9, "#lines")
+
+
                 for ind1, cell in enumerate(line):
                     sheet.write(ind, ind1 + left, str(cell))
                 ind += 1
@@ -368,6 +453,15 @@ def eval_texts_docs_instance_ignore_lines(symbol_eval_data: TextEvalData, sheet)
         sheet.write(ind, 0, str(docs_id))
         sheet.write(ind, 1, str(p_str))
         sheet.write(ind, 2, str(gt_str))
+        sheet.write(ind, 3, str(start_page))
+
+        sheet.write(ind, 4, str(best_match))
+        sheet.write(ind, 5, str(b_cut))
+        sheet.write(ind, 6, str(n_ed))
+        sheet.write(ind, 7, str(pred_ed))
+
+        sheet.write(ind, 8, str(t_line_errors))
+        sheet.write(ind, 9, str(t_lines))
 
         for ind1, cell in enumerate(lines[-1]):
             sheet.write(ind, ind1 + left, cell)
@@ -550,6 +644,8 @@ class LineLayoutEvalData:
     pred: Line
     pred_txt: str
     gt_txt: str
+    pred_page: DatabasePage
+    gt_page: DatabasePage
 
 
 @dataclass
@@ -590,13 +686,29 @@ def eval_layout(eval_data: List[LineLayoutEvalData]):
     tp = 0
     fp = 0
     fn = 0
-
+    from PIL import Image
     for i in eval_data:
         tp_l = 0
+        image = Image.open(i.pred_page.local_file_path("color_norm_x2.jpg"))
+        width = image.width
         for s in i.gt.symbols:
-            if i.pred.coords.polygon_contains_point(s.coord):
+            rec = i.pred.coords.aabb()
+            pad = [0, 10, 0, 40]
+            tl = rec.tl
+            br = rec.br
+            xt, yt = tl.xy()
+            xb, yb = br.xy()
+
+            xt = max(0, xt - 40 / width)
+            xb = min(width, xb + 10 / width)
+            rect = Rect(Point(x=xt, y=yt), Point(x=xb, y=yb))
+            if rect.to_coords().polygon_contains_point(s.coord):
                 tp_l += 1
                 continue
+                pass
+            if i.pred.coords.polygon_contains_point(s.coord):
+                pass
+                # continue
 
         fp += (len(i.gt.symbols) - tp_l)
         fn += (len(i.gt.symbols) - tp_l)
@@ -644,7 +756,8 @@ def gen_eval_layout_documents_data(pred_book: DatabaseBook, gt_book: DatabaseBoo
                 ml_pred = pred_page.pcgts().page.closest_music_line_to_text_line(pred_line)
 
                 eval_lines.append(
-                    LineLayoutEvalData(pred_txt=pred_line.text(), gt_txt=gt_line.text(), gt=ml_gt, pred=ml_pred)
+                    LineLayoutEvalData(pred_txt=pred_line.text(), gt_txt=gt_line.text(), gt=ml_gt, pred=ml_pred,
+                                       pred_page=pred[1], gt_page=gt_page)
                     ,
                 )
             eval_data.append(DocLayoutEvalData(eval_layout=eval_lines, doc_id=i.doc.doc_id))
@@ -751,46 +864,64 @@ if __name__ == "__main__":
         pass
 
 
-    b = DatabaseBook('mul_2_c')
-    c = DatabaseBook('mul_2_rsync_gt')
-    # excel_lines1 = evaluate_stafflines(b, c)
-    docs = prepare_document(b, c)
-    docs = filter_docs(docs, 253)
-    layout_eval_data = gen_eval_layout_documents_data(b, c, docs)
+    from ommr4all import settings
+    global lyrics
+    global syllable_dictionary
+    path = os.path.join(settings.BASE_DIR, 'internal_storage', 'resources', 'lyrics_collection',
+                        'lyrics_by_sources.json')
+    assert os.path.exists(path)
 
-    symbol_eval_data = gen_eval_symbol_documents_data(b, c, docs)
-    text_eval_data = gen_eval_text_documents_data(b, c, docs)
-    syl_eval_data = gen_eval_syllable_documents_data(b, c, docs)
+    with open(path) as f:
+        json1 = json.load(f)
+        lyrics = Lyrics.from_dict(json1)
+    logger.info("Successfully imported Lyrics database into memory")
+    for i in ['mul_2_end_no_finetune_basic_no_doc_pp', 'mul_2_end_no_finetune_basic_w_doc_pp', 'mul_2_end_w_finetune_basic_no_doc_pp',
+              'mul_2_end_w_finetune_basic_w_doc_pp', 'mul_2_end_w_gt_symbols_no_finetune_no_pp', 'mul_2_end_w_gt_symbols_no_finetune_w_pp',
+              'mul_2_end_w_gt_symbols_w_finetune_no_pp', 'mul_2_end_w_gt_symbols_w_finetune_no_pp', 'mul_2_end_w_gt_symbols_w_finetune_w_pp',
+              'mul_2_end_w_gt_symbols_and_text']:
+        b = DatabaseBook(i)
+        c = DatabaseBook('mul_2_rsync_gt')
+        # excel_lines1 = evaluate_stafflines(b, c)
+        docs, total, skipped = prepare_document(b, c)
+        docs = filter_docs(docs, 253)
+        layout_eval_data = gen_eval_layout_documents_data(b, c, docs)
 
-    from xlwt import Workbook
+        symbol_eval_data = gen_eval_symbol_documents_data(b, c, docs)
+        text_eval_data = gen_eval_text_documents_data(b, c, docs)
+        syl_eval_data = gen_eval_syllable_documents_data(b, c, docs)
 
-    # Workbook is created
-    wb = Workbook()
+        from xlwt import Workbook
+        wb2 = Workbook()
+        # Workbook is created
+        wb = Workbook()
+        # add_sheet is used to create sheet.
+        excel_lines1 = evaluate_stafflines(b, c)
+        sheet0 = wb.add_sheet('Stafflines')
+        write_staffline_eval_data(excel_lines1, sheet0)
+        sheet03 = wb.add_sheet('Layout Docs')
+        eval_layout_docs_instance(layout_eval_data, sheet03)
+        sheet04 = wb.add_sheet('Layout Lines')
+        eval_layout_docs_line_instance(layout_eval_data, sheet04)
 
-    # add_sheet is used to create sheet.
-    excel_lines1 = evaluate_stafflines(b, c)
-    sheet0 = wb.add_sheet('Stafflines')
-    write_staffline_eval_data(excel_lines1, sheet0)
-    sheet03 = wb.add_sheet('Layout Docs')
-    eval_layout_docs_instance(layout_eval_data, sheet03)
-    sheet04 = wb.add_sheet('Layout Lines')
-    eval_layout_docs_line_instance(layout_eval_data, sheet04)
+        sheet1 = wb.add_sheet('Symbols Docs')
+        eval_symbols__docs_instance(symbol_eval_data, sheet1)
+        sheet2 = wb.add_sheet('Symbols Lines')
+        eval_symbols__docs_instance(symbol_eval_data, sheet2)
+        sheet3 = wb.add_sheet('Text Docs')
+        eval_texts_docs_instance(text_eval_data, sheet3)
+        sheet4 = wb.add_sheet('Text Lines')
+        eval_texts_line_instance(text_eval_data, sheet4)
 
-    sheet1 = wb.add_sheet('Symbols Docs')
-    eval_symbols__docs_instance(symbol_eval_data, sheet1)
-    sheet2 = wb.add_sheet('Symbols Lines')
-    eval_symbols__docs_instance(symbol_eval_data, sheet2)
-    sheet3 = wb.add_sheet('Text Docs')
-    eval_texts_docs_instance(text_eval_data, sheet3)
-    sheet4 = wb.add_sheet('Text Lines')
-    eval_texts_line_instance(text_eval_data, sheet4)
-    sheet34 = wb.add_sheet('Text Docs Line Ignored')
-    eval_texts_docs_instance_ignore_lines(text_eval_data, sheet34)
-    sheet5 = wb.add_sheet('Syllable Docs')
-    eval_syl_docs_instance(syl_eval_data, sheet5)
-    sheet6 = wb.add_sheet('Syllable Line')
-    eval_syl_docs_line_instance(syl_eval_data, sheet6)
 
-    sheet10 = wb.add_sheet('overview 1')
-    overview_excel_sheet(excel_lines1, layout_eval_data, symbol_eval_data, text_eval_data, syl_eval_data, sheet10)
-    wb.save("/tmp/eval_data.xls")
+        sheet34 = wb.add_sheet('Text Docs Line Ignored')
+        eval_texts_docs_instance_ignore_lines(text_eval_data, sheet34)
+
+        sheet5 = wb.add_sheet('Syllable Docs')
+        eval_syl_docs_instance(syl_eval_data, sheet5)
+        sheet6 = wb.add_sheet('Syllable Line')
+        eval_syl_docs_line_instance(syl_eval_data, sheet6)
+        sheet10 = wb.add_sheet('overview 1')
+        overview_excel_sheet(excel_lines1, layout_eval_data, symbol_eval_data, text_eval_data, syl_eval_data, sheet10)
+
+        print(f"Skipped {skipped}, total, {len(docs)}")
+        wb.save(f"/tmp/{i}.xls")

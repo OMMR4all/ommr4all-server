@@ -92,7 +92,7 @@ class PcGtsCanvas:
                 pos = int(scale(syl.xpos))
                 self.img[t:b, pos] = (255, 0, 0)
                 text = syl.syllable.text.replace(" ", "_")
-                cv2.putText(self.img, text, (pos - 20, b + 20), fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=2, color=(205, 20, 100), thickness=2)
+                cv2.putText(self.img, text, (pos , b ), fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=1, color=(205, 20, 100), thickness=2)
         elif isinstance(elem, SyllablesPredictionResult):
             r: SyllablesPredictionResult = elem
             self.draw(r.annotations, **kwargs)

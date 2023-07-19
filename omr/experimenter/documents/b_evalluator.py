@@ -131,10 +131,20 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
         return syl_connectors
 
     def prepare_syllable_gt(eval_data: List[SyllableEvalInput]):
+        @dataclass()
+        class SyllableErrorType:
+            NoteError: int = 0
+            TextError: int = 0
+            Delete: int = 0
+            Insert: int = 0
+            PreviousLine: int = 0
 
+        error_type = SyllableErrorType()
         tp = 0
         fp = 0
         fn = 0
+
+        fp_prev_line = []
         for i in eval_data:
             pred_annotations = i.pred_annotation
             gt_annotations = i.gt_annotation
@@ -143,6 +153,8 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
 
             syl_connectors_pred = get_all_connections_of_music_line(p_line, pred_annotations)
             syl_connectors_gt = get_all_connections_of_music_line(gt_line, gt_annotations)
+            add_gt_connections = []
+
             for i in syl_connectors_gt:
                 found = False
                 index = -1
@@ -150,16 +162,55 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
                 for ind, p in enumerate(syl_connectors_pred):
                     if abs(i.note.coord.x - p.note.coord.x) < 0.005:
                         # (i.syllable.text in p.syllable.text or p.syllable.text in i.syllable.text) when different grammar used to split words in syllabels
-                        if i.syllable.text == p.syllable.text or (i.syllable.text in p.syllable.text or p.syllable.text in i.syllable.text):
+                        if i.syllable.text.lower() == p.syllable.text.lower() or (i.syllable.text.lower() in p.syllable.text.lower() or p.syllable.text.lower() in i.syllable.text.lower()):
                             tp += 1
                             found = True
                             del syl_connectors_pred[ind]
                             break
                         else:
-                            print(f'gt {i.syllable.text} p: {p.syllable.text}')
+                            pass
+                            #print(f'gt {i.syllable.text} p: {p.syllable.text}')
                 if not found:
+                    add_gt_connections.append(i)
                     fn += 1
             fp += len(syl_connectors_pred)
+            keep= True
+            #print(len(add_gt_connections))
+            once = True
+            while keep:
+                #print(len(add_gt_connections))
+                keep = False
+                if once and len(fp_prev_line) > 0 and len(add_gt_connections) > 0 and add_gt_connections[0].syllable.text.lower() == fp_prev_line[-1].syllable.text.lower():
+                    del add_gt_connections[0]
+                    error_type.PreviousLine +=1
+                    error_type.Delete -= 1
+
+                    pass
+                once = False
+                for ind1, i in enumerate(add_gt_connections):
+                    found = False
+
+                    for ind2, p in enumerate(syl_connectors_pred):
+
+                        if abs(i.note.coord.x - p.note.coord.x) < 0.005:
+                            error_type.TextError += 1
+                            del syl_connectors_pred[ind2]
+                            del add_gt_connections[ind1]
+                            found = True
+                            break
+                        if i.syllable.text.lower() == p.syllable.text.lower():
+                            error_type.NoteError += 1
+                            del syl_connectors_pred[ind2]
+                            del add_gt_connections[ind1]
+                            found = True
+                            break
+
+                    if found:
+                        keep = True
+                        break
+            error_type.Insert += len(add_gt_connections)
+            error_type.Delete += len(syl_connectors_pred)
+            fp_prev_line = syl_connectors_pred
 
         p = tp / (tp + fp) if (tp + fp) > 0 else 1
         r = tp / (tp + fn) if (tp + fn) > 0 else 1
@@ -167,7 +218,8 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
         acc = tp / (tp + fp + fn) if (tp + fn + fp) > 0 else 1
         # print(f1)
         # print(acc)
-        return tp, fn, fp, f1, acc
+        return tp, fn, fp, f1, acc, error_type.NoteError, error_type.TextError, \
+            error_type.Insert, error_type.Delete, error_type.PreviousLine
 
     def prepare_syllable_gt_continuation_error(eval_data: List[SyllableEvalInput]):
 
@@ -197,7 +249,8 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
                             del syl_connectors_pred[ind]
                             break
                         else:
-                            print(f'gt {i.syllable.text} p: {p.syllable.text}')
+                            pass
+                            #print(f'gt {i.syllable.text} p: {p.syllable.text}')
                 if not found:
                     if consecutive:
                         cn += 1
@@ -255,6 +308,6 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
     res2_labels = ["cTp", "cFn", "cFP", "cF1", "c_acc"]
     res3_labels = ["bTp", "bFn", "bFP", "bF1", "b_acc"]
 
-    excel_lines.append(["Tp", "Fn", "FP", "F1", "acc"] + res2_labels + res3_labels)
+    excel_lines.append(["Tp", "Fn", "FP", "F1", "acc", "NoteError", "TextError", "Insert", "Delete", "PrevLineError"] + res2_labels + res3_labels)
     excel_lines.append(result + result2 + result3)
     return excel_lines

@@ -1,9 +1,21 @@
 import enum
 import math
+import os
 import re
 from dataclasses import dataclass
 
 import edlib
+import numpy as np
+
+if __name__ == '__main__':
+    import django
+
+
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
+    django.setup()
+    from database.start_up.load_text_variants_in_memory import load_model
+    load_model()
+from database.start_up.load_text_variants_in_memory import lyrics, syllable_dictionary
 
 from database.database_book_documents import DatabaseBookDocuments
 from database.database_dictionary import DatabaseDictionary
@@ -17,16 +29,15 @@ from database import DatabasePage, DatabaseBook
 from typing import List, Optional, NamedTuple
 
 from omr.steps.algorithmtypes import AlgorithmTypes
+from omr.steps.layout.predictor import PredictionResult
 from omr.steps.step import Step
+from omr.steps.text.hyphenation.hyphenator import Hyphenator, HyphenDicts, CombinedHyphenator
 from omr.text_matching.populate_db import SimilarDocumentChecker
 from tools.simple_gregorianik_text_export import Lyric_info
-from .meta import Meta
 from database.file_formats.pcgts import Coords, PageScaleReference
-from database.start_up.load_text_variants_in_memory import lyrics, syllable_dictionary
 
 from itertools import zip_longest
 
-from ...hyphenation.hyphenator import Pyphenator, CombinedHyphenator, HyphenDicts, Hyphenator
 
 
 def grouper(iterable, n, fillvalue=None):
@@ -297,6 +308,144 @@ def best_new_line_position2(word: List[synced_char], word_indices: List[int], hy
             return second
     return current_new_line_ind2
 
+def align_documents2(b: Lyric_info, document: Document, doc_text: str, doc_list: List[str],
+                    normalizer: LyricsNormalizationProcessor, hyphen: Hyphenator):
+    from collections import Counter
+
+    def most_common(lst):
+        data = Counter(lst)
+        return data.most_common(1)[0][0]
+
+    text_pred = [(t, ind) for ind, i in enumerate(doc_list) for t in i]
+    #print(text_pred)
+    # remove whitespaces
+    text_pred = [(i, t) for i, t in text_pred if i != ' ' and i != '-']
+
+    #print(text_pred)
+    only_text = "".join([i[0] for i in text_pred])
+    text_gt = " ".join(b.latine.split(" "))
+    #text_gt = hyphen.apply_to_sentence(text_gt)
+    text_gt = text_gt.replace("-", " ")
+    #print(text_gt)
+    text_gt = [(t, ind) for ind, i in enumerate(text_gt.split(" ")) for t in i]
+    #text_words = [(i, ind) for ind, i in enumerate(text_gt.split(" "))]
+
+    only_text_gt = "".join([i[0] for i in text_gt])
+    #print(only_text_gt)
+    #print(only_text_gt)
+    #print(only_text)
+    ed = edlib.align(only_text.lower(), only_text_gt.lower(), mode="SHW", task="path")
+    #print("___")
+    #print(only_text_gt)
+    #print(only_text)
+    #print("___")
+    gap_char = "#"
+    nice = edlib.getNiceAlignment(ed, only_text, only_text_gt, gap_char)
+    @dataclass
+    class SyncedCharInfo:
+        char_pred: str
+        char_gt: str
+        operation: sync_operation
+        pred_line: int
+        gt_char_of_word: int
+        #gt_syllable_after: bool
+
+    for ind, i in enumerate(nice["query_aligned"]):
+        if i == gap_char:
+            text_pred.insert(ind, (gap_char, None))
+
+    for ind, i in enumerate(nice["target_aligned"]):
+        if i == gap_char:
+            text_gt.insert(ind, (gap_char, None))
+    synced_text = []
+    #print(nice["query_aligned"])
+    #print(nice["matched_aligned"])
+    #print(nice["target_aligned"])
+    #print(text_pred)
+    #print(text_gt)
+
+    for i in zip(text_pred, nice["matched_aligned"], text_gt):
+        p_c = i[0]
+        op_c = i[1]
+        o_c = i[2]
+        if op_c == "|":
+            synced_text.append(SyncedCharInfo(char_pred=p_c[0], char_gt=o_c[0], operation=sync_operation.MATCH, pred_line=p_c[1], gt_char_of_word=o_c[1]))
+        elif op_c == ".":
+            synced_text.append(SyncedCharInfo(char_pred=p_c[0], char_gt=o_c[0], operation=sync_operation.MISMATCH, pred_line=p_c[1], gt_char_of_word=o_c[1]))
+        elif op_c == gap_char:
+            if p_c[0] == gap_char:
+                synced_text.append(SyncedCharInfo(char_pred=None, char_gt=o_c[0], operation=sync_operation.INSERT,
+                                                  pred_line=None, gt_char_of_word=o_c[1]))
+            elif o_c[0] == gap_char:
+                synced_text.append(SyncedCharInfo(char_pred=p_c[0], char_gt=None, operation=sync_operation.DELETE,
+                                                  pred_line=p_c[1], gt_char_of_word=None))
+
+    #print(synced_text)
+    word_list=[]
+    word = []
+    prev_word = 0
+    for i in synced_text:
+        if i.gt_char_of_word != prev_word:
+            if i.gt_char_of_word is not None:
+                #print("")
+                prev_word = i.gt_char_of_word
+                word_list.append(word)
+                word = []
+        word.append(i)
+    word_list.append(word)
+        #print(f'CGT: {i.char_gt}, pwt: {i.char_pred}, line: {i.pred_line} word: {i.gt_char_of_word}')
+    lines = []
+    c_line =[]
+    c_line_index = 0
+    #print(word_list)
+    for w in word_list:
+        w = [i for i in w if i.char_gt is not None]
+        word =  "".join([i.char_gt for i in w if i.char_gt is not None])
+        hyphen_word = hyphen.apply_to_word(word)
+        syl_gap_char_indexes = [ind for ind, i in enumerate(hyphen_word) if i == "-"]
+        syl_gap_char_indexes = [i - ind for ind, i in enumerate(syl_gap_char_indexes)]
+        syl_gap_char_indexes.append(len(word))
+        prev = 0
+        #print(word)
+        #print(hyphen_word)
+        for i in syl_gap_char_indexes:
+            syl = w[prev:i]
+            #print("123")
+            #print(syl)
+            syl_line = [s_c.pred_line for s_c in syl if s_c.pred_line is not None]
+            if len(syl_line) > 0:
+                line_index = most_common(syl_line)
+            else:
+                line_index = c_line_index
+            prev = i
+            if line_index == c_line_index:
+                c_line.append(syl)
+            else:
+                c_line_index = line_index
+                lines.append(c_line)
+                c_line = []
+                c_line.append(syl)
+
+        c_line.append([SyncedCharInfo(char_gt=" ", char_pred=" ", operation=None, pred_line=None, gt_char_of_word=None)])
+    lines.append(c_line)
+    doc = ""
+    for t in lines:
+        l = "".join([c.char_gt for i in t for c in i])
+        doc += l.lstrip().rstrip()
+        doc += "\n"
+    ##print(b.latine)
+    ##print(doc)
+
+    aligned_text_elements = []
+    single_document_result = []
+
+    #for i in doc.split("\n"):
+    #    i = hyphen.apply_to_sentence(i)
+    #    aligned_text_elements.append(i)
+    #aligned_text = "\n".join(aligned_text_elements)
+
+    return doc
+
 
 def align_documents(b: Lyric_info, document: Document, doc_text: str, doc_list: List[str],
                     normalizer: LyricsNormalizationProcessor, hyphen: Hyphenator):
@@ -507,6 +656,8 @@ def align_documents(b: Lyric_info, document: Document, doc_text: str, doc_list: 
 class Predictor(AlgorithmPredictor):
     @staticmethod
     def meta():
+        from omr.steps.text.correction_tools.document_matching_corrector.meta import Meta
+
         return Meta
 
     def __init__(self, settings: AlgorithmPredictorSettings):
@@ -563,7 +714,10 @@ class Predictor(AlgorithmPredictor):
 
             if lyric_info:
                 #print(lyric_info.to_json())
-                aligned_text = align_documents(lyric_info, document, text, text_list, self.text_normalizer, hyphen)
+                aligned_text = align_documents2(lyric_info, document, text, text_list, self.text_normalizer, hyphen)
+
+                #aligned_text = align_documents(lyric_info, document, text, text_list, self.text_normalizer, hyphen)
+
             else:
                 aligned_text = ""
                 for i in text_list:
@@ -673,3 +827,33 @@ class Predictor(AlgorithmPredictor):
                 callback.progress_updated(percentage, n_processed_pages=ind_doc + 1, n_pages=len(all_docs))
 
         yield Result(single_document_result)
+
+
+if __name__ == '__main__':
+    from omr.steps.step import Step, AlgorithmTypes
+    from ommr4all.settings import BASE_DIR
+    import random
+    import cv2
+    import matplotlib.pyplot as plt
+    from shared.pcgtscanvas import PcGtsCanvas
+    from omr.dataset.datafiles import dataset_by_locked_pages, LockState
+    import django
+
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
+    django.setup()
+    random.seed(1)
+    np.random.seed(1)
+
+    book = DatabaseBook('mul_2_c_symbol_finetune_doc')
+    meta = Step.meta(AlgorithmTypes.TEXT_DOCUMENT)
+    #load = "i/french14/text_guppy/text_guppy")
+    from database.model import Model
+
+    #model = Model.from_id_str("e/mul_2_rsync_gt/text_guppy/2023-07-05T16:32:45")
+    model = meta.default_model_for_book(book)
+    # model = Model(
+    #    MetaId.from_custom_path(BASE_DIR + '/internal_storage/pretrained_models/text_calamari/fraktur_historical',
+    ##                            meta.type()))
+    pred = Predictor(AlgorithmPredictorSettings(model))
+    ps: List[PredictionResult] = list(pred.predict(book.pages()[1:2]))
+

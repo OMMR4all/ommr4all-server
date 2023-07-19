@@ -20,7 +20,8 @@ def dataset_by_locked_pages(n_train, locks: List[LockState], shuffle: bool = Tru
         if not dataset.exists():
             raise ValueError("Dataset '{}' does not exist at '{}'".format(dataset.book, dataset.local_path()))
 
-        for page in dataset.pages_with_lock(locks):
+        for page in dataset.pages_with_lock(locks)[:19]:
+            print(page.page)
             pcgts.append(PcGts.from_file(page.file('pcgts')))
 
     if len(pcgts) == 0:

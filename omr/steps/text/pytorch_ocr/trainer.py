@@ -20,7 +20,7 @@ import pandas as pd
 from nautilus_ocr.utils import AttrDict
 
 
-def get_config(file_path, train_dir, val_dir, load, save_location, iter=300000):
+def get_config(file_path, train_dir, val_dir, load, save_location, iter=300000, chars=None):
     with open(file_path, 'r', encoding="utf8") as stream:
         opt = yaml.safe_load(stream)
     opt = AttrDict(opt)
@@ -29,7 +29,9 @@ def get_config(file_path, train_dir, val_dir, load, save_location, iter=300000):
     opt['saved_model'] = load
     opt['model_save_location_dir'] = save_location
     opt['num_iter'] = iter
-    if opt.lang_char == 'None':
+    if chars:
+        opt.character = chars
+    elif opt.lang_char == 'None':
         characters = ''
         for data in opt['select_data'].split('-'):
             csv_path = os.path.join(opt['train_data'], data, 'labels.csv')
@@ -103,24 +105,35 @@ class PytorchTrainer(TextTrainerBase):
                 csv_writer = csv.writer(labels_csv)
                 csv_writer.writerow(header)
                 for ind, (image, gt) in enumerate(zip(dataset[0], dataset[1])):
-                    Image.fromarray(image).save(os.path.join(path, str(ind) + ".png"))
-                    with open(os.path.join(path, str(ind) + ".txt"), 'w', encoding='UTF8') as gt_txt:
-                        gt_txt.write(gt)
-                    csv_writer.writerow([os.path.join(str(ind) + ".png"), gt])
+                    if "#" in gt:
+                        print("skip")
+                    else:
+                        Image.fromarray(image).save(os.path.join(path, str(ind) + ".png"))
+                        with open(os.path.join(path, str(ind) + ".txt"), 'w', encoding='UTF8') as gt_txt:
+                            gt_txt.write(gt)
+                        csv_writer.writerow([os.path.join(str(ind) + ".png"), gt])
 
         train_dataset = self.train_dataset.to_text_line_nautilus_dataset(train=True, callback=callback)
         val_dataset = self.validation_dataset.to_text_line_nautilus_dataset(train=False, callback=callback)
         val_dataset = train_dataset if len(val_dataset[0]) == 0 else val_dataset
         with tempfile.TemporaryDirectory() as dirpath:
             loguru.logger.info(f"Creating temporary train directory at {dirpath}")
+            print(self.params.load)
+
+            # exit()
             create_nautilus_tempfiles(dirpath, train_dataset, type="train", subfolder="train")
             create_nautilus_tempfiles(dirpath, val_dataset, type="val", subfolder="val")
+
+            # opt = get_config(opt, os.path.join(dirpath, "train"), os.path.join(dirpath, "val"),
+            #                 load='' if not self.params.model_to_load() else self.params.model_to_load().local_file(
+            #                     'best_accuracy.pth'),
+            #                 save_location=self.settings.model.path)
             opt = get_config(opt, os.path.join(dirpath, "train"), os.path.join(dirpath, "val"),
-                             load='' if not self.params.model_to_load() else self.params.model_to_load().local_file(
-                                 'model.h5'),
-                             save_location=self.settings.model.path)
+                             load=self.params.load,
+                             save_location=self.settings.model.path,
+                             chars=' \"#,.abcdefghiklmnopqrstuvxyzſω')
             while True:
-                print(dirpath)
+                pass
             train(opt, amp=False)
 
 
@@ -137,20 +150,25 @@ if __name__ == '__main__':
     import django
 
     django.setup()
-    #b = DatabaseBook('Graduel_Part_1_gt')
-    #c = DatabaseBook('Graduel_Part_2_gt')
-    #d = DatabaseBook('Graduel_Part_3_gt')
-    #e = DatabaseBook('Pa_14819_gt')
-    #f = DatabaseBook('Assisi')
-    #g = DatabaseBook('Cai_72')
-    c = DatabaseBook('mul_2_tim')
+    b = DatabaseBook('Graduel_Part_1_gt')
+    c = DatabaseBook('Graduel_Part_2_gt')
+    d = DatabaseBook('Graduel_Part_3_gt')
+    e = DatabaseBook('Pa_14819_gt')
+    f = DatabaseBook('Assisi')
+    g = DatabaseBook('Cai_72')
+    #c = DatabaseBook('mul_2_rsync_gt')
 
     # b = DatabaseBook('Pa1235_Hiwi_01')
 
-    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.TEXT, True)], True, [c])
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.TEXT, True)], True, [b, c, d, e, f, g])
+    print(len(train_pcgts))
+    print(len(val_pcgts))
+    print("2")
+    for i in train_pcgts:
+        print(i.page.location.local_path())
     trainer_params = PytorchTrainer.default_params()
-    trainer_params.l_rate = 1e-3
-    # trainer_params.load = '/home/ls6/wick/Documents/Projects/calamari_models/fraktur_historical_ligs/0.ckpt.json'
+    trainer_params.l_rate = 1e-4
+    trainer_params.load = '/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/modules/ommr4all-server/internal_storage/default_models/french14/text_nautilus/best_accuracy.pth'
 
     params = DatasetParams(
         gt_required=True,
@@ -161,8 +179,8 @@ if __name__ == '__main__':
     )
     train_params = AlgorithmTrainerSettings(
         params,
-        train_pcgts,
-        val_pcgts,
+        train_pcgts ,
+        val_pcgts ,
         params=trainer_params,
         calamari_params=CalamariParams(
             network="cnn=40:3x3,pool=2x2,cnn=60:3x3,pool=2x2,lstm=200,dropout=0.5",

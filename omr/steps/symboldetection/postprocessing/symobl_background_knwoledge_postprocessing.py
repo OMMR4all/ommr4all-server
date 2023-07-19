@@ -46,15 +46,15 @@ def fix_overlapping_symbols(page, symbols: List[MusicSymbol], scale_reference, d
         coord_symbol = scale(symbol.coord)
         if symbol.symbol_type == symbol.symbol_type.CLEF:
             if symbol.clef_type == symbol.clef_type.C:
-                return shapely.geometry.box(coord_symbol.x - avg_line_distance * 0.3,
+                return shapely.geometry.box(coord_symbol.x - avg_line_distance * 0.2,
                                             coord_symbol.y - avg_line_distance * 0.8,
-                                            coord_symbol.x + avg_line_distance * 0.3,
+                                            coord_symbol.x + avg_line_distance * 0.2,
                                             coord_symbol.y + avg_line_distance * 0.8)
 
             else:
-                return shapely.geometry.box(coord_symbol.x - avg_line_distance * 0.4,
+                return shapely.geometry.box(coord_symbol.x - avg_line_distance * 0.2,
                                             coord_symbol.y - avg_line_distance * 0.8,
-                                            coord_symbol.x + avg_line_distance * 0.4,
+                                            coord_symbol.x + avg_line_distance * 0.2,
                                             coord_symbol.y + avg_line_distance * 0.8)
 
         else:
@@ -119,7 +119,6 @@ def fix_missing_clef(symbols1: List[MusicSymbol], symbols2: List[MusicSymbol]):
 
 def fix_missing_clef2(symbols1: List[MusicSymbol], symbols2: List[MusicSymbol], page: Page, m: RegionLineMaskData):
     avg_line_distance = page.avg_staff_line_distance()
-
     def get_firstsymbols(symbols: List[MusicSymbol]):
         symbol = [symbols[0]]
         for symbol_next in symbols[1:]:
@@ -139,15 +138,16 @@ def fix_missing_clef2(symbols1: List[MusicSymbol], symbols2: List[MusicSymbol], 
 
             average_x = average([s.coord.x for s in symbol])
             average_y = average([s.coord.y for s in symbol])
+            average_x = m.operation.music_line.staff_lines.max_x_start()
             coord = Point(average_x, y=average_y)
             position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=True)
             # coord_updated = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(coord.x,
             #                                                                                      position_in_staff)
-            if m.operation.music_line.staff_lines.max_x_start() + avg_line_distance * 3 / 4 > coord.x:
+            if m.operation.music_line.staff_lines.max_x_start() + avg_line_distance  > coord.x:
                 symbols1.insert(0, create_clef(ClefType.C, coord=coord, position_in_staff=position_in_staff,
                                                confidence=None))
-            else:
 
+            else:
                 pass
 
     return symbols1
