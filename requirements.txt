@@ -39,3 +39,4 @@ edlib
 beautifulsoup4
 loguru
 -e git+https://github.com/Gawajn/segmentation-pytorch.git#egg=pixel_classifier_torch
+guppyocr @ guppyocr @ git+https://gitlab+deploy-token-113:pdXYgWy8yHMq5it7CxK6@gitlab2.informatik.uni-wuerzburg.de/nof36hn/guppyocr.git

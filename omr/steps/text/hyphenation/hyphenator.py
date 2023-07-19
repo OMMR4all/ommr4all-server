@@ -49,6 +49,23 @@ class CombinedHyphenator(Hyphenator):
 
     def apply_to_word(self, word: str):
         l_word = word.lower()
+
+        def correct_ae(hyph_word):
+            hyph_word = hyph_word
+            change = True
+            while change:
+                change = False
+                if len(hyph_word) > 2:
+                    for ind, i in enumerate(hyph_word[:-2]):
+                        current = i
+                        next_c = hyph_word[ind + 1]
+                        next_next_c = hyph_word[ind + 2]
+                        if i == "a" and next_c == "-" and next_next_c == "e":
+                            hyph_word = hyph_word[:ind + 1] + hyph_word[ind + 2:]
+                            change = True
+                            break
+            return hyph_word
+
         if self.dictionary is not None and l_word in self.dictionary:
             hyphenated = self.dictionary[l_word]
 
@@ -60,15 +77,16 @@ class CombinedHyphenator(Hyphenator):
 
                 return o_word
             hyphenated = correct_l_u_case(hyph_word=hyphenated, o_word=word)
-            hyph_grammar = self.pyphen.inserted(word)
+            hyph_grammar = correct_ae(self.pyphen.inserted(word))
             if False or hyphenated != hyph_grammar:
-                logger.info("Hyhenation db: {} Grammar: {}".format(hyphenated, self.pyphen.inserted(word)))
+                logger.info("Hyhenation db: {} Grammar: {}".format(hyphenated, hyph_grammar))
             if len(hyphenated.split("-")) == len(hyph_grammar.split("-")):
                 return hyph_grammar
             return hyphenated
 
         else:
-            return self.pyphen.inserted(word)
+
+            return correct_ae(self.pyphen.inserted(word))
 
 
 class Pyphenator(Hyphenator):

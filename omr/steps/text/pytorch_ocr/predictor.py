@@ -37,23 +37,22 @@ class PytorchPredictor(TextPredictor):
         from omr.steps.text.pytorch_ocr.meta import Meta
         return Meta
 
-
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
         self.dict_corrector = None
         self.chars = ' "#,.abcdefghiklmnopqrstuvxyzſω'
-        #self.chars = ' "#,-./03456789;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz§¶ÄÊßâãäæêëîóôöúûüýāēīōœūŵſƷʒ̂̃̄̈̾͛ͣͤͥͦͧͪͬͭͮͯ͞ωᷓᷠᷤᷦḡṙṽẃẏị․⁊℈ↄꝐꝑꝓꝙꝛꝝꝪꝫꝭꝰ'
+        self.chars = ' "#,.abcdefghiklmnopqrstuvxyzſω'
+        # self.chars = ' "#,-./03456789;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz§¶ÄÊßâãäæêëîóôöúûüýāēīōœūŵſƷʒ̂̃̄̈̾͛ͣͤͥͦͧͪͬͭͮͯ͞ωᷓᷠᷤᷦḡṙṽẃẏị․⁊℈ↄꝐꝑꝓꝙꝛꝝꝪꝫꝭꝰ'
         path = settings.model.local_file('best_accuracy.pth')
-
         opt = get_config(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
                                       'network_config', 'ocr_config.yaml'), self.chars)
-        #print(path)
-        #print(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
+        # print(path)
+        # print(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
         #                   'network_config', 'ocr_config.yaml'))
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         device = torch.device('cpu')
         print(device)
-        self.network = Network(opt, path, self.chars, corpus='', device= device, parallel=False)
+        self.network = Network(opt, path, self.chars, corpus='', device=device, parallel=False)
         self.settings = settings
         self.dict_corrector = None
         self.database_hyphen_dictionary = None
@@ -61,21 +60,21 @@ class PytorchPredictor(TextPredictor):
     def _predict(self, dataset: TextDataset, callback: Optional[PredictionCallback] = None) -> Generator[
         SingleLinePredictionResult, None, None]:
 
-        #print(callback)
+        # print(callback)
         """
         hyphen = HyphenatorFromDictionary(
             dictionary=os.path.join(BASE_DIR, 'internal_storage', 'resources', 'hyphen_dictionary.txt'),
             normalization=dataset.params.lyrics_normalization,
         )
         """
-        #dataset_cal = dataset.to_text_line_nautilus_dataset()
+        # dataset_cal = dataset.to_text_line_nautilus_dataset()
         book = dataset.files[0].dataset_page().book
-        #if self.database_hyphen_dictionary is None:
+        # if self.database_hyphen_dictionary is None:
         #    db = DatabaseDictionary.load(book=book)
         #    self.database_hyphen_dictionary = db.to_hyphen_dict()
 
         hyphen = CombinedHyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1,
-                            right=1)
+                                    right=1)
 
         if self.settings.params.useDictionaryCorrection:
             self.dict_corrector = DictionaryCorrector(hyphenator=hyphen)
@@ -101,7 +100,7 @@ class PytorchPredictor(TextPredictor):
                 callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len(loaded_dataset))
             text, chars = self.extract_symbols(dataset, sentence, y, width / hidden_size)
             yield SingleLinePredictionResult(text=text,
-                                             line=y, hyphenated=hyphenated, chars= chars)
+                                             line=y, hyphenated=hyphenated, chars=chars)
 
     def extract_symbols(self, dataset: TextDataset, p, m: RegionLineMaskData, factor: float = 1) -> List[
         Tuple[str, Point]]:
@@ -119,16 +118,16 @@ class PytorchPredictor(TextPredictor):
                                                                    m.operation.text_line.aabb.bottom()),
                                                              m.operation.params).x)))
             chars.append((a,
-                             [i2p(dataset.local_to_global_pos(Point(x.char_start * factor,
-                                                                    m.operation.text_line.aabb.bottom()),
-                                                              m.operation.params)),
-                              i2p(dataset.local_to_global_pos(Point(x.char_end * factor,
-                                                                    m.operation.text_line.aabb.bottom()),
-                                                              m.operation.params))
+                          [i2p(dataset.local_to_global_pos(Point(x.char_start * factor,
+                                                                 m.operation.text_line.aabb.bottom()),
+                                                           m.operation.params)),
+                           i2p(dataset.local_to_global_pos(Point(x.char_end * factor,
+                                                                 m.operation.text_line.aabb.bottom()),
+                                                           m.operation.params))
 
-                              ]
-                             )
-                            )
+                           ]
+                          )
+                         )
 
         return sentence, chars
 

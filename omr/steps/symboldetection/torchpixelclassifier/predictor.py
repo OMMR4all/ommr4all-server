@@ -20,7 +20,7 @@ from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePred
 from segmentation.network import Network, EnsemblePredictor
 from omr.steps.symboldetection.postprocessing.symbol_extraction_from_prob_map import extract_symbols
 from omr.steps.symboldetection.postprocessing.symobl_background_knwoledge_postprocessing import *
-
+from loguru import logger
 
 class PCTorchPredictor(SymbolsPredictor):
     @staticmethod
@@ -34,6 +34,7 @@ class PCTorchPredictor(SymbolsPredictor):
         path = os.path.join(settings.model.path)
         modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(path, 'best.torch'),
                                                   device=get_default_device())
+        logger.info(f"Using model: {os.path.join(path, 'best.torch')}")
         # model_path = "/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/modules/ommr4all-server/storage/Graduel_Part_1_gt/models/symbols_pc_torch/2023-02-02T14:01:14/"
         # modelbuilder = ModelBuilderLoad.from_disk(model_weights= model_path + 'best.torch',
         #                                          device=get_default_device())
@@ -95,8 +96,8 @@ class PCTorchPredictor(SymbolsPredictor):
 
                 symbols, change = fix_missing_clef(symbols, additional_symbols)
                 symbols = fix_missing_clef2(symbols1=symbols, symbols2=additional_symbols, page=m.operation.page, m=m)
-                symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
-                # symbols = fix_pos_of_close_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
+                #symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
+                ### symbols = fix_pos_of_close_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
                 correct_looped_connection(symbols, additional_symbols, page=m.operation.page, m=m)
                 symbols = fix_pos_of_close_symbols3(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
 
@@ -108,6 +109,11 @@ class PCTorchPredictor(SymbolsPredictor):
                     elif len(clefs) > 0:
                         # symbols.insert(0, clefs[-1])
                         initial_clef = clefs[-1]
+                #for symbol in symbols:
+                #    if symbol.symbol_type == symbol.symbol_type.NOTE:
+                #        if symbol.graphical_connection == symbol.graphical_connection.GAPED:
+                #            symbol.graphical_connection = symbol.graphical_connection.NEUME_START
+                #            print(symbol.graphical_connection)
                 line = Line(symbols=symbols)
                 line.update_note_names(initial_clef=initial_clef)
                 symbols = line.symbols

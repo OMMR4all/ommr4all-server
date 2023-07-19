@@ -20,6 +20,8 @@ class AlgorithmTypes(Enum):
 
     OCR_CALAMARI = "text_calamari"
     OCR_NAUTILUS = "text_nautilus"
+    OCR_GUPPY = "text_guppy"
+
     TEXT_DOCUMENT = "text_documents"
     TEXT_DOCUMENT_CORRECTOR = "text_documents_corrector"
     TEXT_DICTIONARY_CORRECTOR = "text_dictionary_corrector"
