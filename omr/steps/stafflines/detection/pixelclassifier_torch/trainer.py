@@ -4,13 +4,14 @@ from pathlib import Path
 import albumentations
 import matplotlib.pyplot as plt
 from albumentations.pytorch import ToTensorV2
+from segmentation.datasets.dataset import MemoryDataset
 from torch.utils.data import DataLoader
 
 from omr.imageoperations.music_line_operations import SymbolLabel
 from omr.steps.stafflines.detection.trainer import StaffLineDetectionTrainer
 from omr.steps.symboldetection.torchpixelclassifier.params import remove_nones
 from segmentation.callback import ModelWriterCallback
-from segmentation.dataset import MemoryDataset
+# from segmentation.dataset import MemoryDataset
 from segmentation.losses import Losses
 from segmentation.metrics import Metrics
 from segmentation.model_builder import ModelBuilderMeta
@@ -24,6 +25,7 @@ from segmentation.settings import ColorMap, ClassSpec, Preprocessingfunction, Pr
 
 if __name__ == '__main__':
     import django
+
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
 from database.file_formats.performance.pageprogress import Locks, LockState
@@ -56,14 +58,13 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
         super().__init__(settings)
 
     def _train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
-
         if callback:
             callback.resolving_files()
-
-
+        print(self.settings)
         train_data = self.train_dataset.to_memory_dataset(callback)
 
-        color_map = ColorMap([ClassSpec(label=0, name="background", color=[255, 255, 255]), ClassSpec(label=1, name="line", color=[255, 0, 0])])
+        color_map = ColorMap([ClassSpec(label=0, name="background", color=[255, 255, 255]),
+                              ClassSpec(label=1, name="line", color=[255, 0, 0])])
 
         input_transforms = albumentations.Compose(remove_nones([
             GrayToRGBTransform() if True else None,
@@ -75,7 +76,7 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
         tta_transforms = None
         post_transforms = albumentations.Compose(remove_nones([
             NetworkEncoderTransform(
-            self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name),
+                self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name),
             ToTensorV2()
         ]))
         transforms = PreprocessingTransforms(
@@ -85,15 +86,16 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
             post_transforms=post_transforms,
         )
 
-        train_data = MemoryDataset(df=train_data, transforms=transforms.get_train_transforms())
-        val_data = MemoryDataset(self.validation_dataset.to_memory_dataset(callback), transforms=transforms.get_test_transforms())
+        train_data = MemoryDataset(df=train_data, transforms=transforms.get_train_transforms(), scale_area=9999999999)
+        val_data = MemoryDataset(self.validation_dataset.to_memory_dataset(callback),
+                                 transforms=transforms.get_test_transforms(), scale_area=9999999999)
         train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
         val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
 
         predfined_nw_settings = PredefinedNetworkSettings(
             architecture=self.settings.page_segmentation_torch_params.architecture,
             encoder=self.settings.page_segmentation_torch_params.encoder,
-            classes=len(SymbolLabel),
+            classes=len(color_map),
             encoder_depth=self.settings.page_segmentation_torch_params.predefined_encoder_depth,
             decoder_channel=self.settings.page_segmentation_torch_params.predefined_decoder_channel)
         custom_nw_settings = CustomModelSettings(
@@ -118,7 +120,8 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
                                     preprocessing_settings=ProcessingSettings(input_padding_value=32,
                                                                               rgb=True,
                                                                               scale_max_area=999999999,
-                                                                              preprocessing=Preprocessingfunction(self.settings.page_segmentation_torch_params.encoder) if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction(),
+                                                                              preprocessing=Preprocessingfunction(
+                                                                                  self.settings.page_segmentation_torch_params.encoder) if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction(),
                                                                               transforms=transforms.to_dict()),
 
                                     color_map=color_map)
@@ -142,6 +145,7 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
         os.makedirs(os.path.dirname(self.settings.model.path), exist_ok=True)
         trainer.train_epochs(train_loader=train_loader, val_loader=val_loader, n_epoch=25, lr_schedule=None)
 
+
 if __name__ == "__main__":
     from database import DatabaseBook
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
@@ -152,7 +156,7 @@ if __name__ == "__main__":
     e = DatabaseBook('Pa_14819_gt')
     f = DatabaseBook('Assisi')
     g = DatabaseBook('Cai_72')
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b,c,d,e,f,g])
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b, c, d, e, f, g])
     trainer = BasicStaffLinesTrainerTorch(AlgorithmTrainerSettings(
         dataset_params=DatasetParams(),
         train_data=train,

@@ -82,13 +82,14 @@ class PytorchGuppyyTrainer(TextTrainerBase):
                         gt_txt.write(gt)
                     csv_writer.writerow([os.path.join(str(ind) + ".png"), gt])
 
-        train_dataset = self.train_dataset.to_text_line_nautilus_dataset(train=True, callback=callback)
-        val_dataset = self.validation_dataset.to_text_line_nautilus_dataset(train=False, callback=callback)
+        train_dataset = self.train_dataset.to_text_line_nautilus_dataset(train=True, callback=callback, only_with_gt=True)
+        val_dataset = self.validation_dataset.to_text_line_nautilus_dataset(train=True, callback=callback, only_with_gt=True)
+        #print("Lneghtd")
+        #print(len(val_dataset[0]))
         val_dataset = train_dataset if len(val_dataset[0]) == 0 else val_dataset
         with tempfile.TemporaryDirectory() as dirpath:
             loguru.logger.info(f"Creating temporary train directory at {dirpath}")
 
-            # exit()
             create_tempfiles(dirpath, train_dataset, type="", subfolder="train")
             create_tempfiles(dirpath, val_dataset, type="", subfolder="test")
             from guppyocr.train_calamares import TrainingOpts
@@ -104,7 +105,7 @@ class PytorchGuppyyTrainer(TextTrainerBase):
                 arch="crnn",
                 gpu=True,
                 worker=2,
-                epoch=250,
+                epoch=50,
                 grad_clip=False
             )
             train_model(training_opts)

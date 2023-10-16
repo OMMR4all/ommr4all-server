@@ -24,6 +24,112 @@ from difflib import SequenceMatcher
 from prettytable import PrettyTable
 
 
+def match_text2(r: TextSingleLinePredictionResult, debug=False) -> MatchResult:
+    # 1. Match prediction and gt strings
+    # 2. Detect insertions/deletions/replacements/equal parts
+    # 3. Assign predicted chars according to results of 2. to original syllables
+    # 4. Compute the average x pos
+    # 5. return
+
+    pred = [(t, pos) for t, pos in r.text if t not in ' -']
+    syls = r.line.operation.text_line.sentence.syllables
+    assert (len(syls) > 0)
+
+    # remove all "noisy" chars: ligatures/whitespace, ... for better match results
+    def clean_text(t) -> str:
+        # ß -> s only, not ss
+        t = t.replace('ß', 's')
+        t = t.replace('v', 'u')
+        t = t.replace('ſ', 's')
+        t = unidecode.unidecode(t)
+        return t.replace(' ', '').replace('-', '').lower()
+
+    # Match the two sequences best possible
+    gt = clean_text("".join([s.text for s in syls]))
+    pred_txt = clean_text("".join([t for t, pos in pred]))
+
+    @dataclass
+    class CharPosContainer():
+        char: str
+        xpos: Point = None
+
+        def __hash__(self):
+            return hash(self.char)
+
+    gt = [CharPosContainer(i) for i in gt]
+    pred_txt = [CharPosContainer(clean_text(t), xpos=pos) for t, pos in pred]
+    gap_symbol = "-"
+    # ed = edlib.align(pred_txt, gt, mode="NW", task="path")
+    inp = "".join([i.char for i in pred_txt])
+    gtp = "".join([i.char for i in gt])
+    if len(inp) == 0:
+        inp += " "
+    if len(gtp) == 0:
+        gtp += " "
+    ed = edlib.align(inp, gtp, mode="NW", task="path")
+
+    # print(f"input: {inp}")
+    # print(f"inpus: {gtp}")
+
+    nice = edlib.getNiceAlignment(ed, inp, gtp,
+                                  gapSymbol=gap_symbol)
+    # print(nice["matched_aligned"])
+    for ind, i in enumerate(nice["query_aligned"]):
+        if i == gap_symbol:
+            pred_txt.insert(ind, CharPosContainer(gap_symbol))
+
+    for ind, i in enumerate(nice["target_aligned"]):
+        if i == gap_symbol:
+            gt.insert(ind, CharPosContainer(gap_symbol))
+    for gt_char, op, p in zip(gt, nice["matched_aligned"], pred_txt):
+        if op == gap_symbol:
+            # print(gt_char)
+            # print(p.xpos)
+            # print(gt_char)
+
+            continue
+        else:
+            # print(gt_char)
+            # print(p.xpos)
+            gt_char.xpos = p.xpos
+            # print(gt_char)
+    # print(nice["matched_aligned"])
+    gt = [i for i in gt if i.char != gap_symbol]
+
+    out_matches = []
+    pos = 0
+
+    for syl in syls:
+        # print( len(syl.text))
+        # m = sum([i.xpos for i in gt[pos:pos + len(syl.text)] if i.xpos is not None], [])
+        m = [i.xpos for i in gt[pos:pos + len(syl.text)] if i.xpos is not None]
+        # print(gt[pos:pos + len(syl.text)])
+        # print(m)
+        if len(m) == 0:
+            x = -1
+        else:
+            x = np.mean(m)
+            # x = m[0]
+        out_matches.append({'s': syl, 'x': x})
+        pos += len(syl.text)
+    if len(pred) > 0:
+        # interpolate syllables without any match
+        ix = np.array([(i, match['x']) for i, match in enumerate(out_matches) if match['x'] >= 0])
+        # print(ix)
+        x_pos = np.interp(range(len(out_matches)), ix[:, 0], ix[:, 1])
+    else:
+        x_pos = np.linspace(0, 1, len(out_matches), endpoint=False)
+
+    # for m, x in zip(out_matches, x_pos):
+    #    print(f'Text: {m["s"].text}, Pos: {str(x)}, Pos2: {str(m["x"])}' )
+    return MatchResult(
+        syllables=[SyllableMatchResult(
+            xpos=x,
+            syllable=match['s'],
+        ) for match, x in zip(out_matches, x_pos)],
+        text_line=r.line.operation.text_line,
+        music_line=r.line.operation.page.closest_music_line_to_text_line(r.line.operation.text_line),
+    )
 class SyllablesFromTextPredictor(SyllablesPredictor):
     @staticmethod
     def meta() -> Meta.__class__:
@@ -34,8 +140,10 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
 
         meta = Step.meta(AlgorithmTypes.OCR_GUPPY)
         from ommr4all.settings import BASE_DIR
-        model = Model(
-            MetaId.from_custom_path(BASE_DIR + '/internal_storage/default_models/french14/text_guppy/', meta.type()))
+        model = settings.model
+        if settings.model is None:
+            model = Model(
+                MetaId.from_custom_path(BASE_DIR + '/internal_storage/default_models/french14/text_guppy/', meta.type()))
         settings = AlgorithmPredictorSettings(
             model=model,
         )
@@ -49,8 +157,10 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
 
         for i, r in enumerate(self.ocr_predictor.predict(pages, callback=callback)):
             ocr_r: TextPredictionResult = r
+            print("123")
+            print(ocr_r.text_lines[0].line.operation.text_line.sentence.text())
             # try:
-            match_r = [self.match_text2(text_line_r) for text_line_r in ocr_r.text_lines if
+            match_r = [match_text2(text_line_r) for text_line_r in ocr_r.text_lines if
                        len(text_line_r.line.operation.text_line.sentence.syllables) > 0]
 
             # match_r = [self.match_text(text_line_r) for text_line_r in ocr_r.text_lines if len(text_line_r.line.operation.text_line.sentence.syllables) > 0]
@@ -67,115 +177,7 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
                 pcgts=ocr_r.pcgts,
             )
 
-    def match_text2(self, r: TextSingleLinePredictionResult, debug=False) -> MatchResult:
-        # 1. Match prediction and gt strings
-        # 2. Detect insertions/deletions/replacements/equal parts
-        # 3. Assign predicted chars according to results of 2. to original syllables
-        # 4. Compute the average x pos
-        # 5. return
 
-        pred = [(t, pos) for t, pos in r.text if t not in ' -']
-        syls = r.line.operation.text_line.sentence.syllables
-        # print(pred)
-        # print([i.text for i in syls])
-        assert (len(syls) > 0)
-
-        # remove all "noisy" chars: ligatures/whitespace, ... for better match results
-        def clean_text(t) -> str:
-            # ß -> s only, not ss
-            t = t.replace('ß', 's')
-            t = t.replace('v', 'u')
-            t = t.replace('ſ', 's')
-            t = unidecode.unidecode(t)
-            return t.replace(' ', '').replace('-', '').lower()
-
-        # Match the two sequences best possible
-        gt = clean_text("".join([s.text for s in syls]))
-        pred_txt = clean_text("".join([t for t, pos in pred]))
-
-        @dataclass
-        class CharPosContainer():
-            char: str
-            xpos: Point = None
-
-            def __hash__(self):
-                return hash(self.char)
-
-        gt = [CharPosContainer(i) for i in gt]
-        pred_txt = [CharPosContainer(clean_text(t), xpos=pos) for t, pos in pred]
-        gap_symbol = "-"
-        #ed = edlib.align(pred_txt, gt, mode="NW", task="path")
-        inp = "".join([i.char for i in pred_txt])
-        gtp = "".join([i.char for i in gt])
-        if len(inp) == 0:
-            inp += " "
-        if len(gtp) == 0:
-            gtp += " "
-        ed = edlib.align(inp, gtp, mode="NW", task="path")
-
-
-        #print(f"input: {inp}")
-        #print(f"inpus: {gtp}")
-
-        nice = edlib.getNiceAlignment(ed, inp, gtp,
-                                      gapSymbol=gap_symbol)
-        #print(nice["matched_aligned"])
-        for ind, i in enumerate(nice["query_aligned"]):
-            if i == gap_symbol:
-                pred_txt.insert(ind, CharPosContainer(gap_symbol))
-
-        for ind, i in enumerate(nice["target_aligned"]):
-            if i == gap_symbol:
-                gt.insert(ind, CharPosContainer(gap_symbol))
-        for gt_char, op, p in zip(gt, nice["matched_aligned"], pred_txt):
-            if op == gap_symbol:
-                #print(gt_char)
-                #print(p.xpos)
-                #print(gt_char)
-
-                continue
-            else:
-                #print(gt_char)
-                #print(p.xpos)
-                gt_char.xpos = p.xpos
-                #print(gt_char)
-        #print(nice["matched_aligned"])
-        gt = [i for i in gt if i.char != gap_symbol]
-
-        out_matches = []
-        pos = 0
-
-        for syl in syls:
-            #print( len(syl.text))
-            #m = sum([i.xpos for i in gt[pos:pos + len(syl.text)] if i.xpos is not None], [])
-            m = [i.xpos for i in gt[pos:pos + len(syl.text)] if i.xpos is not None]
-            #print(gt[pos:pos + len(syl.text)])
-            #print(m)
-            if len(m) == 0:
-                x = -1
-            else:
-                x = np.mean(m)
-                #x = m[0]
-            out_matches.append({'s': syl, 'x': x})
-            pos += len(syl.text)
-        if len(pred) > 0:
-            # interpolate syllables without any match
-            ix = np.array([(i, match['x']) for i, match in enumerate(out_matches) if match['x'] >= 0])
-            #print(ix)
-            x_pos = np.interp(range(len(out_matches)), ix[:, 0], ix[:, 1])
-        else:
-            x_pos = np.linspace(0, 1, len(out_matches), endpoint=False)
-
-        # for m, x in zip(out_matches, x_pos):
-        #    print(f'Text: {m["s"].text}, Pos: {str(x)}, Pos2: {str(m["x"])}' )
-        return MatchResult(
-            syllables=[SyllableMatchResult(
-                xpos=x,
-                syllable=match['s'],
-            ) for match, x in zip(out_matches, x_pos)],
-            text_line=r.line.operation.text_line,
-            music_line=r.line.operation.page.closest_music_line_to_text_line(r.line.operation.text_line),
-        )
 
     def match_text(self, r: TextSingleLinePredictionResult, debug=False) -> MatchResult:
         # 1. Match prediction and gt strings

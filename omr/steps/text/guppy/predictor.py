@@ -143,8 +143,8 @@ class GuppyPredictor(TextPredictor):
         # print(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
         #                   'network_config', 'ocr_config.yaml'))
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.device = torch.device('cpu')
-
+        #self.device = torch.device('cpu')
+        print(path)
         self.network = GuppyOCR.load_model(path, self.device)
         print(self.device)
         self.settings = settings
@@ -180,8 +180,10 @@ class GuppyPredictor(TextPredictor):
             image = 255 - y.line_image
             if not len(image.shape) == 3:
                 raise InvalidInputImage("Len of image cutout shape must be 3")
+            #print(self.network.mc.mconfig.Width)
+            #print(self.network.mc.mconfig.Height)
 
-            img = preprocess_image(image, self.network.mc.mconfig.Width, self.network.mc.mconfig.Height)
+            img, ratio = preprocess_image(image, self.network.mc.mconfig.Width, self.network.mc.mconfig.Height)
             # img2 = preprocess_image(image, self.network.mc.mconfig.Width, self.network.mc.mconfig.Height)
 
             img_t, sizes = resize_with_pad(image, (self.network.mc.mconfig.Width, self.network.mc.mconfig.Height),
@@ -200,7 +202,7 @@ class GuppyPredictor(TextPredictor):
                 # seq, _ = viterbi_search(net_out, alphabet)
                 g_decoder = GreedyDecoder(alphabet)
                 sentence: DecoderOutput = g_decoder.decode(net_out, True)
-
+            #print(self.dict_corrector)
             if self.dict_corrector:
                 if len(sentence.decoded_string) > 0:
                     hyphenated = self.dict_corrector.segmentate_correct_and_hyphenate_text(sentence.decoded_string)

@@ -159,10 +159,10 @@ class BookOperationView(APIView):
             return TaskRunnerSymbolDetectionTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})))
         elif operation == 'train_staff_line_detector':
             from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
-            return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.STAFF_LINES_PC)
+            return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.STAFF_LINES_PC_Torch)
         elif operation == 'train_character_recognition':
             from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
-            return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.OCR_CALAMARI)
+            return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.OCR_GUPPY)
         else:
             raise NotImplementedError()
 
@@ -202,6 +202,7 @@ class BookOperationModelsView(APIView):
 
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, operation):
+
         book = DatabaseBook(book)
         body = json.loads(request.body, encoding='utf-8') if request.body else {}
         task_runner = BookOperationView.op_to_task_runner(operation, book, body)
@@ -214,6 +215,7 @@ class BookOperationModelView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     def delete(self, request, book, operation, model):
         book = DatabaseBook(book)
+
         task_runner = BookOperationView.op_to_task_runner(operation, book, {})
         # check that the model is really part of the model
         for m in task_runner.algorithm_meta().models_for_book(book).list_models():

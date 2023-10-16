@@ -41,6 +41,7 @@ def compute_book_statistics(book: DatabaseBook, ignore_page: List[str] = None, c
 
 
 def get_counts(pages: List[PcGts], callback: Callback = None) -> Counts:
+
     counts = Counts()
 
     if callback:

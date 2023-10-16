@@ -58,7 +58,7 @@ def evaluate_stafflines(pred_book: DatabaseBook, gt_book: DatabaseBook):
     s_data = SingleDataArgs(0, None, None, None, None, None)
     exp = StaffLinesExperimenter(s_data, logger)
     results = exp.evaluate(eval_data, EvaluatorParams(debug=False))
-    # results = counts, prf1, (all_tp_staves, all_fp_staves, all_fn_staves)
+    #results = counts, prf1, (all_tp_staves, all_fp_staves, all_fn_staves)
     # print(results)
     output_string = exp.print_results(
         GlobalDataArgs("EXPERIMENT_OUT=", None, None, None, None, None, None, None, None, None, None, None, None, None,

@@ -17,7 +17,6 @@ from omr.steps.algorithmpreditorparams import AlgorithmPredictorSettings
 from omr.steps.text.predictor import SingleLinePredictionResult as TextSingleLinePredictionResult, Line
 from omr.steps.text.predictor import PredictionResult as TextPredictionResult
 
-
 class SyllableMatchResult(NamedTuple):
     xpos: float
     syllable: Syllable
@@ -38,6 +37,143 @@ class MatchResult(NamedTuple):
         return {
             'syllables': [s.to_dict() for s in self.syllables],
         }
+def _match_syllables_to_symbols_greedy(mr: MatchResult, page: Page, annotations: Annotations):
+    if len(mr.syllables) == 0 or mr.music_line is None or len(mr.music_line.symbols) == 0:
+        # no syllables present
+        return
+    neumes = [s for s in mr.music_line.symbols if
+              s.symbol_type == SymbolType.NOTE and s.graphical_connection == GraphicalConnectionType.NEUME_START]
+    syls = mr.syllables
+    syls2 = mr.text_line.sentence.syllables
+
+    def find_closest_neume(pos, search_list=None):
+        closest = None
+        d = 100000
+        ind1 = None
+        for ind, s in enumerate(search_list if search_list else neumes):
+            dn = abs(pos - s.coord.x)
+            if dn < d or not closest:
+                d = dn
+                closest = s
+                ind1 = ind
+        return closest, ind1, d
+
+    def_dict = defaultdict(list)
+    for i in syls:
+        c, ind, dist = find_closest_neume(i.xpos, neumes)
+        def_dict[str(ind)].append((i, ind, dist))
+    move = True
+    while move:
+        move = False
+        for i in def_dict.keys():
+            if len(def_dict[i]) > 1:
+                dist = 0
+                sym = None
+                sym_ind = None
+                ind_of_ss = None
+
+                def get_relevant_notes(h, neumes, def_dict):
+                    @dataclass
+                    class NeumeRel():
+                        neume: MusicSymbol = None
+                        ind: int = None
+
+                    relevant = []
+                    h = int(h)
+                    if h - 1 >= 0:
+                        if str(h - 1) not in def_dict:
+                            relevant.append(NeumeRel(neume=neumes[h - 1], ind=h - 1))
+                    if h + 1 < len(neumes):
+                        if str(h + 1) not in def_dict:
+                            relevant.append(NeumeRel(neume=neumes[h + 1], ind=h + 1))
+                    relevant.append(NeumeRel(neume=neumes[h], ind=h))
+                    return relevant
+                    pass
+
+                relevant_neumes = get_relevant_notes(i, neumes, def_dict)
+                if len(relevant_neumes) > 1:
+                    move = True
+                    relevant_syls = sorted([(e[0], e[2], ind3) for ind3, e in enumerate(def_dict[i])],
+                                           key=lambda x: x[1])
+                    # relevant_syls = []
+                    relevant_syls = relevant_syls[:len(relevant_neumes)]
+                    weight_matrix = np.zeros(shape=(len(relevant_syls), len(relevant_neumes)))
+                    for ind, syl in enumerate(relevant_syls):
+                        for ind2, t_neum in enumerate(relevant_neumes):
+                            weight_matrix[ind, ind2] = abs(t_neum.neume.coord.x - syl[0].xpos)
+                    row_ind, col_ind = scipy.optimize.linear_sum_assignment(weight_matrix)
+                    results = []
+
+                    @dataclass
+                    class Container():
+                        syl: Syllable
+                        note: MusicSymbol
+                        neumes_ind: int
+                        container_ind: int
+
+                    for s in range(len(row_ind)):
+                        syl = relevant_syls[s][0]
+                        b_neume = relevant_neumes[col_ind[s]].neume
+                        index = relevant_neumes[col_ind[s]].ind
+                        syl_index = relevant_syls[s][2]
+
+                        results.append(Container(syl=syl, note=b_neume, neumes_ind=index, container_ind=syl_index))
+
+                    for res in sorted(results, key=lambda r: r.container_ind, reverse=True):
+                        if res.neumes_ind == int(i):
+                            continue
+                        else:
+                            def_dict[str(res.neumes_ind)].append((res.syl, res.neumes_ind, 0))
+                            def_dict[i].pop(res.container_ind)
+                        pass
+                    break
+
+                """
+                for ind, t in enumerate(def_dict[i]):
+                    if t[2] > dist:
+                        dist = t[2]
+                        sym = t[0]
+                        sym_ind = t[1]
+                        ind_of_ss = ind
+                if sym_ind - 1 > 0 and str(sym_ind - 1) not in def_dict:
+                    other = list(range(len(def_dict[i])))
+                    other.pop(ind_of_ss)
+                    left = True
+                    for it in other:
+                        if syls2.index(sym.syllable) <syls2.index(def_dict[i][it][0].syllable):
+                            pass
+                        else:
+                            left = False
+                    if left:
+                        def_dict[i].pop(ind_of_ss)
+                        def_dict[str(sym_ind - 1)].append((sym, sym_ind - 1, dist))
+                        move = True
+                        break
+                if sym_ind + 1 < len(neumes) and str(sym_ind + 1) not in def_dict:
+                    other = list(range(len(def_dict[i])))
+                    other.pop(ind_of_ss)
+                    right = True
+                    for it in other:
+                        if syls2.index(sym.syllable) > syls2.index(def_dict[i][it][0].syllable):
+                            pass
+                        else:
+                            right = False
+                    if right:
+                        def_dict[i].pop(ind_of_ss)
+                        def_dict[str(sym_ind + 1)].append((sym, sym_ind + 1, dist))
+                        move = True
+                        break
+                    pass
+                """
+    annotations.get_or_create_connection(
+        page.block_of_line(mr.music_line),
+        page.block_of_line(mr.text_line),
+    ).syllable_connections.extend(
+        sum([[SyllableConnector(t[0].syllable, neumes[t[1]]) for t in def_dict[i]] for i in def_dict.keys()], [])
+    )
+
+
+
 
 
 class PageMatchResult(NamedTuple):
@@ -99,7 +235,7 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
             for mr in pr.match_results:
                 # self._match_syllables_to_symbols_bipartite_matching(mr, pr.page(), annotations)
                 #self._match_syllables_to_symbols(mr, pr.page(), annotations)
-                self._match_syllables_to_symbols_greedy(mr, pr.page(), annotations)
+                _match_syllables_to_symbols_greedy(mr, pr.page(), annotations)
 
             yield PredictionResult(
                 page_match_result=pr,
@@ -135,137 +271,6 @@ class SyllablesPredictor(AlgorithmPredictor, ABC):
             sum([[SyllableConnector(syls[i].syllable, neumes[col_ind[i]])] for i in range(len(row_ind))], [])
         )
 
-    def _match_syllables_to_symbols_greedy(self, mr: MatchResult, page: Page, annotations: Annotations):
-        if len(mr.syllables) == 0 or mr.music_line is None or len(mr.music_line.symbols) == 0:
-            # no syllables present
-            return
-        neumes = [s for s in mr.music_line.symbols if
-                  s.symbol_type == SymbolType.NOTE and s.graphical_connection == GraphicalConnectionType.NEUME_START]
-        syls = mr.syllables
-        syls2 = mr.text_line.sentence.syllables
-        def find_closest_neume(pos, search_list=None):
-            closest = None
-            d = 100000
-            ind1 = None
-            for ind, s in enumerate(search_list if search_list else neumes):
-                dn = abs(pos - s.coord.x)
-                if dn < d or not closest:
-                    d = dn
-                    closest = s
-                    ind1 = ind
-            return closest, ind1, d
-
-        def_dict = defaultdict(list)
-        for i in syls:
-            c, ind, dist = find_closest_neume(i.xpos, neumes)
-            def_dict[str(ind)].append((i, ind, dist))
-        move = True
-        while move:
-            move = False
-            for i in def_dict.keys():
-                if len(def_dict[i]) > 1:
-                    dist = 0
-                    sym = None
-                    sym_ind = None
-                    ind_of_ss = None
-                    def get_relevant_notes(h, neumes, def_dict):
-                        @dataclass
-                        class NeumeRel():
-                            neume: MusicSymbol = None
-                            ind: int = None
-                        relevant = []
-                        h = int(h)
-                        if h -1 >= 0:
-                            if str(h-1) not in def_dict:
-                                relevant.append(NeumeRel(neume= neumes[h - 1], ind = h-1))
-                        if h + 1 < len(neumes):
-                            if str(h+1) not in def_dict:
-
-                                relevant.append(NeumeRel(neume= neumes[h + 1], ind = h+1))
-                        relevant.append(NeumeRel(neume= neumes[h], ind = h))
-                        return relevant
-                        pass
-                    relevant_neumes = get_relevant_notes(i, neumes, def_dict)
-                    if len(relevant_neumes) > 1:
-                        move = True
-                        relevant_syls = sorted([(e[0], e[2], ind3) for ind3, e in enumerate(def_dict[i])], key=lambda x: x[1])
-                        #relevant_syls = []
-                        relevant_syls =relevant_syls[:len(relevant_neumes)]
-                        weight_matrix = np.zeros(shape=(len(relevant_syls), len(relevant_neumes)))
-                        for ind, syl in enumerate(relevant_syls):
-                            for ind2, t_neum in enumerate(relevant_neumes):
-                                weight_matrix[ind, ind2] = abs(t_neum.neume.coord.x - syl[0].xpos)
-                        row_ind, col_ind = scipy.optimize.linear_sum_assignment(weight_matrix)
-                        results = []
-                        @dataclass
-                        class Container():
-                            syl: Syllable
-                            note: MusicSymbol
-                            neumes_ind: int
-                            container_ind: int
-
-                        for s in range(len(row_ind)):
-
-                            syl = relevant_syls[s][0]
-                            b_neume = relevant_neumes[col_ind[s]].neume
-                            index = relevant_neumes[col_ind[s]].ind
-                            syl_index = relevant_syls[s][2]
-
-                            results.append(Container(syl=syl, note=b_neume, neumes_ind=index, container_ind = syl_index))
-
-                        for res in sorted(results, key=lambda r: r.container_ind, reverse=True):
-                            if res.neumes_ind == int(i):
-                                continue
-                            else:
-                                def_dict[str(res.neumes_ind)].append((res.syl, res.neumes_ind, 0))
-                                def_dict[i].pop(res.container_ind)
-                            pass
-                        break
-
-
-                    """
-                    for ind, t in enumerate(def_dict[i]):
-                        if t[2] > dist:
-                            dist = t[2]
-                            sym = t[0]
-                            sym_ind = t[1]
-                            ind_of_ss = ind
-                    if sym_ind - 1 > 0 and str(sym_ind - 1) not in def_dict:
-                        other = list(range(len(def_dict[i])))
-                        other.pop(ind_of_ss)
-                        left = True
-                        for it in other:
-                            if syls2.index(sym.syllable) <syls2.index(def_dict[i][it][0].syllable):
-                                pass
-                            else:
-                                left = False
-                        if left:
-                            def_dict[i].pop(ind_of_ss)
-                            def_dict[str(sym_ind - 1)].append((sym, sym_ind - 1, dist))
-                            move = True
-                            break
-                    if sym_ind + 1 < len(neumes) and str(sym_ind + 1) not in def_dict:
-                        other = list(range(len(def_dict[i])))
-                        other.pop(ind_of_ss)
-                        right = True
-                        for it in other:
-                            if syls2.index(sym.syllable) > syls2.index(def_dict[i][it][0].syllable):
-                                pass
-                            else:
-                                right = False
-                        if right:
-                            def_dict[i].pop(ind_of_ss)
-                            def_dict[str(sym_ind + 1)].append((sym, sym_ind + 1, dist))
-                            move = True
-                            break
-                        pass
-                    """
-        annotations.get_or_create_connection(
-            page.block_of_line(mr.music_line),
-            page.block_of_line(mr.text_line),
-        ).syllable_connections.extend(
-            sum([[SyllableConnector(t[0].syllable, neumes[t[1]]) for t in def_dict[i]] for i in def_dict.keys()], [])
-        )
 
     def _match_syllables_to_symbols(self, mr: MatchResult, page: Page, annotations: Annotations):
         if len(mr.syllables) == 0 or mr.music_line is None:
