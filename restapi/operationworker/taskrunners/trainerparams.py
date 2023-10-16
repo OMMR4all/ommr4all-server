@@ -1,4 +1,4 @@
-from mashumaro import DataClassJSONMixin
+from mashumaro.mixins.json import DataClassJSONMixin
 from dataclasses import dataclass
 from typing import Tuple, List, Optional
 from database import DatabaseBook

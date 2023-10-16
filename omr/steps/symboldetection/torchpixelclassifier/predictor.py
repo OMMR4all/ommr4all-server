@@ -35,6 +35,7 @@ class PCTorchPredictor(SymbolsPredictor):
         modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(path, 'best.torch'),
                                                   device=get_default_device())
         logger.info(f"Using model: {os.path.join(path, 'best.torch')}")
+
         # model_path = "/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/modules/ommr4all-server/storage/Graduel_Part_1_gt/models/symbols_pc_torch/2023-02-02T14:01:14/"
         # modelbuilder = ModelBuilderLoad.from_disk(model_weights= model_path + 'best.torch',
         #                                          device=get_default_device())
@@ -52,22 +53,24 @@ class PCTorchPredictor(SymbolsPredictor):
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[
         SingleLinePredictionResult, None, None]:
         dataset = SymbolDetectionDatasetTorch(pcgts_files, self.dataset_params)
-        df = dataset.to_memory_dataset()
+        df = dataset.to_memory_dataset(train=False)
         clefs = []
+
         for index, row in df.iterrows():
             mask, image, data = row['masks'], row['images'], row['original']
             from matplotlib import pyplot as plt
-            # plt.imshow(image)
-            # plt.show()
+            #plt.imshow(image)
+            #plt.show()
             # plt.imshow(mask)
             # plt.show()
             source_image = SourceImage.from_numpy(image)
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(source_image)
-            # f, ax = plt.subplots(ncols=1,nrows=3, sharex=True, sharey=True)
-            # ax[0].imshow(np.array(output.generated_mask))
-            # ax[1].imshow(np.transpose(np.squeeze(output.prediction_result.network_input), (1,2,0)) )
-            # ax[2].imshow(output.prediction_result.source_image.array())
-            # plt.show()
+            #output.generated_mask.show()
+            #f, ax = plt.subplots(ncols=1,nrows=3, sharex=True, sharey=True)
+            #ax[0].imshow(np.array(output.generated_mask))
+            #ax[1].imshow(np.transpose(np.squeeze(output.prediction_result.network_input), (1,2,0)) )
+            #ax[2].imshow(output.prediction_result.source_image.array())
+            #plt.show()
 
             # output = self.predictor.predict_single_image(image=image)
             labels = np.argmax(output.prediction_result.probability_map, axis=-1)

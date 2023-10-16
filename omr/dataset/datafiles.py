@@ -13,6 +13,7 @@ class EmptyDataSetException(Exception):
 
 
 def dataset_by_locked_pages(n_train, locks: List[LockState], shuffle: bool = True, datasets: List[DatabaseBook] = None) -> Tuple[List[PcGts], List[PcGts]]:
+
     logger.info("Finding PcGts files with valid ground truth")
     pcgts = []
     for dataset in (datasets if datasets else DatabaseBook.list_available()):
@@ -20,8 +21,7 @@ def dataset_by_locked_pages(n_train, locks: List[LockState], shuffle: bool = Tru
         if not dataset.exists():
             raise ValueError("Dataset '{}' does not exist at '{}'".format(dataset.book, dataset.local_path()))
 
-        for page in dataset.pages_with_lock(locks)[:19]:
-            print(page.page)
+        for page in dataset.pages_with_lock(locks):
             pcgts.append(PcGts.from_file(page.file('pcgts')))
 
     if len(pcgts) == 0:
@@ -32,6 +32,12 @@ def dataset_by_locked_pages(n_train, locks: List[LockState], shuffle: bool = Tru
 
     train_pcgts = pcgts[:int(len(pcgts) * n_train)]
     val_pcgts = pcgts[len(train_pcgts):]
+
+    def print_train_pcgts(pcgts):
+        files = [p.page.location.local_path() for p in pcgts]
+        print(files)
+    print_train_pcgts(train_pcgts)
+    print_train_pcgts(val_pcgts)
 
     if 0 < n_train < 1 and (len(train_pcgts) == 0 or len(val_pcgts) == 0):
         raise EmptyDataSetException()

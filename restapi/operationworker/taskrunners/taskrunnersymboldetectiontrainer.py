@@ -16,7 +16,7 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
                  book: DatabaseBook,
                  params: TaskTrainerParams,
                  ):
-        super().__init__(AlgorithmTypes.SYMBOLS_PC,
+        super().__init__(AlgorithmTypes.SYMBOLS_PC_TORCH,
                          PageSelection.from_book(book),
                          [TaskWorkerGroup.LONG_TASKS_GPU, TaskWorkerGroup.LONG_TASKS_CPU])
         self.params = params
@@ -83,28 +83,34 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
 
         logger.info("Finding PcGts files with valid ground truth")
         callback.resolving_files()
-        train_pcgts, val_pcgts = dataset_by_locked_pages(
-            self.params.nTrain, [LockState('Symbols', True)],
-            datasets=[self.selection.book] if not self.params.includeAllTrainingData else [])
-        if len(train_pcgts) + len(val_pcgts) < 50:
-            # only very few files, use all for training and evaluate on training as-well
-            train_pcgts = train_pcgts + val_pcgts
-            val_pcgts = train_pcgts
-            logger.info("Combining training and validation files because n<50")
+        #train_pcgts, val_pcgts = dataset_by_locked_pages(
+        #    self.params.nTrain, [LockState('Symbols', True)],
+        #    datasets=[self.selection.book] if not self.params.includeAllTrainingData else [])
+        #if len(train_pcgts) + len(val_pcgts) < 50:
+        #    # only very few files, use all for training and evaluate on training as-well
+        #    train_pcgts = train_pcgts + val_pcgts
+        #    val_pcgts = train_pcgts
+        #    logger.info("Combining training and validation files because n<50")
 
-        logger.info("Starting training with {} training and {} validation files".format(len(train_pcgts), len(val_pcgts)))
-        logger.debug("Training files: {}".format([p.page.location.local_path() for p in train_pcgts]))
-        logger.debug("Validation files: {}".format([p.page.location.local_path() for p in val_pcgts]))
+
 
         meta = self.algorithm_meta()
-        train, val = self.params.to_train_val(locks=[LockState('StaffLines', True)], books=[self.selection.book])
-
+        train, val = self.params.to_train_val(locks=[LockState('Symbols', True)], books=[self.selection.book])
+        if len(train) + len(val) < 50:
+            # only very few files, use all for training and evaluate on training as-well
+            train = train + val
+            val = train
+            logger.info("Combining training and validation files because n<50")
+        logger.info(
+            "Starting training with {} training and {} validation files".format(len(train), len(val)))
+        logger.debug("Training files: {}".format([p.page.location.local_path() for p in train]))
+        logger.debug("Validation files: {}".format([p.page.location.local_path() for p in val]))
         settings = AlgorithmTrainerSettings(
             train_data=train,
             validation_data=val,
             dataset_params=DatasetParams(
                 gt_required=True,
-                pad=None,
+                pad=[0, 10, 0, 40],
                 pad_power_of_2=3,
                 height=80,
                 dewarp=False,

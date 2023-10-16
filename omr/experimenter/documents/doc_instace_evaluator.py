@@ -4,12 +4,13 @@ from dataclasses import dataclass
 from typing import List, Tuple
 
 import edlib
+import numpy as np
 
 from database import DatabaseBook, DatabasePage
 from database.database_book_documents import DatabaseBookDocuments, DocSpanType
 from database.file_formats import PcGts
 from database.file_formats.book.document import LineMetaInfos
-from database.file_formats.pcgts import MusicSymbol, Line, Rect, Point
+from database.file_formats.pcgts import MusicSymbol, Line, Rect, Point, PageScaleReference
 from database.file_formats.pcgts.page import Connection, SyllableConnector
 from database.file_formats.performance import LockState
 from database.file_formats.performance.pageprogress import Locks
@@ -691,6 +692,8 @@ def eval_layout(eval_data: List[LineLayoutEvalData]):
         tp_l = 0
         image = Image.open(i.pred_page.local_file_path("color_norm_x2.jpg"))
         width = image.width
+        height = image.height
+
         for s in i.gt.symbols:
             rec = i.pred.coords.aabb()
             pad = [0, 10, 0, 40]
@@ -698,16 +701,37 @@ def eval_layout(eval_data: List[LineLayoutEvalData]):
             br = rec.br
             xt, yt = tl.xy()
             xb, yb = br.xy()
+            i.gt_page.pcgts().page.avg_staff_line_distance()
+
+            avg_d = i.gt.avg_line_distance()
 
             xt = max(0, xt - 40 / width)
             xb = min(width, xb + 10 / width)
+            yb = min(yb + avg_d, height)
+            yt = max(0,yt - avg_d)
             rect = Rect(Point(x=xt, y=yt), Point(x=xb, y=yb))
             if rect.to_coords().polygon_contains_point(s.coord):
                 tp_l += 1
                 continue
                 pass
-            if i.pred.coords.polygon_contains_point(s.coord):
-                pass
+            else:
+                if False:
+                    from PIL import ImageDraw
+                    draw = ImageDraw.Draw(image)
+
+                    def p2d(p) -> float:
+                        psr = PageScaleReference(4)
+
+                        return i.gt_page.pcgts().page.page_to_image_scale(p, psr)
+
+                    draw.rectangle(((p2d(rect.left()), p2d(rect.bottom())), (p2d(rect.right()), p2d(rect.top()))), fill=None, outline=(255, 0, 0), width=2)
+                    draw.rectangle(((p2d(rec.left()),  p2d(rec.bottom())), (p2d(rec.right()),   p2d(rec.top()))), fill=None, outline=(0, 255, 0), width=2)
+                    draw.point((p2d(s.coord.x), p2d(s.coord.y)), fill=(0, 0, 255))
+                    from matplotlib import pyplot as plt
+                    plt.imshow(np.array(image))
+                    plt.show()
+            #if i.pred.coords.polygon_contains_point(s.coord):
+            #    pass
                 # continue
 
         fp += (len(i.gt.symbols) - tp_l)

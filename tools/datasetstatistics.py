@@ -30,11 +30,11 @@ if __name__ == '__main__':
     if len(args.specific_pages_only) > 0:
         ignore_pages = gen_ignore_pages(args.specific_pages_only, [DatabaseBook(book) for book in args.books])
         all_book_counts = [compute_book_statistics(DatabaseBook(book), ignore_pages) for book in args.books]
-    #elif args.below_specific_page:
-    #    books = [DatabaseBook(book) for book in args.books]
-    #    pages = [for book in books for page in book.pages() if book.]
-    #    ignore_pages = gen_ignore_pages(args.specific_pages_only, [DatabaseBook(book) for book in args.books])
-    #    all_book_counts = [compute_book_statistics(DatabaseBook(book), ignore_pages) for book in args.books]
+    elif args.below_specific_page:
+        books = [DatabaseBook(book) for book in args.books]
+        pages = [page.page for book in books for page in book.pages() if convert_to_int(page.page) < args.below_specific_page]
+        ignore_pages = gen_ignore_pages(pages, [DatabaseBook(book) for book in args.books])
+        all_book_counts = [compute_book_statistics(DatabaseBook(book), ignore_pages) for book in args.books]
     else:
         all_book_counts = [compute_book_statistics(DatabaseBook(book), args.ignore_page) for book in args.books]
 

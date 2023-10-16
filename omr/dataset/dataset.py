@@ -189,7 +189,7 @@ class Dataset(ABC):
     def to_line_detection_dataset(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:
         return self.load(callback)
 
-    def to_memory_dataset(self, callback: Optional[DatasetCallback] = None, same_dim=False):
+    def to_memory_dataset(self, callback: Optional[DatasetCallback] = None, same_dim=False, train=False):
         if self.params.origin_staff_line_distance == self.params.target_staff_line_distance:
             images = []
             masks = []
@@ -224,10 +224,15 @@ class Dataset(ABC):
                 ##ax[0].imshow(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
                 # ax[1].imshow(x.mask)
                 # plt.show()
-
-                images.append(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
-                masks.append(x.mask)
-                data.append(x)
+                if True and train:
+                    if np.unique(x.mask).shape[0] > 1:
+                        images.append(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
+                        masks.append(x.mask)
+                        data.append(x)
+                else:
+                    images.append(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
+                    masks.append(x.mask)
+                    data.append(x)
             if same_dim:
                 images_s = []
                 mask_s = []
@@ -398,9 +403,12 @@ class Dataset(ABC):
         """
         return images, gts
 
-    def to_text_line_nautilus_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
+    def to_text_line_nautilus_dataset(self, train=False, callback: Optional[DatasetCallback] = None, only_with_gt=False):
         lines = self.load(callback)
+        #from omr.steps.text.hyphenation.hyphenator import CombinedHyphenator, HyphenDicts
 
+        #hyphen = CombinedHyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1,
+        #                            right=1)
         def get_input_image(d: RegionLineMaskData):
             if self.params.cut_region:
                 return d.line_image
@@ -416,6 +424,14 @@ class Dataset(ABC):
 
         images = [255 - get_input_image(d).astype(np.uint8) for d in lines]
         gts = [extract_text(d) for d in lines]
+        if only_with_gt and train:
+            indexes = []
+            for ind, i in enumerate(gts):
+                if len(i) == 0:
+                    indexes.append(ind)
+            for i in reversed(indexes):
+                del images[i]
+                del gts[i]
 
         return (images, gts)
 
@@ -439,4 +455,5 @@ class Dataset(ABC):
             except (NoStaffsAvailable, NoStaffLinesAvailable):
                 pass
             except Exception as e:
+                raise e
                 logger.info("Exception during processing of page: {}".format(f.page.location.local_path()))
