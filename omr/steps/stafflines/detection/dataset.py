@@ -34,7 +34,7 @@ class PCDataset(Dataset):
 class PCDatasetTorch(Dataset):
     @staticmethod
     def create_image_operation_list(params: DatasetParams) -> ImageOperationList:
-        params.page_scale_reference = PageScaleReference.HIGHRES
+        params.page_scale_reference = PageScaleReference.NORMALIZED
         return ImageOperationList([
             ImageLoadFromPageOperation(invert=False, files=[(params.page_scale_reference.file('color'), False)]),
             ImageExtractStaffLineImages(full_page=params.full_page, pad=params.pad,

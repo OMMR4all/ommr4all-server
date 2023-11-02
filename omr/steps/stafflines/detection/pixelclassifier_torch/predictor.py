@@ -87,6 +87,7 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(SourceImage.from_numpy(i.line_image))
             from scipy.special import softmax
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
+            #output.generated_mask.show()
             r = self.line_detection.detect_prob_map(output.prediction_result.source_image.get_grayscale_array(), prob_map_softmax)
 
             rlmd: RegionLineMaskData = i
