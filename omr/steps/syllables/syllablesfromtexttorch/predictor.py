@@ -141,7 +141,7 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
         meta = Step.meta(AlgorithmTypes.OCR_GUPPY)
         from ommr4all.settings import BASE_DIR
         model = settings.model
-        if settings.model is None:
+        if settings.model is None or AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH.value in settings.model.local_file(""):
             model = Model(
                 MetaId.from_custom_path(BASE_DIR + '/internal_storage/default_models/french14/text_guppy/', meta.type()))
         settings = AlgorithmPredictorSettings(
@@ -157,8 +157,6 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
 
         for i, r in enumerate(self.ocr_predictor.predict(pages, callback=callback)):
             ocr_r: TextPredictionResult = r
-            print("123")
-            print(ocr_r.text_lines[0].line.operation.text_line.sentence.text())
             # try:
             match_r = [match_text2(text_line_r) for text_line_r in ocr_r.text_lines if
                        len(text_line_r.line.operation.text_line.sentence.syllables) > 0]
