@@ -31,6 +31,7 @@ attrs
 requests
 openpyxl
 symspellpy
+tensorboard
 torch
 -e git+https://github.com/githubharald/CTCWordBeamSearch.git@master#egg=word-beam-search
 -e git+https://github.com/githubharald/CTCDecoder.git@master#egg=ctc-decoder
