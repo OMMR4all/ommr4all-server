@@ -39,8 +39,8 @@ class Documents:
                                 festum += m_infos.meta_infos_extended[0].dies
 
                     d = DocumentMetaInfos(cantus_id=m_infos.cantus_id, initium=m_infos.initium, genre=m_infos.genre,
-                                          url=m_infos.url, dataset_source=m_infos.dataset_source, festum=festum)
-
+                                          url=m_infos.url, dataset_source=m_infos.dataset_source, festum=festum, extended_source=m_infos.source)
+                    i.textinitium = m_infos.initium
                 i.document_meta_infos = d
                 return
         pass

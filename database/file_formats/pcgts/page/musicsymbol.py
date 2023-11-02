@@ -214,7 +214,8 @@ class MusicSymbol:
                  octave: int = 0,
                  note_name: NoteName = NoteName.UNDEFINED,
                  graphical_connection: GraphicalConnectionType = GraphicalConnectionType.GAPED,
-                 confidence: SymbolConfidence = None
+                 confidence: SymbolConfidence = None,
+                 missing: bool = False,
                  ):
         self.id = s_id if s_id else str(uuid4())
         self.coord = coord if coord else Point()
@@ -228,6 +229,7 @@ class MusicSymbol:
         self.note_name = note_name
         self.graphical_connection = graphical_connection
         self.symbol_confidence = confidence
+        self.missing = missing
 
     def get_str_representation(self):
         if self.symbol_type == self.symbol_type.NOTE:
@@ -252,7 +254,8 @@ class MusicSymbol:
             d.get('oct', -1),
             optional_enum(d, 'pname', NoteName, NoteName.UNDEFINED),
             optional_enum(d, 'graphicalConnection', GraphicalConnectionType, GraphicalConnectionType.GAPED),
-            SymbolConfidence.from_json(d.get('symbolConfidence', None))
+            SymbolConfidence.from_json(d.get('symbolConfidence', None)),
+            d.get('missing', False),
         )
 
     def to_json(self) -> dict:
@@ -263,6 +266,7 @@ class MusicSymbol:
             'fixedSorting': self.fixed_sorting,
             'coord': self.coord.to_json(),
             'positionInStaff': self.position_in_staff.value,
+            'missing': self.missing,
         }
         if self.symbol_type == SymbolType.NOTE:
             d['noteType'] = self.note_type.value

@@ -43,6 +43,8 @@ def _match_syllables_to_symbols_greedy(mr: MatchResult, page: Page, annotations:
         return
     neumes = [s for s in mr.music_line.symbols if
               s.symbol_type == SymbolType.NOTE and s.graphical_connection == GraphicalConnectionType.NEUME_START]
+    if len(neumes) == 0:
+        return
     syls = mr.syllables
     syls2 = mr.text_line.sentence.syllables
 

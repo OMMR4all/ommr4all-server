@@ -30,6 +30,7 @@ class DocumentMetaInfos(DataClassJSONMixin):
     url: str = ""
     dataset_source: DatasetSource = None
     festum: str = ""
+    extended_source: str = ""
 
     pass
 
