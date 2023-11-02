@@ -40,6 +40,7 @@ class Lyric_info(DataClassJSONMixin):
     genre: str = None
     url: str = None
     dataset_source: DatasetSource = None
+    source: str = None
 
 
 @dataclass
