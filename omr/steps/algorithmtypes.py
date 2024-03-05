@@ -15,6 +15,8 @@ class AlgorithmTypes(Enum):
 
     SYMBOLS_PC = "symbols_pc"
     SYMBOLS_PC_TORCH = "symbols_pc_torch"
+    SYMBOLS_YOLO = "symbols_yolo"
+
     SYMBOLS_SEQUENCE_TO_SEQUENCE = 'symbols_sequence_to_sequence'
     SYMBOLS_SEQUENCE_TO_SEQUENCE_NAUTILUS = 'symbols_sequence_to_sequence_nautilus'
 

@@ -27,3 +27,6 @@ class ImageLoadFromPageOperation(ImageOperation):
 
     def local_to_global_pos(self, p, params):
         return p
+
+    def global_to_local_pos(self, p, params):
+        return p

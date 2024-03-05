@@ -348,7 +348,7 @@ class PcgtsToMonodiConverter:
                    "Nachtragsschicht": "",
                    "\u00dcberlieferungszustand": "",
                    "Melodie_Quelle": [formatstring.get_url(source=sourceIIF, page=i, suffix=".jpg") for i in
-                                      document.pages_names]
+                                      document.pages_names] if url else [],
                },
                "publish": None
                }

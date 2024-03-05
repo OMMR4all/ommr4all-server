@@ -9,7 +9,6 @@ from copy import copy
 from enum import IntEnum
 from omr.dewarping.dummy_dewarper import Dewarper, transform
 import logging
-import cv2
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +50,38 @@ class SymbolLabel(IntEnum):
                 6: [0, 0, 255],
                 7: [50, 50, 255],
                 8: [0, 0, 120]}[self.value]
+    @staticmethod
+    def music_symbol_to_symbol_label(s: MusicSymbol):
+        if s is None:
+            return SymbolLabel.BACKGROUND
+        elif s.symbol_type == SymbolType.NOTE:
+            if s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                return SymbolLabel.NOTE_START
+            elif s.graphical_connection == GraphicalConnectionType.LOOPED:
+                return SymbolLabel.NOTE_LOOPED
+            elif s.graphical_connection == GraphicalConnectionType.GAPED:
+                return SymbolLabel.NOTE_GAPPED
+            else:
+                raise Exception('Invalid graphical connection type')
+        elif s.symbol_type == SymbolType.CLEF:
+            if s.clef_type == ClefType.C:
+                return SymbolLabel.CLEF_C
+            elif s.clef_type == ClefType.F:
+                return SymbolLabel.CLEF_F
+            else:
+                raise Exception('Invalid clef type')
+        elif s.symbol_type == SymbolType.ACCID:
+            if s.accid_type == AccidType.NATURAL:
+                return SymbolLabel.ACCID_NATURAL
+            elif s.accid_type == AccidType.SHARP:
+                return SymbolLabel.ACCID_SHARP
+            elif s.accid_type == AccidType.FLAT:
+                return SymbolLabel.ACCID_FLAT
+            else:
+                raise Exception('Invalid accid type')
+        else:
+            raise Exception('Invalid symbol type')
+
 # extract image of a staff line, and as mask, the highlighted staff lines
 class ImageExtractStaffLineImages(ImageOperation):
     def __init__(self, full_page=True, pad=0, extract_region_only=True, gt_line_thickness=3):
@@ -315,6 +346,8 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         data.images = [data.images[1], ImageData(gray * data.images[1].image, False)] + data.images[2:]
 
     def _symbols_to_mask(self, ml: Line, img: np.ndarray, page: Page, scale: PageScaleReference, keep_graphical_connection=None):
+        import cv2
+
         if len(ml.staff_lines) < 2:  # at least two staff lines required
             return None
 
@@ -366,6 +399,17 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         i, (t, b, l, r), (top, ), mls, dewarper = params
         # default operations
         p = Point(p.x + l, t + p.y - top)
+        # dewarp
+        if self.dewarp:
+            return Point(*transform(p.xy(), mls))
+        else:
+            return p
+
+    def global_to_local_pos(self, p: Point, params: Any):
+        i, (t, b, l, r), (top, ), mls, dewarper = params
+        print(top)
+        # default operations
+        p = Point(p.x - l, p.y - t + top)
         # dewarp
         if self.dewarp:
             return Point(*transform(p.xy(), mls))
