@@ -39,10 +39,11 @@ class DatabaseBookDocuments:
     @staticmethod
     def load(book: DatabaseBook):
         path = book.local_path('book_documents.json')
+        print(path)
         try:
             with open(path) as f:
                 d = DatabaseBookDocuments.from_book_json(book, json.load(f))
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             d = DatabaseBookDocuments(b_id=book.book)
 
         return d

@@ -26,7 +26,6 @@ from enum import Enum
 import json
 
 from omr.imageoperations.music_line_operations import SymbolLabel
-from segmentation.settings import ColorMap, ClassSpec
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +171,9 @@ class Dataset(ABC):
 
     def local_to_global_pos(self, p: Point, params: List[Any]) -> Point:
         return self.image_ops.local_to_global_pos(p, params)
+
+    def global_to_local_pos(self, p: Point, params: List[Any]) -> Point:
+        return self.image_ops.global_to_local_pos(p, params)
 
     def to_page_segmentation_dataset(self, callback: Optional[DatasetCallback] = None):
         if self.params.origin_staff_line_distance == self.params.target_staff_line_distance:
@@ -357,6 +359,56 @@ class Dataset(ABC):
         # exit()
         return RawData(images=images, gt_files=gts)
 
+    def to_yolo_symbol_dataset(self, train=False, train_path=None, callback: Optional[DatasetCallback] = None):
+        from PIL import Image, ImageDraw
+        def convert_coord(coord, rlm: RegionLineMaskData, dataset: Dataset):
+            coord_c = rlm.operation.page.page_to_image_scale(coord, rlm.operation.scale_reference)
+            coord_g = dataset.global_to_local_pos(coord_c, rlm.operation.params).xy()
+            #print()
+
+            return coord_g[0] / i.line_image.shape[1], coord_g[1] / i.line_image.shape[0]
+        marked_symbols = self.load(callback)
+        for ind, i in enumerate(marked_symbols):
+            i: RegionLineMaskData = i
+            lines = []
+            img = Image.fromarray(i.line_image)
+            draw = ImageDraw.Draw(img)
+            for s in i.operation.music_line.symbols:
+                center = convert_coord(s.coord, i, self)
+                if s.symbol_type == s.symbol_type.CLEF:
+                    if s.clef_type == s.clef_type.C:
+                        width = 0.6 * i.operation.music_line.avg_line_distance()
+                        height = 1.6 * i.operation.music_line.avg_line_distance()
+                    else:
+                        width = 0.8 * i.operation.music_line.avg_line_distance()
+                        height = 1.6 * i.operation.music_line.avg_line_distance()
+                else:
+                    width = 0.4 * i.operation.music_line.avg_line_distance()
+                    height = 0.4 * i.operation.music_line.avg_line_distance()
+                #print(i.line_image.shape[0] / i.line_image.shape[1])
+                print(i.line_image.shape[1])
+                height = height * (i.line_image.shape[1] / i.line_image.shape[0])
+                class_id = SymbolLabel.music_symbol_to_symbol_label(s).value - 1
+                lines.append(f"{class_id} {center[0]} {center[1]} {width} {height}")
+                #print((((center[0] - width / 2) * i.line_image.shape[1], (center[1] - height / 2) * i.line_image.shape[0])))
+                #print(((center[0] + width / 2) * i.line_image.shape[1], (center[1] + height / 2) * i.line_image.shape[0]))
+                draw.rectangle((((center[0] - width / 2) * i.line_image.shape[1], (center[1] - height / 2) * i.line_image.shape[0]), ((center[0] + width / 2) * i.line_image.shape[1], (center[1] + height / 2) * i.line_image.shape[0])), outline="red")
+                draw.point((center[0] * i.line_image.shape[1], center[1] * i.line_image.shape[0]), fill="blue")
+
+            from matplotlib import pyplot as plt
+            print(lines[-1])
+
+            #plt.imshow(np.array(img))
+            #plt.show()
+            #exit()
+
+            img_path = os.path.join(train_path, str(ind) + ".png")
+
+            path = os.path.join(train_path, str(ind) + ".txt")
+            Image.fromarray(i.line_image).save(img_path)
+            with open(path, "w") as of:
+                of.write("\n".join(lines))
+
     def to_nautilus_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         marked_symbols = self.load(callback)
         import tempfile
@@ -370,7 +422,9 @@ class Dataset(ABC):
                 return hot.transpose([1, 0, 2])
             else:
                 return d.region
-
+        #coord = m.operation.page.image_to_page_scale(coord, m.operation.scale_reference)
+        for i in marked_symbols:
+            i.draw_symbols(self)
         images = [get_input_image(d).astype(np.uint8) for d in marked_symbols]
         from PIL import Image
         # for ind, i in enumerate(images):

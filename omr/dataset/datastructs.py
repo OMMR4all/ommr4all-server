@@ -1,4 +1,6 @@
-from database.file_formats.pcgts.page.musicsymbol import MusicSymbol
+import numpy as np
+from PIL import ImageDraw, Image
+
 from omr.imageoperations import ImageOperationData
 from database.file_formats.pcgts.page import MusicSymbol, SymbolType, \
     GraphicalConnectionType, AccidType, ClefType, NoteType, \
@@ -120,6 +122,7 @@ class CalamariSequence:
 
 
 class RegionLineMaskData:
+
     def __init__(self, op: ImageOperationData):
         self.operation = op
         self.line_image = op.images[1].image if len(op.images) > 1 else op.images[0].image
@@ -128,6 +131,23 @@ class RegionLineMaskData:
 
     def calamari_sequence(self, codec: CalamariCodec):
         return CalamariSequence(codec, self.operation.music_line.symbols)
+
+    def draw_symbols(self, dataset):
+        from omr.dataset import Dataset
+
+        dataset: Dataset = dataset
+        img = Image.fromarray(self.line_image.copy())
+        draw = ImageDraw.Draw(img)
+        for s in self.operation.music_line.symbols:
+            coord = self.operation.page.page_to_image_scale(s.coord, self.operation.scale_reference)
+            coord = dataset.global_to_local_pos(coord, self.operation.params).xy()
+            print(coord)
+            draw.point(coord, fill=255)
+        from matplotlib import pyplot as plt
+        plt.imshow(np.array(img))
+        plt.show()
+
+
 
 
 if __name__ == "__main__":

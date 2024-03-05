@@ -4,7 +4,6 @@ import numpy as np
 import shapely.ops
 from shapely.geometry import Polygon, LineString
 from skimage.measure import approximate_polygon
-import cv2
 from typing import Type, Union
 from mashumaro.types import SerializableType
 
@@ -210,6 +209,8 @@ class Coords(SerializableType):
         self.points = approximate_polygon(self.points, distance)
 
     def draw(self, canvas, color=(0, 255, 0), thickness=5, fill=False, offset=(0, 0), scale=None):
+        import cv2
+
         if scale:
             points = scale(self.points)
         else:
