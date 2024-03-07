@@ -174,6 +174,23 @@ class SymbolSequenceConfidence:
         }
 
 
+class AdvancedSymbolClass(IntEnum):
+    normal = 0
+    holed = 1
+    caro = 2
+    w = 3
+
+
+class AdvancedSymbolColor(IntEnum):
+    black = 0
+    red = 1
+    green = 2
+    blue = 3
+    orange = 4
+    grey = 5
+    yellow = 6
+
+
 class SymbolConfidence:
     def __init__(self,
                  symbol_prediction_confidence: SymbolPredictionConfidence = None,
@@ -198,7 +215,8 @@ class SymbolConfidence:
         return {
             'symbolPredictionConfidence': self.symbol_prediction_confidence.to_json() if self.symbol_prediction_confidence else None,
             'symbolSequenceConfidence': self.symbol_sequence_confidence.to_json() if self.symbol_sequence_confidence else None,
-            'symbolErrorType': self.symbol_error_type.value if self.symbol_error_type is not None else None}
+            'symbolErrorType': self.symbol_error_type.value if self.symbol_error_type is not None else None
+        }
 
 
 class MusicSymbol:
@@ -216,6 +234,8 @@ class MusicSymbol:
                  graphical_connection: GraphicalConnectionType = GraphicalConnectionType.GAPED,
                  confidence: SymbolConfidence = None,
                  missing: bool = False,
+                 advanced_class: AdvancedSymbolClass = AdvancedSymbolClass.normal,
+                 advanced_color: AdvancedSymbolColor = AdvancedSymbolColor.black,
                  ):
         self.id = s_id if s_id else str(uuid4())
         self.coord = coord if coord else Point()
@@ -230,6 +250,8 @@ class MusicSymbol:
         self.graphical_connection = graphical_connection
         self.symbol_confidence = confidence
         self.missing = missing
+        self.advanced_class = advanced_class
+        self.advanced_color = advanced_color
 
     def get_str_representation(self):
         if self.symbol_type == self.symbol_type.NOTE:
@@ -238,6 +260,7 @@ class MusicSymbol:
             return "Clef_C" if self.clef_type == self.clef_type.C else "Clef_F"
         else:
             return str(self.accid_type.name)
+
     @staticmethod
     def from_json(d: dict) -> 'MusicSymbol':
         if d.get('accidType') == 'neutral':
@@ -256,6 +279,10 @@ class MusicSymbol:
             optional_enum(d, 'graphicalConnection', GraphicalConnectionType, GraphicalConnectionType.GAPED),
             SymbolConfidence.from_json(d.get('symbolConfidence', None)),
             d.get('missing', False),
+            optional_enum(d, 'advancedSymbolClass', AdvancedSymbolClass, None) if d.get(
+                'advancedSymbolClass') is not None else AdvancedSymbolClass.normal,
+            optional_enum(d, 'advancedSymbolColor', AdvancedSymbolColor, None) if d.get(
+                'advancedSymbolColor') is not None else AdvancedSymbolColor.black
         )
 
     def to_json(self) -> dict:
@@ -279,6 +306,9 @@ class MusicSymbol:
             d['accidType'] = self.accid_type.value
 
         d['symbolConfidence'] = self.symbol_confidence.to_json() if self.symbol_confidence else None
+        d['advancedSymbolClass'] = self.advanced_class.value if self.advanced_class is not None else AdvancedSymbolClass.normal.value
+        d['advancedSymbolColor'] = self.advanced_color.value if self.advanced_color is not None else AdvancedSymbolColor.black.value
+
         return d
 
     def update_note_name(self, clef, staff_lines: Optional['StaffLines'] = None):
