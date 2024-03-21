@@ -179,7 +179,8 @@ class GuppyPredictor(TextPredictor):
         for i, y in enumerate(loaded_dataset):  # dataset_cal[0]:
             image = 255 - y.line_image
             if not len(image.shape) == 3:
-                raise InvalidInputImage("Len of image cutout shape must be 3")
+                continue
+                #raise InvalidInputImage("Len of image cutout shape must be 3")
             #print(self.network.mc.mconfig.Width)
             #print(self.network.mc.mconfig.Height)
 

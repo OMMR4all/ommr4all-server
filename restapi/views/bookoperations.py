@@ -27,7 +27,7 @@ class BookPageSelectionView(APIView):
         book = DatabaseBook(book)
         algorithm = Step.predictor(AlgorithmTypes(operation))
         page_selection = PageSelection.from_params(PageSelectionParams.from_dict(body), book)
-        pages = page_selection.get_pages(algorithm.unprocessed)
+        pages = page_selection.get_pages(algorithm.unprocessed, algorithm.unlocked)
         return Response({
             'pages': [p.page for p in pages],
             'pageCount': page_selection.page_count.value,
