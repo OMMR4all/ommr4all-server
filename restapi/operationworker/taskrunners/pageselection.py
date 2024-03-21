@@ -11,6 +11,7 @@ class PageCount(Enum):
     ALL = 'all'
     UNPROCESSED = 'unprocessed'
     CUSTOM = 'custom'
+    UNLOCKED = 'unlocked'
 
 
 @dataclass
@@ -91,7 +92,8 @@ class PageSelection:
     def __eq__(self, other):
         return isinstance(other, type(self)) and self.identifier() == other.identifier()
 
-    def get_pages(self, unprocessed: Optional[Callable[[DatabasePage], bool]] = None) -> List[DatabasePage]:
+    def get_pages(self, unprocessed: Optional[Callable[[DatabasePage], bool]] = None,
+                  unlocked: Optional[Callable[[DatabasePage], bool]] = None) -> List[DatabasePage]:
         if self.pcgts:
             return [DatabasePage(self.book, 'in_memory', skip_validation=True, pcgts=pcgts) for pcgts in self.pcgts]
 
@@ -101,6 +103,11 @@ class PageSelection:
             elif self.page_count == PageCount.UNPROCESSED:
                 if unprocessed:
                     return [p for p in self.book.pages() if unprocessed(p)]
+                else:
+                    return self.book.pages()
+            elif self.page_count == PageCount.UNLOCKED:
+                if unlocked:
+                    return [p for p in self.book.pages() if unlocked(p)]
                 else:
                     return self.book.pages()
             elif self.page_count == PageCount.CUSTOM:

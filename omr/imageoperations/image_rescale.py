@@ -27,7 +27,7 @@ class ImageRescaleToHeightOperation(ImageOperation):
 
     def apply_single(self, data: ImageOperationData) -> OperationOutput:
         s = [ImageRescaleToHeightOperation.scale_to_h(d.image, self.height, 0 if d.nearest_neighbour_rescale else 3) for d in data]
-        scale = s[0].shape[1] / data.images[0].image.shape[1]
+        scale = s[0].shape[1] / data.images[0].image.shape[1] if data.images[0].image.shape[1] > 0 else 1
         data.images = [ImageData(i, d.nearest_neighbour_rescale) for d, i in zip(data, s)]
         data.params = (scale, )
         return [data]
@@ -45,9 +45,11 @@ class ImageRescaleToHeightOperation(ImageOperation):
         h, w = img.shape[0:2]
         if h == 0:
             return np.zeros((0, target_height))
-
+        if w == 0:
+            return np.zeros((0, target_height))
         scale = target_height * 1.0 / h
         target_width = np.maximum(int(scale * w), 1)
+
         output = resize(img, (target_height, target_width),
                         order=0, mode='edge', cval=cval, preserve_range=True,
                         anti_aliasing=order).astype(np.uint8)

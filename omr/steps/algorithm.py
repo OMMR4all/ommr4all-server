@@ -91,7 +91,8 @@ class AlgorithmTrainer(ABC):
         self.params: AlgorithmTrainerParams = self.settings.params
 
         self.train_dataset = self.meta().dataset_class()(self.settings.train_data, self.settings.dataset_params)
-        self.validation_dataset = self.meta().dataset_class()(self.settings.validation_data, self.settings.dataset_params)
+        self.validation_dataset = self.meta().dataset_class()(self.settings.validation_data,
+                                                              self.settings.dataset_params)
 
     def train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
         class CallbackInterception(TrainerCallback):
@@ -136,7 +137,6 @@ class AlgorithmTrainer(ABC):
             def loading_finished(self, total: int):
                 if callback:
                     callback.loading_finished(total)
-
 
         if not self.settings.model:
             if target_book:
@@ -210,6 +210,9 @@ class AlgorithmPredictor(ABC):
     @abstractmethod
     def unprocessed(cls, page: DatabasePage) -> bool:
         pass
+    @classmethod
+    def unlocked(cls, page: DatabasePage) -> bool:
+        return not page.page_progress().locked.get(cls.meta().group().group_2_lock_mapping())
 
 
 class AlgorithmMeta(ABC):
@@ -340,6 +343,6 @@ class AlgorithmMeta(ABC):
         return DatabaseAvailableModels(
             selected_model=default_style_model,
             default_book_style_model=default_style_model,
-            models_of_same_book_style=[(b.get_meta(), cls.newest_model_for_book(b).meta()) for b in DatabaseBook.list_available_of_style(style) if cls.newest_model_for_book(b)]
+            models_of_same_book_style=[(b.get_meta(), cls.newest_model_for_book(b).meta()) for b in
+                                       DatabaseBook.list_available_of_style(style) if cls.newest_model_for_book(b)]
         )
-

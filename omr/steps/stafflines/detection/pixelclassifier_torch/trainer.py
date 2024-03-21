@@ -143,7 +143,7 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
                                  callbacks=callbacks, debug_color_map=config.color_map)
 
         os.makedirs(os.path.dirname(self.settings.model.path), exist_ok=True)
-        trainer.train_epochs(train_loader=train_loader, val_loader=val_loader, n_epoch=25, lr_schedule=None)
+        trainer.train_epochs(train_loader=train_loader, val_loader=val_loader, n_epoch=50, lr_schedule=None)
 
 
 if __name__ == "__main__":

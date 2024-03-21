@@ -1,6 +1,8 @@
 from enum import Enum, Enum
 from typing import Dict, List
 
+from database.file_formats.performance.pageprogress import Locks
+
 
 class AlgorithmTypes(Enum):
     PREPROCESSING = "preprocessing"
@@ -59,16 +61,29 @@ class AlgorithmGroups(Enum):
     def group_types_mapping() -> Dict['AlgorithmGroups', List[AlgorithmTypes]]:
         return {
             AlgorithmGroups.PREPROCESSING: [AlgorithmTypes.PREPROCESSING, ],
-            AlgorithmGroups.STAFF_LINES: [AlgorithmTypes.STAFF_LINES_PC, ],
+            AlgorithmGroups.STAFF_LINES: [AlgorithmTypes.STAFF_LINES_PC, AlgorithmTypes.STAFF_LINES_PC_Torch],
             AlgorithmGroups.LAYOUT: [AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES,
                                      AlgorithmTypes.LAYOUT_COMPLEX_STANDARD, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL],
             AlgorithmGroups.SYMBOLS: [AlgorithmTypes.SYMBOLS_PC, AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE,
-                                      AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE_NAUTILUS],
-            AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_CALAMARI, AlgorithmTypes.OCR_NAUTILUS],
-            AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_FROM_TEXT, AlgorithmTypes.SYLLABLES_IN_ORDER],
+                                      AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE_NAUTILUS,
+                                      AlgorithmTypes.SYMBOLS_PC_TORCH],
+            AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_CALAMARI, AlgorithmTypes.OCR_NAUTILUS, AlgorithmTypes.OCR_GUPPY],
+            AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_FROM_TEXT, AlgorithmTypes.SYLLABLES_IN_ORDER,
+                                        AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH],
             AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION,
                                     AlgorithmTypes.DOCUMENT_ALIGNMENT, AlgorithmTypes.TEXT_LOCALISATION],
         }
 
     def types(self) -> List[AlgorithmTypes]:
         return AlgorithmGroups.group_types_mapping()[self]
+
+    def group_2_lock_mapping(self) -> Locks:
+        return {
+            AlgorithmGroups.PREPROCESSING: None,
+            AlgorithmGroups.STAFF_LINES: Locks.STAFF_LINES,
+            AlgorithmGroups.LAYOUT: Locks.LAYOUT,
+            AlgorithmGroups.SYMBOLS: Locks.SYMBOLS,
+            AlgorithmGroups.TEXT: Locks.TEXT,
+            AlgorithmGroups.SYLLABLES: Locks.TEXT,
+            AlgorithmGroups.TOOLS: None,
+        }[self]
