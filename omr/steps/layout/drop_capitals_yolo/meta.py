@@ -6,7 +6,7 @@ from omr.steps.step import Step
 class Meta(AlgorithmMeta):
     @staticmethod
     def type() -> AlgorithmTypes:
-        return AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL
+        return AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO
 
     @classmethod
     def predictor(cls) -> Type[AlgorithmPredictor]:

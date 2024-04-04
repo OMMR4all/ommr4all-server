@@ -21,6 +21,8 @@ if __name__ == '__main__':
     django.setup()
 
 LAYOUT_DROP_CAPITAL_MODEL_DEFAULT_NAME = "layout_drop_capital.pt"
+
+
 def get_outputs(image, model, threshold):
     with torch.no_grad():
         # forward pass of the image through the modle
@@ -50,7 +52,13 @@ def draw_segmentation_map(image, masks, boxes):
     alpha = 1
     beta = 0.6  # transparency for the segmentation map
     gamma = 0  # scalar added to each sum
+    print(image.shape)
     for i in range(len(masks)):
+
+        print(masks[i].shape)
+        print(i)
+        if len(masks[i].shape) == 1:
+            continue
         red_map = np.zeros_like(masks[i]).astype(np.uint8)
         green_map = np.zeros_like(masks[i]).astype(np.uint8)
         blue_map = np.zeros_like(masks[i]).astype(np.uint8)
@@ -58,6 +66,7 @@ def draw_segmentation_map(image, masks, boxes):
         color = COLORS[random.randrange(0, len(COLORS))]
         red_map[masks[i] == 1], green_map[masks[i] == 1], blue_map[masks[i] == 1] = color
         # combine all the masks into a single image
+        print(red_map.shape, green_map.shape, blue_map.shape)
         segmentation_map = np.stack([red_map, green_map, blue_map], axis=2)
         # convert the original PIL image into NumPy format
         image = np.array(image)
@@ -201,6 +210,9 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
 
         self.model = torch.load(os.path.join(settings.model.local_file(LAYOUT_DROP_CAPITAL_MODEL_DEFAULT_NAME)),
                                 map_location=torch.device(device))
+        self.model = torch.load(
+            "/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/modules/ommr4all-server/omr/steps/layout/drop_capitals/mask_rcnn_drop_capital7.pt",
+            map_location=torch.device(device))
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> PredictionType:
         dc_dataset = DropCapitalDatasetDataset(pcgts_files, self.dataset_params)
@@ -214,9 +226,15 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
 
             rlmd: RegionLineMaskData = add_data
             page: Page = add_data.operation.page
+            print(page.location.page)
             image = image.unsqueeze(0).to(device)
-            masks, boxes = get_outputs(image, self.model, 0.5)
+            masks, boxes = get_outputs(image, self.model, 0.1)
             coords = []
+            image = draw_segmentation_map(o_image, masks, boxes)
+            from matplotlib import pyplot as plt
+            plt.imshow(image)
+            plt.show()
+            # cv2.imshow('image', image)
             for mask, box in zip(masks, boxes):
                 points = np.argwhere(mask == True)
                 if len(points) == 0:
@@ -245,11 +263,12 @@ if __name__ == '__main__':
     from database import DatabaseBook
 
     b = DatabaseBook('Pa_14819')
+    b = DatabaseBook('Aveiro_ANTF28')
 
     # b = DatabaseBook('test3')
     # b = DatabaseBook('Cai_72')
 
-    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[1:50]]
+    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[150:250]]
 
-    pred = DropCapitalPredictor(AlgorithmPredictorSettings(Meta.best_model_for_book(b)))
+    pred = DropCapitalPredictor(AlgorithmPredictorSettings(Meta.default_model_for_book(b)))
     ps = list(pred.predict([p.page.location for p in val_pcgts]))

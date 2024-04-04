@@ -11,7 +11,7 @@ from omr.dataset.dataset import LyricsNormalizationProcessor, LyricsNormalizatio
 from tools.simple_gregorianik_text_export import Lyric_info, Lyrics
 
 if __name__ == "__main__":
-    book = DatabaseBook('mul_2_rsync_gt')
+    book = DatabaseBook('mul_2_gt_22_03')
     documents = DatabaseBookDocuments().load(book)
     docs = documents.database_documents.documents
     text_normalizer = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.WORDS))

@@ -66,3 +66,6 @@ class PageProgress(DataClassJSONMixin):
     def consistency_check(self):
         if not self.verified_allowed():
             self.verified = False
+
+    def processed(self):
+        return any([self.locked.get(l, False) for l in Locks])

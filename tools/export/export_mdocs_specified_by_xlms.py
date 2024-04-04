@@ -32,7 +32,7 @@ def soruce_meta(id):
 if __name__ == "__main__":
     source = "OMMR_Test1"
     source_meta = soruce_meta(source)
-    book = DatabaseBook('mul_2_rsync_gt')
+    book = DatabaseBook('Graduel_Syn22_03_24')
     documents = DatabaseBookDocuments().load(book)
     docs = documents.database_documents.documents
     wb_obj = openpyxl.load_workbook("/tmp/CM Default Metadatendatei.xlsx")
@@ -52,13 +52,15 @@ if __name__ == "__main__":
                 pages = [DatabasePage(book, x) for x in document.pages_names]
                 pcgts = [DatabaseFile(page, 'pcgts', create_if_not_existing=True).page.pcgts() for page in pages]
                 root = PcgtsToMonodiConverter(pcgts, document=document, replace_filename="folio")
-                meta, nodes = root.get_meta_and_notes(document=document, editor=str("OMMR4all"))
+                meta, nodes = root.get_meta_and_notes(document=document, editor=str("OMMR4all"), sourceIIF="Graduale_Synopticum",
+                           doc_source="Graduale Synopticum", suffix=".png")
                 os.mkdir(f"/tmp/export/{source}/{document.monody_id}")
                 with open(f"/tmp/export/{source}/{document.monody_id}/data.json", "w") as f:
                     json.dump(nodes, f, indent=4)
                 with open(f"/tmp/export/{source}/{document.monody_id}/meta.json", "w") as f:
                     json.dump(meta, f, indent=4)
-            except:
+            except Exception as e:
+                print(e)
                 print(1)
             pass
 

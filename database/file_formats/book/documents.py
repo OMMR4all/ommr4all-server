@@ -25,21 +25,27 @@ class Documents:
             "documents": [document.to_json() for document in self.documents] if self.documents else [],
         }
 
-    def update_document_meta_infos(self, m_infos: Lyric_info, doc_uuid):
+
+    def update_document_meta_infos(self, m_infos: Lyric_info, doc_uuid, manuscript =""):
         for i in self.documents:
             if i.doc_id == doc_uuid:
                 festum = ""
+                dies = ""
                 d = m_infos
                 if m_infos:
-                    if m_infos.meta_infos_extended:
+                    if m_infos.m_info:
+                        festum = m_infos.m_info.festum
+                        dies = m_infos.m_info.dies
+
+                    elif m_infos.meta_infos_extended:
                         if len(m_infos.meta_infos_extended) > 0:
                             if m_infos.meta_infos_extended[0].festum is not None:
                                 festum += m_infos.meta_infos_extended[0].festum
                             if m_infos.meta_infos_extended[0].dies is not None:
-                                festum += m_infos.meta_infos_extended[0].dies
+                                dies += m_infos.meta_infos_extended[0].dies
 
                     d = DocumentMetaInfos(cantus_id=m_infos.cantus_id, initium=m_infos.initium, genre=m_infos.genre,
-                                          url=m_infos.url, dataset_source=m_infos.dataset_source, festum=festum, extended_source=m_infos.source)
+                                          url=m_infos.url, dataset_source=m_infos.dataset_source, festum=festum, dies = dies, extended_source=m_infos.source, manuscript=manuscript)
                     i.textinitium = m_infos.initium
                 i.document_meta_infos = d
                 return
@@ -96,7 +102,7 @@ class Documents:
         return bytes
 
     @staticmethod
-    def export_documents_to_xls(documents: List[Document], filename, editor, book=None):
+    def export_documents_to_xls(documents: List[Document], filename, editor, book=None, extended = False, flag_char=None):
         import xlsxwriter
         from database.file_formats.exporter.monodi.ods import MonodiXlsxConfig
         from io import BytesIO
@@ -113,7 +119,10 @@ class Documents:
             if doc.document_meta_infos:
                 worksheet.write(doc_ind, config.dict['Gattung1'].cell.column, doc.document_meta_infos.genre)
                 worksheet.write(doc_ind, config.dict['Fest'].cell.column, doc.document_meta_infos.festum)
+                worksheet.write(doc_ind, config.dict['Feier'].cell.column, doc.document_meta_infos.dies)
+
                 worksheet.write(doc_ind, config.dict['Verlinkung'].cell.column, doc.document_meta_infos.url)
+                worksheet.write(doc_ind, config.dict['Manuscript'].cell.column, doc.document_meta_infos.manuscript)
 
             if doc.document_meta_infos and doc.document_meta_infos.initium and len(doc.document_meta_infos.initium) > 0:
                 worksheet.write(doc_ind, config.dict['Textinitium Editionseinheit'].cell.column, doc.document_meta_infos.initium)
@@ -127,6 +136,17 @@ class Documents:
             worksheet.write(doc_ind, config.dict['Editor'].cell.column, str(editor))
             worksheet.write(doc_ind, config.dict['Doc-Id\' (intern)'].cell.column, doc.monody_id)
             worksheet.write(doc_ind, config.dict['Quellen-ID (intern)'].cell.column, 'Editorenordner')
+            worksheet.write(doc_ind, config.dict['Lyric'].cell.column, doc.get_text_of_document(book))
+            worksheet.write(doc_ind, config.dict['Skip'].cell.column, "yes" if flag_char and flag_char in doc.get_text_of_document(book) else "no")
+            symbols_of_doc = doc.get_symbols(book)
+            symbols = []
+            for i in symbols_of_doc[0]:
+                for u in i:
+                    symbols.append(u)
+            missing = any(True for i in symbols if i.missing)
+            worksheet.write(doc_ind, config.dict['Skip_Symbol'].cell.column, "yes" if missing else "no")
+            only_clef = any(True for i in symbols if i.symbol_type != i.symbol_type.CLEF)
+            worksheet.write(doc_ind, config.dict['Empty_Symbol'].cell.column, "yes" if not only_clef else "no")
 
         workbook.close()
         xlsx_data_bytes = output.getvalue()

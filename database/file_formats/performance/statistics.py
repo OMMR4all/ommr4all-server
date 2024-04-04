@@ -18,6 +18,10 @@ class Statistics:
             return Statistics.from_json(json.load(f))
 
     @staticmethod
+    def from_file(file):
+        return Statistics.from_json(json.load(file))
+
+    @staticmethod
     def from_json(d):
         s = Statistics()
         for key, value in d.get('actions', {}).items():

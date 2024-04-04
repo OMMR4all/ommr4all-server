@@ -294,6 +294,65 @@ class Dataset(ABC):
 
         return DropCapitalDataset(imgs=images, masks=masks, additional_data=additional_data)
 
+
+    def to_yolo_drop_capital_dataset(self, train=False, train_path=None, callback: Optional[DatasetCallback] = None):
+        from PIL import Image, ImageDraw
+        d = self.load(callback)
+        images = []
+        masks_list = []
+        additional_data = []
+        for ind, instance in enumerate(d):
+            lines = []
+
+            image = instance.operation.images[0].image
+            images.append(image)
+
+            mask = instance.operation.images[1].image
+            masks_list.append(mask)
+            additional_data.append(instance)
+            mask = np.array(mask)
+            if not train:
+                continue
+            # instances are encoded as different colors
+            obj_ids = np.unique(mask)
+            # first id is the background, so remove it
+            obj_ids = obj_ids[1:]
+
+            # split the color-encoded mask into a set
+            # of binary masks
+            masks = mask == obj_ids[:, None, None]
+
+            # get bounding box coordinates for each mask
+            num_objs = len(obj_ids)
+            boxes = []
+            area = []
+            for i in range(num_objs):
+                pos = np.where(masks[i])
+                xmin = np.min(pos[1]) / mask.shape[1]
+                xmax = np.max(pos[1]) / mask.shape[1]
+                ymin = np.min(pos[0]) / mask.shape[0]
+                ymax = np.max(pos[0]) / mask.shape[0]
+                center = ((xmin + xmax) / 2, (ymin + ymax) / 2)
+                width = xmax - xmin
+                height = ymax - ymin
+                class_id = 0
+
+                if ymin - ymax == 0 or xmin - xmax == 0:
+                    continue
+                lines.append(f"{class_id} {center[0]} {center[1]} {width} {height}")
+                boxes.append([xmin, ymin, xmax, ymax])
+                area.append((xmax - xmin) * (ymax - ymin))
+            path = os.path.join(train_path, str(ind) + ".txt")
+            img_path = os.path.join(train_path, str(ind) + ".png")
+            Image.fromarray(image).save(img_path)
+            with open(path, "w") as of:
+                of.write("\n".join(lines))
+            if not train:
+                additional_data.append(instance)
+        return images, masks_list, additional_data
+
+
+
     def to_calamari_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         from calamari_ocr.ocr.datasets.dataset import RawDataSet, DataSetMode
         marked_symbols = self.load(callback)
