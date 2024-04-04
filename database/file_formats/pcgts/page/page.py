@@ -405,3 +405,6 @@ class Page:
 
     def update_reading_order(self):
         self.reading_order = ReadingOrder(self, self.get_reading_order())
+
+    def get_all_music_symbols_of_page(self):
+        return sum([b.get_all_music_symbols() for b in self.music_blocks()], [])

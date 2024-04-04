@@ -78,8 +78,8 @@ class DropCapitalTrainer(SymbolDetectionTrainer):
 
         # our dataset has two classes only - background and person
         num_classes = 2
-        train_data: DropCapitalDataset = self.train_dataset.to_drop_capital_dataset(callback, train=True)
-        test_data: DropCapitalDataset = self.validation_dataset.to_drop_capital_dataset(callback, train=True)
+        train_data: DropCapitalDataset = self.train_dataset.to_drop_capital_dataset(callback=callback, train=True)
+        test_data: DropCapitalDataset = self.validation_dataset.to_drop_capital_dataset(callback=callback, train=True)
 
         ##train_data.__getitem__(0)
 
@@ -116,15 +116,17 @@ class DropCapitalTrainer(SymbolDetectionTrainer):
             # update the learning rate
             lr_scheduler.step()
             # evaluate on the test dataset
-            evaluate(model, data_loader_test, device=device)
+            evaluator = evaluate(model, data_loader_test, device=device)
         # safe it after 10 epochs
-        torch.save(model, 'mask_rcnn_drop_capital.pt')
+        torch.save(model, 'mask_rcnn_drop_capital7.pt')
 
 if __name__ == '__main__':
     from omr.dataset import DatasetParams
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
     b = DatabaseBook('Pa_14819')
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b])
+    c = DatabaseBook('Aveiro_ANTF28')
+
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.LAYOUT, True)], datasets=[b, c])
     settings = AlgorithmTrainerSettings(
         DatasetParams(),
         train,

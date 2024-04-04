@@ -317,7 +317,7 @@ class PcgtsToMonodiConverter:
 
     def get_meta_and_notes(self, document: Document, editor, replace="folio_",
                            url="https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/", sourceIIF="mul_2",
-                           doc_source="Mul 2"):
+                           doc_source="Mul 2", suffix=".jpg"):
         formatstring = FormatUrl(url)
         doc = {"id": document.monody_id,
                "quelle_id": doc_source,
@@ -325,7 +325,7 @@ class PcgtsToMonodiConverter:
                "gattung1": document.document_meta_infos.genre if document.document_meta_infos else "",
                "gattung2": "",
                "festtag": document.document_meta_infos.festum if document.document_meta_infos else "",
-               "feier": "",
+               "feier": document.document_meta_infos.dies if document.document_meta_infos else "",
                "textinitium": document.document_meta_infos.initium.replace("-",
                                                                            "") if document.document_meta_infos and document.document_meta_infos.initium and len(
                    document.document_meta_infos.initium) > 0 else document.textinitium.replace("-", ""),
@@ -347,8 +347,11 @@ class PcgtsToMonodiConverter:
                    "Endzeile": str(document.end.row),
                    "Nachtragsschicht": "",
                    "\u00dcberlieferungszustand": "",
-                   "Melodie_Quelle": [formatstring.get_url(source=sourceIIF, page=i, suffix=".jpg") for i in
+                   "Melodie_Quelle": [formatstring.get_url(source=sourceIIF, page=i, suffix=suffix) for i in
                                       document.pages_names] if url else [],
+                   "iiifs": [formatstring.get_url(source=sourceIIF, page=i, suffix=suffix) for i in
+                             document.pages_names] if url else [],
+                   "manuscript": document.document_meta_infos.manuscript if document.document_meta_infos else "",
                },
                "publish": None
                }
@@ -511,6 +514,7 @@ class PcgtsToMonodiConverter:
                     if page.p_id == document.start.page_id or document_started:
 
                         if line_id_start == i.id or document_started:
+
                             document_started = True
                             connections_b = page.annotations.connections
                             connections_d = [c.music_region for c in connections_b for con in

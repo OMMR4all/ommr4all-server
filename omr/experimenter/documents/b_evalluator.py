@@ -118,9 +118,11 @@ class SyllableEvalInput:
     gt_annotation: List[Connection]
     p_line: Line
     gt_line: Line
+    gt_page: str
+    pred_page: str
 
 
-def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
+def evaluate_syllabels(eval_data: List[SyllableEvalInput], save_to_excel: bool = False, gtpage = "", predpage = ""):
     def get_all_connections_of_music_line(line: Line, connections: List[Connection]) -> List[SyllableConnector]:
         syl_connectors: List[SyllableConnector] = []
         for i in connections:
@@ -131,6 +133,7 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
         return syl_connectors
 
     def prepare_syllable_gt(eval_data: List[SyllableEvalInput]):
+        errors = []
         @dataclass()
         class SyllableErrorType:
             NoteError: int = 0
@@ -181,10 +184,11 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
                 #print(len(add_gt_connections))
                 keep = False
                 if once and len(fp_prev_line) > 0 and len(add_gt_connections) > 0 and add_gt_connections[0].syllable.text.lower() == fp_prev_line[-1].syllable.text.lower():
-                    del add_gt_connections[0]
-                    error_type.PreviousLine +=1
-                    error_type.Delete -= 1
+                    errors.append(("PreviousLine", add_gt_connections[0].syllable.text.lower(), fp_prev_line[-1].syllable.text.lower()))
 
+                    del add_gt_connections[0]
+                    error_type.PreviousLine += 1
+                    error_type.Delete -= 1
                     pass
                 once = False
                 for ind1, i in enumerate(add_gt_connections):
@@ -196,6 +200,9 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
                             error_type.TextError += 1
                             del syl_connectors_pred[ind2]
                             del add_gt_connections[ind1]
+                            errors.append(("Texterror", i.syllable.text.lower(),
+                                           p.syllable.text.lower()))
+
                             found = True
                             break
                         if i.syllable.text.lower() == p.syllable.text.lower():
@@ -203,11 +210,17 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
                             del syl_connectors_pred[ind2]
                             del add_gt_connections[ind1]
                             found = True
+                            errors.append(("Noteerror", i.syllable.text.lower(),
+                                           p.syllable.text.lower()))
                             break
 
                     if found:
                         keep = True
                         break
+            for f in add_gt_connections:
+                errors.append(("Insert", f.syllable.text.lower(), "None"))
+            for g in syl_connectors_pred:
+                errors.append(("Delete", "None", g.syllable.text.lower()))
             error_type.Insert += len(add_gt_connections)
             error_type.Delete += len(syl_connectors_pred)
             fp_prev_line = syl_connectors_pred
@@ -218,8 +231,9 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
         acc = tp / (tp + fp + fn) if (tp + fn + fp) > 0 else 1
         # print(f1)
         # print(acc)
-        return tp, fn, fp, f1, acc, error_type.NoteError, error_type.TextError, \
-            error_type.Insert, error_type.Delete, error_type.PreviousLine
+
+        return (tp, fn, fp, f1, acc, error_type.NoteError, error_type.TextError, \
+            error_type.Insert, error_type.Delete, error_type.PreviousLine), errors
 
     def prepare_syllable_gt_continuation_error(eval_data: List[SyllableEvalInput]):
 
@@ -301,7 +315,7 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
         return tp, fn, fp, f1, acc
         pass
 
-    result = prepare_syllable_gt(eval_data)
+    result, errors = prepare_syllable_gt(eval_data)
     result2 = prepare_syllable_gt_continuation_error(eval_data)
     result3 = evaluate_melody_blocks(eval_data)
     excel_lines = []
@@ -310,4 +324,4 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput]):
 
     excel_lines.append(["Tp", "Fn", "FP", "F1", "acc", "NoteError", "TextError", "Insert", "Delete", "PrevLineError"] + res2_labels + res3_labels)
     excel_lines.append(result + result2 + result3)
-    return excel_lines
+    return excel_lines, errors

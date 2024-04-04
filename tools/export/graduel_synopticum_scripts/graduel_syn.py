@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict
 from multiprocessing import Pool
 
 import requests
@@ -56,14 +57,25 @@ def web_page_b_index2(index: int):
     initium = soup.find("div", {"class": "detail_content"}).find("h1")
     initium = initium.contents[-1].get_text()
 
+    festum_dic = defaultdict(list)
+    dies_dic = defaultdict(list)
+    versus_dic = defaultdict(list)
+
     for i in meta_table.find_all("tr")[1:]:
         festum = i.find_all("td")[0].get_text().strip().replace("\n", " ")
         dies = i.find_all("td")[1].get_text().strip().replace("\n", " ")
         versus = i.find_all("td")[2].get_text().strip().replace("\n", " ")
         sources = []
+
         for i in i.find_all("td")[3].find_all("li"):
+            if i.has_attr("class"):
+                if i["class"][0] == "linked":
+                    festum_dic[i.get_text().strip().replace("\n", " ")].append(festum)
+                    dies_dic[i.get_text().strip().replace("\n", " ")].append(dies)
+                    versus_dic[i.get_text().strip().replace("\n", " ")].append(versus)
+
             sources.append(i.get_text().strip().replace("\n", " "))
-        meta_infos.append(Metainfo(festum=festum, dies=dies, versus=versus, sources=sources))
+        meta_infos.append(Metainfo(festum=festum, dies=dies, versus=versus, sources=sources, dies_dic=dies_dic, festum_dic=festum_dic, versus_dic=versus_dic))
 
     lyric_info = Lyric_info(index=str(index), id=id, meta_info=meta_info, latine=latine, variants=variants,
                             meta_infos_extended=meta_infos, genre=genre, initium=initium, url=url, cantus_id=cantus_id)

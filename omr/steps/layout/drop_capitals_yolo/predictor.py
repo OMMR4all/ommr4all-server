@@ -3,14 +3,18 @@ import random
 import cv2
 import torch
 import os
+
+from ultralytics import YOLO
+from ultralytics.utils.plotting import Annotator
+
 from omr.dataset import RegionLineMaskData
-from omr.steps.layout.drop_capitals.dataset import DropCapitalDatasetDataset
+from omr.steps.layout.drop_capitals_yolo.dataset import DropCapitalDatasetDataset
 from omr.steps.layout.predictor import LayoutAnalysisPredictor, PredictionType, PredictionResult, \
     PredictionCallback, AlgorithmPredictorSettings, FinalPredictionResult, IdCoordsPair
 from typing import List, Optional
 from database.file_formats.pcgts import PcGts, BlockType, Coords, Line, Rect, Point, Size, Page
 import numpy as np
-from omr.steps.layout.drop_capitals.meta import Meta
+from omr.steps.layout.drop_capitals_yolo.meta import Meta
 from scipy.spatial import ConvexHull, convex_hull_plot_2d
 
 if __name__ == '__main__':
@@ -199,22 +203,38 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
         super().__init__(settings)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        self.model = torch.load(os.path.join(settings.model.local_file(LAYOUT_DROP_CAPITAL_MODEL_DEFAULT_NAME)),
-                                map_location=torch.device(device))
-
+        #self.model = torch.load(os.path.join(settings.model.local_file(LAYOUT_DROP_CAPITAL_MODEL_DEFAULT_NAME)),
+        #                        map_location=torch.device(device))
+        self.model = YOLO("/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/runs/detect/train/weights/best.pt")
+        self.model = YOLO("/home/alexanderh/Downloads/yolov8n_layout_camerarius.pt")
+        self.model = YOLO("/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/runs/detect/train15/weights/best.pt")
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> PredictionType:
         dc_dataset = DropCapitalDatasetDataset(pcgts_files, self.dataset_params)
-        dataset = dc_dataset.to_drop_capital_dataset()
-        length = len(dataset.imgs)
+        images, masks, adds = dc_dataset.to_yolo_drop_capital_dataset(train_path="")
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        for x in range(length):
-            image, target = dataset.__getitem__(x)
-            add_data = dataset.additional_data[x]
-            o_image = dataset.imgs[x]
-
-            rlmd: RegionLineMaskData = add_data
-            page: Page = add_data.operation.page
+        print("123")
+        for image, mask, add in zip(images, masks, adds):
+            print(image.shape)
+            rlmd: RegionLineMaskData = add
+            page: Page = add.operation.page
+            output = self.model.predict(image)
+            print(output)
+            for r in output:
+                annotator = Annotator(image)
+                boxes = r.boxes
+                for box in boxes:
+                    b = box.xyxy[0]
+                    c = box.cls
+                    b
+                    annotator.box_label(b, "")
+                img = annotator.result()
+                from matplotlib import pyplot as plt
+                plt.imshow(img)
+                plt.show()
+            coords = []
+            """
             image = image.unsqueeze(0).to(device)
+            
             masks, boxes = get_outputs(image, self.model, 0.5)
             coords = []
             for mask, box in zip(masks, boxes):
@@ -231,7 +251,7 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
 
                 coords.append(page.image_to_page_scale(transform_points(list(convex_hull_points)),
                                                        rlmd.operation.scale_reference))
-
+            """
             yield PredictionResult(
                 blocks={
                     BlockType.DROP_CAPITAL: coords,
@@ -244,12 +264,12 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
 if __name__ == '__main__':
     from database import DatabaseBook
 
-    b = DatabaseBook('Pa_14819')
+    b = DatabaseBook('Aveiro_ANTF28')
 
     # b = DatabaseBook('test3')
     # b = DatabaseBook('Cai_72')
 
-    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[1:50]]
-
+    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()[50:150]]
+    print(val_pcgts)
     pred = DropCapitalPredictor(AlgorithmPredictorSettings(Meta.best_model_for_book(b)))
     ps = list(pred.predict([p.page.location for p in val_pcgts]))

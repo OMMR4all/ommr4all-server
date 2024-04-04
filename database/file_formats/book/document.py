@@ -30,7 +30,9 @@ class DocumentMetaInfos(DataClassJSONMixin):
     url: str = ""
     dataset_source: DatasetSource = None
     festum: str = ""
+    dies: str = ""
     extended_source: str = ""
+    manuscript: str = ""
 
     pass
 
@@ -114,6 +116,8 @@ class Document:
             "document_meta_infos": self.document_meta_infos.to_dict() if self.document_meta_infos else DocumentMetaInfos().to_dict()
         }
 
+    def get_database_pages(self, book):
+        return [DatabasePage(book, x) for x in self.pages_names]
     def export_to_ods(self, filename, editor):
         from database.file_formats.exporter.monodi.ods import MonodiOdsConfig
         from ezodf import newdoc, Paragraph, Heading, Sheet
@@ -230,9 +234,12 @@ class Document:
         meta = []
         for line, page in lines:
             page: DatabasePage = page
+            print(page.page)
             music_line = page.pcgts().page.closest_music_line_to_text_line(line)
+            if music_line is None:
+                continue
             text_lines_of_page = page.pcgts().page.all_text_lines(True)
-            m_lines = [i for i in text_lines_of_page if
+            m_lines = [i for i in text_lines_of_page if  page.pcgts().page.closest_music_line_to_text_line(i) and
                        page.pcgts().page.closest_music_line_to_text_line(i).id == music_line.id]
             lefts_text_lines = sorted([i.coords.aabb().left() for i in m_lines])
             if len(m_lines) > 1:
@@ -246,4 +253,12 @@ class Document:
             else:
                 symbols.append(music_line.symbols), meta.append(LineMetaInfos(music_line.id, -1, -1, page.page))
         return symbols, meta
-        ##line.
+
+    def get_symbol_of_page(self, book):
+        pages = [DatabasePage(book, x) for x in self.pages_names]
+
+        symbols = []
+        for page in pages:
+            symbols.append(page.pcgts().page.get_all_music_symbols_of_page())
+        return symbols
+

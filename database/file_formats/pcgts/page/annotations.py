@@ -109,3 +109,9 @@ class Annotations:
         c = Connection(m, t)
         self.connections.append(c)
         return c
+
+    def get_connection_of_syllable(self, s: Syllable) -> SyllableConnector:
+        for c in self.connections:
+            for sc in c.syllable_connections:
+                if sc.syllable == s:
+                    return sc

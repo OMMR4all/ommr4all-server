@@ -104,6 +104,12 @@ class MonodiXlsxConfig:
         Entry(OdsCell(0, 30), 'Quellen-ID (intern)'),
         Entry(OdsCell(0, 31), ''),
         Entry(OdsCell(0, 32), 'Verlinkung'),
+        Entry(OdsCell(0, 33), 'Manuscript'),
+        Entry(OdsCell(0, 34), 'Lyric'),
+        Entry(OdsCell(0, 35), 'Skip'),
+        Entry(OdsCell(0, 36), 'Skip_Symbol'),
+        Entry(OdsCell(0, 37), 'Empty_Symbol'),
+
     ]
 
     def __init__(self):

@@ -1,7 +1,7 @@
 import json
 import os
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Any
 
 import edlib
 import numpy as np
@@ -71,6 +71,7 @@ class LineSymbolEvalData:
 class DocSymbolEvalData:
     eval_symbols: List[LineSymbolEvalData]
     doc_id: str
+    reference: Any = None
 
     def get_doc_symbol_data(self) ->Tuple[List[List[MusicSymbol]], List[List[MusicSymbol]]]:
         pred_symbols = []
@@ -120,7 +121,8 @@ def gen_eval_symbol_documents_data(pred_book: DatabaseBook, gt_book: DatabaseBoo
             gt_pair = i.doc.get_page_line_of_document(gt_book)
             pred_pair = doc.get_page_line_of_document(pred_book)
             if len(gt_pair) != len(pred_pair):
-                print("skipping syll")
+                print(f"{doc.start.page_name} {doc.start.row} len: {len(gt_pair)} p: {len(pred_pair)}")
+                print("skipping symbol line")
                 continue
             symbols_gt, meta_gt = i.doc.get_symbols(gt_book)
             gt_symbols += symbols_gt
@@ -135,7 +137,7 @@ def gen_eval_symbol_documents_data(pred_book: DatabaseBook, gt_book: DatabaseBoo
             eval_data.append(DocSymbolEvalData(eval_symbols=eval_lines, doc_id=i.doc.doc_id))
             pred_meta += meta_pred
         else:
-            print("Missing")
+            print(f"{i.doc.start.page_name} {i.doc.start.row}")
     return SymbolEvalData(eval_data)
 
 
@@ -474,12 +476,14 @@ class LineSyllableEvalData:
     syllable_eval_data: SyllableEvalInput
     pred_txt: str
     gt_txt: str
-
+    gt_page: str
+    pred_page: str
 
 @dataclass
 class DocSyllableEvalData:
     eval_syls: List[LineSyllableEvalData]
     doc_id: str
+    reference: Any = None
 
     def get_doc_syl_data(self):
         eval_data = []
@@ -525,6 +529,7 @@ def gen_eval_syllable_documents_data(pred_book: DatabaseBook, gt_book: DatabaseB
         doc = documents_pred.database_documents.get_document_by_b_uid(i.doc.get_book_u_id())
 
         if doc:
+
             def get_all_connections_of_music_line(line: Line, connections: List[Connection]):
                 syl_connectors: List[SyllableConnector] = []
                 for i in connections:
@@ -538,6 +543,9 @@ def gen_eval_syllable_documents_data(pred_book: DatabaseBook, gt_book: DatabaseB
             pred_pair = doc.get_page_line_of_document(pred_book)
 
             if len(gt_pair) != len(pred_pair):
+
+                print(f"{doc.start.page_name} {doc.start.row} len: {len(gt_pair)} p: {len(pred_pair)}")
+
                 print("skipping syll")
                 continue
             eval_lines = []
@@ -561,16 +569,17 @@ def gen_eval_syllable_documents_data(pred_book: DatabaseBook, gt_book: DatabaseB
                         l += x.syllable.text
                     for x in pred:
                         m += x.syllable.text
-                    print("syllables")
-                    print(l)
-                    print(m)
+                    #print("syllables")
+                    #print(l)
+                    #print(m)
                 eval_lines.append(LineSyllableEvalData(SyllableEvalInput(pred_annotation=pred_annotations.connections,
                                                                          gt_annotation=gt_annotations.connections,
-                                                                         p_line=pred_line, gt_line=gt_line),
-                                                       pred_txt=pred_line.text(), gt_txt=gt_line.text())
-                                  ,
-                                  )
+                                                                         p_line=pred_line, gt_line=gt_line, gt_page=gt_page.page, pred_page=pred_page.page),
+                                                       pred_txt=pred_line.text(), gt_txt=gt_line.text(), gt_page=gt_page.page, pred_page=pred_page.page))
             eval_data.append(DocSyllableEvalData(eval_syls=eval_lines, doc_id=i.doc.doc_id))
+        else:
+            print(f"{i.doc.start.page_name} {i.doc.start.row}")
+
     return SyllableEvalData(eval_data)
 
 
@@ -578,7 +587,7 @@ def eval_syl_docs_instance(symbol_eval_data: SyllableEvalData, sheet):
     docs_instance_eval_data = []
     for i in symbol_eval_data.doc_data:
         data = i.get_doc_syl_data()
-        excel_data = evaluate_syllabels(data)
+        excel_data, errors = evaluate_syllabels(data)
         pred_str = i.get_pred_str()
         gt_str = i.get_gt_str()
         docs_instance_eval_data.append([(pred_str, gt_str), excel_data, i.doc_id])
@@ -611,10 +620,15 @@ def eval_syl_docs_line_instance(symbol_eval_data: SyllableEvalData, sheet):
     for i in symbol_eval_data.doc_data:
         for t in i.eval_syls:
             data = [t.syllable_eval_data]
-            excel_data = evaluate_syllabels(data)
+            gtpage = t.gt_page
+            predpage = t.pred_page
+            excel_data, errors = evaluate_syllabels(data)
             pred_str = t.pred_txt
             gt_str = t.gt_txt
             docs_instance_eval_data.append([(pred_str, gt_str), excel_data, i.doc_id])
+            for s in errors:
+                print(f"Page: {predpage} Error: {s}")
+
     ind = 3
     left = 3
     first = False
@@ -875,7 +889,7 @@ if __name__ == "__main__":
         excel_text = evaluate_text(pred, gt)
         pred, gt = text_eval_data.get_text_data_ignore_line_endings()
         excel_text2 = evaluate_text(pred, gt)
-        ex_syll = evaluate_syllabels(syl_eval_data.get_syl_data())
+        ex_syll, errors = evaluate_syllabels(syl_eval_data.get_syl_data())
         ind = 3
         left = 3
         for t in [excel_lines1, ex_layout, excel_symbol, excel_text, excel_text2, ex_syll]:
@@ -899,10 +913,13 @@ if __name__ == "__main__":
         json1 = json.load(f)
         lyrics = Lyrics.from_dict(json1)
     logger.info("Successfully imported Lyrics database into memory")
-    for i in ['mul_2_end_no_finetune_basic_no_doc_pp', 'mul_2_end_no_finetune_basic_w_doc_pp', 'mul_2_end_w_finetune_basic_no_doc_pp',
+    books = ['mul_2_end_no_finetune_basic_no_doc_pp', 'mul_2_end_no_finetune_basic_w_doc_pp', 'mul_2_end_w_finetune_basic_no_doc_pp',
               'mul_2_end_w_finetune_basic_w_doc_pp', 'mul_2_end_w_gt_symbols_no_finetune_no_pp', 'mul_2_end_w_gt_symbols_no_finetune_w_pp',
               'mul_2_end_w_gt_symbols_w_finetune_no_pp', 'mul_2_end_w_gt_symbols_w_finetune_no_pp', 'mul_2_end_w_gt_symbols_w_finetune_w_pp',
-              'mul_2_end_w_gt_symbols_and_text']:
+              'mul_2_end_w_gt_symbols_and_text']
+    "mul_2_end_w_finetune_basic_w_doc_pp_w_symbolpp"
+    books2 = ["mul_2_rsync_gt_syllable_asignment"]
+    for i in books2:
         b = DatabaseBook(i)
         c = DatabaseBook('mul_2_rsync_gt')
         # excel_lines1 = evaluate_stafflines(b, c)

@@ -1,13 +1,14 @@
 import os
+import tempfile
+from pathlib import Path
 
 import torch
+import yaml
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 
 from omr.dataset import DatasetParams
-from omr.steps.layout.drop_capitals.engine import train_one_epoch, evaluate
 from omr.steps.layout.drop_capitals.torch_dataset import DropCapitalDataset
-from omr.steps.layout.drop_capitals.utils import collate_fn
 from omr.steps.symboldetection.trainer import SymbolDetectionTrainer
 
 if __name__ == '__main__':
@@ -15,7 +16,7 @@ if __name__ == '__main__':
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
 
-from typing import Optional, Type
+from typing import Optional, Type, Dict
 from database import DatabaseBook
 
 from database.file_formats.performance.pageprogress import Locks
@@ -23,7 +24,7 @@ from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrai
 import torchvision
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.rpn import AnchorGenerator
-from omr.steps.layout.drop_capitals.meta import Meta
+from omr.steps.layout.drop_capitals_yolo.meta import Meta
 
 def get_model_instance_segmentation(num_classes):
     # load an instance segmentation model pre-trained on COCO
@@ -76,55 +77,66 @@ class DropCapitalTrainer(SymbolDetectionTrainer):
             callback.resolving_files()
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-        # our dataset has two classes only - background and person
-        num_classes = 2
-        train_data: DropCapitalDataset = self.train_dataset.to_drop_capital_dataset(callback, train=True)
-        test_data: DropCapitalDataset = self.validation_dataset.to_drop_capital_dataset(callback, train=True)
+        if callback:
+            callback.resolving_files()
 
-        ##train_data.__getitem__(0)
+        def make_yaml(train: Path, val: Path, yaml_fname) -> Dict[int, str]:
+            root = train.parent
+            lookup_dict = {0: "Drop Capital"}
 
-        # define training and validation data loaders
-        data_loader = torch.utils.data.DataLoader(
-            train_data, batch_size=2, shuffle=True, num_workers=4,
-            collate_fn=collate_fn)
+            yaml_dict = {
+                "path": str(root.absolute()),
+                "train": str(train.name),
+                "val": str(val.name),
+                "names": lookup_dict,
+            }
+            with open(yaml_fname, 'w') as f:
+                yaml.dump(yaml_dict, f)
+            return lookup_dict
 
-        data_loader_test = torch.utils.data.DataLoader(
-            test_data, batch_size=1, shuffle=False, num_workers=4,
-            collate_fn=collate_fn)
+        with tempfile.TemporaryDirectory() as dirpath:
+            print(dirpath)
+            os.mkdir(os.path.join(dirpath, "train"))
+            os.mkdir(os.path.join(dirpath, "val"))
+            train_path = Path(os.path.join(dirpath, "train"))
+            val_path = Path(os.path.join(dirpath, "val"))
+            yaml_path = Path(os.path.join(dirpath, "data.yaml"))
+            look_up = make_yaml(train_path, val_path, yaml_path)
+            train_dataset = self.train_dataset.to_yolo_drop_capital_dataset(train=True, train_path=train_path,
+                                                                      callback=callback)
+            val_dataset = self.validation_dataset.to_yolo_drop_capital_dataset(train=True, train_path=val_path,
+                                                                         callback=callback)
 
-        # get the model using our helper function
-        model = get_model_instance_segmentation(num_classes)
+            from ultralytics import YOLO
 
-        # move model to the right device
-        model.to(device)
+            # Load the model.
+            model = YOLO("/home/alexanderh/Downloads/yolov8n_layout_camerarius.pt")
 
-        # construct an optimizer
-        params = [p for p in model.parameters() if p.requires_grad]
-        optimizer = torch.optim.SGD(params, lr=0.005,
-                                    momentum=0.9, weight_decay=0.0005)
-        # and a learning rate scheduler
-        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-                                                       step_size=3,
-                                                       gamma=0.1)
+            # Training.
+            results = model.train(
+                data=yaml_path,
+                #name='yolov8m.pt',
+                save=True,
+                epochs=1000,
+                imgsz=960,
+                fliplr=0.5,
 
-        # train it for 10 epochs
-        num_epochs = 10
+            )
+        "/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/runs/detect/train/weights/best.pt"
+        # val_dataset = self.validation_dataset.to_nautilus_dataset(train=False, callback=callback)
 
-        for epoch in range(num_epochs):
-            # train for one epoch, printing every 10 iterations
-            train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=10)
-            # update the learning rate
-            lr_scheduler.step()
-            # evaluate on the test dataset
-            evaluate(model, data_loader_test, device=device)
-        # safe it after 10 epochs
-        torch.save(model, 'mask_rcnn_drop_capital.pt')
+
+
 
 if __name__ == '__main__':
     from omr.dataset import DatasetParams
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
     b = DatabaseBook('Pa_14819')
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b])
+    c = DatabaseBook('Aveiro_ANTF28')
+
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.LAYOUT, True)], datasets=[b, c])
+    print(len(train))
+    print(len(val))
     settings = AlgorithmTrainerSettings(
         DatasetParams(),
         train,

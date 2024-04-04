@@ -93,3 +93,11 @@ class Block(Region):
         for line in self.lines:
             self.coords.rotate(degree, origin)
             line.rotate(degree, origin)
+
+    def get_all_music_symbols(self):
+        symbols = []
+        for line in self.lines:
+            symbols.extend(line.symbols)
+        return symbols
+
+

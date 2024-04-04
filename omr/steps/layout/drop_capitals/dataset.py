@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class DropCapitalDatasetDataset(Dataset):
     @staticmethod
     def create_image_operation_list(params: DatasetParams) -> ImageOperationList:
-        params.page_scale_reference = PageScaleReference.NORMALIZED
+        params.page_scale_reference = PageScaleReference.NORMALIZED_X2
         return ImageOperationList([
             ImageLoadFromPageOperation(invert=False, files=[(params.page_scale_reference.file('color'), False)]),
             ImageExtractDropCapitalsImages(),

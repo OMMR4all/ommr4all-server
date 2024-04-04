@@ -203,3 +203,5 @@ class Line(Region):
                 last_no_note = False
             else:
                 last_no_note = True
+
+

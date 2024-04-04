@@ -8,6 +8,7 @@ class Sentence:
                  syllables: List[Syllable]):
         self.syllables = syllables
 
+
     def text(self, with_drop_capital=True):
         t = ''
         for syllable in self.syllables:
@@ -62,4 +63,5 @@ class Sentence:
         return {
             'syllables': [s.to_json() for s in self.syllables],
         }
+
 

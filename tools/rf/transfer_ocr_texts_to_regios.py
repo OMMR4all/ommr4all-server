@@ -18,9 +18,9 @@ from omr.steps.syllables.syllablesfromtexttorch.predictor import match_text2
 from omr.steps.text.hyphenation.hyphenator import CombinedHyphenator, HyphenDicts
 from omr.steps.text.predictor import SingleLinePredictionResult
 from shared.pcgtscanvas import PcGtsCanvas
-from tools.simple_gregorianik_text_export import Lyric_info
+from tools.simple_gregorianik_text_export import Lyric_info, Metainfo
 
-dataset_json_file_path = "/home/alexanderh/Documents/datasets/rendered_files/"
+dataset_json_file_path = "/home/alexanderh/Documents/datasets/rendered_files2/"
 
 lyric_order = ["Bv34", "A", "Y", "Kl", "Zt", "Mod", "Mp"]
 
@@ -159,16 +159,31 @@ def fill_meta_infos_to_docs(book: DatabaseBook, page: DatabasePage, rendered: {}
         t = json.load(f)
         lyric_info = Lyric_info.from_dict(t)
     for idx, doc in enumerate(sorted(docs_db.get_documents_of_page(pcgts.page), key=lambda x: x.start.row)):
-        print(doc.doc_id)
-        print(doc.start.line_id)
-        print(doc.start.row)
+        variant = lyric_order[idx]
+
+        meta_infos_extended = lyric_info.meta_infos_extended
+        m_info = None
+        if len(meta_infos_extended) > 0:
+            meta_infos_extended_first_element = lyric_info.meta_infos_extended[0]
+            festum = ""
+            dies = ""
+            versus = ""
+            if variant in meta_infos_extended_first_element.festum_dic:
+                festum = ";".join(meta_infos_extended_first_element.festum_dic[variant])
+                dies = ";".join(meta_infos_extended_first_element.dies_dic[variant])
+                versus = ";".join(meta_infos_extended_first_element.versus_dic[variant])
+            m_info = Metainfo(festum=festum,
+                              dies=dies,
+                              versus=versus,
+                              sources=meta_infos_extended_first_element.sources)
+
         lyric_info = Lyric_info(lyric_info.index, id=lyric_info.id, variants=lyric_info.variants,
                                 latine=lyric_info.latine,
                                 cantus_id=lyric_info.cantus_id, meta_info=lyric_info.meta_info,
                                 initium=lyric_info.initium, genre=lyric_info.genre, url=lyric_info.url,
                                 dataset_source=lyric_info.dataset_source, source=lyric_order[idx],
-                                meta_infos_extended=lyric_info.meta_infos_extended)
-        documents_loaded.database_documents.update_document_meta_infos(lyric_info, doc.doc_id)
+                                meta_infos_extended=meta_infos_extended, m_info=m_info)
+        documents_loaded.database_documents.update_document_meta_infos(lyric_info, doc.doc_id, manuscript=variant)
     documents_loaded.to_file(book)
 
 
@@ -184,19 +199,21 @@ if __name__ == '__main__':
             rendered_json_files[file.replace(".json", "")] = file
             print(file)
     # get all books from database
-    pages = DatabaseBook("Graduel_Syn").pages()
-    pages = [pages[5]]  # 0:45
+    book = DatabaseBook("Graduel_Syn22_03_24")
+    pages = book.pages()
+    # pages = [pages[5]]  # 0:45
     # for each book get all pages and compare with json files
-
     for page in pages:
         page_id = page.page
         print(page_id)
         if page_id not in rendered_json_files.keys():
             print("Page " + page_id + " not in rendered files")
-        remove_upper_regions(page.pcgts())
-        set_document_start(page.pcgts())
-        assign_text_to_lines(page, rendered_json_files)
-        assign_syllabels_to_symbols2(page, rendered_json_files, DatabaseBook("Graduel_Syn"))
-        fill_meta_infos_to_docs(DatabaseBook("Graduel_Syn"), page, rendered_json_files)
-        page.pcgts()
-        pcgts = page.pcgts().page.all_text_lines()
+        if page_id in ["0125", "0388"]:
+            continue
+        # remove_upper_regions(page.pcgts())
+        # set_document_start(page.pcgts())
+        # assign_text_to_lines(page, rendered_json_files)
+        # assign_syllabels_to_symbols2(page, rendered_json_files, book)
+        fill_meta_infos_to_docs(book, page, rendered_json_files)
+        # page.pcgts()
+        # pcgts = page.pcgts().page.all_text_lines()
