@@ -94,7 +94,7 @@ class PCTorchPredictor(SymbolsPredictor):
                 symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
 
                 additional_symbols = correct_symbols_inside_text_blocks(m.operation.page, additional_symbols)
-                additional_symbols = correct_symbols_inside_wrong_blocks(m.operation.page, additional_symbols)
+                #additional_symbols = correct_symbols_inside_wrong_blocks(m.operation.page, additional_symbols)
                 additional_symbols = correct_symbols_inside_text_blocks(m.operation.page, additional_symbols)
 
                 symbols, change = fix_missing_clef(symbols, additional_symbols)
