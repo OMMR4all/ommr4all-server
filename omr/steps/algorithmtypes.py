@@ -14,7 +14,7 @@ class AlgorithmTypes(Enum):
     LAYOUT_SIMPLE_LYRICS = "layout_simple_lyrics"
     LAYOUT_COMPLEX_STANDARD = "layout_complex_standard"
     LAYOUT_SIMPLE_DROP_CAPITAL = "layout_drop_capital"
-    LAYOUT_SIMPLE_DROP_CAPITAL_YOLO = "layout_drop_capital"
+    LAYOUT_SIMPLE_DROP_CAPITAL_YOLO = "layout_drop_capital_yolo"
 
     SYMBOLS_PC = "symbols_pc"
     SYMBOLS_PC_TORCH = "symbols_pc_torch"

@@ -129,6 +129,8 @@ class Documents:
             else:
                 if  doc.textinitium:
                     worksheet.write(doc_ind, config.dict['Textinitium Editionseinheit'].cell.column, doc.textinitium.replace("-", ""))
+            worksheet.write(doc_ind, config.dict['Dokumenten_ID'].cell.column, doc.doc_id)
+
             worksheet.write(doc_ind, config.dict['Startseite'].cell.column, doc.start.page_name)
             worksheet.write(doc_ind, config.dict['Startzeile'].cell.column, doc.start.row)
             worksheet.write(doc_ind, config.dict['Endseite'].cell.column, doc.end.page_name)

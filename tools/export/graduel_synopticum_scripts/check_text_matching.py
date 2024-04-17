@@ -21,13 +21,13 @@ if __name__ == "__main__":
     for file in os.listdir(dataset_json_file_path):
         if file.endswith(".json"):
             rendered_json_files[file.replace(".json", "")] = file
-    workbook = openpyxl.load_workbook('/home/alexanderh/Documents/CM Default Metadatendatei_count.xlsx')
+    workbook = openpyxl.load_workbook('/tmp/CM Default Metadatendatei.xlsx')
     sheet = workbook.active
     book = DatabaseBook('Graduel_Syn22_03_24')
     documents = DatabaseBookDocuments().load(book)
     current_page = None
     updates = {}
-    for i in range(2, 2500):
+    for i in range(3, 2500):
         page = sheet["O" + str(i)].value
         if current_page != page:
             current_page = page
@@ -35,7 +35,7 @@ if __name__ == "__main__":
                 main_var = "Kl"
                 val = updates.get(main_var, None)
                 if val is not None:
-                    doc = documents.database_documents.get_document_by_monodi_id(sheet["AD" + str(val)].value)
+                    doc = documents.database_documents.get_document_by_id(sheet["A" + str(val)].value)
                     text = doc.get_text_of_document(book).replace(".", "").replace("-", "").replace(" ", "")
                     file_path = dataset_json_file_path + rendered_json_files[doc.start.page_name]
                     with open(file_path, 'r', encoding='utf-8') as f:
@@ -55,7 +55,7 @@ if __name__ == "__main__":
 
                     for key, value in updates.items():
 
-                        doc = documents.database_documents.get_document_by_monodi_id(sheet["AD" + str(value)].value)
+                        doc = documents.database_documents.get_document_by_id(sheet["A" + str(value)].value)
                         text_var = doc.get_text_of_document(book).replace(".", "").replace("-", "").replace(" ", "")
                         ed = edlib.align(text_var, text, mode="NW",
                                          task="path")
@@ -88,7 +88,7 @@ if __name__ == "__main__":
             continue
         updates[manuscript] = i
         print(sheet["AD" + str(i)].value)
-        doc = documents.database_documents.get_document_by_monodi_id(sheet["AD" + str(i)].value)
+        doc = documents.database_documents.get_document_by_id(sheet["A" + str(i)].value)
         if doc:
             print(doc.start)
         print(sheet["AM" + str(i)].value)

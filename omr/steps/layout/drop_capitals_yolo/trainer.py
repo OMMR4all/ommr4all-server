@@ -120,6 +120,8 @@ class DropCapitalTrainer(SymbolDetectionTrainer):
                 epochs=1000,
                 imgsz=960,
                 fliplr=0.5,
+                scale=0.1,
+                degrees=2,
 
             )
         "/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/runs/detect/train/weights/best.pt"

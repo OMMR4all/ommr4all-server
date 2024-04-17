@@ -52,11 +52,11 @@ def draw_segmentation_map(image, masks, boxes):
     alpha = 1
     beta = 0.6  # transparency for the segmentation map
     gamma = 0  # scalar added to each sum
-    print(image.shape)
+    #print(image.shape)
     for i in range(len(masks)):
 
-        print(masks[i].shape)
-        print(i)
+        #print(masks[i].shape)
+        #print(i)
         if len(masks[i].shape) == 1:
             continue
         red_map = np.zeros_like(masks[i]).astype(np.uint8)
@@ -66,7 +66,7 @@ def draw_segmentation_map(image, masks, boxes):
         color = COLORS[random.randrange(0, len(COLORS))]
         red_map[masks[i] == 1], green_map[masks[i] == 1], blue_map[masks[i] == 1] = color
         # combine all the masks into a single image
-        print(red_map.shape, green_map.shape, blue_map.shape)
+        #print(red_map.shape, green_map.shape, blue_map.shape)
         segmentation_map = np.stack([red_map, green_map, blue_map], axis=2)
         # convert the original PIL image into NumPy format
         image = np.array(image)
@@ -226,14 +226,14 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
 
             rlmd: RegionLineMaskData = add_data
             page: Page = add_data.operation.page
-            print(page.location.page)
+            #print(page.location.page)
             image = image.unsqueeze(0).to(device)
             masks, boxes = get_outputs(image, self.model, 0.1)
             coords = []
-            image = draw_segmentation_map(o_image, masks, boxes)
-            from matplotlib import pyplot as plt
-            plt.imshow(image)
-            plt.show()
+            #image = draw_segmentation_map(o_image, masks, boxes)
+            #from matplotlib import pyplot as plt
+            #plt.imshow(image)
+            #plt.show()
             # cv2.imshow('image', image)
             for mask, box in zip(masks, boxes):
                 points = np.argwhere(mask == True)
