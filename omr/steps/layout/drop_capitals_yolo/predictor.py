@@ -81,7 +81,7 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
                 x2 = xyxy[2]
                 y1 = xyxy[1]
                 y2 = xyxy[3]
-                points = [[x1, y1], [x2, y2]]
+                points = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
                 coords_tr = Coords(
                     np.array([dc_dataset.local_to_global_pos(Point(p[0], p[1]), rlmd.operation.params).p for p in
                               points]))
