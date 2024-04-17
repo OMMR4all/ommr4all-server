@@ -60,6 +60,8 @@ class PCTorchPredictor(SymbolsPredictor):
 
         for index, row in df.iterrows():
             mask, image, data = row['masks'], row['images'], row['original']
+            image2 = image[:, :, [2, 1, 0]]
+
             # from matplotlib import pyplot as plt
             # plt.imshow(image)
             # plt.show()
@@ -73,7 +75,7 @@ class PCTorchPredictor(SymbolsPredictor):
             #ax[1].imshow(np.transpose(np.squeeze(output.prediction_result.network_input), (1,2,0)) )
             #ax[2].imshow(output.prediction_result.source_image.array())
             #plt.show()
-            output = self.model.predict(image)
+            output = self.model.predict(image2)
             print(output)
             for r in output:
                 annotator = Annotator(image)

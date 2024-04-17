@@ -296,7 +296,7 @@ RootContainer:
 
 class FormatUrl:
     def __init__(self, url="https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/"):
-        self.base_url = "https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/"
+        self.base_url = url
 
     def get_url(self, source, page, suffix=".jpg"):
         return self.base_url + source + "%2F" + page + suffix
@@ -318,6 +318,7 @@ class PcgtsToMonodiConverter:
     def get_meta_and_notes(self, document: Document, editor, replace="folio_",
                            url="https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/", sourceIIF="mul_2",
                            doc_source="Mul 2", suffix=".jpg"):
+        print(url)
         formatstring = FormatUrl(url)
         doc = {"id": document.monody_id,
                "quelle_id": doc_source,
@@ -347,6 +348,29 @@ class PcgtsToMonodiConverter:
                    "Endzeile": str(document.end.row),
                    "Nachtragsschicht": "",
                    "\u00dcberlieferungszustand": "",
+                   "Melodie_Quelle": [formatstring.get_url(source=sourceIIF, page=i, suffix=suffix) for i in
+                                      document.pages_names] if url else [],
+                   "iiifs": [formatstring.get_url(source=sourceIIF, page=i, suffix=suffix) for i in
+                             document.pages_names] if url else [],
+                   "manuscript": document.document_meta_infos.manuscript if document.document_meta_infos else "",
+               },
+               "publish": None
+               }
+        doc = {"id": document.monody_id,
+               "source_id": doc_source,
+               "document_id": document.monody_id,
+               "genre": document.document_meta_infos.genre if document.document_meta_infos else "",
+               "festum": document.document_meta_infos.festum if document.document_meta_infos else "",
+               "dies": document.document_meta_infos.dies if document.document_meta_infos else "",
+               "textinitium": document.document_meta_infos.initium.replace("-",
+                                                                           "") if document.document_meta_infos and document.document_meta_infos.initium and len(
+                   document.document_meta_infos.initium) > 0 else document.textinitium.replace("-", ""),
+               "rowstart": str(document.start.row),
+               "foliostart": document.start.page_name.replace(replace, ""),
+               "additionalData": {
+                   "Editor": str(editor),
+                   "Endseite": document.end.page_name.replace(replace, ""),
+                   "Endzeile": str(document.end.row),
                    "Melodie_Quelle": [formatstring.get_url(source=sourceIIF, page=i, suffix=suffix) for i in
                                       document.pages_names] if url else [],
                    "iiifs": [formatstring.get_url(source=sourceIIF, page=i, suffix=suffix) for i in
@@ -544,7 +568,7 @@ class PcgtsToMonodiConverter:
                                     try:
                                         neume_pos = all_symbols.index(note)
                                     except ValueError as e:
-                                        print(e)
+
                                         continue
                                     if first:
                                         types = [x.symbol_type for x in all_symbols[0:current_symbol_index]]
@@ -561,7 +585,7 @@ class PcgtsToMonodiConverter:
 
                                     # add the syllable
                                     #ls = self.get_last_syllables()
-                                    syllable = Syllable(sc.syllable.text ,
+                                    syllable = Syllable(sc.syllable.text,
                                             SpacedNotes([]))
                                     if sc.syllable.connection != sc.syllable.connection.NEW:
                                         last_syllable.text = last_syllable.text + "-"

@@ -527,8 +527,8 @@ def gen_eval_syllable_documents_data(pred_book: DatabaseBook, gt_book: DatabaseB
     for i in docs:
         # doc = documents_pred.database_documents.get_document_by_id(i.doc.doc_id)
         doc = documents_pred.database_documents.get_document_by_b_uid(i.doc.get_book_u_id())
-
         if doc:
+            print(f"monodyid: gt: {i.doc.monody_id} pred: {doc.monody_id}, id: gt {i.doc.doc_id} pred: {doc.doc_id}" )
 
             def get_all_connections_of_music_line(line: Line, connections: List[Connection]):
                 syl_connectors: List[SyllableConnector] = []

@@ -9,7 +9,7 @@ from omr.experimenter.documents.b_evalluator import evaluate_symbols, evaluate_s
 from omr.experimenter.documents.doc_instace_evaluator import write_staffline_eval_data, eval_layout_docs_instance, \
     eval_layout_docs_line_instance, eval_symbols__docs_instance, eval_texts_docs_instance, eval_texts_line_instance, \
     eval_texts_docs_instance_ignore_lines, eval_syl_docs_instance, eval_syl_docs_line_instance, \
-    gen_eval_symbol_documents_data, gen_eval_syllable_documents_data
+    gen_eval_symbol_documents_data, gen_eval_syllable_documents_data, eval_symbols__docs_line_instance
 from omr.experimenter.documents.evaluater import evaluate_stafflines
 
 
@@ -34,13 +34,13 @@ from ommr4all import settings
 
 
 def prepare_documents(gt_book: DatabaseBook):
-    workbook = openpyxl.load_workbook('/tmp/Graduale1.xlsx')
+    workbook = openpyxl.load_workbook('/tmp/Graduale.xlsx')
     sheet = workbook.active
     documents = DatabaseBookDocuments().load(gt_book)
     docs: List[DocSpanType] = []
 
-    for i in range(2, 2500):
-        doc = documents.database_documents.get_document_by_monodi_id(sheet["AD" + str(i)].value)
+    for i in range(3, 2500):
+        doc = documents.database_documents.get_document_by_id(sheet["A" + str(i)].value)
         print(doc)
         print(i)
         if doc:
@@ -49,7 +49,7 @@ def prepare_documents(gt_book: DatabaseBook):
     return docs
 
 
-books = ['Graduel_Syn']
+books = ['Graduel_Syn22_03_24_pred']
 for i in books:
     b = DatabaseBook(i)
     c = DatabaseBook('Graduel_Syn22_03_24')
@@ -70,7 +70,7 @@ for i in books:
     sheet1 = wb.add_sheet('Symbols Docs')
     eval_symbols__docs_instance(symbol_eval_data, sheet1)
     sheet2 = wb.add_sheet('Symbols Lines')
-    eval_symbols__docs_instance(symbol_eval_data, sheet2)
+    eval_symbols__docs_line_instance(symbol_eval_data, sheet2)
 
     sheet5 = wb.add_sheet('Syllable Docs')
     eval_syl_docs_instance(syl_eval_data, sheet5)

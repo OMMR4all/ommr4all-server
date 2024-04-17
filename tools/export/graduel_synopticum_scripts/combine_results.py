@@ -12,31 +12,32 @@ if __name__ == "__main__":
             if doc:
                 print(i)
 
-                docs[doc.monody_id] = i
+                docs[doc.doc_id] = i
         rows = list(sheet_a.rows)
         for i in range(sheet_start_row, 2500):
-            x = docs.get(sheet["AD" + str(i)].value, None)
-            new_sheet["A" + str(i)] = sheet["AD" + str(i)].value
+            x = docs.get(sheet["A" + str(i)].value, None)
             if x:
-                row = rows[x]
+                new_sheet["A" + str(i)] = sheet["A" + str(i)].value
+                #new_sheet["A" + str(i)] =
+                row = rows[x-1]
                 for ind, cell in enumerate(row):
                     new_sheet.cell(row=i, column=ind + 2, value=cell.value)
         return sheet3
-    workbook = openpyxl.load_workbook('/tmp/Graduale.xlsx')
+    workbook = openpyxl.load_workbook('/tmp/Graduale_stats.xlsx')
     sheet = workbook.active
-    workbook2 = openpyxl.load_workbook('/tmp/Graduel_Syn.xlsx')
+    workbook2 = openpyxl.load_workbook('/tmp/Graduel_Syn22_03_24_pred.xlsx')
 
     sheet_a = workbook2.get_sheet_by_name("Symbols Docs")
     sheet_b = workbook2.get_sheet_by_name("Syllable Docs")
 
-    sheet3 = workbook.create_sheet("Results Symbols")
-    sheet4 = workbook.create_sheet("Results Syllables")
+    sheet3 = workbook.create_sheet("Results Symbols1")
+    sheet4 = workbook.create_sheet("Results Syllables2")
 
     c = DatabaseBook('Graduel_Syn22_03_24')
     documents = DatabaseBookDocuments().load(c)
 
-    integrate_and_algin_sheet_in_workbook(sheet, 2, sheet_a, 5, sheet3, documents)
-    integrate_and_algin_sheet_in_workbook(sheet, 2, sheet_b, 4, sheet4, documents)
+    integrate_and_algin_sheet_in_workbook(sheet, 3, sheet_a, 6, sheet3, documents)
+    integrate_and_algin_sheet_in_workbook(sheet, 3, sheet_b, 5, sheet4, documents)
 
     """
     documents = DatabaseBookDocuments().load(c)
