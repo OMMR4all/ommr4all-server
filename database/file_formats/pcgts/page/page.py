@@ -384,43 +384,18 @@ class Page:
         from functools import cmp_to_key
 
         def sort_func(a: Line, b: Line):
-            print(a.aabb.bottom(),b.aabb.center.y, a.aabb.top())
             if (a.aabb.bottom() > b.aabb.center.y > a.aabb.top()) or \
                     (b.aabb.bottom() > a.aabb.center.y > b.aabb.top()):
                 return a.aabb.center.x - b.aabb.center.x
             return a.aabb.center.y - b.aabb.center.y
         if clean:
             lines = self.all_text_lines(only_lyric=True)
-            lines = sorted(lines,key=cmp_to_key(sort_func))
+            lines = sorted(lines, key=cmp_to_key(sort_func))
             return lines
 
-        """
-        clean:
-            this.changeArray(block.children, block.children, copyList(block.children).sort((a, b) => {
-      if ((a.AABB.bottom > b.AABB.vcenter() && a.AABB.top < b.AABB.vcenter()) ||
-        (b.AABB.bottom > a.AABB.vcenter() && b.AABB.top < a.AABB.vcenter())) {
-        return a.AABB.hcenter() - b.AABB.hcenter();
-      }
-      return a.AABB.vcenter() - b.AABB.vcenter();
-    }));
-        
-        
-        """
-        """
-              if (region.AABB.bottom < r.AABB.top) {
-                break;
-              } else if (region.AABB.top > r.AABB.bottom) {
-              } else {
-                if (region.AABB.left < r.AABB.left) {
-                  break;  // region is left
-                }
-              }
-            }
-        """
         columns = self.all_text_lines_in_columns()
         columns = sorted(columns, key=lambda i: i[0].aabb.left())
         readingorder = []
-        print(f"columns: {len(columns)}")
         for lines in columns:
             reading_order_column = []
 

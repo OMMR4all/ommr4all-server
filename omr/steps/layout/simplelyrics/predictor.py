@@ -77,7 +77,7 @@ class Predictor(LayoutAnalysisPredictor):
                 top_l = m1.staff_lines[-1]
                 bot_l = m2.staff_lines[0]
                 bot_points = bot_l.coords.points[np.where((top_l.coords.points[0][0] < bot_l.coords.points[:, 0]) & (
-                            bot_l.coords.points[:, 0] < top_l.coords.points[-1][0]))]
+                        bot_l.coords.points[:, 0] < top_l.coords.points[-1][0]))]
                 bot_points = np.concatenate([
                     [(top_l.coords.points[0][0], bot_l.interpolate_y(top_l.coords.points[0][0]))],
                     bot_points,
@@ -86,10 +86,10 @@ class Predictor(LayoutAnalysisPredictor):
                 lyric_coords.append(IdCoordsPair(Coords(np.concatenate([
                     top_l.coords.points + pad_tup,
                     [top_l.coords.points[-1] + (
-                    0, bot_points[-1][1] - top_l.coords.interpolate_y(bot_points[-1][0])) - pad_tup],
+                        0, bot_points[-1][1] - top_l.coords.interpolate_y(bot_points[-1][0])) - pad_tup],
                     bot_points[::-1] - pad_tup,
                     [top_l.coords.points[0] + (
-                    0, bot_points[0][1] - top_l.coords.interpolate_y(bot_points[0][0])) - pad_tup],
+                        0, bot_points[0][1] - top_l.coords.interpolate_y(bot_points[0][0])) - pad_tup],
                 ], axis=0))))
 
             top_l = mls[-1].staff_lines[-1]
@@ -118,10 +118,6 @@ class Predictor(LayoutAnalysisPredictor):
                             loop = True
                             break
 
-
-
-
-
         # Todo improve drop capital-lyric matching
         if self.settings.params.documentStarts:
             w_dc = []
@@ -138,7 +134,9 @@ class Predictor(LayoutAnalysisPredictor):
                 min_distance = 99999999
                 for ind2, l in enumerate(lines):
                     #min_d = min(i.coords.smallest_distance_between_polys(lyric_coords[l].coords))
-                    if lyric_coords[l].coords.aabb().left() < i.coords.aabb().left() < lyric_coords[l].coords.aabb().right() or abs(i.coords.aabb().right() - lyric_coords[l].coords.aabb().left()) < 0.1:
+                    if lyric_coords[l].coords.aabb().left() < i.coords.aabb().left() < lyric_coords[
+                        l].coords.aabb().right() or abs(
+                            i.coords.aabb().right() - lyric_coords[l].coords.aabb().left()) < 0.1:
                         point_1: Point = lyric_coords[l].coords.aabb().tl
                         point_2: Point = i.coords.aabb().tl
                         min_d = point_1.distance_sqr(point_2)
@@ -149,12 +147,19 @@ class Predictor(LayoutAnalysisPredictor):
                     if lyric_coords[nearest].coords.aabb().left() < dc_rec.left():
                         # split lyric line
                         p1, p2 = lyric_coords[nearest].coords.split_polygon_by_x(dc_rec.left())
-                        if p1.size > 0 and p2.size > 0:
 
-                            lyric_coords[nearest] = IdCoordsPair(Coords(p1), None, False)
-                            lyric_coords.insert(nearest + 1, IdCoordsPair(Coords(p2), None, True))
+                        if p1.size > 0 and p2.size > 0:
+                            p1 = Coords(p1)
+                            p2 = Coords(p2)
+                            if p2.aabb().left() <= p1.aabb().left():
+                                t = p1
+                                p1 = p2
+                                p2 = t
+
+                            lyric_coords[nearest] = IdCoordsPair(p1, None, lyric_coords[nearest].start)
+                            lyric_coords.insert(nearest + 1, IdCoordsPair(p2, None, True))
                         else:
-                            lyric_coords[nearest] = IdCoordsPair(Coords(p1), None, True)
+                            lyric_coords[nearest] = IdCoordsPair(p1, None, True)
 
                     else:
                         lyric_coords[nearest] = IdCoordsPair(lyric_coords[nearest].coords, lyric_coords[nearest].id,
