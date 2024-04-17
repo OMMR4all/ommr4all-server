@@ -52,6 +52,8 @@ import omr.steps.stafflines.detection.pixelclassifier.meta
 import omr.steps.stafflines.detection.pixelclassifier_torch.meta
 import omr.steps.layout.lyricsbbs.meta
 import omr.steps.layout.simplelyrics.meta
+import omr.steps.layout.drop_capitals_yolo.meta
+
 import omr.steps.layout.standard.meta
 import omr.steps.symboldetection.pixelclassifier.meta
 import omr.steps.symboldetection.torchpixelclassifier.meta

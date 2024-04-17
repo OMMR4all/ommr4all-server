@@ -64,7 +64,7 @@ class AlgorithmGroups(Enum):
             AlgorithmGroups.PREPROCESSING: [AlgorithmTypes.PREPROCESSING, ],
             AlgorithmGroups.STAFF_LINES: [AlgorithmTypes.STAFF_LINES_PC, AlgorithmTypes.STAFF_LINES_PC_Torch],
             AlgorithmGroups.LAYOUT: [AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES,
-                                     AlgorithmTypes.LAYOUT_COMPLEX_STANDARD, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL],
+                                     AlgorithmTypes.LAYOUT_COMPLEX_STANDARD, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO],
             AlgorithmGroups.SYMBOLS: [AlgorithmTypes.SYMBOLS_PC, AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE,
                                       AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE_NAUTILUS,
                                       AlgorithmTypes.SYMBOLS_PC_TORCH],

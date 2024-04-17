@@ -19,6 +19,7 @@ class Predictor(LayoutAnalysisPredictor):
 
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
+        '''
         meta = Step.meta(AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL)
         from ommr4all.settings import BASE_DIR
         path = BASE_DIR + '/internal_storage/default_models/french14/layout_drop_capital/'
@@ -34,6 +35,15 @@ class Predictor(LayoutAnalysisPredictor):
             self.drop_capital: DropCapitalPredictor = meta.create_predictor(settings)
         else:
             self.drop_capital: DropCapitalPredictor = None
+        '''
+        meta = Step.meta(AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO)
+
+        model = meta.default_model_for_style('french14')
+        # print(model.path)
+        settings = AlgorithmPredictorSettings(
+            model=model,
+        )
+        self.drop_capital: DropCapitalPredictor = meta.create_predictor(settings)
 
     def _predict_single(self, pcgts_file: PcGts) -> FinalPredictionResult:
         mls_in_cols = pcgts_file.page.all_music_lines_in_columns()
