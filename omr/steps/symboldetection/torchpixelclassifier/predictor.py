@@ -101,7 +101,7 @@ class PCTorchPredictor(SymbolsPredictor):
                 symbols = fix_missing_clef2(symbols1=symbols, symbols2=additional_symbols, page=m.operation.page, m=m)
                 #symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
                 ### symbols = fix_pos_of_close_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
-                correct_looped_connection(symbols, additional_symbols, page=m.operation.page, m=m)
+                #correct_looped_connection(symbols, additional_symbols, page=m.operation.page, m=m)
                 symbols = fix_pos_of_close_symbols3(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
 
                 initial_clef = None
