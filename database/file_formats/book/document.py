@@ -1,7 +1,7 @@
 import enum
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List
+from typing import List, Tuple
 import uuid
 
 import ezodf
@@ -11,7 +11,7 @@ from mashumaro.mixins.json import DataClassJSONMixin
 from database import DatabasePage, DatabaseBook
 from PIL import Image
 
-from database.file_formats.pcgts import PageScaleReference
+from database.file_formats.pcgts import PageScaleReference, MusicSymbol, Line
 from database.file_formats.pcgts.page import Sentence
 
 
@@ -166,7 +166,7 @@ class Document:
         xlsx_data_bytes = output.getvalue()
         return xlsx_data_bytes
 
-    def get_page_line_of_document(self, book):
+    def get_page_line_of_document(self, book) -> List[Tuple[Line, DatabasePage]]:
         line_page_pair = []
         started = False
         pages = [DatabasePage(book, x) for x in self.pages_names]
@@ -227,7 +227,7 @@ class Document:
     def get_book_u_id(self, book_str=""):
         return self.start.page_name + "-" + str(self.start.row) + "-" + str(self.end.row)
 
-    def get_symbols(self, book):
+    def get_symbols(self, book) -> Tuple[List[List[MusicSymbol]], List[LineMetaInfos]]:
 
         lines = self.get_page_line_of_document(book)
         symbols = []

@@ -545,7 +545,22 @@ class SymbolDetectionEvaluator:
                 except ZeroDivisionError:
                     return (true, false, true + false), None, (l_true, l_false, [])
 
+            def symbol_type():
+                l_tp = [(p, gt) for (_, p), (_, gt) in pairs if gt.symbol_type == p.symbol_type]
 
+                l_fp = [p for (_, p), (_, gt) in pairs if gt.symbol_type == p.symbol_type] \
+                       + [p for (_, p) in p_symbols]
+
+                l_fn = [gt for (_, gt) in gt_symbols]
+
+                tp, fp, fn = tuple(list(map(len, (l_tp, l_fp, l_fn))))
+
+                try:
+                    return (tp, fp, fn), precision_recall_f1(tp, fp, fn), (l_tp, l_fp, l_fn)
+                except ZeroDivisionError:
+                    return (tp, fp, fn), None, (l_tp, l_fp, l_fn)
+
+                pass
             all_counts, all_metrics, all_ = sub_group([SymbolType.NOTE, SymbolType.ACCID, SymbolType.CLEF])
             note_counts, note_metrics, notes = sub_group([SymbolType.NOTE])
             clef_counts, clef_metrics, clefs = sub_group([SymbolType.CLEF])

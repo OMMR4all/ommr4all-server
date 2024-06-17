@@ -499,14 +499,15 @@ if __name__ == "__main__":
 
     logger.info("Successfully imported Lyrics database into memory")
     # books = ['mul_2_23_1_24_Evaluation']
-    books = ['Graduel_Syn']
+    books = ['mul_2_end_w_finetune_symbols_w_finetune_w_pp2']
     for i in books:
         b = DatabaseBook(i)
-        c = DatabaseBook('Graduel_Syn22_03_24')
+        #c = DatabaseBook('Graduel_Syn22_03_24')
+        c = DatabaseBook('mul_2_rsync_gt')
+
         # excel_lines1 = evaluate_stafflines(b, c)
 
-        symbol_eval_data = gen_eval_symbol_documents_data(b, c, filterf=filterfunction)
-        syl_eval_data = gen_eval_syllable_documents_data(b, c, filterf=filterfunction)
+        symbol_eval_data = gen_eval_symbol_documents_data(b, c)
 
         from xlwt import Workbook
 
@@ -514,9 +515,11 @@ if __name__ == "__main__":
         # Workbook is created
         wb = Workbook()
         visualize_symbol_errors(symbol_eval_data)
+        exit()
+        syl_eval_data = gen_eval_syllable_documents_data(b, c)
+
         visualize_syllable_errors(syl_eval_data)
 
-        #exit()
         sheet1 = wb.add_sheet('Symbols Docs')
         eval_symbols__docs_instance(symbol_eval_data, sheet1)
         sheet2 = wb.add_sheet('Symbols Lines')
