@@ -49,9 +49,9 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
 
         #self.model = torch.load(os.path.join(settings.model.local_file(LAYOUT_DROP_CAPITAL_MODEL_DEFAULT_NAME)),
         #                        map_location=torch.device(device))
-        self.model = YOLO("/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/runs/detect/train/weights/best.pt")
-        self.model = YOLO("/home/alexanderh/Downloads/yolov8n_layout_camerarius.pt")
-        self.model = YOLO("/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/runs/detect/train16/weights/best.pt")
+        #self.model = YOLO("/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/runs/detect/train/weights/best.pt")
+        #self.model = YOLO("/home/alexanderh/Downloads/yolov8n_layout_camerarius.pt")
+        #self.model = YOLO("/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/runs/detect/train16/weights/best.pt")
         path = os.path.join(settings.model.path)
         model_weights = os.path.join(path, 'best.pt')
         print(model_weights)
