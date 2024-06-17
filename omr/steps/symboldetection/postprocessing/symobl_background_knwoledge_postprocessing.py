@@ -1,9 +1,10 @@
 import random
-from tkinter import Image
+from PIL import Image, ImageDraw
 from typing import List
 
 import numpy as np
 import shapely
+from matplotlib import pyplot as plt
 
 from database.file_formats.pcgts import MusicSymbol, Page, Point, MusicSymbolPositionInStaff, StaffLines, create_clef, \
     ClefType
@@ -284,7 +285,31 @@ def fix_pos_of_close_symbols2(page, symbols: List[MusicSymbol], scale_reference,
                 its += 1
 
     return symbols
-
+def add_neume_start_pos(page, symbols: List[MusicSymbol], scale_reference, debug=False, m=None):
+    if len(symbols) > 0:
+        avg_line_distance = page.avg_staff_line_distance()
+        if debug:
+            image = Image.open(page.location.file(scale_reference.file("color")).local_path())
+            imagedraw = ImageDraw.Draw(image)
+        rad = page.page_to_image_scale(avg_line_distance, scale_reference) / 3 * 2
+        prev_symbol = None
+        for i in symbols:
+            if i.symbol_type == i.symbol_type.NOTE and i.graphical_connection == i.graphical_connection.GAPED:
+                if prev_symbol:
+                    distance = page.page_to_image_scale(i.coord.x - prev_symbol.coord.x, scale_reference)
+                    if distance > rad:
+                        i.graphical_connection = i.graphical_connection.NEUME_START
+                        coord = i.coord
+                        coord = page.page_to_image_scale(coord, scale_reference)
+                        color = (0, 255, 0)
+                        if debug:
+                            imagedraw.rectangle((coord.x - rad, coord.y - rad, coord.x + rad, coord.y + rad,), outline=color, width=2)
+            prev_symbol = i
+        if debug:
+            plt.imshow(np.array(image))
+            plt.show()
+    return symbols
+    pass
 def fix_pos_of_close_symbols3(page, symbols: List[MusicSymbol], scale_reference, debug=False, m=None):
     if len(symbols) > 0:
         avg_line_distance = page.avg_staff_line_distance()

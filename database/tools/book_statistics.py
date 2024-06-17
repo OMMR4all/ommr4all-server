@@ -5,7 +5,7 @@ from dataclasses_json import dataclass_json, LetterCase
 
 from database import DatabaseBook
 from database.file_formats import PcGts
-from database.file_formats.pcgts import SymbolType
+from database.file_formats.pcgts import SymbolType, BlockType
 from abc import ABC, abstractmethod
 
 
@@ -22,7 +22,7 @@ class Counts:
     n_chars: int = 0
     n_syllabels: int = 0
     n_words: int = 0
-
+    n_drop_capitals: int = 0
 
 class Callback(ABC):
     @abstractmethod
@@ -63,6 +63,8 @@ def get_counts(pages: List[PcGts], callback: Callback = None) -> Counts:
             counts.n_syllabels += len(tl.sentence.syllables)
             counts.n_chars += len(tl.text())
             counts.n_words += len(tl.text().split(" "))
+
+        counts.n_drop_capitals += len(p.blocks_of_type(BlockType.DROP_CAPITAL))
 
         if callback:
             callback.updated(counts, i + 1, len(pages))

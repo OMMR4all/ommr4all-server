@@ -82,6 +82,9 @@ class Result(NamedTuple, AlgorithmPredictionResult, metaclass=ResultMeta):
             for line_ind, line in enumerate(lines):
                 line, page = line
                 if line_ind < len(matched_lines):
+                    print("Now")
+                    print(line.text())
+                    print(matched_lines[line_ind])
                     line.sentence = Sentence.from_string(matched_lines[line_ind])
                     page.pcgts().page.annotations.connections.clear()
                     page.pcgts().to_file(page.file('pcgts').local_path())
@@ -335,10 +338,10 @@ def align_documents2(b: Lyric_info, document: Document, doc_text: str, doc_list:
     #print(only_text_gt)
     #print(only_text)
     ed = edlib.align(only_text.lower(), only_text_gt.lower(), mode="SHW", task="path")
-    #print("___")
-    #print(only_text_gt)
-    #print(only_text)
-    #print("___")
+    print("___")
+    print(only_text_gt)
+    print(only_text)
+    print("___")
     gap_char = "#"
     nice = edlib.getNiceAlignment(ed, only_text, only_text_gt, gap_char)
     @dataclass
@@ -672,7 +675,7 @@ class Predictor(AlgorithmPredictor):
         return True
 
     def predict(self, pages: List[DatabasePage],
-                callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
+                callback: Optional[PredictionCallback] = None, gt_book: DatabaseBook = None) -> AlgorithmPredictionResultGenerator:
         book = pages[0].book
         documents = DatabaseBookDocuments().load(book)
         single_document_result = []
@@ -699,23 +702,39 @@ class Predictor(AlgorithmPredictor):
             lowest_text = ""
             # ed = edlib.align("abc", "abc", mode="SHW", k=lowest_ed)
             lyric_info: Lyric_info = None
-            for b in lyrics.lyrics:
-                b: Lyric_info = b
-                text2 = self.text_normalizer.apply(b.latine)
-                ed = edlib.align(text.replace(" ", ""), text2.replace(" ", ""), mode="SHW", k=lowest_ed)
-                if 0 < ed["editDistance"] < lowest_ed:
-                    lowest_ed = ed["editDistance"]
-                    lowest_text = text2
-                    lyric_info = b
-                elif text.replace(" ", "") == text2.replace(" ", ""):
-                    lowest_ed = 0
-                    lowest_text = text2
-                    lyric_info = b
+            if gt_book:
+                documents2 = DatabaseBookDocuments().load(gt_book)
+                document2 = documents2.database_documents.get_document_by_b_uid(document.get_book_u_id())
+                print(document.get_book_u_id())
+                print(text)
+                #text_list2 = document2.get_text_list_of_line_document(gt_book)
+                text2 = document2.get_text_of_document(gt_book)
+                text2 = self.text_normalizer.apply(text2)
+                lyric_info = Lyric_info(latine=text2, id="1", index="1", meta_info="1", meta_infos_extended = None, variants = None)
+                print(text)
+                print(text2)
+            else:
+                for b in lyrics.lyrics:
+                    b: Lyric_info = b
+                    text2 = self.text_normalizer.apply(b.latine)
+                    ed = edlib.align(text.replace(" ", ""), text2.replace(" ", ""), mode="SHW", k=lowest_ed)
+                    if 0 < ed["editDistance"] < lowest_ed:
+                        lowest_ed = ed["editDistance"]
+                        lowest_text = text2
+                        lyric_info = b
+                    elif text.replace(" ", "") == text2.replace(" ", ""):
+                        lowest_ed = 0
+                        lowest_text = text2
+                        lyric_info = b
 
             if lyric_info:
                 #print(lyric_info.to_json())
-                aligned_text = align_documents2(lyric_info, document, text, text_list, self.text_normalizer, hyphen)
-
+                try:
+                    aligned_text = align_documents2(lyric_info, document, text, text_list, self.text_normalizer, hyphen)
+                except Exception as e:
+                    aligned_text = ""
+                    for i in text_list:
+                        aligned_text += i + "\n"
                 #aligned_text = align_documents(lyric_info, document, text, text_list, self.text_normalizer, hyphen)
 
             else:
@@ -844,7 +863,9 @@ if __name__ == '__main__':
     random.seed(1)
     np.random.seed(1)
 
-    book = DatabaseBook('mul_2_c_symbol_finetune_doc')
+    book = DatabaseBook('mul_2_end_w_gt_symbols_w_finetune_no_pp_gt_text_seg3')
+    book2 = DatabaseBook('mul_2_rsync_gt')
+
     meta = Step.meta(AlgorithmTypes.TEXT_DOCUMENT)
     #load = "i/french14/text_guppy/text_guppy")
     from database.model import Model
@@ -855,5 +876,10 @@ if __name__ == '__main__':
     #    MetaId.from_custom_path(BASE_DIR + '/internal_storage/pretrained_models/text_calamari/fraktur_historical',
     ##                            meta.type()))
     pred = Predictor(AlgorithmPredictorSettings(model))
-    ps: List[PredictionResult] = list(pred.predict(book.pages()[1:2]))
+    ps: List[PredictionResult] = list(pred.predict(book.pages(), gt_book=book2))
+    for i in ps:
+        i.store_to_page()
+        print("123")
+        print(i)
+
 

@@ -17,6 +17,7 @@ def integrate_and_algin_sheet_in_workbook(sheet, sheet_start_row, stat_sheet, do
             n_clefs = 0
             n_accids = 0
             syllabels = 0
+            chars = 0
             for t in symbols:
                 n_symbols += len(t)
                 n_note_components += len([s for s in t if s.symbol_type == SymbolType.NOTE])
@@ -25,12 +26,14 @@ def integrate_and_algin_sheet_in_workbook(sheet, sheet_start_row, stat_sheet, do
             lines = doc.get_page_line_of_document(c)
             for l, page in lines:
                 syllabels += len(l.sentence.syllables)
+                chars += len(l.text())
             stat_sheet.cell(row=i, column=1, value=sheet["A" + str(i)].value)
             stat_sheet.cell(row=i, column=2, value=n_symbols)
             stat_sheet.cell(row=i, column=3, value=n_note_components)
             stat_sheet.cell(row=i, column=4, value=n_clefs)
             stat_sheet.cell(row=i, column=5, value=n_accids)
             stat_sheet.cell(row=i, column=6, value=syllabels)
+            stat_sheet.cell(row=i, column=7, value=chars)
 
 
 

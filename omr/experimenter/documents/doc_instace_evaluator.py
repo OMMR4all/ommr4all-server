@@ -143,7 +143,11 @@ def gen_eval_symbol_documents_data(pred_book: DatabaseBook, gt_book: DatabaseBoo
 
 def eval_symbols__docs_instance(symbol_eval_data: SymbolEvalData, sheet):
     docs_instance_eval_data = []
+
     for i in symbol_eval_data.doc_data:
+        #3eb99d70-ab64-4b9e-a7d7-31179ead4a8b
+        if i.doc_id == "3eb99d70-ab64-4b9e-a7d7-31179ead4a8b":
+            print("found")
         pred, gt = i.get_doc_symbol_data()
         excel_data = evaluate_symbols(pred, gt)
         pred_str = " ".join([t.get_str_representation() for iz in pred for t in iz])
@@ -918,7 +922,18 @@ if __name__ == "__main__":
               'mul_2_end_w_gt_symbols_w_finetune_no_pp', 'mul_2_end_w_gt_symbols_w_finetune_no_pp', 'mul_2_end_w_gt_symbols_w_finetune_w_pp',
               'mul_2_end_w_gt_symbols_and_text']
     "mul_2_end_w_finetune_basic_w_doc_pp_w_symbolpp"
-    books2 = ["mul_2_rsync_gt_syllable_asignment"]
+    books2 = ["mul_2_end_w_finetune_symbols_w_finetune_w_pp2", 'mul_2_end_no_finetune_basic_no_doc_pp', 'mul_2_end_no_finetune_basic_w_doc_pp', 'mul_2_end_w_finetune_basic_no_doc_pp',
+              'mul_2_end_w_finetune_basic_w_doc_pp', 'mul_2_end_w_gt_symbols_no_finetune_no_pp', 'mul_2_end_w_gt_symbols_no_finetune_w_pp',
+              'mul_2_end_w_gt_symbols_w_finetune_no_pp', 'mul_2_end_w_gt_symbols_w_finetune_no_pp', 'mul_2_end_w_gt_symbols_w_finetune_w_pp',
+              'mul_2_end_w_gt_symbols_and_text']
+    books2 = ["mul_2_end_w_gt_symbols_w_finetune_no_pp_gt_text_seg3", "mul_2_rsync_gt_symobl_gt_text_gt_syllabels"]
+
+    books2 = ["mul_2_end_w_gt_symbols_no_finetune_no_pp2", "mul_2_end_w_gt_symbols_w_finetune_no_pp2", "mul_2_end_w_gt_symbols_no_finetune_w_pp2", "mul_2_end_w_gt_symbols_w_finetune_w_pp2"]
+
+    books2 = ["mul_2_end_w_finetune_symbols_no_finetune_no_pp2", "mul_2_end_w_finetune_symbols_w_finetune_no_pp2", "mul_2_end_w_finetune_symbols_no_finetune_w_pp2"]
+    books2 = ["mul_2_rsync_gt_inferred_symbols_gt_text"]
+    books2 = ["mul_2_end_w_finetune_basic_w_doc_pp_gt_text"]
+
     for i in books2:
         b = DatabaseBook(i)
         c = DatabaseBook('mul_2_rsync_gt')

@@ -228,13 +228,20 @@ class Dataset(ABC):
                 # plt.show()
                 if True and train:
                     if np.unique(x.mask).shape[0] > 1:
-                        images.append(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
+                        t_image = x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region
+                        images.append(t_image)
                         masks.append(x.mask)
                         data.append(x)
+                        #plt.imshow(t_image)
+                        #plt.show()
                 else:
-                    images.append(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
+                    t_image = x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region
+                    t_image = t_image
+                    images.append(t_image)
                     masks.append(x.mask)
                     data.append(x)
+                    #plt.imshow(t_image)
+                    #plt.show()
             if same_dim:
                 images_s = []
                 mask_s = []

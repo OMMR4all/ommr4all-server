@@ -103,6 +103,7 @@ class PCTorchPredictor(SymbolsPredictor):
                 ### symbols = fix_pos_of_close_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
                 #correct_looped_connection(symbols, additional_symbols, page=m.operation.page, m=m)
                 symbols = fix_pos_of_close_symbols3(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
+                symbols = add_neume_start_pos(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m, debug=False)
 
                 initial_clef = None
                 if len(symbols) > 0:
