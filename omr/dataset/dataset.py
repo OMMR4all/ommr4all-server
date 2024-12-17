@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from types import MappingProxyType
 
 import pandas as pd
+from matplotlib.colors import LinearSegmentedColormap
 
 # from tfaip import PipelineMode
 
@@ -219,13 +220,14 @@ class Dataset(ABC):
                 # i1.save(f"/tmp/symbols/{str(uuid4)}.png")
 
                 # i2.save(f"/tmp/symbols/{str(uuid4)}_mask.png")
-                from matplotlib import pyplot as plt
+                #from matplotlib import pyplot as plt
                 # plt.imshow(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
                 # plt.show()
-                # f, ax = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True)
-                ##ax[0].imshow(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
-                # ax[1].imshow(x.mask)
-                # plt.show()
+                #cmap0 = LinearSegmentedColormap.from_list('', ['white', 'darkblue', "red", "green", "yellow", "black", "magenta", "cyan", "blue", 'tab:brown' ])
+                #f, ax = plt.subplots(nrows=1, ncols=2, sharex=True, sharey=True)
+                #ax[0].imshow(x.line_image  if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
+                #ax[1].imshow(np.stack(((x.mask,)  ), axis = -1), interpolation='nearest', cmap=cmap0)
+                #plt.show()
                 if True and train:
                     if np.unique(x.mask).shape[0] > 1:
                         t_image = x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region
@@ -429,30 +431,37 @@ class Dataset(ABC):
         from PIL import Image, ImageDraw
         def convert_coord(coord, rlm: RegionLineMaskData, dataset: Dataset):
             coord_c = rlm.operation.page.page_to_image_scale(coord, rlm.operation.scale_reference)
+            #print(f"coord_c {coord_c}")
             coord_g = dataset.global_to_local_pos(coord_c, rlm.operation.params).xy()
-            #print()
+            #print(f"coord_g {coord_g}")
 
             return coord_g[0] / i.line_image.shape[1], coord_g[1] / i.line_image.shape[0]
         marked_symbols = self.load(callback)
         for ind, i in enumerate(marked_symbols):
             i: RegionLineMaskData = i
             lines = []
-            img = Image.fromarray(i.line_image)
+            img = Image.fromarray(i.region)
             draw = ImageDraw.Draw(img)
             for s in i.operation.music_line.symbols:
+                #print(i.operation.music_line.avg_line_distance())
+                #print(i.operation.music_line.avg_line_distance() * i.line_image.shape[0])
+
                 center = convert_coord(s.coord, i, self)
+                #print(center)
+                ml_dist = i.operation.music_line.avg_line_distance()
+
                 if s.symbol_type == s.symbol_type.CLEF:
                     if s.clef_type == s.clef_type.C:
-                        width = 0.6 * i.operation.music_line.avg_line_distance()
-                        height = 1.6 * i.operation.music_line.avg_line_distance()
+                        width = 1 * ml_dist
+                        height = 1.8 * ml_dist
                     else:
-                        width = 0.8 * i.operation.music_line.avg_line_distance()
-                        height = 1.6 * i.operation.music_line.avg_line_distance()
+                        width = 1.4 * ml_dist
+                        height = 2 * ml_dist
                 else:
-                    width = 0.4 * i.operation.music_line.avg_line_distance()
-                    height = 0.4 * i.operation.music_line.avg_line_distance()
+                    width = 1 * ml_dist
+                    height = 1 * ml_dist
                 #print(i.line_image.shape[0] / i.line_image.shape[1])
-                print(i.line_image.shape[1])
+                #print(i.line_image.shape[1])
                 height = height * (i.line_image.shape[1] / i.line_image.shape[0])
                 class_id = SymbolLabel.music_symbol_to_symbol_label(s).value - 1
                 lines.append(f"{class_id} {center[0]} {center[1]} {width} {height}")
@@ -461,17 +470,17 @@ class Dataset(ABC):
                 draw.rectangle((((center[0] - width / 2) * i.line_image.shape[1], (center[1] - height / 2) * i.line_image.shape[0]), ((center[0] + width / 2) * i.line_image.shape[1], (center[1] + height / 2) * i.line_image.shape[0])), outline="red")
                 draw.point((center[0] * i.line_image.shape[1], center[1] * i.line_image.shape[0]), fill="blue")
 
-            from matplotlib import pyplot as plt
-            print(lines[-1])
-
-            #plt.imshow(np.array(img))
+            #from matplotlib import pyplot as plt
+            #from matplotlib import pyplot as plt
+            #fg, ax = plt.subplots(2, 1,sharex=True, sharey=True)
+            #ax[0].imshow(np.array(img))
+            #ax[1].imshow(i.mask)
             #plt.show()
-            #exit()
 
             img_path = os.path.join(train_path, str(ind) + ".png")
 
             path = os.path.join(train_path, str(ind) + ".txt")
-            Image.fromarray(i.line_image).save(img_path)
+            Image.fromarray(i.region).save(img_path)
             with open(path, "w") as of:
                 of.write("\n".join(lines))
 
@@ -489,8 +498,8 @@ class Dataset(ABC):
             else:
                 return d.region
         #coord = m.operation.page.image_to_page_scale(coord, m.operation.scale_reference)
-        for i in marked_symbols:
-            i.draw_symbols(self)
+        #for i in marked_symbols:
+        #    i.draw_symbols(self)
         images = [get_input_image(d).astype(np.uint8) for d in marked_symbols]
         from PIL import Image
         # for ind, i in enumerate(images):
@@ -554,6 +563,38 @@ class Dataset(ABC):
                 del gts[i]
 
         return (images, gts)
+
+    def to_guppy_symbol_line__dataset(self, train=False, callback: Optional[DatasetCallback] = None, only_with_gt=False):
+        marked_symbols = self.load(callback)
+        import tempfile
+        import shutil
+        def get_input_image(d: RegionLineMaskData):
+            if self.params.cut_region:
+                return d.line_image
+            elif self.params.masks_as_input:
+                hot = d.operation.images[3].image
+                hot[:, :, 0] = (d.line_image if self.params.cut_region else d.region)
+                return hot.transpose([1, 0, 2])
+            else:
+                return d.region
+
+        # coord = m.operation.page.image_to_page_scale(coord, m.operation.scale_reference)
+        #for i in marked_symbols:
+        #    i.draw_symbols(self)
+        images = [get_input_image(d).astype(np.uint8) for d in marked_symbols]
+        from PIL import Image
+        # for ind, i in enumerate(images):
+        #    Image.fromarray(i).save("/tmp/images/image_" + str(ind) + ".png")
+        if self.params.neume_types_only:
+            gts = [d.calamari_sequence(self.params.calamari_codec).calamari_neume_types_str for d in marked_symbols]
+        else:
+            gts = [d.calamari_sequence(self.params.calamari_codec).calamari_str for d in marked_symbols]
+        #from omr.steps.text.hyphenation.hyphenator import CombinedHyphenator, HyphenDicts
+
+        #hyphen = CombinedHyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1,
+        #                            right=1)
+        return images, gts
+
 
     def load(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:
         if self.loaded is None:

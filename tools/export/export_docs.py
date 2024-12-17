@@ -3,7 +3,7 @@ from database.database_book_documents import DatabaseBookDocuments
 
 if __name__ == "__main__":
 
-    book = DatabaseBook('Graduel_Syn22_03_24')
+    book = DatabaseBook('Graduel_Syn2')
     documents = DatabaseBookDocuments().load(book)
     docs = documents.database_documents.documents
     docs_ids = []

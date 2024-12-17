@@ -14,7 +14,7 @@ class PcGtsCanvas:
         self.scale_reference = scale_reference
         self.img = np.array(Image.open(page.location.file(scale_reference.file(file)).local_path()))
         self.avg_line_distance = int(page.page_to_image_scale(page.avg_staff_line_distance(), scale_reference))
-        self.font = ImageFont.truetype('/usr/share/fonts/truetype/junicode/Junicode.ttf', 40)
+        self.font = ImageFont.truetype('/usr/share/fonts/TTF/NotoSansNerdFont-Light.ttf', 40)
 
         if no_background:
             self.img = np.full(self.img.shape, 255, dtype=self.img.dtype)

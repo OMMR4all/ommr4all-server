@@ -18,7 +18,8 @@ from omr.steps.symboldetection.torchpixelclassifier.meta import Meta
 from omr.imageoperations.music_line_operations import SymbolLabel
 from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePredictionResult
 from segmentation.network import Network, EnsemblePredictor
-from omr.steps.symboldetection.postprocessing.symbol_extraction_from_prob_map import extract_symbols
+from omr.steps.symboldetection.postprocessing.symbol_extraction_from_prob_map import extract_symbols, \
+    render_prediction_labels
 from omr.steps.symboldetection.postprocessing.symobl_background_knwoledge_postprocessing import *
 from loguru import logger
 
@@ -55,7 +56,7 @@ class PCTorchPredictor(SymbolsPredictor):
         dataset = SymbolDetectionDatasetTorch(pcgts_files, self.dataset_params)
         df = dataset.to_memory_dataset(train=False)
         clefs = []
-
+        total_lines = len(list(df.iterrows()))
         for index, row in df.iterrows():
             mask, image, data = row['masks'], row['images'], row['original']
             from matplotlib import pyplot as plt
@@ -146,12 +147,16 @@ class PCTorchPredictor(SymbolsPredictor):
             if False:
                 import matplotlib.pyplot as plt
                 f, ax = plt.subplots(5, 1, sharey='all', sharex='all')
-                ax[0].imshow(output[:, :, 0])  # , vmin=0.0, vmax=1.0)
+                ax[0].imshow(output.prediction_result.probability_map[:, :, 0])  # , vmin=0.0, vmax=1.0)
                 ax[1].imshow(image, vmin=0.0, vmax=255)
                 ax[2].imshow(render_prediction_labels(labels, image))
                 ax[3].imshow(np.argmax(output, axis=-1))
                 ax[4].imshow(render_prediction_labels(mask, image))
                 plt.savefig(str(index) + '.png')
+            if callback:
+                percentage = (index + 1) / total_lines
+
+                callback.progress_updated(percentage, n_processed_pages=index + 1, n_pages=total_lines)
             yield single_line_symbols, single_line_symbols_2
 
     def extract_symbols123(self, probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
@@ -219,6 +224,8 @@ class PCTorchPredictor(SymbolsPredictor):
             ax[0].imshow(p)
             ax[1].imshow(m.mask)
             ax[2].imshow(render_prediction_labels(centroids_canvas, m.region))
+            ax[2].imshow(render_prediction_labels(centroids_canvas, m.region))
+
             labels = render_prediction_labels(p, 255 - m.region)
             ax[3].imshow(labels)
             ax[4].imshow(m.region, cmap='gray_r')

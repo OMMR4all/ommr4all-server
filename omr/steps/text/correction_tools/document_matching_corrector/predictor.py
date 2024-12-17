@@ -82,9 +82,9 @@ class Result(NamedTuple, AlgorithmPredictionResult, metaclass=ResultMeta):
             for line_ind, line in enumerate(lines):
                 line, page = line
                 if line_ind < len(matched_lines):
-                    print("Now")
-                    print(line.text())
-                    print(matched_lines[line_ind])
+                    #print("Now")
+                    #print(line.text())
+                    #print(matched_lines[line_ind])
                     line.sentence = Sentence.from_string(matched_lines[line_ind])
                     page.pcgts().page.annotations.connections.clear()
                     page.pcgts().to_file(page.file('pcgts').local_path())

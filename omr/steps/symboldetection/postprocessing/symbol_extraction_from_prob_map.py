@@ -1,3 +1,4 @@
+from cProfile import label
 from typing import List
 
 import numpy as np
@@ -13,9 +14,10 @@ import cv2
 def render_prediction_labels(labels, img=None):
     from shared.pcgtscanvas import PcGtsCanvas
     out = np.zeros(labels.shape + (3,), dtype=np.uint8)
-    if img is not None:
+    if img is not None and img.shape[-1] != 3:
         out = np.stack((img,) * 3, axis=-1).astype(int)
-
+    elif img.shape[-1] == 3:
+        out = img
     def draw(i, c):
         return np.kron((labels == i), c).reshape(out.shape).astype(int)
 
@@ -40,6 +42,21 @@ def render_prediction_labels(labels, img=None):
     # out = (out.astype(float) * np.stack((img,) * 3, axis=-1) / 255).astype(np.uint8)
 
     return out.clip(0, 255).astype(np.uint8)
+
+def render_pred_labels2(labels, img=None):
+    from shared.pcgtscanvas import PcGtsCanvas
+    from PIL import Image, ImageDraw
+    pil_i = Image.fromarray(img)
+    draw = ImageDraw.Draw(pil_i)
+    for i in labels:
+        coord, label_t = i
+        print(label_t)
+        c = PcGtsCanvas.color_for_music_symbol(label_t.to_music_symbol(), inverted=True, default_color=(255, 255, 255))
+
+        x, y = coord
+        draw.circle((x, y), 2, fill=c, outline=c)
+    return np.array(pil_i)
+
 def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
                     dataset: SymbolDetectionDataset, probability=0.5, clef=True, min_symbol_area=4, lookup= None) -> List[
     MusicSymbol]:
@@ -50,6 +67,8 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
     symbols = []
     sorted_labels = sorted(range(1, n_labels), key=lambda i: (centroids[i, 0], -centroids[i, 1]))
     centroids_canvas = np.zeros(p.shape, dtype=np.uint8)
+    centroids_adv = []
+
     for i in sorted_labels:
         w = stats[i, cv2.CC_STAT_WIDTH]
         h = stats[i, cv2.CC_STAT_HEIGHT]
@@ -68,7 +87,7 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
 
         label = SymbolLabel(int(np.argmax([np.sum(area == v + 1) for v in range(len(SymbolLabel) - 1)])) + 1)
         centroids_canvas[int(np.round(c.y)), int(np.round(c.x))] = label
-
+        centroids_adv.append(((int(np.round(c.x)), int(np.round(c.y))), label))
         # confidences
         indexes_of_cc = np.where(cc == i)
         labels_of_cc = p[indexes_of_cc]
@@ -134,10 +153,15 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
         pass
 
     if False:
+        from matplotlib import pyplot as plt
+        #plt.imshow(m.region)
+        #plt.show()
         import matplotlib.pyplot as plt
         f, ax = plt.subplots(5, 1, sharex='all', sharey='all')
         ax[0].imshow(p)
-        ax[1].imshow(render_prediction_labels(centroids_canvas, m.region))
+        #ax[1].imshow(render_prediction_labels(centroids_canvas, m.region))
+        ax[1].imshow(render_pred_labels2(centroids_adv, m.region))
+
         labels = render_prediction_labels(p, 255 - m.region)
         ax[2].imshow(labels)
         ax[3].imshow(m.region, cmap='gray_r')

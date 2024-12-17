@@ -119,7 +119,8 @@ class ExperimenterScheduler:
                                      gd.train_pcgts_files, gd.validation_pcgts_files,
                                      gd.test_pcgts_files,
                                      global_args) for gd in train_args]
-
+        for i in train_args:
+            logger.info(f"tf: {len(i.train_pcgts_files)} tv: {len(i.validation_pcgts_files)} tt: {len(i.test_pcgts_files)}")
         experimenter_class = Step.meta(self.global_args.algorithm_type).experimenter()
         results = [experimenter_class(args, logger).run_single() for args in train_args]
         experimenter_class.print_results(self.global_args, results, logger)
@@ -155,7 +156,8 @@ class Experimenter(ABC):
         model_path = os.path.join(args.model_dir, 'best')
 
         if not global_args.skip_train:
-            fold_log.info("Starting training")
+            fold_log.info(f"Starting training. Training:{len(args.train_pcgts_files)} and Val: {len(args.validation_pcgts_files)}")
+
             trainer = Step.create_trainer(
                 global_args.algorithm_type,
                 AlgorithmTrainerSettings(

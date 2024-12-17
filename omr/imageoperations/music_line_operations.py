@@ -407,7 +407,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
     def global_to_local_pos(self, p: Point, params: Any):
         i, (t, b, l, r), (top, ), mls, dewarper = params
-        print(top)
+        #print(top)
         # default operations
         p = Point(p.x - l, p.y - t + top)
         # dewarp

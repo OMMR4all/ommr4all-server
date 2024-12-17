@@ -45,7 +45,17 @@ class PCPredictionCallback(LineDetectionCallback):
             self.get_processed_pages(),
         )
 
+class PCPredictionCallback(LineDetectionCallback):
+    def __init__(self, callback: LineDetectionPredictorCallback):
+        self.callback = callback
+        super().__init__()
 
+    def changed(self):
+        self.callback.progress_updated(
+            self.get_progress(),
+            self.get_total_pages(),
+            self.get_processed_pages(),
+        )
 class BasicStaffLinePredictorTorch(StaffLinePredictor):
     @staticmethod
     def meta() -> Meta.__class__:
@@ -83,7 +93,8 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
         pc_dataset = PCDatasetTorch(pcgts_files, self.dataset_params)
         dataset = pc_dataset.to_line_detection_dataset()
 
-        for i in dataset:
+        for ind, i in enumerate(dataset):
+            print(i.operation.page.location.page)
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(SourceImage.from_numpy(i.line_image))
             from scipy.special import softmax
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
@@ -92,6 +103,10 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
 
             rlmd: RegionLineMaskData = i
             page: Page = rlmd.operation.page
+            if callback:
+                percentage = (ind + 1) / len(pages)
+
+                callback.progress_updated(percentage, n_processed_pages=ind + 1, n_pages=len(pages))
             if len(r) == 0:
                 logger.warning('No staff lines detected.')
                 yield PredictionResult([], [], rlmd)

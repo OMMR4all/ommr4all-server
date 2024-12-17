@@ -14,7 +14,7 @@ import os
 
 #from ocr4all_pixel_classifier.lib.model import Architecture
 from segmentation.settings import Architecture as TorchArchitecture
-from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
+#from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from omr.steps.algorithmtrainerparams import AlgorithmTrainerParams
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
@@ -50,6 +50,8 @@ if __name__ == "__main__":
     parser.add_argument("--cleanup", action="store_true", default=False)
     parser.add_argument("--n_train", default=-1, type=int)
     parser.add_argument("--n_iter", default=-1, type=int)
+    parser.add_argument("--n_epoch", default=30, type=int)
+
     parser.add_argument("--val_amount", default=0.2, type=float)
     parser.add_argument("--pretrained_model", default=None, type=str)
     parser.add_argument("--data_augmentation", action="store_true")
@@ -173,6 +175,7 @@ if __name__ == "__main__":
         algorithm_type=args.type,
         trainer_params=AlgorithmTrainerParams(
             n_iter=args.n_iter,
+            n_epoch=args.n_epoch,
             display=100,
             load=str(MetaId.from_custom_path(args.pretrained_model, args.type)) if args.pretrained_model else None,
             processes=8,
