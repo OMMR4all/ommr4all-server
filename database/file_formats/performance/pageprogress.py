@@ -69,3 +69,4 @@ class PageProgress(DataClassJSONMixin):
 
     def processed(self):
         return any([self.locked.get(l, False) for l in Locks])
+

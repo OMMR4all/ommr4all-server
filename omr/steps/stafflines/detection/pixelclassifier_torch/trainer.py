@@ -3,6 +3,7 @@ from pathlib import Path
 
 import albumentations
 import matplotlib.pyplot as plt
+import pandas as pd
 from albumentations.pytorch import ToTensorV2
 from segmentation.datasets.dataset import MemoryDataset
 from torch.utils.data import DataLoader
@@ -85,12 +86,21 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
             # tta_transforms=tta_transforms,
             post_transforms=post_transforms,
         )
+        if train_data.shape[0] < 15:
+            data = pd.concat([train_data, self.validation_dataset.to_memory_dataset(callback)], ignore_index=True, sort=False)
+            train_data = MemoryDataset(df=data, transforms=transforms.get_train_transforms(),
+                                       scale_area=9999999999)
+            val_data = MemoryDataset(data,
+                                     transforms=transforms.get_test_transforms(), scale_area=9999999999)
+            train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
+            val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
+        else:
 
-        train_data = MemoryDataset(df=train_data, transforms=transforms.get_train_transforms(), scale_area=9999999999)
-        val_data = MemoryDataset(self.validation_dataset.to_memory_dataset(callback),
-                                 transforms=transforms.get_test_transforms(), scale_area=9999999999)
-        train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
-        val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
+            train_data = MemoryDataset(df=train_data, transforms=transforms.get_train_transforms(), scale_area=9999999999)
+            val_data = MemoryDataset(self.validation_dataset.to_memory_dataset(callback),
+                                     transforms=transforms.get_test_transforms(), scale_area=9999999999)
+            train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
+            val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
 
         predfined_nw_settings = PredefinedNetworkSettings(
             architecture=self.settings.page_segmentation_torch_params.architecture,
@@ -143,7 +153,7 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
                                  callbacks=callbacks, debug_color_map=config.color_map)
 
         os.makedirs(os.path.dirname(self.settings.model.path), exist_ok=True)
-        trainer.train_epochs(train_loader=train_loader, val_loader=val_loader, n_epoch=50, lr_schedule=None)
+        trainer.train_epochs(train_loader=train_loader, val_loader=val_loader, n_epoch=self.params.n_epoch, lr_schedule=None)
 
 
 if __name__ == "__main__":

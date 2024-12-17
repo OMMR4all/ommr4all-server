@@ -90,6 +90,8 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             callback.resolving_files()
 
         train_data_pd = self.train_dataset.to_memory_dataset(callback, same_dim=False)
+        from matplotlib import pyplot as plt
+
         color_map = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
         input_transforms = Compose(remove_nones([
             GrayToRGBTransform() if True else None,
@@ -173,7 +175,7 @@ class PCTorchTrainer(SymbolDetectionTrainer):
                                  callbacks=callbacks, debug_color_map=config.color_map)
 
         os.makedirs(os.path.dirname(self.settings.model.path), exist_ok=True)
-        trainer.train_epochs(train_loader=train_loader, val_loader=val_loader, n_epoch=100, lr_schedule=None)
+        trainer.train_epochs(train_loader=train_loader, val_loader=val_loader, n_epoch=self.params.n_epoch, lr_schedule=None)
 
 
 if __name__ == '__main__':

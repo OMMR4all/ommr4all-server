@@ -96,17 +96,18 @@ class GreedyDecoder():
     def __init__(self, chars):
         self.chars = chars
 
-    def decode(self, mat, extendend_info=False):
+    def decode(self, mat, extendend_info=False, debug=True, pad=0, debug_img=None):
         index_list = np.argmax(np.squeeze(mat), axis=1)
         blank_index = 0  # len(self.chars)
         best_chars_collapsed = [self.chars[k] for k, _ in groupby(index_list) if k != blank_index]
+
         pred_string = ''.join(best_chars_collapsed)
         extendend_info_stats = None
         if extendend_info:
             listextf = []
 
             start, end = 0, -1
-            whitespace_char_index = self.chars.index(" ")
+            whitespace_char_index = self.chars.index(" ") if " " in self.chars else -1
             prev = None
             for x, y in groupby(index_list):
                 y_length = len(list(y))
@@ -124,6 +125,37 @@ class GreedyDecoder():
                                                        charLocationInfo=listextf,
                                                        probability_map=mat
                                                        )
+
+            if debug:
+                from matplotlib import pyplot as plt
+                from PIL import Image
+                print(f'len_ {len(mat)}')
+                print(index_list)
+                print(best_chars_collapsed)
+                print( [k for k, _ in groupby(index_list) if k != blank_index])
+
+                img = np.array(Image.fromarray(mat).rotate(-90))
+                img1 = Image.fromarray(mat)
+                img2 = img1.rotate(90, expand=True)
+                #img2.save("/tmp/1.png")
+                img = np.array(img2)
+                #print(img.shape)
+                #print(mat.shape)
+                #print(img1.size)
+                #print(img2.size)
+                #f, ax = plt.subplots(3, 1, )
+                #ax[0].imshow(img)
+                #ax[1].imshow(mat)
+                #ax[2].imshow(debug_img)
+
+                #ax[1].imshow(index_list)
+                #plt.show()
+                #t, b = int(aabb.top()), int(aabb.bottom())
+                #for sc in c.syllable_connections:
+                #    x = int(scale(sc.note.coord.x))
+                #    self.img[t:b, x] = (0, 255, 0)
+                #    text = sc.syllable.text.replace(" ", "_")
+                #    cv2.putText(self.img, text, (int(x) - 20, b + 0), fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=1, color=(20, 205, 100), thickness=2)
 
         return DecoderOutput(decoded_string=pred_string, char_mapping=extendend_info_stats)
 
@@ -176,6 +208,7 @@ class GuppyPredictor(TextPredictor):
             self.dict_corrector.load_dict(book=book)
 
         loaded_dataset = dataset.load()
+        len_dataset = len(loaded_dataset)
         for i, y in enumerate(loaded_dataset):  # dataset_cal[0]:
             image = 255 - y.line_image
             if not len(image.shape) == 3:
@@ -220,7 +253,10 @@ class GuppyPredictor(TextPredictor):
             text, chars = self.extract_symbols(dataset, sentence, y, (self.network.mc.mconfig.Width) * (
                         image.shape[1] / self.network.mc.mconfig.Width) / (net_out.shape[0] * delta), pad=sizes[1])
             width = image.shape[1]
+            if callback:
+                percentage = (i + 1) / len_dataset
 
+                callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len_dataset)
             yield SingleLinePredictionResult(text=text,
                                              line=y, hyphenated=hyphenated, chars=chars)
 

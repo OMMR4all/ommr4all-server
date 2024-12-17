@@ -12,8 +12,11 @@ from tools.simple_gregorianik_text_export import Lyrics, Lyric_info, Variant, Da
 
 
 export_dir = "/home/alexanderh/Downloads/mc_export/export/"
-monodoy_documents, lyrics = populate("/home/alexanderh/Downloads/mc_export/export/")
+monodoy_documents, lyrics, lyrics_with_syllabels= populate("/home/alexanderh/Downloads/mc_export/export/")
 print("loaded monody")
+genre=[]
+for i in monodoy_documents:
+    i.genre
 with open("latine_collection_gr.json") as f:
     json1 = json.load(f)
     lyrics2 = Lyrics.from_dict(json1)
@@ -28,6 +31,7 @@ print("loaded cantus csv")
 
 # lyrics = Lyrics(lyrics.lyrics + lyrics2.lyrics + lyrics3.lyrics)
 all_lyrics = []
+
 for i in lyrics.lyrics:
     all_lyrics.append(i)
 for i in lyrics4.lyrics:

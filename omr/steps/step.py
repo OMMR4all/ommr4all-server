@@ -59,6 +59,9 @@ import omr.steps.symboldetection.pixelclassifier.meta
 import omr.steps.symboldetection.torchpixelclassifier.meta
 import omr.steps.symboldetection.sequencetosequence.meta
 import omr.steps.symboldetection.sequence_to_sequence_nautilus.meta
+import omr.steps.symboldetection.sequence_to_sequence_guppy.meta
+import omr.steps.symboldetection.yolo_detector.meta
+
 import omr.steps.postprocessing.meta
 
 import omr.steps.layout.correction_tools.connectedcomponentsselector.meta

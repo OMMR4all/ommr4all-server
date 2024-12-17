@@ -46,7 +46,7 @@ class YoloTrainer(SymbolDetectionTrainer):
 
     @staticmethod
     def force_dataset_params(params: DatasetParams):
-        params.dewarp = True
+        params.dewarp = False
         params.center = False  # Also inserts padding
         params.staff_lines_only = True
         params.pad_power_of_2 = False
@@ -92,16 +92,20 @@ class YoloTrainer(SymbolDetectionTrainer):
             from ultralytics import YOLO
 
             # Load the model.
-            model = YOLO()
+            model = YOLO("yolo11n.pt")
+            os.makedirs(os.path.dirname(self.settings.model.path), exist_ok=True)
 
             # Training.
             results = model.train(
                 data=yaml_path,
-                imgsz=(80, 1280),
-                epochs=150,
-                batch=4,
-                name='yolov8n.pt',
+                #imgsz=(160, 2560),
+                epochs=self.settings.params.n_epoch,
+                #batch=4,
+                name='model',
+                augment=False, hsv_h=0, hsv_s=0, hsv_v=0, degrees=0.0, translate=0, scale=0, shear=0.0, perspective=0.0,
+                flipud=0.0, fliplr=0, mosaic=0, mixup=0.0,
                 save=True,
+                project=self.settings.model.path
             )
         # val_dataset = self.validation_dataset.to_nautilus_dataset(train=False, callback=callback)
 
@@ -112,21 +116,26 @@ if __name__ == '__main__':
 
     random.seed(1)
     np.random.seed(1)
-    b = DatabaseBook('Graduel_Syn')
+    #b = DatabaseBook('Graduel_Syn')
 
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
-
+    b = DatabaseBook('Graduel_Part_1_gt')
+    c = DatabaseBook('Graduel_Part_2_gt')
+    d = DatabaseBook('Graduel_Part_3_gt')
+    # e = DatabaseBook('Pa_14819_gt')
+    # f = DatabaseBook('Assisi')
+    # g = DatabaseBook('Cai_72')
+    # h = DatabaseBook('pa_904')
+    #i = DatabaseBook('mul_2_rsync_gt2')
     train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.SYMBOLS, True),
-                                                           LockState(Locks.LAYOUT, True)], True, [b])
+                                                           LockState(Locks.LAYOUT, True)], True, [b, c, d])
+
     dataset_params = DatasetParams(
-        gt_required=True,
-        height=128,
-        dewarp=True,
-        cut_region=False,
-        pad=[0, 20, 0, 20],
+        pad=[0, 10, 0, 40],
+        dewarp=False,
         center=False,
         staff_lines_only=True,
-        masks_as_input=False,
+        cut_region=False,
     )
     train_settings = AlgorithmTrainerSettings(
         dataset_params=dataset_params,

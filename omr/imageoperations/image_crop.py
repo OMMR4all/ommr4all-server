@@ -52,7 +52,9 @@ class ImageCropToSmallestBoxOperation(ImageOperation):
     def local_to_global_pos(self, p: Point, params: Any) -> Point:
         r: Rect = params
         return Point(p.x + r.l, p.y + p.t)
-
+    def global_to_local_pos(self, p: Point, params: Any) -> Point:
+        r: Rect = params
+        return Point(p.x - r.l, p.y - p.t)
 
 def calculate_padding(image: np.ndarray, scaling_factor: int) -> Tuple[Tuple[int, int], Tuple[int, int]]:
     def scale(i: int, f: int) -> int:

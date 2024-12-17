@@ -13,6 +13,7 @@ from omr.steps.symboldetection.torchpixelclassifier.params import PageSegmentati
 
 @dataclass()
 class AlgorithmTrainerParams(DataClassJSONMixin):
+    n_epoch: int = 30
     n_iter: int = -1
     display: int = 100
     early_stopping_at_acc: float = 0

@@ -22,6 +22,7 @@ class AlgorithmTypes(Enum):
 
     SYMBOLS_SEQUENCE_TO_SEQUENCE = 'symbols_sequence_to_sequence'
     SYMBOLS_SEQUENCE_TO_SEQUENCE_NAUTILUS = 'symbols_sequence_to_sequence_nautilus'
+    SYMBOLS_SEQUENCE_TO_SEQUENCE_GUPPY = 'symbols_sequence_to_sequence_guppy'
 
     OCR_CALAMARI = "text_calamari"
     OCR_NAUTILUS = "text_nautilus"

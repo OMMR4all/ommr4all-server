@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from pandas.core.computation.expressions import set_test_mode
+
 import database.file_formats.pcgts as ns_pcgts
 from typing import List, NamedTuple, Union, Optional
 import json
@@ -9,7 +11,7 @@ import numpy as np
 
 from database.file_formats.book.document import Document
 from database.file_formats.pcgts import Page, Line, SymbolType
-from database.file_formats.pcgts.page import SyllableConnector
+from database.file_formats.pcgts.page import SyllableConnector, Connection
 
 
 class NoteType(Enum):
@@ -304,9 +306,11 @@ class FormatUrl:
 
 
 class PcgtsToMonodiConverter:
-    def __init__(self, pcgts: List[ns_pcgts.PcGts], document: Document = None, replace_filename="folio_"):
+    def __init__(self, pcgts: List[ns_pcgts.PcGts], document: Document = None, replace_filename="folio_", remove_char=None):
         self.current_line_container: Optional[LineContainer] = None
         self.miscContainer = FormContainer([])
+        self.remove_char = remove_char
+
         self.line_containers = self.miscContainer.children
         self.root = RootContainer([self.miscContainer])
         self.run2(pcgts, document=document, replace_fn=replace_filename)
@@ -318,7 +322,7 @@ class PcgtsToMonodiConverter:
     def get_meta_and_notes(self, document: Document, editor, replace="folio_",
                            url="https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/", sourceIIF="mul_2",
                            doc_source="Mul 2", suffix=".jpg"):
-        print(url)
+        #print(url)
         formatstring = FormatUrl(url)
         doc = {"id": document.monody_id,
                "quelle_id": doc_source,
@@ -443,7 +447,7 @@ class PcgtsToMonodiConverter:
         break
         """
 
-    def run2(self, pcgts: List[ns_pcgts.PcGts], document: Document = None, replace_fn=""):
+    def run2(self, pcgts: List[ns_pcgts.PcGts], document: Document = None, replace_fn="", ignore_gap_symbols=False, add_bracket_gap_symbols=True):
         if not document:
             self.run(pcgts, document)
         else:
@@ -451,6 +455,7 @@ class PcgtsToMonodiConverter:
                 clc = self.get_or_create_current_line_container()
                 current_syllable: Optional[Syllable] = None
                 for line_symbol in line_symbols:
+
                     if line_symbol.symbol_type != ns_pcgts.SymbolType.NOTE:
                         current_syllable = None
 
@@ -495,6 +500,7 @@ class PcgtsToMonodiConverter:
                                                                         ns_pcgts.NoteType.LIQUESCENT_FOLLOWING_U],
                                 )
                             )
+
                         else:
                             gn = GroupedNotes([
                                 Note(
@@ -548,6 +554,9 @@ class PcgtsToMonodiConverter:
                             connections: List[SyllableConnector] = [con for c in connections_b for con in
                                                                     c.syllable_connections if
                                                                     con.syllable in i.sentence.syllables]
+                            #connections_p: List[Connection] = [c for c in connections_b for con in
+                            #                                        c.syllable_connections if
+                            #                                        con.syllable in i.sentence.syllables]
                             connections = sorted(connections, key=lambda x: x.note.coord.x)
                             music_block = page.closest_music_block_to_text_line(i)
 
@@ -557,13 +566,19 @@ class PcgtsToMonodiConverter:
                                 key=lambda x: x.note.coord.x)
                             music_region = page.closest_music_line_to_text_line(i)
                             all_symbols = music_region.symbols
-
+                            if ignore_gap_symbols:
+                                all_connections = [i for i in all_connections if not i.note.missing]
+                                connections = [i for i in connections if not i.note.missing]
+                                all_symbols = [i for i in all_symbols if not i.missing]
                             if len(connections) > 0:
 
                                 note = connections[0].note
+
                                 current_symbol_index = all_symbols.index(note)
+
                                 first = True
                                 for sc in connections:
+
                                     note = sc.note
                                     try:
                                         neume_pos = all_symbols.index(note)
@@ -585,7 +600,13 @@ class PcgtsToMonodiConverter:
 
                                     # add the syllable
                                     #ls = self.get_last_syllables()
-                                    syllable = Syllable(sc.syllable.text,
+                                    s_text = sc.syllable.text
+                                    if self.remove_char:
+                                        s_text = s_text.replace(self.remove_char, "")
+                                    if add_bracket_gap_symbols:
+                                        if sc.note.missing:
+                                            s_text = f"[{s_text}]"
+                                    syllable = Syllable(s_text,
                                             SpacedNotes([]))
                                     if sc.syllable.connection != sc.syllable.connection.NEW:
                                         last_syllable.text = last_syllable.text + "-"

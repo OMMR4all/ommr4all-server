@@ -1,6 +1,7 @@
 import json
 import os
 from typing import List
+from warnings import catch_warnings
 
 import edlib
 
@@ -8,7 +9,8 @@ from database import DatabaseBook, DatabasePage
 from database.database_book_documents import DatabaseBookDocuments
 from database.file_formats import PcGts
 from database.file_formats.pcgts import Page, PageScaleReference
-from database.file_formats.pcgts.page import Sentence, Annotations
+from database.file_formats.pcgts.page import Sentence
+from database.file_formats.pcgts.page.annotations import Annotations
 from database.model import Model, MetaId
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorSettings
 from omr.steps.algorithmtypes import AlgorithmTypes
@@ -80,12 +82,12 @@ def assign_syllabels_to_symbols(db_page: DatabasePage, rendered: {}, book):
     settings = AlgorithmPredictorSettings(
         model=model,
     )
-    match_r = [match_text2(text_line_r) for text_line_r in ocr_r.text_lines if
-               len(text_line_r.line.operation.text_line.sentence.syllables) > 0]
+    #match_r = [match_text2(text_line_r) for text_line_r in ocr_r.text_lines if
+    #           len(text_line_r.line.operation.text_line.sentence.syllables) > 0]
     pred = meta.create_predictor(settings)
     ps: List[PredictionResult] = list(pred.predict([db_page]))
     for i, p in enumerate(ps):
-        print(len(p.page_match_result.match_results))
+        #print(len(p.page_match_result.match_results))
         for t in p.page_match_result.match_results:
             print(t.syllables[0].xpos)
         pmr = p.page_match_result
@@ -118,15 +120,15 @@ def assign_syllabels_to_symbols2(db_page: DatabasePage, rendered: {}, book):
         for t in ocr_r.text_lines:
             pred = [(t, pos) for t, pos in t.text if t not in ' -']
             syls = t.line.operation.text_line.sentence.syllables
-            print(pred)
-            print([i.text for i in syls])
-            print("".join([i.text for i in syls]))
-            print("".join([i[0] for i in pred]))
+            #print(pred)
+            #print([i.text for i in syls])
+            #print("".join([i.text for i in syls]))
+            #print("".join([i[0] for i in pred]))
             ed = edlib.align("".join([i[0] for i in pred]), "".join([i.text for i in syls]), mode="NW", task="path")
             if ed["editDistance"] < conf and len("".join([i.text for i in syls])) > 0:
                 conf = ed["editDistance"]
                 best_pred = t.text
-            print(ed["editDistance"])
+            #print(ed["editDistance"])
         ocr_adapted: TextPredictionResult
         text_lines: List[SingleLinePredictionResult] = []
         for t in ocr_r.text_lines:
@@ -154,11 +156,14 @@ def fill_meta_infos_to_docs(book: DatabaseBook, page: DatabasePage, rendered: {}
     docs = documents_loaded.database_documents.documents if documents_loaded else None
     file_path = dataset_json_file_path + rendered[page.page]
     pcgts = page.pcgts()
-    print(file_path)
+    #print(file_path)
     with open(file_path, 'r', encoding='utf-8') as f:
         t = json.load(f)
         lyric_info = Lyric_info.from_dict(t)
     for idx, doc in enumerate(sorted(docs_db.get_documents_of_page(pcgts.page), key=lambda x: x.start.row)):
+        if idx >= len(lyric_order):
+            #print(f"{idx + 1} is greater than docs in lyric_order")
+            continue
         variant = lyric_order[idx]
 
         meta_infos_extended = lyric_info.meta_infos_extended
@@ -197,23 +202,31 @@ if __name__ == '__main__':
     for file in os.listdir(dataset_json_file_path):
         if file.endswith(".json"):
             rendered_json_files[file.replace(".json", "")] = file
-            print(file)
+            #print(file)
     # get all books from database
-    book = DatabaseBook("Graduel_Syn22_03_24")
+    book = DatabaseBook("Graduel_Syn2")
     pages = book.pages()
     # pages = [pages[5]]  # 0:45
     # for each book get all pages and compare with json files
+    excepted_ids = []
     for page in pages:
         page_id = page.page
-        print(page_id)
+        #print(page_id)
         if page_id not in rendered_json_files.keys():
             print("Page " + page_id + " not in rendered files")
-        if page_id in ["0125", "0388"]:
+        if page_id not in ["0388", "1012"]:
             continue
         # remove_upper_regions(page.pcgts())
         # set_document_start(page.pcgts())
         # assign_text_to_lines(page, rendered_json_files)
         # assign_syllabels_to_symbols2(page, rendered_json_files, book)
-        fill_meta_infos_to_docs(book, page, rendered_json_files)
+        try:
+            fill_meta_infos_to_docs(book, page, rendered_json_files)
+        except Exception as e:
+            print(page_id)
+            excepted_ids.append(page_id)
         # page.pcgts()
         # pcgts = page.pcgts().page.all_text_lines()
+    print("Faulty_pages")
+    for i in excepted_ids:
+        print(i)
