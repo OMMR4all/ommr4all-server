@@ -141,6 +141,24 @@ class SymbolsExperimenter(Experimenter):
     def evaluate(self, predictions, evaluation_params):
         symbols, full_predictions = predictions
         gt_symbols, pred_symbols = symbols
+
+        def ignore_gapped_type(symbol_list: List[List[MusicSymbol]]):
+            symbols_list_new = []
+            for symbol_line in symbol_list:
+                line_new = []
+                for s in symbol_line:
+                    if s.symbol_type == s.symbol_type.NOTE:
+                        if s.graphical_connection == s.graphical_connection.GAPED:
+                            s.graphical_connection = s.graphical_connection.NEUME_START
+
+                    line_new.append(s)
+                symbols_list_new.append(line_new)
+            return symbols_list_new
+        if evaluation_params.ignore_gapped_symbols:
+            gt_symbols = ignore_gapped_type(gt_symbols)
+            pred_symbols = ignore_gapped_type(pred_symbols)
+
+
         evaluator = SymbolDetectionEvaluator(evaluation_params)
         metrics, counts, acc_counts, acc_acc, total_diffs, total_diffs_count = evaluator.evaluate(gt_symbols, pred_symbols)
         evaluator2 = SymbolErrorTypeDetectionEvaluator(evaluation_params)

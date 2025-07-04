@@ -705,14 +705,14 @@ class Predictor(AlgorithmPredictor):
             if gt_book:
                 documents2 = DatabaseBookDocuments().load(gt_book)
                 document2 = documents2.database_documents.get_document_by_b_uid(document.get_book_u_id())
-                print(document.get_book_u_id())
-                print(text)
+                #print(document.get_book_u_id())
+                #print(text)
                 #text_list2 = document2.get_text_list_of_line_document(gt_book)
                 text2 = document2.get_text_of_document(gt_book)
                 text2 = self.text_normalizer.apply(text2)
                 lyric_info = Lyric_info(latine=text2, id="1", index="1", meta_info="1", meta_infos_extended = None, variants = None)
-                print(text)
-                print(text2)
+                #print(text)
+                #print(text2)
             else:
                 for b in lyrics.lyrics:
                     b: Lyric_info = b
@@ -726,6 +726,7 @@ class Predictor(AlgorithmPredictor):
                         lowest_ed = 0
                         lowest_text = text2
                         lyric_info = b
+
 
             if lyric_info:
                 #print(lyric_info.to_json())

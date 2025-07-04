@@ -142,8 +142,10 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
         from ommr4all.settings import BASE_DIR
         model = settings.model
         if settings.model is None or AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH.value in settings.model.local_file(""):
+            m_path= '/internal_storage/default_models/french14/text_guppy/'
+            #m_path = '/storage/Geesebook2gt/models/text_guppy/2025-06-21T13:07:33/'
             model = Model(
-                MetaId.from_custom_path(BASE_DIR + '/internal_storage/default_models/french14/text_guppy/', meta.type()))
+                MetaId.from_custom_path(BASE_DIR + m_path, meta.type()))
         settings = AlgorithmPredictorSettings(
             model=model,
         )

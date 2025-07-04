@@ -1,5 +1,6 @@
 import os
 from typing import List, Optional, Generator, Tuple
+from database.file_formats.pcgts import *
 
 import torch
 from PIL import Image
@@ -51,6 +52,7 @@ class OMRPredictor(SymbolsPredictor):
         # if self.database_hyphen_dictionary is None:
         #    db = DatabaseDictionary.load(book=book)
         #    self.database_hyphen_dictionary = db.to_hyphen_dict()
+        clefs = []
 
         dataset = SymbolDetectionDatasetTorch(pcgts_files, self.dataset_params)
         loaded_dataset = dataset.load()
@@ -82,7 +84,7 @@ class OMRPredictor(SymbolsPredictor):
                 # seq, _ = viterbi_search(net_out, alphabet)
                 g_decoder = GreedyDecoder(alphabet)
                 sentence: DecoderOutput = g_decoder.decode(net_out, True, False, pad=sizes[1],debug_img=img_t)
-                print(sentence.decoded_string)
+                #print(sentence.decoded_string)
             # print(self.dict_corrector)
 
             percentage = (i + 1) / len(loaded_dataset)
@@ -91,14 +93,24 @@ class OMRPredictor(SymbolsPredictor):
 
             delta = 1 - (sizes[1] / self.network.mc.mconfig.Width)
             # print(sentence)
-            cc = self.extract_symbols(dataset, sentence, y, (self.network.mc.mconfig.Width) * (
+            symbols = self.extract_symbols(dataset, sentence, y, (self.network.mc.mconfig.Width) * (
                     image.shape[1] / self.network.mc.mconfig.Width) / (net_out.shape[0] * delta), pad=sizes[1])
             width = image.shape[1]
             if callback:
                 percentage = (i + 1) / len_dataset
 
                 callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len_dataset)
-            yield SingleLinePredictionResult(cc, y)
+            initial_clef = None
+            if len(symbols) > 0:
+                if symbols[0].symbol_type == symbols[0].symbol_type.CLEF:
+                    clefs.append(symbols[0])
+                    initial_clef = symbols[0]
+                elif len(clefs) > 0:
+                    initial_clef = clefs[-1]
+            line = Line(symbols=symbols)
+            line.update_note_names(initial_clef=initial_clef)
+            symbols = line.symbols
+            yield SingleLinePredictionResult(symbols, y)
 
 
 
@@ -118,14 +130,14 @@ class OMRPredictor(SymbolsPredictor):
         positions = p.char_mapping
         sentence = []
         chars = []
-        print("12323")
+        #print("12323")
         for x in p.char_mapping.charLocationInfo:
             a = p.char_mapping.chars[x.char]
             sentence.append((a,
                              i2p(dataset.local_to_global_pos(Point(((x.char_start + x.char_end) / 2) * factor,
                                                                    40),
                                                              m.operation.params).x)))
-        print(sentence)
+        #print(sentence)
         cc = CalamariSequence.to_symbols(dataset.params.calamari_codec, sentence,
                                          m.operation.music_line.staff_lines)
         return cc

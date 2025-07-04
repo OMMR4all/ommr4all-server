@@ -9,12 +9,9 @@ from database.tools.book_statistics import compute_book_statistics
 #--books mul_2_23_gt_ina
 
 def gen_ignore_pages(pages: List[str], books: List[DatabaseBook]):
-    print("123")
-    print(page.page for page in books[0].pages())
-    for i in books[0].pages():
-        print(i.page)
-    pages = sum([[page.page for page in book.pages() if not any([s in page.page for s in pages])] for book in books],
-                [])
+    all_pages = set(sum([[page.page for page in book.pages()] for book in books], []))
+    pages = all_pages - set(pages)
+    print(pages)
     return pages
 
 
@@ -31,14 +28,22 @@ if __name__ == '__main__':
     parser.add_argument("--books", nargs="+", required=True)
     parser.add_argument("--ignore-page", nargs="+", default=[])
     parser.add_argument("--specific-pages-only", nargs="+", default=[])
-    parser.add_argument("--below-specific-page", type=int)
+    parser.add_argument("--below-specific-page", type=str)
     args = parser.parse_args()
     if len(args.specific_pages_only) > 0:
         ignore_pages = gen_ignore_pages(args.specific_pages_only, [DatabaseBook(book) for book in args.books])
         all_book_counts = [compute_book_statistics(DatabaseBook(book), ignore_pages) for book in args.books]
     elif args.below_specific_page:
         books = [DatabaseBook(book) for book in args.books]
-        pages = [page.page for book in books for page in book.pages() if convert_to_int(page.page) < args.below_specific_page]
+        pages = []
+        for book in books:
+            for page in book.pages():
+                if page.page == args.below_specific_page:
+                    break
+                pages.append(page.page)
+                print(f"found {page.page}")
+
+        #pages = [page.page for book in books for page in book.pages() if convert_to_int(page.page) < args.below_specific_page]
         ignore_pages = gen_ignore_pages(pages, [DatabaseBook(book) for book in args.books])
         all_book_counts = [compute_book_statistics(DatabaseBook(book), ignore_pages) for book in args.books]
     else:

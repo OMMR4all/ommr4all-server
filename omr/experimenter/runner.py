@@ -88,6 +88,7 @@ if __name__ == "__main__":
                              choices=list(TorchArchitecture), default=PageSegmentationTrainerTorchParams().architecture)
     parser.add_argument("--page_segmentation_torch_encoder", type=str, choices=list(ENCODERS),
                         default=PageSegmentationTrainerTorchParams().encoder)
+    parser.add_argument("--custom_model", action="store_true")
 
     parser.add_argument("--lyrics_normalization", type=lambda t: LyricsNormalization[t], choices=list(LyricsNormalization), default=DatasetParams().lyrics_normalization.lyrics_normalization)
     parser.add_argument("--lyrics_mixed_case", action='store_true')
@@ -111,6 +112,17 @@ if __name__ == "__main__":
     parser.add_argument("--staff_line_found_distance", default=EvaluatorParams().staff_line_found_distance, type=int)
     parser.add_argument("--line_hit_overlap_threshold", default=EvaluatorParams().line_hit_overlap_threshold, type=float)
     parser.add_argument("--staff_n_lines_threshold", default=EvaluatorParams().staff_line_found_distance, type=int)
+    parser.add_argument("--ignore_gapped_symbols", default=EvaluatorParams().ignore_gapped_symbols, action='store_true')
+
+    # symbol predictor params
+    parser.add_argument("--use_rule_based_post_processing", action="store_true")
+    parser.add_argument("--use_block_layout_correction", action="store_true", default=False)
+    parser.add_argument("--use_overlapping_symbol_correction", action="store_true")
+    parser.add_argument("--use_pis_clef_correction", action="store_true", default=False)
+    parser.add_argument("--use_missing_clef_correction", action="store_true", default=False)
+    parser.add_argument("--use_graphical_connection_correction", action="store_true")
+    parser.add_argument("--use_pis_correction_of_stacked_symbols", action="store_true")
+
 
     args = parser.parse_args()
 
@@ -158,10 +170,19 @@ if __name__ == "__main__":
             staff_line_found_distance=args.staff_line_found_distance,
             line_hit_overlap_threshold=args.line_hit_overlap_threshold,
             staff_n_lines_threshold=args.staff_n_lines_threshold,
+            ignore_gapped_symbols=args.ignore_gapped_symbols,
         ),
         predictor_params=AlgorithmPredictorParams(
             minNumberOfStaffLines=args.min_number_of_staff_lines,
             maxNumberOfStaffLines=args.max_number_of_staff_lines,
+            use_rule_based_post_processing=args.use_rule_based_post_processing,
+            use_graphical_connection_correction=args.use_graphical_connection_correction,
+            use_pis_clef_correction=args.use_pis_clef_correction,
+            use_missing_clef_correction=args.use_missing_clef_correction,
+            use_overlapping_symbol_correction=args.use_overlapping_symbol_correction,
+            use_block_layout_correction=args.use_block_layout_correction,
+            use_pis_correction_of_stacked_symbols=args.use_pis_correction_of_stacked_symbols,
+
             #ctcDecoder=SerializableCTCDecoderParams(
             #    type=CTCDecoderParams.CTCDecoderType.Value(args.calamari_ctc_decoder),
             #    beam_width=args.calamari_ctc_decoder_beam_width,
@@ -192,6 +213,7 @@ if __name__ == "__main__":
         page_segmentation_torch_params=PageSegmentationTrainerTorchParams(
             architecture=args.page_segmentation_torch_architecture,
             encoder=args.page_segmentation_torch_encoder,
+            custom_model=args.custom_model,
             data_augmentation=args.data_augmentation
         ),
         calamari_params=CalamariParams(

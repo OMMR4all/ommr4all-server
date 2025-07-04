@@ -2,8 +2,8 @@ from database import DatabaseBook, DatabasePage
 from database.file_formats.pcgts.page import Sentence
 
 if __name__ == "__main__":
-    book_gt = DatabaseBook('mul_2_end_w_finetune_basic_no_doc_pp')
-    book_pred = DatabaseBook('mul_2_end_w_finetune_symbols_w_finetune_no_pp2')
+    book_gt = DatabaseBook('Geesebook1gt')
+    book_pred = DatabaseBook('Geesebook1_base_predict_gt_text')
 
     pages_gt = book_gt.pages()
     pages_pred = book_pred.pages()

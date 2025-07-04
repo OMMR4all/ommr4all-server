@@ -117,7 +117,7 @@ class DropCapitalTrainer(SymbolDetectionTrainer):
                 data=yaml_path,
                 #name='yolov8m.pt',
                 save=True,
-                epochs=1000,
+                epochs=100,
                 imgsz=960,
                 fliplr=0.5,
                 scale=0.1,
@@ -135,8 +135,8 @@ if __name__ == '__main__':
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
     b = DatabaseBook('Pa_14819')
     c = DatabaseBook('Aveiro_ANTF28')
-
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.LAYOUT, True)], datasets=[b, c])
+    d = DatabaseBook('Geesebook2')
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.LAYOUT, True)], datasets=[b, c, d])
     print(len(train))
     print(len(val))
     settings = AlgorithmTrainerSettings(

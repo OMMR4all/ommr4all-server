@@ -100,6 +100,8 @@ def run(ex_args):
                 cmd_list.append(value)
 
     cmd_list += ['--{}'.format(a) for a in args.additional_args]
+    print("123")
+    print(cmd_list)
     cmd_list = list(map(str, cmd_list))
 
     if args.simulate:

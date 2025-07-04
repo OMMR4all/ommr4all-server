@@ -10,7 +10,7 @@ from database import DatabaseBook, DatabasePage
 from database.database_book_documents import DatabaseBookDocuments, DocSpanType
 from database.file_formats import PcGts
 from database.file_formats.book.document import LineMetaInfos
-from database.file_formats.pcgts import MusicSymbol, Line, Rect, Point, PageScaleReference
+from database.file_formats.pcgts import MusicSymbol, Line, Rect, Point, PageScaleReference, SymbolType
 from database.file_formats.pcgts.page import Connection, SyllableConnector
 from database.file_formats.performance import LockState
 from database.file_formats.performance.pageprogress import Locks
@@ -21,7 +21,7 @@ from omr.experimenter.documents.evaluater import evaluate_stafflines, logger
 from tools.simple_gregorianik_text_export import Lyrics, Lyric_info
 
 
-def prepare_document(pred_book: DatabaseBook, gt_book: DatabaseBook, ignore=None, ignore_char="$") -> Tuple[List[DocSpanType], int, int]:
+def prepare_document(pred_book: DatabaseBook, gt_book: DatabaseBook, ignore=None, ignore_char=["$", "%"]) -> Tuple[List[DocSpanType], int, int]:
     documents = DatabaseBookDocuments().load(gt_book)
     documents_pred = DatabaseBookDocuments().load(pred_book)
 
@@ -35,9 +35,15 @@ def prepare_document(pred_book: DatabaseBook, gt_book: DatabaseBook, ignore=None
         for i in documents.get_documents_of_page(pcgts_file.page, only_start=False):
             whole_text = i.doc.get_text_of_document(gt_book)
             total_docs +=1
-            if ignore_char in whole_text:
-                print("skipping")
-                skipped +=1
+            skip = False
+            for ig in ignore_char:
+
+                if ig in whole_text:
+                    print("skipping")
+                    skipped +=1
+                    skip = True
+                    break
+            if skip:
                 continue
             docs.append(i)
 
@@ -104,7 +110,7 @@ class SymbolEvalData:
         return pred_symbols, gt_symbols
 
 
-def gen_eval_symbol_documents_data(pred_book: DatabaseBook, gt_book: DatabaseBook, docs: List[DocSpanType]):
+def gen_eval_symbol_documents_data(pred_book: DatabaseBook, gt_book: DatabaseBook, docs: List[DocSpanType], ignore_gaped=False):
     documents = DatabaseBookDocuments().load(gt_book)
     documents_pred = DatabaseBookDocuments().load(pred_book)
     gt_symbols = []
@@ -132,13 +138,25 @@ def gen_eval_symbol_documents_data(pred_book: DatabaseBook, gt_book: DatabaseBoo
             p_str = ""
             eval_lines = []
             for gt, pred in zip(symbols_gt, symbols_pred):
-                eval_lines.append(LineSymbolEvalData(pred=pred, gt=gt))
+                if not ignore_gaped:
+                    eval_lines.append(LineSymbolEvalData(pred=pred, gt=gt))
+                else:
+                    def ignore_gaped(symbols: List[MusicSymbol]):
+                        new_symbols = []
+                        for s in symbols:
+                            if s.graphical_connection == s.graphical_connection.GAPED:
+                                s.graphical_connection = s.graphical_connection.NEUME_START
+                            new_symbols.append(s)
+                        return new_symbols
+
+                    eval_lines.append(LineSymbolEvalData(pred=ignore_gaped(pred), gt=ignore_gaped(gt)))
+
 
             eval_data.append(DocSymbolEvalData(eval_symbols=eval_lines, doc_id=i.doc.doc_id))
             pred_meta += meta_pred
         else:
             print(f"{i.doc.start.page_name} {i.doc.start.row}")
-    return SymbolEvalData(eval_data)
+    return SymbolEvalData(eval_data[:5])
 
 
 def eval_symbols__docs_instance(symbol_eval_data: SymbolEvalData, sheet):
@@ -146,12 +164,11 @@ def eval_symbols__docs_instance(symbol_eval_data: SymbolEvalData, sheet):
 
     for i in symbol_eval_data.doc_data:
         #3eb99d70-ab64-4b9e-a7d7-31179ead4a8b
-        if i.doc_id == "3eb99d70-ab64-4b9e-a7d7-31179ead4a8b":
-            print("found")
+
         pred, gt = i.get_doc_symbol_data()
         excel_data = evaluate_symbols(pred, gt)
-        pred_str = " ".join([t.get_str_representation() for iz in pred for t in iz])
-        gt_str = " ".join([t.get_str_representation() for iz in gt for t in iz])
+        pred_str = " ".join([t.get_str_representation(graphical_connection=True) for iz in pred for t in iz])
+        gt_str = " ".join([t.get_str_representation(graphical_connection=True) for iz in gt for t in iz])
         docs_instance_eval_data.append([(pred_str, gt_str), excel_data])
     ind = 3
     left = 3
@@ -183,8 +200,8 @@ def eval_symbols__docs_line_instance(symbol_eval_data: SymbolEvalData, sheet):
         for f in i.eval_symbols:
             pred, gt = f.pred, f.gt
             excel_data = evaluate_symbols([pred], [gt])
-            pred_str = " ".join([t.get_str_representation() for t in pred])
-            gt_str = " ".join([t.get_str_representation() for t in gt])
+            pred_str = " ".join([t.get_str_representation(graphical_connection=True) for t in pred])
+            gt_str = " ".join([t.get_str_representation(graphical_connection=True) for t in gt])
             docs_instance_eval_data.append([(pred_str, gt_str), excel_data, i.doc_id])
     ind = 3
     left = 3
@@ -796,12 +813,12 @@ def gen_eval_layout_documents_data(pred_book: DatabaseBook, gt_book: DatabaseBoo
                 gt_page: DatabasePage = gt[1]
                 ml_gt = gt_page.pcgts().page.closest_music_line_to_text_line(gt_line)
                 ml_pred = pred_page.pcgts().page.closest_music_line_to_text_line(pred_line)
-
-                eval_lines.append(
-                    LineLayoutEvalData(pred_txt=pred_line.text(), gt_txt=gt_line.text(), gt=ml_gt, pred=ml_pred,
-                                       pred_page=pred[1], gt_page=gt_page)
-                    ,
-                )
+                if ml_gt:
+                    eval_lines.append(
+                        LineLayoutEvalData(pred_txt=pred_line.text(), gt_txt=gt_line.text(), gt=ml_gt, pred=ml_pred,
+                                           pred_page=pred[1], gt_page=gt_page)
+                        ,
+                    )
             eval_data.append(DocLayoutEvalData(eval_layout=eval_lines, doc_id=i.doc.doc_id))
     return LayoutEvalData(eval_data)
 
@@ -934,50 +951,62 @@ if __name__ == "__main__":
     books2 = ["mul_2_rsync_gt_inferred_symbols_gt_text"]
     books2 = ["mul_2_end_w_finetune_basic_w_doc_pp_gt_text"]
 
+    books2 = ["Geesebook1_base_predict_gt_text", "Geesebook1_base_predict", "Geesebook1lines"]
+    books2 = ["Geesebook1textandsymbolgt"]
+    books2 = ["Geesebook1_base_predict_full_ignore_gapped_predict", "Geesebook1_base_predict_full_symbolonlygapped"]
+    books2 = ["Geesebook1_base_predict_full_ignore_gapped_predict"]
+    books2 = ["mul_2_end_w_finetune_symbols_w_finetune_w_pp2", 'mul_2_end_no_finetune_basic_no_doc_pp', 'mul_2_end_no_finetune_basic_w_doc_pp', 'mul_2_end_w_finetune_basic_no_doc_pp',
+              'mul_2_end_w_finetune_basic_w_doc_pp', 'mul_2_end_w_gt_symbols_no_finetune_no_pp', 'mul_2_end_w_gt_symbols_no_finetune_w_pp',
+              'mul_2_end_w_gt_symbols_w_finetune_no_pp', 'mul_2_end_w_gt_symbols_w_finetune_no_pp', 'mul_2_end_w_gt_symbols_w_finetune_w_pp',
+              'mul_2_end_w_gt_symbols_and_text', "mul_2_end_w_gt_symbols_w_finetune_no_pp_gt_text_seg3", "mul_2_rsync_gt_symobl_gt_text_gt_syllabels", "mul_2_end_w_finetune_basic_w_doc_pp_gt_text", "mul_2_rsync_gt_inferred_symbols_gt_text", "mul_2_end_w_finetune_symbols_no_finetune_no_pp2", "mul_2_end_w_finetune_symbols_w_finetune_no_pp2", "mul_2_end_w_finetune_symbols_no_finetune_w_pp2"]
     for i in books2:
         b = DatabaseBook(i)
         c = DatabaseBook('mul_2_rsync_gt')
+        #c = DatabaseBook('Geesebook1gt')
         # excel_lines1 = evaluate_stafflines(b, c)
         docs, total, skipped = prepare_document(b, c)
-        docs = filter_docs(docs, 253)
-        layout_eval_data = gen_eval_layout_documents_data(b, c, docs)
-
-        symbol_eval_data = gen_eval_symbol_documents_data(b, c, docs)
-        text_eval_data = gen_eval_text_documents_data(b, c, docs)
-        syl_eval_data = gen_eval_syllable_documents_data(b, c, docs)
-
+        docs = filter_docs(docs, below_page=253)
         from xlwt import Workbook
+
         wb2 = Workbook()
         # Workbook is created
         wb = Workbook()
-        # add_sheet is used to create sheet.
-        excel_lines1 = evaluate_stafflines(b, c)
-        sheet0 = wb.add_sheet('Stafflines')
-        write_staffline_eval_data(excel_lines1, sheet0)
-        sheet03 = wb.add_sheet('Layout Docs')
-        eval_layout_docs_instance(layout_eval_data, sheet03)
-        sheet04 = wb.add_sheet('Layout Lines')
-        eval_layout_docs_line_instance(layout_eval_data, sheet04)
+        if True:
+            #layout_eval_data = gen_eval_layout_documents_data(b, c, docs)
 
-        sheet1 = wb.add_sheet('Symbols Docs')
-        eval_symbols__docs_instance(symbol_eval_data, sheet1)
-        sheet2 = wb.add_sheet('Symbols Lines')
-        eval_symbols__docs_instance(symbol_eval_data, sheet2)
-        sheet3 = wb.add_sheet('Text Docs')
-        eval_texts_docs_instance(text_eval_data, sheet3)
-        sheet4 = wb.add_sheet('Text Lines')
-        eval_texts_line_instance(text_eval_data, sheet4)
+            symbol_eval_data = gen_eval_symbol_documents_data(b, c, docs, ignore_gaped=True)
+            #text_eval_data = gen_eval_text_documents_data(b, c, docs)
+            #syl_eval_data = gen_eval_syllable_documents_data(b, c, docs)
 
 
-        sheet34 = wb.add_sheet('Text Docs Line Ignored')
-        eval_texts_docs_instance_ignore_lines(text_eval_data, sheet34)
+            # add_sheet is used to create sheet.
+            #excel_lines1 = evaluate_stafflines(b, c)
+            #sheet0 = wb.add_sheet('Stafflines')
+            #write_staffline_eval_data(excel_lines1, sheet0)
+            #sheet03 = wb.add_sheet('Layout Docs')
+            #eval_layout_docs_instance(layout_eval_data, sheet03)
+            #sheet04 = wb.add_sheet('Layout Lines')
+            #eval_layout_docs_line_instance(layout_eval_data, sheet04)
 
-        sheet5 = wb.add_sheet('Syllable Docs')
-        eval_syl_docs_instance(syl_eval_data, sheet5)
-        sheet6 = wb.add_sheet('Syllable Line')
-        eval_syl_docs_line_instance(syl_eval_data, sheet6)
-        sheet10 = wb.add_sheet('overview 1')
-        overview_excel_sheet(excel_lines1, layout_eval_data, symbol_eval_data, text_eval_data, syl_eval_data, sheet10)
+            #sheet1 = wb.add_sheet('Symbols Docs')
+            #eval_symbols__docs_instance(symbol_eval_data, sheet1)
+            sheet2 = wb.add_sheet('Symbols Lines')
+            eval_symbols__docs_instance(symbol_eval_data, sheet2)
+            #sheet3 = wb.add_sheet('Text Docs')
+            #eval_texts_docs_instance(text_eval_data, sheet3)
+            #sheet4 = wb.add_sheet('Text Lines')
+            #eval_texts_line_instance(text_eval_data, sheet4)
 
-        print(f"Skipped {skipped}, total, {len(docs)}")
-        wb.save(f"/tmp/{i}.xls")
+
+            #sheet34 = wb.add_sheet('Text Docs Line Ignored')
+            #eval_texts_docs_instance_ignore_lines(text_eval_data, sheet34)
+
+            #sheet5 = wb.add_sheet('Syllable Docs')
+            #eval_syl_docs_instance(syl_eval_data, sheet5)
+            #sheet6 = wb.add_sheet('Syllable Line')
+            #eval_syl_docs_line_instance(syl_eval_data, sheet6)
+            #sheet10 = wb.add_sheet('overview 1')
+            #overview_excel_sheet(excel_lines1, layout_eval_data, symbol_eval_data, text_eval_data, syl_eval_data, sheet10)
+            wb.save(f"/tmp/{i}.xlsx")
+
+        print(f"Skipped {skipped}, docs, {len(docs)} total {total}")

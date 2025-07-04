@@ -58,6 +58,11 @@ def get_counts(pages: List[PcGts], callback: Callback = None) -> Counts:
             counts.n_note_components += len([s for s in ml.symbols if s.symbol_type == SymbolType.NOTE])
             counts.n_clefs += len([s for s in ml.symbols if s.symbol_type == SymbolType.CLEF])
             counts.n_accids += len([s for s in ml.symbols if s.symbol_type == SymbolType.ACCID])
+            if  len([s for s in ml.symbols if s.symbol_type == SymbolType.ACCID]) > 0:
+                print(pcgts.page.location.local_path())
+                for s in ml.symbols:
+                    if s.symbol_type == SymbolType.ACCID:
+                        print(s.accid_type)
         tls = p.all_text_lines()
         for tl in tls:
             counts.n_syllabels += len(tl.sentence.syllables)

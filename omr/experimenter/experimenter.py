@@ -39,6 +39,7 @@ class EvaluatorParams(NamedTuple):
     line_hit_overlap_threshold: float = 0.5
     staff_n_lines_threshold: int = 2
     staff_line_found_distance: int = 3
+    ignore_gapped_symbols: bool = False
 
 
 class GlobalDataArgs(NamedTuple):
@@ -119,8 +120,8 @@ class ExperimenterScheduler:
                                      gd.train_pcgts_files, gd.validation_pcgts_files,
                                      gd.test_pcgts_files,
                                      global_args) for gd in train_args]
-        for i in train_args:
-            logger.info(f"tf: {len(i.train_pcgts_files)} tv: {len(i.validation_pcgts_files)} tt: {len(i.test_pcgts_files)}")
+        #for i in train_args:
+        #    logger.info(f"tf: {len(i.train_pcgts_files)} tv: {len(i.validation_pcgts_files)} tt: {len(i.test_pcgts_files)}")
         experimenter_class = Step.meta(self.global_args.algorithm_type).experimenter()
         results = [experimenter_class(args, logger).run_single() for args in train_args]
         experimenter_class.print_results(self.global_args, results, logger)
