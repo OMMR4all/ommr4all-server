@@ -23,7 +23,9 @@ if __name__ == "__main__":
                 for ind, cell in enumerate(row):
                     new_sheet.cell(row=i, column=ind + 2, value=cell.value)
         return sheet3
-    workbook = openpyxl.load_workbook('/tmp/Graduale_stats.xlsx')
+    #workbook = openpyxl.load_workbook('/tmp/Graduale_stats.xlsx')
+    workbook = openpyxl.load_workbook('/tmp/Graduale.xlsx')
+
     sheet = workbook.active
     workbook2 = openpyxl.load_workbook('/tmp/Graduel_Syn22_03_24_pred.xlsx')
 
@@ -31,7 +33,7 @@ if __name__ == "__main__":
     sheet_b = workbook2.get_sheet_by_name("Syllable Docs")
 
     sheet3 = workbook.create_sheet("Results Symbols1")
-    sheet4 = workbook.create_sheet("Results Syllables2")
+    sheet4 = workbook.create_sheet("Results Syllables1")
 
     c = DatabaseBook('Graduel_Syn22_03_24')
     documents = DatabaseBookDocuments().load(c)

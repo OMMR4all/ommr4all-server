@@ -143,13 +143,13 @@ class GreedyDecoder():
                 #print(mat.shape)
                 #print(img1.size)
                 #print(img2.size)
-                #f, ax = plt.subplots(3, 1, )
-                #ax[0].imshow(img)
-                #ax[1].imshow(mat)
-                #ax[2].imshow(debug_img)
+                f, ax = plt.subplots(3, 1, )
+                ax[0].imshow(img)
+                ax[1].imshow(mat)
+                ax[2].imshow(debug_img)
 
                 #ax[1].imshow(index_list)
-                #plt.show()
+                plt.show()
                 #t, b = int(aabb.top()), int(aabb.bottom())
                 #for sc in c.syllable_connections:
                 #    x = int(scale(sc.note.coord.x))
@@ -235,7 +235,7 @@ class GuppyPredictor(TextPredictor):
 
                 # seq, _ = viterbi_search(net_out, alphabet)
                 g_decoder = GreedyDecoder(alphabet)
-                sentence: DecoderOutput = g_decoder.decode(net_out, True)
+                sentence: DecoderOutput = g_decoder.decode(net_out, True, debug_img=img_t, pad=sizes[1], debug=False)
             #print(self.dict_corrector)
             if self.dict_corrector:
                 if len(sentence.decoded_string) > 0:
@@ -308,7 +308,7 @@ if __name__ == '__main__':
                                                              # DatabaseBook('Graduel_Part_2'),
                                                              # DatabaseBook('Graduel_Part_3'),
                                                          ])
-    book = DatabaseBook('mul_2_rsync_base_symbol_finetune_w_pp')
+    book = DatabaseBook('mul_2_rsync_gt')
     meta = Step.meta(AlgorithmTypes.OCR_GUPPY)
     #load = "i/french14/text_guppy/text_guppy")
     from database.model import Model
@@ -320,7 +320,9 @@ if __name__ == '__main__':
     ##                            meta.type()))
     pred = GuppyPredictor(AlgorithmPredictorSettings(model=model))
     ps: List[PredictionResult] = list(pred.predict(book.pages()[92:93]))
+
     for i, p in enumerate(ps):
+        print(p.pcgts.page.location.page)
         canvas = PcGtsCanvas(p.pcgts.page, p.text_lines[0].line.operation.scale_reference)
         for j, s in enumerate(p.text_lines):
             canvas.draw(s)

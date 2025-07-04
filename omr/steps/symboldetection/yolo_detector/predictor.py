@@ -16,13 +16,16 @@ import cv2
 import numpy as np
 from omr.steps.symboldetection.yolo_detector.meta import Meta
 from omr.imageoperations.music_line_operations import SymbolLabel
-from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePredictionResult
+from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePredictionResult, PredictionResult
 from segmentation.network import Network, EnsemblePredictor
 from omr.steps.symboldetection.postprocessing.symbol_extraction_from_prob_map import extract_symbols
 from omr.steps.symboldetection.postprocessing.symobl_background_knwoledge_postprocessing import *
 from loguru import logger
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator
+
+from shared.pcgtscanvas import PcGtsCanvas
+
 
 class PCTorchPredictor(SymbolsPredictor):
     @staticmethod
@@ -149,6 +152,18 @@ class PCTorchPredictor(SymbolsPredictor):
                 #from matplotlib import pyplot as plt
                 #plt.imshow(img)
                 #plt.show()
+            initial_clef = None
+            if len(symbols) > 0:
+                if symbols[0].symbol_type == symbols[0].symbol_type.CLEF:
+                    clefs.append(symbols[0])
+                    initial_clef = symbols[0]
+                elif len(clefs) > 0:
+                    # symbols.insert(0, clefs[-1])
+                    initial_clef = clefs[-1]
+            symbols.sort(key=lambda x: x.coord.x)
+            line = Line(symbols=symbols)
+            line.update_note_names(initial_clef=initial_clef)
+            symbols = line.symbols
             yield SingleLinePredictionResult(symbols, data)
 
 if __name__ == '__main__':
@@ -161,11 +176,18 @@ if __name__ == '__main__':
     from database import DatabaseBook
 
     b = DatabaseBook('Graduel_Part_1')
-    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()][7:20]
+    val_pcgts = [PcGts.from_file(p.file('pcgts')) for p in b.pages()][7:8]
     pred = PCTorchPredictor(AlgorithmPredictorSettings(Meta.default_model_for_style("french14")))
     ps = list(pred.predict([p.page.location for p in val_pcgts]))
     import matplotlib.pyplot as plt
+    for p in ps:
+        p: PredictionResult = p
+        canvas = PcGtsCanvas(p.pcgts.page, PageScaleReference.NORMALIZED_X2)
+        for sp in p.music_lines:
+            canvas.draw(sp.symbols)
 
+        canvas.show()
+    """
     for i in ps:
         if len(i.music_lines) > 0:
             orig = np.array(i.music_lines[0].line.operation.page_image)
@@ -182,3 +204,4 @@ if __name__ == '__main__':
             plt.show()
         else:
             print("no")
+"""

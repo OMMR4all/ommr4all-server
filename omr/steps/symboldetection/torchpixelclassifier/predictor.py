@@ -4,7 +4,7 @@ from typing import List, Optional, Generator
 
 from omr.confidence.symbol_sequence_confidence import SymbolSequenceConfidenceLookUp, SequenceSetting
 from segmentation.model_builder import ModelBuilderLoad
-from segmentation.network_postprocessor import NetworkMaskPostProcessor
+from segmentation.network_postprocessor import NetworkMaskPostProcessor, MaskPredictionResult
 from segmentation.scripts.train import get_default_device
 from segmentation.preprocessing.source_image import SourceImage
 
@@ -59,11 +59,6 @@ class PCTorchPredictor(SymbolsPredictor):
         total_lines = len(list(df.iterrows()))
         for index, row in df.iterrows():
             mask, image, data = row['masks'], row['images'], row['original']
-            from matplotlib import pyplot as plt
-            #plt.imshow(image)
-            #plt.show()
-            # plt.imshow(mask)
-            # plt.show()
             source_image = SourceImage.from_numpy(image)
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(source_image)
             #output.generated_mask.show()
@@ -79,48 +74,61 @@ class PCTorchPredictor(SymbolsPredictor):
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
             m: RegionLineMaskData = data
             symbols = extract_symbols(prob_map_softmax, labels, m, dataset=dataset, min_symbol_area=-1,
-                                      clef=self.settings.params.use_clef_pos_correction, lookup=self.look_up,
+                                      clef=self.settings.params.use_rule_based_post_processing and self.settings.params.use_rule_based_post_processing , lookup=self.look_up,
                                       probability=0.5)
 
             additional_symbols = filter_unique_symbols_by_coord(symbols,
                                                                 extract_symbols(prob_map_softmax, labels, m,
                                                                                 dataset,
                                                                                 probability=0.95,
-                                                                                clef=self.settings.params.use_clef_pos_correction,
+                                                                                clef=self.settings.params.use_rule_based_post_processing and self.settings.params.use_pis_clef_correction,
                                                                                 min_symbol_area=4, lookup=self.look_up))
 
-            if True:
-                # symbols = correct_symbols_inside_wrong_blocks(m.operation.page, symbols)
-                # symbols = correct_symbols_inside_text_blocks(m.operation.page, symbols)
-                symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
+            if self.settings.params.use_rule_based_post_processing:
+                loguru.logger.info(f'test1')
+                if self.settings.params.use_block_layout_correction:
+                    symbols = correct_symbols_inside_wrong_blocks(m.operation.page, symbols)
+                    symbols = correct_symbols_inside_text_blocks(m.operation.page, symbols)
+                    loguru.logger.info(f'test2')
+
+                if self.settings.params.use_overlapping_symbol_correction:
+                    symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
+                    loguru.logger.info(f'test3')
 
                 additional_symbols = correct_symbols_inside_text_blocks(m.operation.page, additional_symbols)
                 #additional_symbols = correct_symbols_inside_wrong_blocks(m.operation.page, additional_symbols)
                 additional_symbols = correct_symbols_inside_text_blocks(m.operation.page, additional_symbols)
 
-                symbols, change = fix_missing_clef(symbols, additional_symbols)
-                symbols = fix_missing_clef2(symbols1=symbols, symbols2=additional_symbols, page=m.operation.page, m=m)
+                if self.settings.params.use_missing_clef_correction:
+                    symbols, change = fix_missing_clef(symbols, additional_symbols)
+                    symbols = fix_missing_clef2(symbols1=symbols, symbols2=additional_symbols, page=m.operation.page, m=m)
+                    loguru.logger.info(f'test4')
+
                 #symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
                 ### symbols = fix_pos_of_close_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
-                #correct_looped_connection(symbols, additional_symbols, page=m.operation.page, m=m)
-                symbols = fix_pos_of_close_symbols3(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
-                symbols = add_neume_start_pos(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m, debug=False)
+                if self.settings.params.use_graphical_connection_correction:
+                    correct_looped_connection(symbols, additional_symbols, page=m.operation.page, m=m)
+                    loguru.logger.info(f'test5')
 
-                initial_clef = None
-                if len(symbols) > 0:
-                    if symbols[0].symbol_type == symbols[0].symbol_type.CLEF:
-                        clefs.append(symbols[0])
-                        initial_clef = symbols[0]
-                    elif len(clefs) > 0:
-                        # symbols.insert(0, clefs[-1])
-                        initial_clef = clefs[-1]
-                #for symbol in symbols:
-                #    if symbol.symbol_type == symbol.symbol_type.NOTE:
-                #        if symbol.graphical_connection == symbol.graphical_connection.GAPED:
-                #            symbol.graphical_connection = symbol.graphical_connection.NEUME_START
-                #            print(symbol.graphical_connection)
+                if self.settings.params.use_pis_correction_of_stacked_symbols:
+                    symbols = fix_pos_of_close_symbols3(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
+                    loguru.logger.info(f'test6')
+
+                symbols = add_neume_start_pos(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m, debug=False)
                 line = Line(symbols=symbols)
-                line.update_note_names(initial_clef=initial_clef)
+
+                if self.settings.params.use_missing_clef_correction:
+                    loguru.logger.info(f'test7')
+
+                    initial_clef = None
+                    if len(symbols) > 0:
+                        if symbols[0].symbol_type == symbols[0].symbol_type.CLEF:
+                            clefs.append(symbols[0])
+                            initial_clef = symbols[0]
+                        elif len(clefs) > 0:
+                            initial_clef = clefs[-1]
+                    line.update_note_names(initial_clef=initial_clef)
+
                 symbols = line.symbols
 
                 '''

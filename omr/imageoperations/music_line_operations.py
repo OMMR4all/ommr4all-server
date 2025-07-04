@@ -122,8 +122,8 @@ class ImageExtractStaffLineImages(ImageOperation):
         else:
             i = 1
 
-            for mr in data.page.music_regions:
-                for ml in mr.staffs:
+            for mr in data.page.music_blocks():
+                for ml in mr.lines:
                     mask = marked_regions == i
                     if np.sum(mask) == 0:  # empty mask, skip
                         continue
@@ -366,12 +366,12 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         for s in ml.symbols:
             if s.symbol_type == SymbolType.NOTE:
                 if keep_graphical_connection and len(keep_graphical_connection) == 3:
-                    if keep_graphical_connection[0] and s.graphical_connection == GraphicalConnectionType.NEUME_START:
-                        set(s.coord, SymbolLabel.NOTE_START)
+                    if keep_graphical_connection[1] and s.graphical_connection == GraphicalConnectionType.GAPED:
+                        set(s.coord, SymbolLabel.NOTE_GAPPED)
                     elif keep_graphical_connection[2] and s.graphical_connection == GraphicalConnectionType.LOOPED:
                         set(s.coord, SymbolLabel.NOTE_LOOPED)
                     else:
-                        set(s.coord, SymbolLabel.NOTE_GAPPED)
+                        set(s.coord, SymbolLabel.NOTE_START)
                 else:
                     if s.graphical_connection == GraphicalConnectionType.NEUME_START:
                         set(s.coord, SymbolLabel.NOTE_START)

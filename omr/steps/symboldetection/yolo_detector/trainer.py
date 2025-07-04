@@ -102,8 +102,7 @@ class YoloTrainer(SymbolDetectionTrainer):
                 epochs=self.settings.params.n_epoch,
                 #batch=4,
                 name='model',
-                augment=False, hsv_h=0, hsv_s=0, hsv_v=0, degrees=0.0, translate=0, scale=0, shear=0.0, perspective=0.0,
-                flipud=0.0, fliplr=0, mosaic=0, mixup=0.0,
+                augment=self.settings.page_segmentation_torch_params.data_augmentation,
                 save=True,
                 project=self.settings.model.path
             )

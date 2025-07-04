@@ -515,7 +515,7 @@ if __name__ == "__main__":
         # Workbook is created
         wb = Workbook()
         visualize_symbol_errors(symbol_eval_data)
-        exit()
+        #exit()
         syl_eval_data = gen_eval_syllable_documents_data(b, c)
 
         visualize_syllable_errors(syl_eval_data)

@@ -128,14 +128,15 @@ if __name__ == '__main__':
     #b = DatabaseBook('Graduel_Part_1_gt')
     #c = DatabaseBook('Graduel_Part_2_gt')
     #d = DatabaseBook('Graduel_Part_3_gt')
-    #e = DatabaseBook('Pa_14819_gt')
+    e = DatabaseBook('Pa_14819_gt')
     #f = DatabaseBook('Assisi')
     #g = DatabaseBook('Cai_72')
-    h = DatabaseBook('mul_2_rsync_gt')
+    # h = DatabaseBook('mul_2_rsync_gt')
+    #hg = DatabaseBook('')
 
     # b = DatabaseBook('Pa1235_Hiwi_01')
 
-    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.TEXT, True)], True, [h])
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.TEXT, True)], True, [e])
     print(len(train_pcgts))
     print(len(val_pcgts))
     print("2")
@@ -158,4 +159,4 @@ if __name__ == '__main__':
         )
 
     trainer = PytorchGuppyyTrainer(train_params)
-    trainer.train(h)
+    trainer.train(e)

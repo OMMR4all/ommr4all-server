@@ -65,8 +65,16 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
     #ctcDecoder: SerializableCTCDecoderParams = field(default_factory=lambda: SerializableCTCDecoderParams())
 
     # tools
-    # symbol predicition
-    use_clef_pos_correction = True
+    # symbol prediction
+    use_rule_based_post_processing: bool = True
+    use_block_layout_correction: bool = False
+    use_overlapping_symbol_correction: bool = True
+    use_pis_clef_correction: bool = True
+    use_missing_clef_correction: bool = True
+    use_graphical_connection_correction: bool = False
+    use_pis_correction_of_stacked_symbols: bool = True
+
+
 
     # layout connected components
     initialLine: Optional['Coords'] = None

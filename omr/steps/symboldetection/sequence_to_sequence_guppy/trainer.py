@@ -114,6 +114,7 @@ class OMRTrainer(SymbolDetectionTrainer):
                 grad_clip=False,
                 img_height=112,
                 img_width=800,
+                augment=self.settings.page_segmentation_torch_params.data_augmentation
             )
             train_model(training_opts)
 

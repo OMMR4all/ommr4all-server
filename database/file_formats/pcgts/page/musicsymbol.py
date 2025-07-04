@@ -253,9 +253,9 @@ class MusicSymbol:
         self.advanced_class = advanced_class
         self.advanced_color = advanced_color
 
-    def get_str_representation(self):
+    def get_str_representation(self, graphical_connection: bool = False) -> str:
         if self.symbol_type == self.symbol_type.NOTE:
-            return str(self.note_name)
+            return str(self.position_in_staff.value) + str(self.graphical_connection.value)
         elif self.symbol_type == self.symbol_type.CLEF:
             return "Clef_C" if self.clef_type == self.clef_type.C else "Clef_F"
         else:

@@ -86,21 +86,21 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
             # tta_transforms=tta_transforms,
             post_transforms=post_transforms,
         )
-        if train_data.shape[0] < 15:
-            data = pd.concat([train_data, self.validation_dataset.to_memory_dataset(callback)], ignore_index=True, sort=False)
-            train_data = MemoryDataset(df=data, transforms=transforms.get_train_transforms(),
-                                       scale_area=9999999999)
-            val_data = MemoryDataset(data,
-                                     transforms=transforms.get_test_transforms(), scale_area=9999999999)
-            train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
-            val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
-        else:
+        #if train_data.shape[0] < 15:
+        #    data = pd.concat([train_data, self.validation_dataset.to_memory_dataset(callback)], ignore_index=True, sort=False)
+        #    train_data = MemoryDataset(df=data, transforms=transforms.get_train_transforms(),
+        #                               scale_area=9999999999)
+        #    val_data = MemoryDataset(data,
+        #                             transforms=transforms.get_test_transforms(), scale_area=9999999999)
+        #    train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
+        #    val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
+        #else:
 
-            train_data = MemoryDataset(df=train_data, transforms=transforms.get_train_transforms(), scale_area=9999999999)
-            val_data = MemoryDataset(self.validation_dataset.to_memory_dataset(callback),
-                                     transforms=transforms.get_test_transforms(), scale_area=9999999999)
-            train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
-            val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
+        train_data = MemoryDataset(df=train_data, transforms=transforms.get_train_transforms(), scale_area=9999999999)
+        val_data = MemoryDataset(self.validation_dataset.to_memory_dataset(callback),
+                                 transforms=transforms.get_test_transforms(), scale_area=9999999999)
+        train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
+        val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
 
         predfined_nw_settings = PredefinedNetworkSettings(
             architecture=self.settings.page_segmentation_torch_params.architecture,

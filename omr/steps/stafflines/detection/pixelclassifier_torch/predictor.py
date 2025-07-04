@@ -5,6 +5,8 @@ from segmentation.network import EnsemblePredictor
 from segmentation.network_postprocessor import NetworkMaskPostProcessor, MaskPredictionResult
 from segmentation.preprocessing.source_image import SourceImage
 from segmentation.scripts.train import get_default_device
+from tqdm import tqdm
+
 from shared.pcgtscanvas import PcGtsCanvas
 
 if __name__ == '__main__':
@@ -93,8 +95,7 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
         pc_dataset = PCDatasetTorch(pcgts_files, self.dataset_params)
         dataset = pc_dataset.to_line_detection_dataset()
 
-        for ind, i in enumerate(dataset):
-            print(i.operation.page.location.page)
+        for ind, i in enumerate(tqdm(dataset, total=len(pages))):
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(SourceImage.from_numpy(i.line_image))
             from scipy.special import softmax
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)

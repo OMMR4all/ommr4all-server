@@ -33,8 +33,8 @@ def overview_excel_sheet(symbol_eval_data, syl_eval_data, sheet):
 from ommr4all import settings
 
 
-def prepare_documents(gt_book: DatabaseBook):
-    workbook = openpyxl.load_workbook('/tmp/Graduale.xlsx')
+def prepare_documents(gt_book: DatabaseBook, filename: str) -> List[DocSpanType]:
+    workbook = openpyxl.load_workbook(f'/tmp/{filename}')
     sheet = workbook.active
     documents = DatabaseBookDocuments().load(gt_book)
     docs: List[DocSpanType] = []
@@ -55,28 +55,29 @@ for i in books:
     c = DatabaseBook('Graduel_Syn22_03_24')
 
     # excel_lines1 = evaluate_stafflines(b, c)
-    docs = prepare_documents(c)
-    #docs = filter_docs(docs, 253)
-    symbol_eval_data = gen_eval_symbol_documents_data(b, c, docs)
-    syl_eval_data = gen_eval_syllable_documents_data(b, c, docs)
+    for t in ["Graduale_No_Differences_filtered.xlsx", "Graduale_Minor Differences_filtered.xlsx", "Graduale_All_Docs_except_to_long_filtered.xlsx"]:
+        docs = prepare_documents(c, t)
+        #docs = filter_docs(docs, 253)
+        symbol_eval_data = gen_eval_symbol_documents_data(b, c, docs, ignore_gaped=True)
+        syl_eval_data = gen_eval_syllable_documents_data(b, c, docs)
 
-    from xlwt import Workbook
+        from xlwt import Workbook
 
-    wb2 = Workbook()
-    # Workbook is created
-    wb = Workbook()
-    # add_sheet is used to create sheet.
+        wb2 = Workbook()
+        # Workbook is created
+        wb = Workbook()
+        # add_sheet is used to create sheet.
 
-    sheet1 = wb.add_sheet('Symbols Docs')
-    eval_symbols__docs_instance(symbol_eval_data, sheet1)
-    sheet2 = wb.add_sheet('Symbols Lines')
-    eval_symbols__docs_line_instance(symbol_eval_data, sheet2)
+        sheet1 = wb.add_sheet('Symbols Docs')
+        eval_symbols__docs_instance(symbol_eval_data, sheet1)
+        sheet2 = wb.add_sheet('Symbols Lines')
+        eval_symbols__docs_line_instance(symbol_eval_data, sheet2)
 
-    sheet5 = wb.add_sheet('Syllable Docs')
-    eval_syl_docs_instance(syl_eval_data, sheet5)
-    sheet6 = wb.add_sheet('Syllable Line')
-    eval_syl_docs_line_instance(syl_eval_data, sheet6)
-    sheet10 = wb.add_sheet('overview 1')
-    overview_excel_sheet(symbol_eval_data, syl_eval_data, sheet10)
+        sheet5 = wb.add_sheet('Syllable Docs')
+        eval_syl_docs_instance(syl_eval_data, sheet5)
+        sheet6 = wb.add_sheet('Syllable Line')
+        eval_syl_docs_line_instance(syl_eval_data, sheet6)
+        sheet10 = wb.add_sheet('overview 1')
+        overview_excel_sheet(symbol_eval_data, syl_eval_data, sheet10)
 
-    wb.save(f"/tmp/{i}.xls")
+        wb.save(f"/tmp/{i}_{t}.xlsx")

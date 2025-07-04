@@ -20,7 +20,8 @@ class DatasetSource(str, enum.Enum):
     AN = "gregorianik_an"
     CM = "corpus_monodicum"
     CT = "cantus_db"
-
+    GI = "gregorien.info"
+    GE = "geesebook"
 
 @dataclass
 class DocumentMetaInfos(DataClassJSONMixin):
