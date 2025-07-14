@@ -9,6 +9,7 @@ from segmentation.datasets.dataset import MemoryDataset
 from torch.utils.data import DataLoader
 
 from omr.imageoperations.music_line_operations import SymbolLabel
+from omr.steps.callback import SegmentationProcessTrainCallback
 from omr.steps.stafflines.detection.trainer import StaffLineDetectionTrainer
 from omr.steps.symboldetection.torchpixelclassifier.params import remove_nones
 from segmentation.callback import ModelWriterCallback
@@ -59,9 +60,10 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
         super().__init__(settings)
 
     def _train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
+        pc_callback = SegmentationProcessTrainCallback(callback, epochs=self.params.n_epoch) if callback else None
+
         if callback:
             callback.resolving_files()
-        print(self.settings)
         train_data = self.train_dataset.to_memory_dataset(callback)
 
         color_map = ColorMap([ClassSpec(label=0, name="background", color=[255, 255, 255]),
@@ -138,7 +140,7 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
         network = ModelBuilderMeta(config, device=get_default_device()).get_model()
         mw = ModelWriterCallback(network, config, save_path=Path(self.settings.model.path), prefix="",
                                  metric_watcher_index=0)
-        callbacks = [mw]
+        callbacks = [mw, pc_callback]
         trainer = NetworkTrainer(network, NetworkTrainSettings(classes=len(color_map),
                                                                optimizer=Optimizers("adam"),
                                                                learningrate_seghead=self.params.l_rate,
