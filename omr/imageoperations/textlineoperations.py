@@ -50,12 +50,6 @@ class ImageExtractDeskewedLyrics(ImageOperation):
             return data.page.page_to_image_scale(p, data.scale_reference)
 
         s = [extract_transformed_coords(ml) for ml in all_mls]
-        #for i in all_mls:
-        #    print(i.coords.points)
-        #print("textlines")
-        #for i in all_tls:
-        #    print(i.coords.points)
-        # dewarp
         images = [Image.fromarray(image)]
         dewarper = Dewarper(images[0].size, s)
         dew_page, = tuple(map(np.array, dewarper.dewarp(images)))
@@ -69,6 +63,8 @@ class ImageExtractDeskewedLyrics(ImageOperation):
             image = dew_page[
                     int(aabb.top()) - self.pad[0]: int(aabb.bottom()) + self.pad[2],
                     int(aabb.left()) - self.pad[1]: int(aabb.right()) + self.pad[3]]
+
+
             #image = dew_page[
             #        int(aabb.top()): int(aabb.bottom()),
             #        int(aabb.left()): int(aabb.right())]
@@ -98,15 +94,9 @@ class ImageExtractDeskewedLyrics(ImageOperation):
     def local_to_global_pos(self, p: Point, params: Any):
         (dewarper, aabb, pad) = params
         point = Point(p.x - pad[0], p.y)
-        #print(aabb.tl.p)
         rec = Point(aabb.tl.p)
         point2 = Point(rec.x - pad[0], rec.y)
         point = Point(dewarper.transform_point(point.p + point2.p))
-        #print(point)
-        #point = Point(dewarper.transform_point(p.p + aabb.tl.p))
-
-        #point = Point(point.x - pad[0], point.y)
-        #print(point)
         return point
 
 

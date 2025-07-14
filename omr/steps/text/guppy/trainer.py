@@ -93,7 +93,6 @@ class PytorchGuppyyTrainer(TextTrainerBase):
             create_tempfiles(dirpath, train_dataset, type="", subfolder="train")
             create_tempfiles(dirpath, val_dataset, type="", subfolder="test")
             from guppyocr.train_calamares import TrainingOpts
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             print( self.params.model_to_load().local_file('model_best.pth'))
             training_opts = TrainingOpts(
                 output=self.settings.model.path,
