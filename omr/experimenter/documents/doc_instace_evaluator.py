@@ -156,7 +156,7 @@ def gen_eval_symbol_documents_data(pred_book: DatabaseBook, gt_book: DatabaseBoo
             pred_meta += meta_pred
         else:
             print(f"{i.doc.start.page_name} {i.doc.start.row}")
-    return SymbolEvalData(eval_data[:5])
+    return SymbolEvalData(eval_data)
 
 
 def eval_symbols__docs_instance(symbol_eval_data: SymbolEvalData, sheet):
@@ -959,54 +959,58 @@ if __name__ == "__main__":
               'mul_2_end_w_finetune_basic_w_doc_pp', 'mul_2_end_w_gt_symbols_no_finetune_no_pp', 'mul_2_end_w_gt_symbols_no_finetune_w_pp',
               'mul_2_end_w_gt_symbols_w_finetune_no_pp', 'mul_2_end_w_gt_symbols_w_finetune_no_pp', 'mul_2_end_w_gt_symbols_w_finetune_w_pp',
               'mul_2_end_w_gt_symbols_and_text', "mul_2_end_w_gt_symbols_w_finetune_no_pp_gt_text_seg3", "mul_2_rsync_gt_symobl_gt_text_gt_syllabels", "mul_2_end_w_finetune_basic_w_doc_pp_gt_text", "mul_2_rsync_gt_inferred_symbols_gt_text", "mul_2_end_w_finetune_symbols_no_finetune_no_pp2", "mul_2_end_w_finetune_symbols_w_finetune_no_pp2", "mul_2_end_w_finetune_symbols_no_finetune_w_pp2"]
+    #books2 = ["mul_2_end_w_finetune_symbols_w_finetune_w_pp2"]
+    books2 = ["Geesebook1_base_predict_full_ignore_gapped_predict", "Geesebook1_base_predict_full_symbolonlygapped", "Geesebook1textandsymbolgt", "Geesebook1_base_predict_gt_text", "Geesebook1_base_predict", "Geesebook1lines"]
+
     for i in books2:
         b = DatabaseBook(i)
-        c = DatabaseBook('mul_2_rsync_gt')
-        #c = DatabaseBook('Geesebook1gt')
+        #c = DatabaseBook('mul_2_rsync_gt')
+        c = DatabaseBook('Geesebook1gt')
         # excel_lines1 = evaluate_stafflines(b, c)
         docs, total, skipped = prepare_document(b, c)
-        docs = filter_docs(docs, below_page=253)
+        #docs = filter_docs(docs, below_page=253)
         from xlwt import Workbook
 
         wb2 = Workbook()
         # Workbook is created
         wb = Workbook()
         if True:
-            #layout_eval_data = gen_eval_layout_documents_data(b, c, docs)
+            layout_eval_data = gen_eval_layout_documents_data(b, c, docs)
 
             symbol_eval_data = gen_eval_symbol_documents_data(b, c, docs, ignore_gaped=True)
-            #text_eval_data = gen_eval_text_documents_data(b, c, docs)
-            #syl_eval_data = gen_eval_syllable_documents_data(b, c, docs)
+            text_eval_data = gen_eval_text_documents_data(b, c, docs)
+            syl_eval_data = gen_eval_syllable_documents_data(b, c, docs)
 
 
             # add_sheet is used to create sheet.
-            #excel_lines1 = evaluate_stafflines(b, c)
-            #sheet0 = wb.add_sheet('Stafflines')
-            #write_staffline_eval_data(excel_lines1, sheet0)
-            #sheet03 = wb.add_sheet('Layout Docs')
-            #eval_layout_docs_instance(layout_eval_data, sheet03)
-            #sheet04 = wb.add_sheet('Layout Lines')
-            #eval_layout_docs_line_instance(layout_eval_data, sheet04)
+            excel_lines1 = evaluate_stafflines(b, c)
+            sheet0 = wb.add_sheet('Stafflines')
+            write_staffline_eval_data(excel_lines1, sheet0)
+            sheet03 = wb.add_sheet('Layout Docs')
+            eval_layout_docs_instance(layout_eval_data, sheet03)
+            sheet04 = wb.add_sheet('Layout Lines')
+            eval_layout_docs_line_instance(layout_eval_data, sheet04)
 
-            #sheet1 = wb.add_sheet('Symbols Docs')
-            #eval_symbols__docs_instance(symbol_eval_data, sheet1)
+            sheet1 = wb.add_sheet('Symbols Docs')
+            eval_symbols__docs_instance(symbol_eval_data, sheet1)
             sheet2 = wb.add_sheet('Symbols Lines')
             eval_symbols__docs_instance(symbol_eval_data, sheet2)
-            #sheet3 = wb.add_sheet('Text Docs')
-            #eval_texts_docs_instance(text_eval_data, sheet3)
-            #sheet4 = wb.add_sheet('Text Lines')
-            #eval_texts_line_instance(text_eval_data, sheet4)
+            sheet3 = wb.add_sheet('Text Docs')
+            eval_texts_docs_instance(text_eval_data, sheet3)
+            sheet4 = wb.add_sheet('Text Lines')
+            eval_texts_line_instance(text_eval_data, sheet4)
 
 
-            #sheet34 = wb.add_sheet('Text Docs Line Ignored')
-            #eval_texts_docs_instance_ignore_lines(text_eval_data, sheet34)
+            sheet34 = wb.add_sheet('Text Docs Line Ignored')
+            eval_texts_docs_instance_ignore_lines(text_eval_data, sheet34)
 
-            #sheet5 = wb.add_sheet('Syllable Docs')
-            #eval_syl_docs_instance(syl_eval_data, sheet5)
-            #sheet6 = wb.add_sheet('Syllable Line')
-            #eval_syl_docs_line_instance(syl_eval_data, sheet6)
-            #sheet10 = wb.add_sheet('overview 1')
-            #overview_excel_sheet(excel_lines1, layout_eval_data, symbol_eval_data, text_eval_data, syl_eval_data, sheet10)
-            wb.save(f"/tmp/{i}.xlsx")
+            sheet5 = wb.add_sheet('Syllable Docs')
+            eval_syl_docs_instance(syl_eval_data, sheet5)
+            sheet6 = wb.add_sheet('Syllable Line')
+            eval_syl_docs_line_instance(syl_eval_data, sheet6)
+            sheet10 = wb.add_sheet('overview 1')
+            overview_excel_sheet(excel_lines1, layout_eval_data, symbol_eval_data, text_eval_data, syl_eval_data, sheet10)
+
+            wb.save(f"/tmp/{i}.xls")
 
         print(f"Skipped {skipped}, docs, {len(docs)} total {total}")

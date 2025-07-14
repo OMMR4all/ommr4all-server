@@ -38,10 +38,9 @@ class OMRPredictor(SymbolsPredictor):
         # print(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
         #                   'network_config', 'ocr_config.yaml'))
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        #self.device = torch.device('cpu')
-        print(path)
+        self.device = torch.device('cpu')
+
         self.network = GuppyOCR.load_model(path, self.device)
-        print(self.device)
         self.settings = settings
         self.dict_corrector = None
         self.database_hyphen_dictionary = None

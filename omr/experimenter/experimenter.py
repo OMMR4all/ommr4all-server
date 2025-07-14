@@ -157,7 +157,12 @@ class Experimenter(ABC):
         model_path = os.path.join(args.model_dir, 'best')
 
         if not global_args.skip_train:
-            fold_log.info(f"Starting training. Training:{len(args.train_pcgts_files)} and Val: {len(args.validation_pcgts_files)}")
+            #fold_log.info(args.train_pcgts_files)
+            #print(len(args.train_pcgts_files))
+            #print(len(args.validation_pcgts_files))
+            #print(len(args.test_pcgts_files))
+            validation_data = args.validation_pcgts_files if args.validation_pcgts_files else args.train_pcgts_files
+            fold_log.info(f"Starting training. Training:{len(args.train_pcgts_files)} and Val: {len(validation_data)}")
 
             trainer = Step.create_trainer(
                 global_args.algorithm_type,

@@ -193,8 +193,9 @@ class SymbolsExperimenter(Experimenter):
         at = PrettyTable(["Missing Notes", "Wrong NC", "Wrong PIS", "Missing Clefs", "Missing Accids", "Additional Notes", "FP Wrong NC", "FP Wrong PIS", "Additional Clefs", "Additional Accids", "Acc", "Total"])
         at.add_row(total_diffs)
         self.fold_log.debug(at)
-
-        return prec_rec_f1, acc_acc, total_diffs, counts1.to_np_array(), counts2.to_np_array(), melody_acc, total_diffs_count
+        counts_all = np.array([[c[Counts.TP], c[Counts.FP], c[Counts.FN]] for c in counts]).reshape([-1])
+        counts_acc = np.array([[c[Counts.TP], c[Counts.FP], c[Counts.FN]] for c in acc_counts]).reshape([-1])
+        return prec_rec_f1, acc_acc, total_diffs, counts1.to_np_array(), counts2.to_np_array(), melody_acc, total_diffs_count, counts_all, counts_acc
 
     @classmethod
     def print_results(cls, args, results, log):
@@ -207,6 +208,8 @@ class SymbolsExperimenter(Experimenter):
         clef_analysis = [r[4] for r in results if r is not None]
         melody_count_list = [r[5] for r in results if r is not None]
         total_diffs_count_list = [r[6] for r in results if r is not None]
+        total_type_count_list = [r[7] for r in results if r is not None]
+        total_acc_count_list = [r[8] for r in results if r is not None]
 
         if len(prec_rec_f1_list) == 0:
             return
@@ -227,6 +230,8 @@ class SymbolsExperimenter(Experimenter):
         melody_mean = np.mean(melody_count_list, axis=0)
         melody_std = np.std(melody_count_list, axis=0)
         total_diffs_sum = np.sum(total_diffs_count_list, axis=0)
+        total_type_count_sum = np.sum(total_type_count_list, axis=0)
+        total_acc_count_sum = np.sum(total_acc_count_list, axis=0)
 
         at = PrettyTable()
 
@@ -260,4 +265,4 @@ class SymbolsExperimenter(Experimenter):
             all_clef_analysis = np.array(np.transpose([clef_analysis_sum, clef_analysis_mean])).reshape([-1])
             all_melody = np.array(np.transpose([melody_mean, melody_std])).reshape([-1])
             total_diffs_sum = np.array(total_diffs_sum)
-            print("{}{}".format(args.magic_prefix, ','.join(map(str, list(all_symbol_detection) + list(all_acc) + list(all_diffs) + list(all_melody) +  list(all_clef_analysis) + list(total_diffs_sum)))))
+            print("{}{}".format(args.magic_prefix, ','.join(map(str, list(all_symbol_detection) + list(all_acc) + list(all_diffs) + list(all_melody) +  list(all_clef_analysis) + list(total_diffs_sum)+ list(total_type_count_sum) + list(total_acc_count_sum)))))

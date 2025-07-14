@@ -115,6 +115,7 @@ def generate_dataset(lock_states: List[LockState],
     elif all([train_books, test_books]):
         train_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books])
         test_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in test_books])
+
         if val_amount == 0:
             train_args = [
                 GeneratedData(fold,

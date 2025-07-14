@@ -15,7 +15,7 @@ from omr.steps.text.experimenter import TextExperimenter
 logger = logging.getLogger(__name__)
 
 
-def evaluate_symbols(pred_symbols: List[List[MusicSymbol]], gt_symbols: List[List[MusicSymbol]]):
+def evaluate_symbols(pred_symbols: List[List[MusicSymbol]], gt_symbols: List[List[MusicSymbol]], count_output=False):
     evaluator = SymbolDetectionEvaluator()
     metrics, counts, acc_counts, acc_acc, total_diffs, total_diffs_count = evaluator.evaluate(gt_symbols, pred_symbols)
     melody_evaluator = SymbolMelodyEvaluator()
@@ -35,6 +35,11 @@ def evaluate_symbols(pred_symbols: List[List[MusicSymbol]], gt_symbols: List[Lis
 
     if len(prec_rec_f1_list) == 0:
         return
+
+
+    ##counts
+    counts_all = np.array([[c[Counts.TP], c[Counts.FP], c[Counts.FN]] for c in counts]).reshape([-1])
+    counts_acc = np.array([[c[Counts.TP], c[Counts.FP], c[Counts.FN]] for c in acc_counts]).reshape([-1])
 
     prf1_mean = np.mean(prec_rec_f1_list, axis=0)
     prf1_std = np.std(prec_rec_f1_list, axis=0)
@@ -62,7 +67,7 @@ def evaluate_symbols(pred_symbols: List[List[MusicSymbol]], gt_symbols: List[Lis
     # total_diffs_sum = np.array(total_diffs_sum)
     output_String = "{}{}".format("EXPERIMENT_OUT=",
                                   ','.join(map(str, list(all_symbol_detection) + list(all_acc) + list(
-                                      all_diffs) + list(all_melody))))  # + list(total_diffs_sum))))
+                                      all_diffs) + list(all_melody) + list(counts_all) +list(counts_acc) )))   # + list(total_diffs_sum))))
 
     output_String = output_String[len("EXPERIMENT_OUT="):]
     output_array = output_String.split(",")
@@ -75,14 +80,21 @@ def evaluate_symbols(pred_symbols: List[List[MusicSymbol]], gt_symbols: List[Lis
         ["missing notes"] + ["~"] + ["Wrong Nc"] + ["~"] + ["Wrong PIS"] + ["~"] + ["Missing Clefs"] + ["~"] + [
             "Missing Accids"] + ["~"]
         + ["Add notes"] + ["~"] + ["FP Wrong NC"] + ["~"] + ["FP Wrong Pis"] + ["~"]
-        + ["Add Clefs"] + ["~"] + ["Add Accids"] + ["~"] + ["Acc"] + ["~"] + ["Total"] + ["~"] + ["Melody"] + ["~"])
+        + ["Add Clefs"] + ["~"] + ["Add Accids"] + ["~"] + ["Acc"] + ["~"] + ["Total"] + ["~"] + ["Melody"] + ["~"] + ["Existence"]+["Existence"]+["Existence"]
+        +["TypeAll"]+["TypeAll"]+["TypeAll"] +["TypeNotes", "TypeNotes", "TypeNotes"]+["TypeClef", "TypeClef", "TypeClef"]
+        +["TypeAccid", "TypeAccid", "TypeAccid"] + ["NoteSubtype", "NoteSubtype", "NoteSubtype"] + ["NotePis", "NotePis", "NotePis"] +
+        ["ClefSubtype", "ClefSubtype", "ClefSubtype"] + ["ClefPis", "ClefPis", "ClefPis"] +["AccidSubtype", "AccidSubtype", "AccidSubtype"] +
+        ["Sequence", "Sequence", "Sequence"] + ["SequenceNC", "SequenceNC", "SequenceNC"] + ["SequenceNeume", "SequenceNeume", "SequenceNeume"]
+
+
+    )
     excel_lines.append(["Precision"] + ["~"] + ["Recall"] + ["~"] + ["F1"] + ["~"] +
                        ["Precision"] + ["~"] + ["Recall"] + ["~"] + ["F1"] + ["~"] +
                        ["Precision"] + ["~"] + ["Recall"] + ["~"] + ["F1"] + ["~"] +
                        ["Precision"] + ["~"] + ["Recall"] + ["~"] + ["F1"] + ["~"] +
                        ["Acc"] + ["~"] + ["Acc"] + ["~"] + ["Acc"] + ["~"] + ["Acc"] + ["~"] +
                        ["Accid Type"] + ["~"] + ["CAR"] + ["~"] + ["CAR"] + ["~"] + ["NAR"] + ["~"] +
-                       ["Amount", "~"] * 13
+                       ["Amount", "~"] * 13 + ["#TP", "#FP", "#FN"]*5+ ["#True", "#False", "#Total"]*8
                        )
     excel_lines.append(output_array)
 
@@ -146,6 +158,9 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput], save_to_excel: bool =
         tp = 0
         fp = 0
         fn = 0
+        tp_withouttxt = 0
+        fp_withouttxt = 0
+        fn_withouttxt = 0
 
         fp_prev_line = []
         for i in eval_data:
@@ -160,10 +175,13 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput], save_to_excel: bool =
 
             for i in syl_connectors_gt:
                 found = False
+                found_without_txt = False
                 index = -1
 
                 for ind, p in enumerate(syl_connectors_pred):
                     if abs(i.note.coord.x - p.note.coord.x) < 0.005:
+                        tp_withouttxt += 1
+                        found_without_txt = True
                         # (i.syllable.text in p.syllable.text or p.syllable.text in i.syllable.text) when different grammar used to split words in syllabels
                         if i.syllable.text.lower() == p.syllable.text.lower() or (i.syllable.text.lower() in p.syllable.text.lower() or p.syllable.text.lower() in i.syllable.text.lower()):
                             tp += 1
@@ -176,6 +194,8 @@ def evaluate_syllabels(eval_data: List[SyllableEvalInput], save_to_excel: bool =
                 if not found:
                     add_gt_connections.append(i)
                     fn += 1
+                if not found_without_txt:
+                    fn_withouttxt += 1
             fp += len(syl_connectors_pred)
             keep= True
             #print(len(add_gt_connections))
