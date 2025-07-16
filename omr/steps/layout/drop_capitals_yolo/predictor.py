@@ -1,8 +1,7 @@
 import random
-
+import os
 import cv2
 import torch
-import os
 
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator
@@ -15,7 +14,7 @@ from typing import List, Optional
 from database.file_formats.pcgts import PcGts, BlockType, Coords, Line, Rect, Point, Size, Page, PageScaleReference
 import numpy as np
 from omr.steps.layout.drop_capitals_yolo.meta import Meta
-from scipy.spatial import ConvexHull, convex_hull_plot_2d
+from loguru import logger
 
 if __name__ == '__main__':
     import django
@@ -53,8 +52,9 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
         #self.model = YOLO("/home/alexanderh/Downloads/yolov8n_layout_camerarius.pt")
         #self.model = YOLO("/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/runs/detect/train16/weights/best.pt")
         path = os.path.join(settings.model.path)
+        logger.info(f'Using model: {path}')
+
         model_weights = os.path.join(path, 'best.pt')
-        print(model_weights)
         self.model = YOLO(model_weights)
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> PredictionType:
         dc_dataset = DropCapitalDatasetDataset(pcgts_files, self.dataset_params)

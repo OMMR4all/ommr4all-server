@@ -42,11 +42,11 @@ class Storage(NamedTuple):
 class ModelsId(NamedTuple):
     @staticmethod
     def from_internal(notation_style: str, algorithm_type: AlgorithmTypes):
-        return ModelsId(Storage(StorageType.INTERNAL), None, notation_style, algorithm_type)
+        return ModelsId(Storage(StorageType.INTERNAL), None, notation_style, algorithm_type.model_type())
 
     @staticmethod
     def from_external(book: str, algorithm_type: AlgorithmTypes):
-        return ModelsId(Storage(StorageType.EXTERNAL), book, None, algorithm_type)
+        return ModelsId(Storage(StorageType.EXTERNAL), book, None, algorithm_type.model_type())
 
     @staticmethod
     def parse(s: str, remaining: Optional[List[str]]) -> 'ModelsId':

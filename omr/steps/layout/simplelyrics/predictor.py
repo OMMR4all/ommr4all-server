@@ -10,6 +10,7 @@ from database.file_formats.pcgts import PcGts, BlockType, Coords, Line, Rect, Po
 import numpy as np
 from omr.steps.layout.lyricsbbs.meta import Meta
 from omr.steps.step import Step
+from loguru import logger
 
 
 class Predictor(LayoutAnalysisPredictor):
@@ -36,12 +37,14 @@ class Predictor(LayoutAnalysisPredictor):
         else:
             self.drop_capital: DropCapitalPredictor = None
         '''
+        logger.info(self.settings.model.path)
         meta = Step.meta(AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO)
 
-        model = meta.default_model_for_style('french14')
+        #model = meta.default_model_for_style('french14')
+
         # print(model.path)
         settings = AlgorithmPredictorSettings(
-            model=model,
+            model=self.settings.model,
         )
         self.drop_capital: DropCapitalPredictor = meta.create_predictor(settings)
 

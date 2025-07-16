@@ -160,6 +160,9 @@ class BookOperationView(APIView):
         elif operation == 'train_staff_line_detector':
             from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
             return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.STAFF_LINES_PC_Torch)
+        elif operation == 'train_layout_detector':
+            from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
+            return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO)
         elif operation == 'train_character_recognition':
             from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
             return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.OCR_GUPPY)

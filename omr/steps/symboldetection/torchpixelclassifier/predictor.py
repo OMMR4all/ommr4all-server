@@ -85,15 +85,12 @@ class PCTorchPredictor(SymbolsPredictor):
                                                                                 min_symbol_area=4, lookup=self.look_up))
 
             if self.settings.params.use_rule_based_post_processing:
-                loguru.logger.info(f'test1')
                 if self.settings.params.use_block_layout_correction:
                     symbols = correct_symbols_inside_wrong_blocks(m.operation.page, symbols)
                     symbols = correct_symbols_inside_text_blocks(m.operation.page, symbols)
-                    loguru.logger.info(f'test2')
 
                 if self.settings.params.use_overlapping_symbol_correction:
                     symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
-                    loguru.logger.info(f'test3')
 
                 additional_symbols = correct_symbols_inside_text_blocks(m.operation.page, additional_symbols)
                 #additional_symbols = correct_symbols_inside_wrong_blocks(m.operation.page, additional_symbols)
@@ -102,23 +99,19 @@ class PCTorchPredictor(SymbolsPredictor):
                 if self.settings.params.use_missing_clef_correction:
                     symbols, change = fix_missing_clef(symbols, additional_symbols)
                     symbols = fix_missing_clef2(symbols1=symbols, symbols2=additional_symbols, page=m.operation.page, m=m)
-                    loguru.logger.info(f'test4')
 
                 #symbols = fix_overlapping_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2)
                 ### symbols = fix_pos_of_close_symbols(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
                 if self.settings.params.use_graphical_connection_correction:
                     correct_looped_connection(symbols, additional_symbols, page=m.operation.page, m=m)
-                    loguru.logger.info(f'test5')
 
                 if self.settings.params.use_pis_correction_of_stacked_symbols:
                     symbols = fix_pos_of_close_symbols3(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m)
-                    loguru.logger.info(f'test6')
 
                 symbols = add_neume_start_pos(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m, debug=False)
                 line = Line(symbols=symbols)
 
                 if self.settings.params.use_missing_clef_correction:
-                    loguru.logger.info(f'test7')
 
                     initial_clef = None
                     if len(symbols) > 0:

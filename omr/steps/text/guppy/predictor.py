@@ -237,11 +237,11 @@ class GuppyPredictor(TextPredictor):
             #print(self.dict_corrector)
             if self.dict_corrector:
                 if len(sentence.decoded_string) > 0:
-                    hyphenated = self.dict_corrector.segmentate_correct_and_hyphenate_text(sentence.decoded_string)
+                    hyphenated = self.dict_corrector.segmentate_correct_and_hyphenate_text(sentence.decoded_string.replace(".",""))
                 else:
                     hyphenated = sentence.decoded_string
             else:
-                hyphenated = hyphen.apply_to_sentence(sentence.decoded_string)
+                hyphenated = hyphen.apply_to_sentence(sentence.decoded_string.replace(".","").replace("ſ","s"))
             percentage = (i + 1) / len(loaded_dataset)
             if callback:
                 callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len(loaded_dataset))

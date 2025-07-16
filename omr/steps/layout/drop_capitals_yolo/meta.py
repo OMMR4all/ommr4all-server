@@ -15,7 +15,8 @@ class Meta(AlgorithmMeta):
 
     @classmethod
     def trainer(cls) -> Type[AlgorithmTrainer]:
-        raise NotImplementedError()
+        from .trainer import  DropCapitalTrainer
+        return DropCapitalTrainer
 
     @staticmethod
     def dataset_class() -> Type[Dataset]:
