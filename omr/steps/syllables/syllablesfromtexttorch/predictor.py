@@ -18,10 +18,10 @@ from omr.steps.syllables.predictor import PredictionResult, SyllablesPredictor, 
     PageMatchResult
 from omr.steps.text.predictor import PredictionResult as TextPredictionResult
 from omr.steps.text.predictor import SingleLinePredictionResult as TextSingleLinePredictionResult
-# from calamari_ocr.ocr.backends.ctc_decoder.ctc_decoder import CTCDecoderParams
 import unidecode
 from difflib import SequenceMatcher
 from prettytable import PrettyTable
+from loguru import logger
 
 
 def match_text2(r: TextSingleLinePredictionResult, debug=False) -> MatchResult:
@@ -146,6 +146,7 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
             #m_path = '/storage/Geesebook2gt/models/text_guppy/2025-06-21T13:07:33/'
             model = Model(
                 MetaId.from_custom_path(BASE_DIR + m_path, meta.type()))
+        logger.info("Using model {}".format(model.path))
         settings = AlgorithmPredictorSettings(
             model=model,
         )

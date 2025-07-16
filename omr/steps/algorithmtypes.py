@@ -48,6 +48,16 @@ class AlgorithmTypes(Enum):
     def group(self) -> 'AlgorithmGroups':
         return [k for k, v in AlgorithmGroups.group_types_mapping().items() if self in v][0]
 
+    def model_type(self):
+        return {
+            AlgorithmTypes.LAYOUT_SIMPLE_LYRICS: AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO,
+            AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH: AlgorithmTypes.OCR_GUPPY,
+        }[self] if self in {
+            AlgorithmTypes.LAYOUT_SIMPLE_LYRICS,
+            AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH,
+        } else self
+
+
 
 class AlgorithmGroups(Enum):
     PREPROCESSING = 'preprocessing'

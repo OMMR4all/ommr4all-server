@@ -22,9 +22,8 @@ from database import DatabaseBook
 from database.file_formats.performance.pageprogress import Locks
 from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
 import torchvision
-from torchvision.models.detection import FasterRCNN
-from torchvision.models.detection.rpn import AnchorGenerator
 from omr.steps.layout.drop_capitals_yolo.meta import Meta
+from loguru import logger
 
 def get_model_instance_segmentation(num_classes):
     # load an instance segmentation model pre-trained on COCO
@@ -95,7 +94,6 @@ class DropCapitalTrainer(SymbolDetectionTrainer):
             return lookup_dict
 
         with tempfile.TemporaryDirectory() as dirpath:
-            print(dirpath)
             os.mkdir(os.path.join(dirpath, "train"))
             os.mkdir(os.path.join(dirpath, "val"))
             train_path = Path(os.path.join(dirpath, "train"))
@@ -110,13 +108,18 @@ class DropCapitalTrainer(SymbolDetectionTrainer):
             from ultralytics import YOLO
 
             # Load the model.
-            model = YOLO("/home/alexanderh/Downloads/yolov8n_layout_camerarius.pt")
-
+            #model = YOLO("/home/alexanderh/Downloads/yolov8n_layout_camerarius.pt")
+            # Load default model
+            if self.params.model_to_load() is None:
+                model = YOLO("yolov8n.pt")
+            else:
+                model = YOLO(self.params.model_to_load().local_file('best.pt'))
             # Training.
             results = model.train(
                 data=yaml_path,
+                project= dirpath,
                 #name='yolov8m.pt',
-                save=True,
+                save=False,
                 epochs=100,
                 imgsz=960,
                 fliplr=0.5,
@@ -124,6 +127,8 @@ class DropCapitalTrainer(SymbolDetectionTrainer):
                 degrees=2,
 
             )
+            logger.info(f"Saved model to {os.path.join(self.settings.model.path, 'best.pt')}")
+            model.save(os.path.join(self.settings.model.path, 'best.pt'))
         "/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/runs/detect/train/weights/best.pt"
         # val_dataset = self.validation_dataset.to_nautilus_dataset(train=False, callback=callback)
 
@@ -133,12 +138,11 @@ class DropCapitalTrainer(SymbolDetectionTrainer):
 if __name__ == '__main__':
     from omr.dataset import DatasetParams
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
-    b = DatabaseBook('Pa_14819')
+    #b = DatabaseBook('Pa_14819')
     c = DatabaseBook('Aveiro_ANTF28')
-    d = DatabaseBook('Geesebook2')
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.LAYOUT, True)], datasets=[b, c, d])
-    print(len(train))
-    print(len(val))
+    #d = DatabaseBook('Geesebook2')
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.LAYOUT, True)], datasets=[c])
+
     settings = AlgorithmTrainerSettings(
         DatasetParams(),
         train,
@@ -146,5 +150,5 @@ if __name__ == '__main__':
 
     )
     trainer = DropCapitalTrainer(settings)
-    trainer.train(b)
+    trainer.train(c)
 
