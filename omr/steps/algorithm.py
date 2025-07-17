@@ -254,7 +254,7 @@ class AlgorithmMeta(ABC):
 
     @classmethod
     def model_dir(cls) -> str:
-        return cls.type().value
+        return cls.type().model_type().value
 
     @classmethod
     def models_for_book(cls, book: DatabaseBook) -> Models:
@@ -291,7 +291,6 @@ class AlgorithmMeta(ABC):
         newest_model = cls.newest_model_for_book(book)
         if newest_model and newest_model.exists():
             return newest_model
-
         return cls.default_model_for_book(book)
 
     @classmethod
@@ -305,11 +304,9 @@ class AlgorithmMeta(ABC):
             model = Model(selected_params.modelId)
             if model and model.exists():
                 return model
-
         best = cls.best_model_for_book(book)
         if best and best.exists():
             return best
-
         # fallback: french14 must exist
         return cls.default_model_for_style('french14')
 
