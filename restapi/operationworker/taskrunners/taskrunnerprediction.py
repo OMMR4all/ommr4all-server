@@ -52,6 +52,7 @@ class TaskRunnerPrediction(TaskRunner):
             model=meta.selected_model_for_book(self.selection.book),
             params=self.settings.params,
         )
+
         staff_line_detector: AlgorithmPredictor = meta.create_predictor(params)
         com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
 
