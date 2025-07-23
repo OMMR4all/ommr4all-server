@@ -9,6 +9,7 @@ from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 
 from omr.dataset import DatasetParams
 from omr.steps.layout.drop_capitals.torch_dataset import DropCapitalDataset
+from omr.steps.layout.trainer import LayoutTrainerBase
 from omr.steps.symboldetection.trainer import SymbolDetectionTrainer
 
 if __name__ == '__main__':
@@ -43,7 +44,7 @@ def get_model_instance_segmentation(num_classes):
                                                        num_classes)
 
     return model
-class DropCapitalTrainer(SymbolDetectionTrainer):
+class DropCapitalTrainer(LayoutTrainerBase):
     @staticmethod
     def meta() -> Meta.__class__:
         return Meta
@@ -129,7 +130,6 @@ class DropCapitalTrainer(SymbolDetectionTrainer):
             )
             logger.info(f"Saved model to {os.path.join(self.settings.model.path, 'best.pt')}")
             model.save(os.path.join(self.settings.model.path, 'best.pt'))
-        "/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/runs/detect/train/weights/best.pt"
         # val_dataset = self.validation_dataset.to_nautilus_dataset(train=False, callback=callback)
 
 
