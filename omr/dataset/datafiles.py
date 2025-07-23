@@ -13,7 +13,6 @@ class EmptyDataSetException(Exception):
 
 
 def dataset_by_locked_pages(n_train, locks: List[LockState], shuffle: bool = True, datasets: List[DatabaseBook] = None) -> Tuple[List[PcGts], List[PcGts]]:
-
     logger.info("Finding PcGts files with valid ground truth")
     pcgts = []
     for dataset in (datasets if datasets else DatabaseBook.list_available()):
@@ -35,7 +34,7 @@ def dataset_by_locked_pages(n_train, locks: List[LockState], shuffle: bool = Tru
 
     def print_train_pcgts(pcgts):
         files = [p.page.location.local_path() for p in pcgts]
-        print(files)
+        logger.info(files)
     print_train_pcgts(train_pcgts)
     print_train_pcgts(val_pcgts)
 

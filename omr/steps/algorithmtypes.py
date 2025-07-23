@@ -2,7 +2,7 @@ from enum import Enum, Enum
 from typing import Dict, List
 
 from database.file_formats.performance.pageprogress import Locks
-
+from loguru import logger
 
 class AlgorithmTypes(Enum):
     PREPROCESSING = "preprocessing"
@@ -79,7 +79,7 @@ class AlgorithmGroups(Enum):
             AlgorithmGroups.SYMBOLS: [AlgorithmTypes.SYMBOLS_PC, AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE,
                                       AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE_NAUTILUS,
                                       AlgorithmTypes.SYMBOLS_PC_TORCH],
-            AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_CALAMARI, AlgorithmTypes.OCR_NAUTILUS, AlgorithmTypes.OCR_GUPPY],
+            AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_CALAMARI, AlgorithmTypes.OCR_NAUTILUS, AlgorithmTypes.OCR_GUPPY, AlgorithmTypes.TEXT_DOCUMENT],
             AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_FROM_TEXT, AlgorithmTypes.SYLLABLES_IN_ORDER,
                                         AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH],
             AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION,

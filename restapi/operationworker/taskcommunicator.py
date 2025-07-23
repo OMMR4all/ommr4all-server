@@ -5,13 +5,13 @@ import multiprocessing as mp
 import threading
 import logging
 #mp.set_start_method('spawn')
-import torch
+#import torch
 logger = logging.getLogger(__name__)
-try:
-    # torch fork problem workaround
-    torch.set_num_threads(1)
-except RuntimeError:
-    pass
+#try:
+#    # torch fork problem workaround
+#    torch.set_num_threads(1)
+#except RuntimeError:
+#    pass
 class TaskCommunicationData(NamedTuple):
     task: Task
     status: TaskStatus
