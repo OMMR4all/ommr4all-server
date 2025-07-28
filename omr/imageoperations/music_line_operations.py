@@ -2,7 +2,7 @@ from omr.imageoperations.image_operation import ImageOperation, ImageOperationDa
 from omr.imageoperations.image_crop import ImageCropToSmallestBoxOperation
 from typing import Tuple, List, Any, Optional
 from database.file_formats.pcgts import Page, PageScaleReference, Line, MusicSymbol, ClefType, AccidType, \
-    GraphicalConnectionType, Coords, SymbolType, BlockType
+    GraphicalConnectionType, Coords, SymbolType, BlockType, NoteType
 import numpy as np
 from PIL import Image
 from copy import copy
@@ -23,6 +23,26 @@ class SymbolLabel(IntEnum):
     ACCID_NATURAL = 6
     ACCID_SHARP = 7
     ACCID_FLAT = 8
+
+    # Maybe use a second segmentation head for note type detection
+    ORISCUS_START = 9
+    ORISCUS_LOOPED = 10
+    ORISCUS_GAPPED = 11
+
+    APOSTROPHA_START = 12
+    APOSTROPHA_LOOPED = 13
+    APOSTROPHA_GAPPED = 14
+
+    LIQUESCENT_UP_START = 15
+    LIQUESCENT_UP_LOOPED = 16
+    LIQUESCENT_UP_GAPPED = 17
+
+    LIQUESCENT_DOWN_START = 18
+    LIQUESCENT_DOWN_LOOPED = 19
+    LIQUESCENT_DOWN_GAPPED = 20
+
+
+
 
     def to_music_symbol(self) -> MusicSymbol:
         return {
@@ -49,20 +69,73 @@ class SymbolLabel(IntEnum):
                 5: [0, 255, 0],
                 6: [0, 0, 255],
                 7: [50, 50, 255],
-                8: [0, 0, 120]}[self.value]
+                8: [0, 0, 120],
+                9: [255, 0, 255],  # ORISCUS_START
+                10: [255, 120, 255],  # ORISCUS_LOOPED
+                11: [120, 0, 120],  # ORISCUS_GAPPED
+                12: [255, 255, 0],  # APOSTROPHA_START
+                13: [255, 255, 120],  # APOSTROPHA_LOOPED
+                14: [120, 120, 0],  # APOSTROPHA_GAPPED
+                15: [0, 255, 255],  # LIQUESCENT_UP_START
+                16: [120, 255, 255],  # LIQUESCENT_UP_LOOPED
+                17: [0, 120, 120],  # LIQUESCENT_UP_GAPPED
+                18: [255, 0, 120],  # LIQUESCENT_DOWN_START
+                19: [255, 120, 150],  # LIQUESCENT_DOWN_LOOPED
+                20: [120, 0, 60],  # LIQUESCENT_DOWN_GAPPED
+
+
+                }[self.value]
     @staticmethod
     def music_symbol_to_symbol_label(s: MusicSymbol):
         if s is None:
             return SymbolLabel.BACKGROUND
         elif s.symbol_type == SymbolType.NOTE:
-            if s.graphical_connection == GraphicalConnectionType.NEUME_START:
-                return SymbolLabel.NOTE_START
-            elif s.graphical_connection == GraphicalConnectionType.LOOPED:
-                return SymbolLabel.NOTE_LOOPED
-            elif s.graphical_connection == GraphicalConnectionType.GAPED:
-                return SymbolLabel.NOTE_GAPPED
-            else:
-                raise Exception('Invalid graphical connection type')
+            if s.note_type == NoteType.NORMAL:
+                if s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                    return SymbolLabel.NOTE_START
+                elif s.graphical_connection == GraphicalConnectionType.LOOPED:
+                    return SymbolLabel.NOTE_LOOPED
+                elif s.graphical_connection == GraphicalConnectionType.GAPED:
+                    return SymbolLabel.NOTE_GAPPED
+                else:
+                    raise Exception('Invalid graphical connection type')
+            elif s.note_type == NoteType.ORISCUS:
+                if s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                    return SymbolLabel.ORISCUS_START
+                elif s.graphical_connection == GraphicalConnectionType.LOOPED:
+                    return SymbolLabel.ORISCUS_LOOPED
+                elif s.graphical_connection == GraphicalConnectionType.GAPED:
+                    return SymbolLabel.ORISCUS_GAPPED
+                else:
+                    raise Exception('Invalid graphical connection type')
+            elif s.note_type == NoteType.APOSTROPHA:
+                if s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                    return SymbolLabel.APOSTROPHA_START
+                elif s.graphical_connection == GraphicalConnectionType.LOOPED:
+                    return SymbolLabel.APOSTROPHA_LOOPED
+                elif s.graphical_connection == GraphicalConnectionType.GAPED:
+                    return SymbolLabel.APOSTROPHA_GAPPED
+                else:
+                    raise Exception('Invalid graphical connection type')
+            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_U:
+                if s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                    return SymbolLabel.LIQUESCENT_UP_START
+                elif s.graphical_connection == GraphicalConnectionType.LOOPED:
+                    return SymbolLabel.LIQUESCENT_UP_LOOPED
+                elif s.graphical_connection == GraphicalConnectionType.GAPED:
+                    return SymbolLabel.LIQUESCENT_UP_GAPPED
+                else:
+                    raise Exception('Invalid graphical connection type')
+            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_D:
+                if s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                    return SymbolLabel.LIQUESCENT_DOWN_START
+                elif s.graphical_connection == GraphicalConnectionType.LOOPED:
+                    return SymbolLabel.LIQUESCENT_DOWN_LOOPED
+                elif s.graphical_connection == GraphicalConnectionType.GAPED:
+                    return SymbolLabel.LIQUESCENT_DOWN_GAPPED
+                else:
+                    raise Exception('Invalid graphical connection type')
+
         elif s.symbol_type == SymbolType.CLEF:
             if s.clef_type == ClefType.C:
                 return SymbolLabel.CLEF_C
@@ -200,7 +273,7 @@ class ImageExtractDropCapitalsImages(ImageOperation):
 
 
 class ImageExtractDewarpedStaffLineImages(ImageOperation):
-    def __init__(self, dewarp, cut_region, pad, center, staff_lines_only, keep_graphical_connection):
+    def __init__(self, dewarp, cut_region, pad, center, staff_lines_only, keep_graphical_connection, additional_symbol_types):
         super().__init__()
         self.dewarp = dewarp
         self.cut_region = cut_region
@@ -208,6 +281,8 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         self.staff_lines_only = staff_lines_only
         self.cropper = ImageCropToSmallestBoxOperation(pad)
         self.keep_graphical_connection = keep_graphical_connection
+        self.additional_symbol_types = additional_symbol_types
+
 
     def apply_single(self, data: ImageOperationData, debug=False) -> OperationOutput:
         image = data.images[0].image
@@ -234,7 +309,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                     labels[top:bot, left:right] = i
                 else:
                     data.page.page_to_image_scale(ml.coords, data.scale_reference).draw(labels, i, 0, fill=True)
-                self._symbols_to_mask(ml, marked_symbols, data.page, data.scale_reference, self.keep_graphical_connection)
+                self._symbols_to_mask(ml, marked_symbols, data.page, data.scale_reference, self.keep_graphical_connection, self.additional_symbol_types)
                 i += 1
 
         if self.dewarp:
@@ -345,7 +420,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
         data.images = [data.images[1], ImageData(gray * data.images[1].image, False)] + data.images[2:]
 
-    def _symbols_to_mask(self, ml: Line, img: np.ndarray, page: Page, scale: PageScaleReference, keep_graphical_connection=None):
+    def _symbols_to_mask(self, ml: Line, img: np.ndarray, page: Page, scale: PageScaleReference, keep_graphical_connection=None, additional_note_type=False):
         import cv2
 
         if len(ml.staff_lines) < 2:  # at least two staff lines required
@@ -365,20 +440,92 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
         for s in ml.symbols:
             if s.symbol_type == SymbolType.NOTE:
+
                 if keep_graphical_connection and len(keep_graphical_connection) == 3:
-                    if keep_graphical_connection[1] and s.graphical_connection == GraphicalConnectionType.GAPED:
-                        set(s.coord, SymbolLabel.NOTE_GAPPED)
-                    elif keep_graphical_connection[2] and s.graphical_connection == GraphicalConnectionType.LOOPED:
-                        set(s.coord, SymbolLabel.NOTE_LOOPED)
+                    if not additional_note_type:
+                        if keep_graphical_connection[1] and s.graphical_connection == GraphicalConnectionType.GAPED:
+                            set(s.coord, SymbolLabel.NOTE_GAPPED)
+                        elif keep_graphical_connection[2] and s.graphical_connection == GraphicalConnectionType.LOOPED:
+                            set(s.coord, SymbolLabel.NOTE_LOOPED)
+                        else:
+                            set(s.coord, SymbolLabel.NOTE_START)
                     else:
-                        set(s.coord, SymbolLabel.NOTE_START)
+                        if keep_graphical_connection[1] and s.graphical_connection == GraphicalConnectionType.GAPED:
+                            if s.note_type == NoteType.ORISCUS:
+                                set(s.coord, SymbolLabel.ORISCUS_GAPPED)
+                            elif s.note_type == NoteType.APOSTROPHA:
+                                set(s.coord, SymbolLabel.APOSTROPHA_GAPPED)
+                            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_U:
+                                set(s.coord, SymbolLabel.LIQUESCENT_UP_GAPPED)
+                            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_D:
+                                set(s.coord, SymbolLabel.LIQUESCENT_DOWN_GAPPED)
+                            else:
+                                set(s.coord, SymbolLabel.NOTE_GAPPED)
+                        elif keep_graphical_connection[2] and s.graphical_connection == GraphicalConnectionType.LOOPED:
+                            if s.note_type == NoteType.ORISCUS:
+                                set(s.coord, SymbolLabel.ORISCUS_LOOPED)
+                            elif s.note_type == NoteType.APOSTROPHA:
+                                set(s.coord, SymbolLabel.APOSTROPHA_LOOPED)
+                            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_U:
+                                set(s.coord, SymbolLabel.LIQUESCENT_UP_LOOPED)
+                            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_D:
+                                set(s.coord, SymbolLabel.LIQUESCENT_DOWN_LOOPED)
+                            else:
+                                set(s.coord, SymbolLabel.NOTE_LOOPED)
+                        else:
+                            if s.note_type == NoteType.ORISCUS:
+                                set(s.coord, SymbolLabel.ORISCUS_START)
+                            elif s.note_type == NoteType.APOSTROPHA:
+                                set(s.coord, SymbolLabel.APOSTROPHA_START)
+                            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_U:
+                                set(s.coord, SymbolLabel.LIQUESCENT_UP_START)
+                            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_D:
+                                set(s.coord, SymbolLabel.LIQUESCENT_DOWN_START)
+                            else:
+                                set(s.coord, SymbolLabel.NOTE_START)
+
                 else:
-                    if s.graphical_connection == GraphicalConnectionType.NEUME_START:
-                        set(s.coord, SymbolLabel.NOTE_START)
-                    elif s.graphical_connection == GraphicalConnectionType.LOOPED:
-                        set(s.coord, SymbolLabel.NOTE_LOOPED)
+                    if not additional_note_type:
+                        if s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                            set(s.coord, SymbolLabel.NOTE_START)
+                        elif s.graphical_connection == GraphicalConnectionType.LOOPED:
+                            set(s.coord, SymbolLabel.NOTE_LOOPED)
+                        else:
+                            set(s.coord, SymbolLabel.NOTE_GAPPED)
                     else:
-                        set(s.coord, SymbolLabel.NOTE_GAPPED)
+                        if s.graphical_connection == GraphicalConnectionType.NEUME_START:
+                            if s.note_type == NoteType.ORISCUS:
+                                set(s.coord, SymbolLabel.ORISCUS_START)
+                            elif s.note_type == NoteType.APOSTROPHA:
+                                set(s.coord, SymbolLabel.APOSTROPHA_START)
+                            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_U:
+                                set(s.coord, SymbolLabel.LIQUESCENT_UP_START)
+                            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_D:
+                                set(s.coord, SymbolLabel.LIQUESCENT_DOWN_START)
+                            else:
+                                set(s.coord, SymbolLabel.NOTE_START)
+                        elif s.graphical_connection == GraphicalConnectionType.LOOPED:
+                            if s.note_type == NoteType.ORISCUS:
+                                set(s.coord, SymbolLabel.ORISCUS_LOOPED)
+                            elif s.note_type == NoteType.APOSTROPHA:
+                                set(s.coord, SymbolLabel.APOSTROPHA_LOOPED)
+                            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_U:
+                                set(s.coord, SymbolLabel.LIQUESCENT_UP_LOOPED)
+                            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_D:
+                                set(s.coord, SymbolLabel.LIQUESCENT_DOWN_LOOPED)
+                            else:
+                                set(s.coord, SymbolLabel.NOTE_LOOPED)
+                        else:
+                            if s.note_type == NoteType.ORISCUS:
+                                set(s.coord, SymbolLabel.ORISCUS_GAPPED)
+                            elif s.note_type == NoteType.APOSTROPHA:
+                                set(s.coord, SymbolLabel.APOSTROPHA_GAPPED)
+                            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_U:
+                                set(s.coord, SymbolLabel.LIQUESCENT_UP_GAPPED)
+                            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_D:
+                                set(s.coord, SymbolLabel.LIQUESCENT_DOWN_GAPPED)
+                            else:
+                                set(s.coord, SymbolLabel.NOTE_GAPPED)
 
             elif s.symbol_type == SymbolType.CLEF:
                 if s.clef_type == ClefType.F:

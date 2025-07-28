@@ -137,6 +137,7 @@ class DatasetParams(DataClassJSONMixin):
     staff_lines_only: bool = True
     keep_graphical_connection: Optional[
         List[bool]] = None  # [ns, gapped, looped] all note graphical connection are merged to gapped type if true
+    additional_symbol_types: bool = False
     masks_as_input: bool = False
     apply_fcn_pad_power_of_2: int = 3
     apply_fcn_model: Optional[str] = None
