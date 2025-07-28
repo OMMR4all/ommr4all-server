@@ -117,6 +117,8 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
                 cut_region=False,
                 center=True,
                 staff_lines_only=True,
+                keep_graphical_connection=[True, True, True] if self.params.symbol_enable_neume_training else [True, False, True],
+                additional_symbol_types = self.params.symbol_enable_additional_symbol_types,
             ),
         )
 

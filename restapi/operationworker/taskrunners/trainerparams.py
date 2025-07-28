@@ -12,6 +12,8 @@ class TaskTrainerParams(DataClassJSONMixin):
     nTrain: float = 0.8
     includeAllTrainingData: bool = False
     pretrainedModel: Optional[ModelMeta] = None
+    symbol_enable_neume_training: bool = False
+    symbol_enable_additional_symbol_types: bool = False
 
     def to_train_val(self, locks: List[LockState], shuffle: bool = True, books: List[DatabaseBook] = None) -> Tuple[List[PcGts], List[PcGts]]:
         if self.includeAllTrainingData:
