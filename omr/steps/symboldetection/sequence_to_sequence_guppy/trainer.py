@@ -67,10 +67,7 @@ class OMRTrainer(SymbolDetectionTrainer):
         if callback:
             callback.resolving_files()
 
-        #train_dataset = self.train_dataset.to_nautilus_dataset(train=True, callback=callback)
-        #val_dataset = self.validation_dataset.to_nautilus_dataset(train=False, callback=callback)
         from ommr4all.settings import BASE_DIR
-        print(1)
 
         def create_tempfiles(dir: str, dataset: Tuple[List[np.array], List[str]], type="train",
                                       subfolder: str = "train"):
@@ -89,8 +86,6 @@ class OMRTrainer(SymbolDetectionTrainer):
         train_dataset = self.train_dataset.to_guppy_symbol_line__dataset(train=True, callback=callback, only_with_gt=True)
         val_dataset = self.validation_dataset.to_guppy_symbol_line__dataset(train=True, callback=callback, only_with_gt=True)
 
-        #print("Lneghtd")
-        #print(len(val_dataset[0]))
         val_dataset = train_dataset if len(val_dataset[0]) == 0 else val_dataset
         with tempfile.TemporaryDirectory() as dirpath:
             loguru.logger.info(f"Creating temporary train directory at {dirpath}")

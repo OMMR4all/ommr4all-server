@@ -87,14 +87,11 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         super().__init__(settings)
 
     def _train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
-        #pc_callback = PCTorchTrainerCallback(callback) if callback else None
         pc_callback = SegmentationProcessTrainCallback(callback, epochs=self.params.n_epoch) if callback else None
         if callback:
             callback.resolving_files()
 
         train_data_pd = self.train_dataset.to_memory_dataset(callback, same_dim=False)
-        from matplotlib import pyplot as plt
-
         color_map = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
         input_transforms = Compose(remove_nones([
             GrayToRGBTransform() if True else None,
@@ -194,11 +191,11 @@ if __name__ == '__main__':
     # g = DatabaseBook('Cai_72')
     # h = DatabaseBook('pa_904')
     #i = DatabaseBook('mul_2_rsync_gt2')
-    j = DatabaseBook('Geesebook1gt')
-    k = DatabaseBook('Geesebook2gt')
-    l = DatabaseBook('Winterburger')
+    j = DatabaseBook('Geesebook1')
+    #k = DatabaseBook('Geesebook2gt')
+    #l = DatabaseBook('Winterburger')
 
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.SYMBOLS, True)], datasets=[j, k, l])
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.SYMBOLS, True)], datasets=[j])
     settings = AlgorithmTrainerSettings(
         DatasetParams(),
         train ,
