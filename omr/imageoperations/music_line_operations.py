@@ -2,7 +2,7 @@ from omr.imageoperations.image_operation import ImageOperation, ImageOperationDa
 from omr.imageoperations.image_crop import ImageCropToSmallestBoxOperation
 from typing import Tuple, List, Any, Optional
 from database.file_formats.pcgts import Page, PageScaleReference, Line, MusicSymbol, ClefType, AccidType, \
-    GraphicalConnectionType, Coords, SymbolType, BlockType
+    GraphicalConnectionType, Coords, SymbolType, BlockType, NoteType
 import numpy as np
 from PIL import Image
 from copy import copy
@@ -12,6 +12,31 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class AdditionalSymbolLabel(IntEnum):
+    BACKGROUND = 0
+    NORMAL = 1
+    ORISCUS = 2
+    APOSTROPHA = 3
+    LIQUESCENT_FOLLOWING_U = 4
+    LIQUESCENT_FOLLOWING_D = 5
+    CLEF_C = 6
+    CLEF_F = 7
+    ACCID_NATURAL = 8
+    ACCID_SHARP = 9
+    ACCID_FLAT = 10
+    def get_color(self):
+        return {0: [255, 255, 255],
+                1: [255, 0, 0],
+                2: [255, 120, 120],
+                3: [120, 0, 0],
+                4: [120, 255, 120],
+                5: [0, 255, 0],
+                6: [0, 0, 255],
+                7: [50, 50, 255],
+                8: [0, 0, 120],
+                9: [60, 120, 120],
+                10: [120, 60, 120]
+                }[self.value]
 
 class SymbolLabel(IntEnum):
     BACKGROUND = 0
@@ -213,6 +238,8 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         image = data.images[0].image
         labels = np.zeros(image.shape[:2], dtype=np.uint8)
         marked_symbols = np.zeros(labels.shape, dtype=np.uint8)
+        marked_symbols_additional_type = np.zeros(labels.shape, dtype=np.uint8)
+
         i = 1
         s: List[List[Coords]] = []
 
@@ -235,15 +262,17 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                 else:
                     data.page.page_to_image_scale(ml.coords, data.scale_reference).draw(labels, i, 0, fill=True)
                 self._symbols_to_mask(ml, marked_symbols, data.page, data.scale_reference, self.keep_graphical_connection)
+                self._symbols_to_mask2(ml, marked_symbols_additional_type, data.page, data.scale_reference)
+
                 i += 1
 
         if self.dewarp:
-            images = [Image.fromarray(image), Image.fromarray(labels), Image.fromarray(marked_symbols)]
+            images = [Image.fromarray(image), Image.fromarray(labels), Image.fromarray(marked_symbols), Image.fromarray(marked_symbols_additional_type)]
             dewarper = Dewarper(images[0].size, s)
-            dew_page, dew_labels, dew_symbols = tuple(map(np.array, dewarper.dewarp(images, None)))
+            dew_page, dew_labels, dew_symbols, dew_add_symbols = tuple(map(np.array, dewarper.dewarp(images, None)))
         else:
             dewarper = None
-            dew_page, dew_labels, dew_symbols = image, labels, marked_symbols
+            dew_page, dew_labels, dew_symbols, dew_add_symbols = image, labels, marked_symbols, marked_symbols_additional_type
 
         if debug:
             import matplotlib.pyplot as plt
@@ -264,7 +293,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                     img_data.page_image = image
                     img_data.music_region = mr
                     img_data.music_line = ml
-                    img_data.images = [ImageData(mask, True), ImageData(dew_page, False), ImageData(dew_symbols, True)]
+                    img_data.images = [ImageData(mask, True), ImageData(dew_page, False), ImageData(dew_symbols, True), ImageData(dew_add_symbols, True)]
                     #from matplotlib import pyplot as plt
                     #plt.imshow(dew_page)
                     #plt.show()
@@ -292,6 +321,7 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                 ax[i, 0].imshow(o.images[0].image)
                 ax[i, 1].imshow(o.images[1].image)
                 ax[i, 2].imshow(o.images[2].image)
+                ax[i, 2].imshow(o.images[3].image)
 
             plt.show()
 
@@ -394,7 +424,50 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                     set(s.coord, SymbolLabel.ACCID_SHARP)
 
         return img
+    def _symbols_to_mask2(self, ml: Line, img: np.ndarray, page: Page, scale: PageScaleReference):
+        import cv2
 
+        if len(ml.staff_lines) < 2:  # at least two staff lines required
+            return None
+
+        def p2i(p):
+            return page.page_to_image_scale(p, scale)
+
+        radius = max(1, p2i(ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 8)
+
+        def set(coord, label: AdditionalSymbolLabel, dx=radius, dy=radius):
+            coord = p2i(coord)
+            # circle
+            cv2.circle(img, tuple(coord.p.round().astype(int)), int(radius * 2), color=label.value, thickness=-1)
+            # box
+            # img[int(coord.y - dy):int(coord.y + dy * 2), int(coord.x - dx): int(coord.x + dx * 2)] = label.value
+
+        for s in ml.symbols:
+            if s.symbol_type == SymbolType.NOTE:
+                if s.note_type == NoteType.LIQUESCENT_FOLLOWING_U:
+                    set(s.coord, AdditionalSymbolLabel.LIQUESCENT_FOLLOWING_U)
+                elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_D:
+                    set(s.coord, AdditionalSymbolLabel.LIQUESCENT_FOLLOWING_D)
+                elif s.note_type == NoteType.APOSTROPHA:
+                    set(s.coord, AdditionalSymbolLabel.APOSTROPHA)
+                elif s.note_type == NoteType.ORISCUS:
+                    set(s.coord, AdditionalSymbolLabel.ORISCUS)
+                else:
+                    set(s.coord, AdditionalSymbolLabel.NORMAL)
+            elif s.symbol_type == SymbolType.CLEF:
+                if s.clef_type == ClefType.F:
+                    set(s.coord, AdditionalSymbolLabel.CLEF_F, dy=4 * radius)
+                else:
+                    set(s.coord, AdditionalSymbolLabel.CLEF_C, dy=4 * radius)
+            elif s.symbol_type == SymbolType.ACCID:
+                if s.accid_type == AccidType.NATURAL:
+                    set(s.coord, AdditionalSymbolLabel.ACCID_NATURAL)
+                elif s.accid_type == AccidType.FLAT:
+                    set(s.coord, AdditionalSymbolLabel.ACCID_FLAT)
+                else:
+                    set(s.coord, AdditionalSymbolLabel.ACCID_SHARP)
+
+        return img
     def local_to_global_pos(self, p: Point, params: Any):
         i, (t, b, l, r), (top, ), mls, dewarper = params
         # default operations

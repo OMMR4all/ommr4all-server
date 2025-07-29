@@ -223,11 +223,14 @@ class Dataset(ABC):
                 #from matplotlib import pyplot as plt
                 # plt.imshow(x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
                 # plt.show()
-                #cmap0 = LinearSegmentedColormap.from_list('', ['white', 'darkblue', "red", "green", "yellow", "black", "magenta", "cyan", "blue", 'tab:brown' ])
-                #f, ax = plt.subplots(nrows=1, ncols=2, sharex=True, sharey=True)
-                #ax[0].imshow(x.line_image  if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
-                #ax[1].imshow(np.stack(((x.mask,)  ), axis = -1), interpolation='nearest', cmap=cmap0)
-                #plt.show()
+                cmap0 = LinearSegmentedColormap.from_list('', ['white', 'darkblue', "red", "green", "yellow", "black", "magenta", "cyan", "blue", 'tab:brown' ])
+                from matplotlib import pyplot as plt
+                f, ax = plt.subplots(nrows=1, ncols=3, sharex=True, sharey=True)
+                ax[0].imshow(x.line_image  if self.params.image_input == ImageInput.LINE_IMAGE else x.region)
+                ax[1].imshow(np.stack(((x.mask,)  ), axis = -1), interpolation='nearest', cmap=cmap0)
+                ax[2].imshow(np.stack(((x.mask2,)  ), axis = -1), interpolation='nearest', cmap=cmap0)
+
+                plt.show()
                 if True and train:
                     if np.unique(x.mask).shape[0] > 1:
                         t_image = x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region
