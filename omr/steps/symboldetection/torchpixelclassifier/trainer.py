@@ -35,7 +35,7 @@ from database import DatabaseBook
 
 from database.file_formats.performance.pageprogress import Locks
 from omr.steps.algorithm import TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
-from omr.imageoperations.music_line_operations import SymbolLabel
+from omr.imageoperations.music_line_operations import SymbolLabel, AdditionalSymbolLabel
 # from ocr4all_pixel_classifier.lib.trainer import Trainer, Loss, Monitor, Architecture
 from omr.steps.symboldetection.torchpixelclassifier.meta import Meta
 from segmentation.network import Network, NetworkTrainer
@@ -93,9 +93,11 @@ class PCTorchTrainer(SymbolDetectionTrainer):
 
         train_data_pd = self.train_dataset.to_memory_dataset(callback, same_dim=False)
         color_map = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
+        color_map2 = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in AdditionalSymbolLabel])
+
         input_transforms = Compose(remove_nones([
             GrayToRGBTransform() if True else None,
-            ColorMapTransform(color_map=color_map.to_albumentation_color_map())
+            ColorMapTransform(color_map=color_map2.to_albumentation_color_map())
 
         ]))
         aug_transforms = self.settings.page_segmentation_torch_params.augmentation \
@@ -126,7 +128,10 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             classes=len(SymbolLabel),
             encoder_depth=self.settings.page_segmentation_torch_params.predefined_encoder_depth,
             decoder_channel=self.settings.page_segmentation_torch_params.predefined_decoder_channel,
-            use_batch_norm_layer=self.settings.page_segmentation_torch_params.use_batch_norm_layer)
+            use_batch_norm_layer=self.settings.page_segmentation_torch_params.use_batch_norm_layer,
+            add_number_of_heads=self.settings.page_segmentation_torch_params.additional_number_of_heads,
+            add_classes=[len(AdditionalSymbolLabel)] if self.settings.page_segmentation_torch_params.additional_number_of_heads > 0 else []
+        )
         custom_nw_settings = CustomModelSettings(
             encoder_filter=self.settings.page_segmentation_torch_params.custom_model_encoder_filter,
             decoder_filter=self.settings.page_segmentation_torch_params.custom_model_encoder_filter,
@@ -172,6 +177,8 @@ class PCTorchTrainer(SymbolDetectionTrainer):
                                                                metrics=[Metrics("accuracy")],
                                                                watcher_metric_index=0,
                                                                loss=Losses.cross_entropy_loss,
+                                                               additional_heads = 1,
+                                                               additional_classes=[len(color_map2)],
                                                                ), get_default_device(),
                                  callbacks=callbacks, debug_color_map=config.color_map)
 
@@ -183,24 +190,24 @@ if __name__ == '__main__':
     from omr.dataset import DatasetParams
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
 
-    # b = DatabaseBook('Graduel_Part_1_gt')
-    # c = DatabaseBook('Graduel_Part_2_gt')
-    # d = DatabaseBook('Graduel_Part_3_gt')
-    # e = DatabaseBook('Pa_14819_gt')
-    # f = DatabaseBook('Assisi')
-    # g = DatabaseBook('Cai_72')
-    # h = DatabaseBook('pa_904')
-    #i = DatabaseBook('mul_2_rsync_gt2')
-    j = DatabaseBook('Geesebook1')
+    b = DatabaseBook('Graduel_Part_1_gt')
+    c = DatabaseBook('Graduel_Part_2_gt')
+    d = DatabaseBook('Graduel_Part_3_gt')
+    e = DatabaseBook('Pa_14819_gt')
+    f = DatabaseBook('Assisi')
+    g = DatabaseBook('Cai_72')
+    h = DatabaseBook('pa_904')
+    i = DatabaseBook('mul_2_rsync_gt2')
+    #j = DatabaseBook('Geesebook1')
     #k = DatabaseBook('Geesebook2gt')
     #l = DatabaseBook('Winterburger')
 
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.SYMBOLS, True)], datasets=[j])
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.SYMBOLS, True)], datasets=[b,c,d,e,f,g,h,i])
     settings = AlgorithmTrainerSettings(
         DatasetParams(),
         train ,
         val,
-        params=AlgorithmTrainerParams(load="e/Graduel_Part_1_gt/symbols_pc_torch/2023-02-02T14:01:14")
+        #params=AlgorithmTrainerParams(load="e/Graduel_Part_1_gt/symbols_pc_torch/2023-02-02T14:01:14")
     )
     trainer = PCTorchTrainer(settings)
-    trainer.train(j)
+    trainer.train(d)

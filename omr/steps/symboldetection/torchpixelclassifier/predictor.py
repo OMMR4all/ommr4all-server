@@ -72,17 +72,20 @@ class PCTorchPredictor(SymbolsPredictor):
             labels = np.argmax(output.prediction_result.probability_map, axis=-1)
             from scipy.special import softmax
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
+
+
+            second_mask_softmax = softmax(np.squeeze(output.prediction_result.other_probability_map[0]), axis=-1)
             m: RegionLineMaskData = data
             symbols = extract_symbols(prob_map_softmax, labels, m, dataset=dataset, min_symbol_area=-1,
                                       clef=self.settings.params.use_rule_based_post_processing and self.settings.params.use_rule_based_post_processing , lookup=self.look_up,
-                                      probability=0.5)
+                                      probability=0.5, second_mask=second_mask_softmax)
 
             additional_symbols = filter_unique_symbols_by_coord(symbols,
                                                                 extract_symbols(prob_map_softmax, labels, m,
                                                                                 dataset,
                                                                                 probability=0.95,
                                                                                 clef=self.settings.params.use_rule_based_post_processing and self.settings.params.use_pis_clef_correction,
-                                                                                min_symbol_area=4, lookup=self.look_up))
+                                                                                min_symbol_area=4, lookup=self.look_up, second_mask=second_mask_softmax))
 
             if self.settings.params.use_rule_based_post_processing:
                 if self.settings.params.use_block_layout_correction:

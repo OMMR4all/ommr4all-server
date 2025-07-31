@@ -37,7 +37,14 @@ class AdditionalSymbolLabel(IntEnum):
                 9: [60, 120, 120],
                 10: [120, 60, 120]
                 }[self.value]
-
+    def get_note_type(self):
+        return {
+            AdditionalSymbolLabel.NORMAL: NoteType.NORMAL,
+            AdditionalSymbolLabel.ORISCUS: NoteType.ORISCUS,
+            AdditionalSymbolLabel.APOSTROPHA: NoteType.APOSTROPHA,
+            AdditionalSymbolLabel.LIQUESCENT_FOLLOWING_U: NoteType.LIQUESCENT_FOLLOWING_U,
+            AdditionalSymbolLabel.LIQUESCENT_FOLLOWING_D: NoteType.LIQUESCENT_FOLLOWING_D
+        }[self] if self.value in [1, 2, 3, 4, 5] else None
 class SymbolLabel(IntEnum):
     BACKGROUND = 0
     NOTE_START = 1
