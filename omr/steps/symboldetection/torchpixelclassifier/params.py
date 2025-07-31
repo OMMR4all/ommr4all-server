@@ -63,6 +63,7 @@ class PageSegmentationTrainerTorchParams(NamedTuple):
     custom_model_encoder_filter = [16, 32, 64, 256, 512]
     custom_model_decoder_filter = [16, 32, 64, 256, 512]
     custom_model_encoder_depth = CustomModelSettings.encoder_depth
+    additional_number_of_heads: int = 1
 
     # augmentation_settings: AugmentationSettings = AugmentationSettings(
     #    rotation_range=2.5,

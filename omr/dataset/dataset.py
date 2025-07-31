@@ -197,6 +197,7 @@ class Dataset(ABC):
             images = []
             masks = []
             data = []
+            masks2 = []
             # import matplotlib.pyplot as plt
             # cmap = plt.get_cmap('Set1')
             # color_map = ColorMap(
@@ -237,6 +238,7 @@ class Dataset(ABC):
                         images.append(t_image)
                         masks.append(x.mask)
                         data.append(x)
+                        masks2.append(x.mask2)
                         #plt.imshow(t_image)
                         #plt.show()
                 else:
@@ -245,11 +247,14 @@ class Dataset(ABC):
                     images.append(t_image)
                     masks.append(x.mask)
                     data.append(x)
+                    masks2.append(x.mask2)
+
                     #plt.imshow(t_image)
                     #plt.show()
             if same_dim:
                 images_s = []
                 mask_s = []
+                mask_s2 = []
                 max_width = 0
                 max_height = 0
                 dim = 0
@@ -276,10 +281,16 @@ class Dataset(ABC):
                     dif = max_width - w
                     i = np.pad(i, ((0, 0), (0, dif)), 'constant', constant_values=0)
                     mask_s.append(i)
+                for i in masks2:
+                    h, w = i.shape[:2]
+                    dif = max_width - w
+                    i = np.pad(i, ((0, 0), (0, dif)), 'constant', constant_values=0)
+                    mask_s2.append(i)
                 images = images_s
+                masks2 = mask_s2
                 masks = mask_s
 
-            df = pd.DataFrame(data={'images': images, 'masks': masks, 'original': data})
+            df = pd.DataFrame(data={'images': images, 'masks': masks, 'original': data, "add_symbols_mask": masks2})
             return df
         else:
             raise NotImplementedError()

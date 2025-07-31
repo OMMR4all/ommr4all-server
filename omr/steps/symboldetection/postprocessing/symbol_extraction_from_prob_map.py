@@ -7,7 +7,7 @@ from database.file_formats.pcgts import *
 from database.file_formats.pcgts import MusicSymbol, SymbolPredictionConfidence, SymbolType, GraphicalConnectionType, \
     SymbolConfidence, ClefType, create_clef, create_accid, AccidType, Point
 from omr.dataset import RegionLineMaskData
-from omr.imageoperations.music_line_operations import SymbolLabel
+from omr.imageoperations.music_line_operations import SymbolLabel, AdditionalSymbolLabel
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset
 import cv2
 
@@ -58,10 +58,14 @@ def render_pred_labels2(labels, img=None):
     return np.array(pil_i)
 
 def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
-                    dataset: SymbolDetectionDataset, probability=0.5, clef=True, min_symbol_area=4, lookup= None) -> List[
+                    dataset: SymbolDetectionDataset, probability=0.5, clef=True, min_symbol_area=4, lookup= None, second_mask:np.ndarray=None) -> List[
     MusicSymbol]:
     # n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(((probs[:, :, 0] < 0.5) | (p > 0)).astype(np.uint8))
+
+
     p = (np.argmax(probs[:, :, 1:], axis=-1) + 1) * (probs[:, :, 0] < probability)
+    p2 = (np.argmax(second_mask[:, :, 1:], axis=-1) + 1) * (second_mask[:, :, 0] < probability)
+
     #p = (np.argmax(probs, axis=-1))
     n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
     symbols = []
@@ -84,8 +88,11 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
 
         # compute label this the label with the highest frequency of the connected component
         area = p[y:y + h, x:x + w] * (cc[y:y + h, x:x + w] == i)
+        area2 = p2[y:y + h, x:x + w] * (cc[y:y + h, x:x + w] == i)
 
         label = SymbolLabel(int(np.argmax([np.sum(area == v + 1) for v in range(len(SymbolLabel) - 1)])) + 1)
+        label2 = AdditionalSymbolLabel(int(np.argmax([np.sum(area2 == v + 1) for v in range(len(AdditionalSymbolLabel) - 1)])) + 1)
+
         centroids_canvas[int(np.round(c.y)), int(np.round(c.x))] = label
         centroids_adv.append(((int(np.round(c.x)), int(np.round(c.y))), label))
         # confidences
@@ -103,7 +110,8 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
                 coord=coord,
                 position_in_staff=position_in_staff,
                 graphical_connection=GraphicalConnectionType.NEUME_START,
-                confidence=SymbolConfidence(symbol_pred, None)
+                note_type=label2.get_note_type(),
+                confidence=SymbolConfidence(symbol_pred, None, )
             ))
         elif label == SymbolLabel.NOTE_GAPPED:
             position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
@@ -113,6 +121,8 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
                 coord=coord,
                 position_in_staff=position_in_staff,
                 graphical_connection=GraphicalConnectionType.GAPED,
+                note_type=label2.get_note_type(),
+
                 confidence=SymbolConfidence(symbol_pred, None)
 
             ))
@@ -124,6 +134,8 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
                 coord=coord,
                 position_in_staff=position_in_staff,
                 graphical_connection=GraphicalConnectionType.LOOPED,
+                note_type=label2.get_note_type(),
+
                 confidence=SymbolConfidence(symbol_pred, None)
 
             ))
