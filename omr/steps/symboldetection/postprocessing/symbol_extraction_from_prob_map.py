@@ -21,18 +21,21 @@ def render_prediction_labels(labels, img=None):
     def draw(i, c):
         return np.kron((labels == i), c).reshape(out.shape).astype(int)
 
+
     for i, c in [
-        (SymbolLabel.BACKGROUND, (255, 255, 255)),
-        (SymbolLabel.NOTE_START, (255, 0, 0)),
-        (SymbolLabel.NOTE_GAPPED, (255, 120, 120)),
-        (SymbolLabel.NOTE_LOOPED, (120, 0, 0)),
-        (SymbolLabel.CLEF_C, (120, 255, 120)),
-        (SymbolLabel.CLEF_F, (0, 255, 0)),
-        (SymbolLabel.ACCID_NATURAL, (0, 0, 255)),
-        (SymbolLabel.ACCID_SHARP, (50, 50, 255)),
-        (SymbolLabel.ACCID_FLAT, (0, 0, 120)),
+        (AdditionalSymbolLabel.BACKGROUND, (255, 255, 255)),
+        (AdditionalSymbolLabel.NORMAL, (255, 0, 0)),
+        (AdditionalSymbolLabel.ORISCUS, (255, 120, 120)),
+        (AdditionalSymbolLabel.APOSTROPHA, (120, 0, 0)),
+        (AdditionalSymbolLabel.LIQUESCENT_FOLLOWING_U, (120, 255, 120)),
+        (AdditionalSymbolLabel.LIQUESCENT_FOLLOWING_D, (0, 255, 0)),
+        (AdditionalSymbolLabel.CLEF_C, (0, 0, 255)),
+        (AdditionalSymbolLabel.CLEF_F, (50, 50, 255)),
+        (AdditionalSymbolLabel.ACCID_NATURAL, (0, 0, 120)),
+        (AdditionalSymbolLabel.ACCID_SHARP, (60, 120, 120)),
+        (AdditionalSymbolLabel.ACCID_FLAT, (120, 60, 120)),
     ]:
-        c = PcGtsCanvas.color_for_music_symbol(i.to_music_symbol(), inverted=True, default_color=(255, 255, 255))
+        #c = PcGtsCanvas.color_for_music_symbol(i.to_music_symbol(), inverted=True, default_color=(255, 255, 255))
         if c != (0, 0, 0):
             out[:, :, 0] = np.where(labels == i, c[0], out[:, :, 0])
             out[:, :, 1] = np.where(labels == i, c[1], out[:, :, 1])
@@ -64,7 +67,9 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
 
 
     p = (np.argmax(probs[:, :, 1:], axis=-1) + 1) * (probs[:, :, 0] < probability)
-    p2 = (np.argmax(second_mask[:, :, 1:], axis=-1) + 1) * (second_mask[:, :, 0] < probability)
+    p2 = None
+    if second_mask is not None:
+        p2 = (np.argmax(second_mask[:, :, 1:], axis=-1) + 1) * (second_mask[:, :, 0] < probability)
 
     #p = (np.argmax(probs, axis=-1))
     n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
@@ -88,10 +93,13 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
 
         # compute label this the label with the highest frequency of the connected component
         area = p[y:y + h, x:x + w] * (cc[y:y + h, x:x + w] == i)
-        area2 = p2[y:y + h, x:x + w] * (cc[y:y + h, x:x + w] == i)
 
         label = SymbolLabel(int(np.argmax([np.sum(area == v + 1) for v in range(len(SymbolLabel) - 1)])) + 1)
-        label2 = AdditionalSymbolLabel(int(np.argmax([np.sum(area2 == v + 1) for v in range(len(AdditionalSymbolLabel) - 1)])) + 1)
+        label2 = AdditionalSymbolLabel.NORMAL
+        if p2 is not None:
+            area2 = p2[y:y + h, x:x + w] * (cc[y:y + h, x:x + w] == i)
+
+            label2 = AdditionalSymbolLabel(int(np.argmax([np.sum(area2 == v + 1) for v in range(len(AdditionalSymbolLabel) - 1)])) + 1)
 
         centroids_canvas[int(np.round(c.y)), int(np.round(c.x))] = label
         centroids_adv.append(((int(np.round(c.x)), int(np.round(c.y))), label))
