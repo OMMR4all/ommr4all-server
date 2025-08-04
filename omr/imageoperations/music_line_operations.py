@@ -401,6 +401,8 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
             # img[int(coord.y - dy):int(coord.y + dy * 2), int(coord.x - dx): int(coord.x + dx * 2)] = label.value
 
         for s in ml.symbols:
+            if s.missing:
+                continue
             if s.symbol_type == SymbolType.NOTE:
                 if keep_graphical_connection and len(keep_graphical_connection) == 3:
                     if keep_graphical_connection[1] and s.graphical_connection == GraphicalConnectionType.GAPED:

@@ -93,13 +93,13 @@ class PCTorchTrainer(SymbolDetectionTrainer):
 
         train_data_pd = self.train_dataset.to_memory_dataset(callback, same_dim=False)
         color_map = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
-        color_map2 = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in AdditionalSymbolLabel])
+        color_map2= ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in AdditionalSymbolLabel])
 
         input_transforms = Compose(remove_nones([
             GrayToRGBTransform() if True else None,
             ColorMapTransform(color_map=color_map2.to_albumentation_color_map())
 
-        ]))
+        ]), additional_targets={'add_symbols_mask': 'mask'} )
         aug_transforms = self.settings.page_segmentation_torch_params.augmentation \
             if self.settings.page_segmentation_torch_params.data_augmentation else None
         tta_transforms = None
@@ -108,7 +108,7 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             NetworkEncoderTransform(
                 self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name),
             ToTensorV2()
-        ]))
+        ]), additional_targets={'add_symbols_mask': 'mask'} )
         transforms = PreprocessingTransforms(
             input_transform=input_transforms,
             aug_transform=aug_transforms,
@@ -162,7 +162,7 @@ class PCTorchTrainer(SymbolDetectionTrainer):
                                                                                       self.settings.page_segmentation_torch_params.encoder) if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction(),
                                                                                   transforms=transforms.to_dict()),
 
-                                        color_map=color_map)
+                                        color_map=color_map2)
             network = ModelBuilderMeta(config, device=get_default_device()).get_model()
         mw = ModelWriterCallback(network, config, save_path=Path(self.settings.model.path), prefix="",
                                  metric_watcher_index=0)

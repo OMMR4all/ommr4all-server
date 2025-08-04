@@ -58,7 +58,7 @@ class PCTorchPredictor(SymbolsPredictor):
         clefs = []
         total_lines = len(list(df.iterrows()))
         for index, row in df.iterrows():
-            mask, image, data = row['masks'], row['images'], row['original']
+            mask, image, data, mask2 = row['masks'], row['images'], row['original'], row['add_symbols_mask']
             source_image = SourceImage.from_numpy(image)
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(source_image)
             #output.generated_mask.show()
@@ -72,9 +72,10 @@ class PCTorchPredictor(SymbolsPredictor):
             labels = np.argmax(output.prediction_result.probability_map, axis=-1)
             from scipy.special import softmax
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
+            second_mask_softmax = None
+            if output.prediction_result.other_probability_map[0] is not None:
+                second_mask_softmax = softmax(np.squeeze(output.prediction_result.other_probability_map[0]), axis=-1)
 
-
-            second_mask_softmax = softmax(np.squeeze(output.prediction_result.other_probability_map[0]), axis=-1)
             m: RegionLineMaskData = data
             symbols = extract_symbols(prob_map_softmax, labels, m, dataset=dataset, min_symbol_area=-1,
                                       clef=self.settings.params.use_rule_based_post_processing and self.settings.params.use_rule_based_post_processing , lookup=self.look_up,
@@ -149,14 +150,18 @@ class PCTorchPredictor(SymbolsPredictor):
                 canvas.draw(symbols.symbols, invert=True)
                 canvas.show()
             if False:
+                labels2 = np.argmax(np.squeeze(output.prediction_result.other_probability_map[0]), axis=-1)
+
                 import matplotlib.pyplot as plt
-                f, ax = plt.subplots(5, 1, sharey='all', sharex='all')
+                f, ax = plt.subplots(6, 1, sharey='all', sharex='all')
                 ax[0].imshow(output.prediction_result.probability_map[:, :, 0])  # , vmin=0.0, vmax=1.0)
                 ax[1].imshow(image, vmin=0.0, vmax=255)
-                ax[2].imshow(render_prediction_labels(labels, image))
-                ax[3].imshow(np.argmax(output, axis=-1))
-                ax[4].imshow(render_prediction_labels(mask, image))
-                plt.savefig(str(index) + '.png')
+                ax[2].imshow(render_prediction_labels(mask, image))
+                ax[3].imshow(render_prediction_labels(mask2, image))
+                ax[4].imshow(render_prediction_labels(labels, image))
+                ax[5].imshow(render_prediction_labels(labels2, image))
+                plt.show()
+
             if callback:
                 percentage = (index + 1) / total_lines
 
