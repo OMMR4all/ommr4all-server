@@ -2,7 +2,7 @@ import enum
 import json
 from dataclasses import dataclass
 from multiprocessing import Pool
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import requests
 from bs4 import BeautifulSoup
@@ -18,10 +18,10 @@ class Metainfo(DataClassJSONMixin):
     festum: str
     dies: str
     versus: str
-    sources: List[str]
-    festum_dic: Dict[str, List[str]] = None
-    dies_dic: Dict[str, List[str]] = None
-    versus_dic: Dict[str, List[str]] = None
+    sources: Optional[List[str]] = None
+    festum_dic: Optional[Dict[str, List[str]]] = None
+    dies_dic: Optional[Dict[str, List[str]]] = None
+    versus_dic: Optional[Dict[str, List[str]]] = None
 
 
 @dataclass
@@ -36,15 +36,15 @@ class Lyric_info(DataClassJSONMixin):
     id: str
     latine: str
     meta_info: str
-    meta_infos_extended: List[Metainfo]
-    variants: List[Variant]
-    m_info: Metainfo = None
-    cantus_id: str = None
-    initium: str = None
-    genre: str = None
-    url: str = None
-    dataset_source: DatasetSource = None
-    source: str = None
+    meta_infos_extended: Optional[List[Metainfo]] = None
+    variants: Optional[List[Variant]] = None
+    m_info: Optional[Metainfo] = None
+    cantus_id: Optional[str] = None
+    initium: Optional[str] = None
+    genre: Optional[str] = None
+    url: Optional[str] = None
+    dataset_source: Optional[DatasetSource] = None
+    source: Optional[str] = None
 
 
 @dataclass
