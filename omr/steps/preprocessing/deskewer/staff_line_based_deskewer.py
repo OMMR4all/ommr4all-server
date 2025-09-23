@@ -1,6 +1,6 @@
 import numpy as np
 from skimage.transform import rotate
-from scipy.ndimage.morphology import binary_erosion, binary_dilation
+from scipy.ndimage import binary_erosion, binary_dilation
 from PIL import Image
 import cv2
 
