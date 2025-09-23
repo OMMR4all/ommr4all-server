@@ -1,16 +1,18 @@
 from abc import ABC, abstractmethod
 from database.file_formats.pcgts import Line, BlockType, Block, Page
 from typing import NamedTuple, List, Generator, Optional
+
+from dataclasses import dataclass
 from omr.dataset import RegionLineMaskData
 from omr.steps.algorithm import AlgorithmPredictor, AlgorithmPredictorSettings, AlgorithmPredictionResult, AlgorithmPredictionResultGenerator
 from database.database_page import DatabasePage
 
 
-class PredictionResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__class__):
-    pass
+#class PredictionResultMeta(type(AlgorithmPredictionResult), type(NamedTuple)):
+#    pass
 
-
-class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=PredictionResultMeta):
+@dataclass(frozen=True)
+class PredictionResult(AlgorithmPredictionResult):
     music_lines: List[Line]             # Music lines in global (page coords)
     music_lines_local: List[Line]       # Music lines in local (cropped line if not full page)
     line: RegionLineMaskData
