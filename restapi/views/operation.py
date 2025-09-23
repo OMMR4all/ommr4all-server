@@ -113,7 +113,7 @@ class OperationView(APIView):
 
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def post(self, request, book, page, operation):
-        body = json.loads(request.body, encoding='utf-8')
+        body = json.loads(request.body)
         page = DatabasePage(DatabaseBook(book), page)
         task_runner = OperationView.op_to_task_runner(operation, page, body)
         if task_runner:
@@ -129,7 +129,7 @@ class OperationView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.EDIT])
     def put(self, request, book, page, operation):
 
-        body = json.loads(request.body, encoding='utf-8')
+        body = json.loads(request.body)
         page = DatabasePage(DatabaseBook(book), page)
         task_runner = OperationView.op_to_task_runner(operation, page, body)
         if task_runner:
