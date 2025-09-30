@@ -228,7 +228,12 @@ class BooksView(APIView):
     def get(self, request, format=None):
         # TODO: sort by in request
         books = DatabaseBook.list_available_book_metas_for_user(request.user, DatabaseBookPermissionFlag.READ)
+        print("testreq")
+        print(request)
+        print(request.user)
+        print(request.user)
 
+        print("testreq")
         pageIndex = request.query_params.get("pageIndex", 0)
         pageSize = request.query_params.get("pageSize", len(books))  # by default all books
 
