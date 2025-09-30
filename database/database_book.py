@@ -165,6 +165,11 @@ class DatabaseBook:
         return self.permissions
 
     def resolve_user_permissions(self, user, reload=False):
+        print("flags")
+        print(self.get_permissions(reload).resolve_user_permissions(user))
+        print(self.book)
+        print(self.get_permissions(reload).resolve_user_permissions(user).flags)
+
         return self.get_permissions(reload).resolve_user_permissions(user)
 
     def get_or_add_user_permissions(self, user, default=None, reload=False):
