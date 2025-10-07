@@ -141,14 +141,14 @@ def crawl(start=1, stop=6600, interval=7000):
             lyrics.append(a)
             if current_len > interval:
                 lyr = Lyrics(lyrics)
-                with open('data_an{}.json'.format(json_interval), 'w', encoding='utf-8') as f:
+                with open('data_an{}.json'.format(json_interval), 'w') as f:
                     json.dump(lyr.to_dict(), f, ensure_ascii=False, indent=4)
                 lyrics = []
                 json_interval += 1
         current_len += 1
     """
     lyr = Lyrics(lyrics)
-    with open('data_an{}.json'.format(json_interval), 'w', encoding='utf-8') as f:
+    with open('data_an{}.json'.format(json_interval), 'w') as f:
         json.dump(lyr.to_dict(), f, ensure_ascii=False, indent=4)
 
 
