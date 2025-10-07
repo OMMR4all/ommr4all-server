@@ -9,6 +9,5 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         data = super().validate(attrs)
-        # Fügen Sie die gleichen Daten hinzu wie in Ihrem jwt_response_payload_handler
         data['permissions'] = self.user.get_all_permissions()
         return data

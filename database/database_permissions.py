@@ -101,13 +101,8 @@ class DatabaseBookPermissions:
     def resolve_user_permissions(self, user: 'User'):
 
         if user.is_superuser:
-            print("superuser")
             # superuser has full access, always
             return BookPermissionFlags.full_access_flags()
-        print("superuser not")
-        print(user.username)
-        print(user.user_permissions)
-        print(user.is_superuser)
         # ensure other flags never allow more than written in ALLOWED_OTHER_PERMISSIONS
         flags = self.permissions.default & BookPermissionFlags(DatabaseBookPermissionFlag.ALLOWED_OTHER_PERMISSIONS)
         un = user.username
