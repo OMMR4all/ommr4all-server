@@ -23,7 +23,6 @@ from restapi.views.user import UserBookPermissionsView
 from restapi.views.bookstyles import BookStyleView, BookStylesView
 from restapi.views.administrativedefaultmodels import AdministrativeDefaultModelsView
 from restapi.views.tasks import TasksView, TaskView
-#from rest_framework_jwt.views import obtain_jwt_token, refresh_jwt_token, verify_jwt_token
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -35,10 +34,6 @@ def ping(request):
 
 urlpatterns = \
     [
-        # jwt
-        #path('token-auth/', obtain_jwt_token, name='jwtAuth'),
-        #path('token-refresh/', refresh_jwt_token, name='jwtRefresh'),
-        #path('token-verify/', verify_jwt_token, name='jwtVerify'),
         path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
         path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
         # ping
