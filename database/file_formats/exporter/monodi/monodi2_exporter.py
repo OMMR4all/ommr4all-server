@@ -835,5 +835,5 @@ if __name__ == "__main__":
     pcgts = [ns_pcgts.PcGts.from_file(x.file('pcgts')) for x in b.pages()]
     root = PcgtsToMonodiConverter(pcgts, document=True).root
     print(json.dumps(root.to_json(), indent=2))
-    with open('data.json', 'w', encoding='utf-8') as f:
+    with open('data.json', 'w') as f:
         json.dump(root.to_json(), f, ensure_ascii=False, indent=4)

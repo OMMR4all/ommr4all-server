@@ -375,7 +375,7 @@ class DatabaseFile:
                 pcgts = ns_pcgts.PcGts.from_file(DatabaseFile(self.page, 'pcgts'))
                 root = PcgtsToMonodiConverter([pcgts]).root
                 # import hashlib
-                with open(self.local_path(), 'w', encoding='utf-8') as f:
+                with open(self.local_path(), 'w') as f:
                     json.dump(root.to_json(), f, ensure_ascii=False, indent=4)
             elif self.definition.id == 'monodiplus_svg':
                 path = DatabaseFile(self.page, 'monodiplus').local_path()

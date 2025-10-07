@@ -184,7 +184,7 @@ class PageProgressView(APIView):
         book = DatabaseBook(book)
         page = DatabasePage(book, page)
 
-        obj = json.loads(request.body, encoding='utf-8')
+        obj = json.loads(request.body)
         pp = page.page_progress()
         user_permissions = book.resolve_user_permissions(request.user)
         verify_allowed = user_permissions.has(DatabaseBookPermissionFlag.VERIFY_PAGE)
@@ -213,7 +213,7 @@ class PagePcGtsView(APIView):
     def put(self, request, book, page):
         book = DatabaseBook(book)
         page = DatabasePage(book, page)
-        obj = json.loads(request.body, encoding='utf-8')
+        obj = json.loads(request.body)
 
         pcgts = PcGts.from_json(obj, page)
         pcgts.to_file(page.file('pcgts').local_path())
@@ -250,7 +250,7 @@ class PageStatisticsView(APIView):
         book = DatabaseBook(book)
         page = DatabasePage(book, page)
 
-        obj = json.loads(request.body, encoding='utf-8')
+        obj = json.loads(request.body)
         page.set_page_statistics(Statistics.from_json(obj))
         page.save_page_statistics()
 
@@ -272,7 +272,7 @@ class PageRenameView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.RENAME_PAGES])
     def post(self, request, book, page):
         page = DatabaseBook(book).page(page)
-        obj = json.loads(request.body, encoding='utf-8')
+        obj = json.loads(request.body)
         name = obj['name']
         name = re.sub(r'[^\w]', '_', name)
 

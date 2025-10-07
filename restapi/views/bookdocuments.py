@@ -49,7 +49,7 @@ class BookDictionaryView(APIView):
     def put(self, request, book):
         book = DatabaseBook(book)
         ## Todo Mutex/lock
-        obj = json.loads(request.body, encoding='utf-8')
+        obj = json.loads(request.body)
         db = DatabaseDictionary.from_json(obj)
         db.to_file(book)
         logger.debug('Successfully saved DatabaseFile to {}'.format(book.local_path))
@@ -76,7 +76,7 @@ class BookDocumentsView(APIView):
     def put(self, request, book):
         book = DatabaseBook(book)
         ## Todo Mutex/lock
-        obj = json.loads(request.body, encoding='utf-8')
+        obj = json.loads(request.body)
         db = DatabaseBookDocuments.from_json(obj)
         db.to_file(book)
         logger.debug('Successfully saved DatabaseFile to {}'.format(book.local_path))
@@ -166,7 +166,7 @@ class DocumentView(APIView):
         book = DatabaseBook(book)
         documents = DatabaseBookDocuments().load(book)
         document: Document = documents.database_documents.get_document_by_id(document)
-        obj = json.loads(request.body, encoding='utf-8')
+        obj = json.loads(request.body)
         doc_obj = Document.from_json(obj)
         documents.database_documents.documents[documents.database_documents.documents.index(document)] = doc_obj
         documents.to_file(book=book)
@@ -182,7 +182,7 @@ class DocumentPCGTSUpdatesView(APIView):
         documents = DatabaseBookDocuments().load(book)
         document: Document = documents.database_documents.get_document_by_id(document)
         ## Todo Mutex/lock
-        obj = json.loads(request.body, encoding='utf-8')
+        obj = json.loads(request.body)
         document.update_pcgts(book=book, lines=obj)
         # db = DatabaseBookDocuments.from_json(obj)
         # db.to_file(book)

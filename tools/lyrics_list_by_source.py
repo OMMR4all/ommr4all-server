@@ -97,7 +97,7 @@ for i in sorted(similar_docs_monody.keys()):
 
 lyrics_by_sources = Lyrics(lyrics_by_sources)
 print(lyrics_by_sources)
-with open('lyrics_by_sources.json', 'w', encoding='utf-8') as f:
+with open('lyrics_by_sources.json', 'w') as f:
     json.dump(lyrics_by_sources.to_dict(), f, ensure_ascii=False, indent=4)
 
 #workbook.close()

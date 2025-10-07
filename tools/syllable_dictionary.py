@@ -42,7 +42,7 @@ for i in sorted(syllable_dict.keys()):
     if count > 1:
         syllables[i] = hyph
 
-with open("syllable_dictionary.json", "w", encoding='utf-8') as file:
+with open("syllable_dictionary.json", "w") as file:
     json.dump(syllables, file, ensure_ascii=False, indent=4)
 
 

@@ -246,7 +246,7 @@ class BookDownloaderView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def post(self, request, book, type):
         import json, zipfile, io, os
-        pages = json.loads(request.body, encoding='utf-8').get('pages', [])
+        pages = json.loads(request.body).get('pages', [])
         book = DatabaseBook(book)
         pages = book.pages() if len(pages) == 0 else [book.page(p) for p in pages]
         if type == 'annotations.zip':
