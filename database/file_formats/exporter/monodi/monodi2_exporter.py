@@ -491,6 +491,8 @@ class PcgtsToMonodiConverter:
                             nsn = syllable.notes.spaced[-1]
 
                         if line_symbol.graphical_connection == ns_pcgts.GraphicalConnectionType.LOOPED:
+                            if not nsn.non_spaced:
+                                nsn.non_spaced.append(GroupedNotes([]))
                             nsn.non_spaced[-1].grouped.append(
                                 Note(
                                     base=BaseNote.from_symbol(line_symbol),
@@ -524,6 +526,7 @@ class PcgtsToMonodiConverter:
             last_syllable = None
             for p in pcgts:
                 fn = p.page.location.page.replace(replace_fn, "") if len(replace_fn) > 0 else p.page.location.page
+
                 self.create_folio_change(fn)
                 elements: List[ns_pcgts.Block] = p.page.blocks_of_type(regions_to_export)
                 page = p.page
@@ -573,9 +576,11 @@ class PcgtsToMonodiConverter:
                             if len(connections) > 0:
 
                                 note = connections[0].note
-
-                                current_symbol_index = all_symbols.index(note)
-
+                                try:
+                                    current_symbol_index = all_symbols.index(note)
+                                except Exception as e:
+                                    print(connections[0].syllable.text)
+                                    raise e
                                 first = True
                                 for sc in connections:
 
@@ -609,7 +614,10 @@ class PcgtsToMonodiConverter:
                                     syllable = Syllable(s_text,
                                             SpacedNotes([]))
                                     if sc.syllable.connection != sc.syllable.connection.NEW:
-                                        last_syllable.text = last_syllable.text + "-"
+                                        if last_syllable is not None:
+                                            print("TODO: fix last syllable connection")
+
+                                            last_syllable.text = last_syllable.text + "-"
                                     self.get_or_create_current_line_container().children.append(syllable
 
                                     )
