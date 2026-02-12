@@ -22,7 +22,7 @@ class PageSelectionParams(DataClassDictMixin):
 
 
 def check_if_page_range_regex_selector_valid(selected_pages: str):
-    regex = '(\s*\d+(\-\d+)?,)*(\s*\d+(\-\d+)?)'
+    regex = r'(\s*\d+(\-\d+)?,)*(\s*\d+(\-\d+)?)'
     import re
     _rex = re.compile(regex)
     return True if _rex.fullmatch(selected_pages) else False
