@@ -108,7 +108,7 @@ class BookUploadView(APIView):
         for type, file in request.FILES.items():
             logger.debug('Received new image of content type {}'.format(file.content_type))
             name = os.path.splitext(os.path.basename(file.name))[0]
-            name = re.sub('[^\w]', '_', name)
+            name = re.sub(r'[^\w]', '_', name)
             type = file.content_type
 
             def image_to_page(img, page_name):
