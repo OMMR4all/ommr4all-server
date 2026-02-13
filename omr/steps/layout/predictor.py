@@ -1,4 +1,5 @@
-from abc import abstractmethod
+from abc import abstractmethod, ABC
+from dataclasses import dataclass
 from typing import List, Generator, NamedTuple, Dict, Optional
 from database.file_formats.pcgts import *
 from database import DatabasePage
@@ -26,13 +27,8 @@ class IdCoordsPair(NamedTuple):
             'id': self.id,
             'start': self.start,
         }
-
-
-class FinalPredictionResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__class__):
-    pass
-
-
-class FinalPredictionResult(NamedTuple, AlgorithmPredictionResult, metaclass=FinalPredictionResultMeta):
+@dataclass(frozen=True)
+class FinalPredictionResult(AlgorithmPredictionResult):
     blocks: Dict[BlockType, List[IdCoordsPair]]
     pcgts: PcGts
 
