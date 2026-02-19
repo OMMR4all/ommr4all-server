@@ -2,14 +2,9 @@ import csv
 from typing import Optional, Type, Dict, List, Tuple
 
 import numpy as np
-import torch
-from guppyocr.train_calamares import train_model
-from nautilus_ocr.train import train
-
 from database.file_formats.pcgts import BlockType
 from database.file_formats.performance.pageprogress import Locks
 from omr.dataset import DatasetParams, LyricsNormalization
-from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 from database import DatabaseBook
 import os
 from omr.steps.algorithm import AlgorithmTrainerParams, AlgorithmTrainerSettings, TrainerCallback, AlgorithmMeta
@@ -19,7 +14,7 @@ from PIL import Image
 import loguru
 import yaml
 import pandas as pd
-
+import uuid
 
 
 class CalamariTrainerCallback:
@@ -67,6 +62,7 @@ class PytorchGuppyyTrainer(TextTrainerBase):
     def _train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
         from ommr4all.settings import BASE_DIR
 
+        from guppyocr.train_calamares import train_model
 
         def create_tempfiles(dir: str, dataset: Tuple[List[np.array], List[str]], type="train",
                                       subfolder: str = "train"):
@@ -77,10 +73,12 @@ class PytorchGuppyyTrainer(TextTrainerBase):
                 csv_writer = csv.writer(labels_csv)
                 csv_writer.writerow(header)
                 for ind, (image, gt) in enumerate(zip(dataset[0], dataset[1])):
-                    Image.fromarray(image).save(os.path.join(path, str(ind) + ".png"))
-                    with open(os.path.join(path, str(ind) + ".txt"), 'w', encoding='UTF8') as gt_txt:
+                    uuid_ = uuid.uuid4()
+                    
+                    Image.fromarray(image).save(os.path.join(path, str(ind) +str(uuid_)+ ".png"))
+                    with open(os.path.join(path, str(ind) + str(uuid_)+ ".txt"), 'w', encoding='UTF8') as gt_txt:
                         gt_txt.write(gt)
-                    csv_writer.writerow([os.path.join(str(ind) + ".png"), gt])
+                    csv_writer.writerow([os.path.join(str(ind)+ str(uuid_)+ ".png"), gt])
 
         train_dataset = self.train_dataset.to_text_line_nautilus_dataset(train=True, callback=callback, only_with_gt=True)
         val_dataset = self.validation_dataset.to_text_line_nautilus_dataset(train=True, callback=callback, only_with_gt=True)
@@ -93,7 +91,6 @@ class PytorchGuppyyTrainer(TextTrainerBase):
             create_tempfiles(dirpath, train_dataset, type="", subfolder="train")
             create_tempfiles(dirpath, val_dataset, type="", subfolder="test")
             from guppyocr.train_calamares import TrainingOpts
-            print( self.params.model_to_load().local_file('model_best.pth'))
             training_opts = TrainingOpts(
                 output=self.settings.model.path,
                 dataset=os.path.join(dirpath),
@@ -104,8 +101,9 @@ class PytorchGuppyyTrainer(TextTrainerBase):
                 arch="crnn",
                 gpu=True,
                 worker=2,
-                epoch=50,
-                grad_clip=False
+                epoch=self.settings.params.n_epoch,
+                grad_clip=False,
+                augment=True,
             )
             train_model(training_opts)
 
@@ -127,20 +125,17 @@ if __name__ == '__main__':
     #b = DatabaseBook('Graduel_Part_1_gt')
     #c = DatabaseBook('Graduel_Part_2_gt')
     #d = DatabaseBook('Graduel_Part_3_gt')
-    e = DatabaseBook('Pa_14819_gt')
+    #e = DatabaseBook('Pa_14819_gt')
     #f = DatabaseBook('Assisi')
     #g = DatabaseBook('Cai_72')
     # h = DatabaseBook('mul_2_rsync_gt')
     #hg = DatabaseBook('')
-
+    e = DatabaseBook('Geesebook2_30_09')
+    f = DatabaseBook('Geesebook1_complete')
     # b = DatabaseBook('Pa1235_Hiwi_01')
 
-    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.TEXT, True)], True, [e])
-    print(len(train_pcgts))
-    print(len(val_pcgts))
-    print("2")
-    for i in train_pcgts:
-        print(i.page.location.local_path())
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.TEXT, True)], True, [e, f])
+
     #trainer_params.load = '/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/modules/ommr4all-server/internal_storage/default_models/french14/text_nautilus/best_accuracy.pth'
 
     params = DatasetParams(

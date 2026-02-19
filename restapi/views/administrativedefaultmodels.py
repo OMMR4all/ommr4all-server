@@ -1,3 +1,4 @@
+
 from rest_framework.views import APIView
 from .auth import require_global_permissions, DatabasePermissionFlag
 from rest_framework.response import Response
@@ -25,4 +26,7 @@ class AdministrativeDefaultModelsView(APIView):
 
     def get(self, request, group, style):
         default_type = AlgorithmGroups(group).types()[0]
+        import sys
+        if "torch" in sys.modules:
+            logger.info('THREAD: Torch already Loaded')
         return Response(Step.meta(default_type).list_available_models_for_style(style).to_dict())

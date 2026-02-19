@@ -1,14 +1,12 @@
 from database.file_formats.pcgts import PcGts
 from typing import List, Optional
 from omr.dataset import DatasetParams
-#from omr.adapters.pagesegmentation.params import PageSegmentationTrainerParams
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 from database.model import Model
 from dataclasses import dataclass
 #from mashumaro import DataClassJSONMixin
 from mashumaro.mixins.json import DataClassJSONMixin
 
-from omr.steps.symboldetection.torchpixelclassifier.params import PageSegmentationTrainerTorchParams
 
 
 @dataclass()
@@ -42,6 +40,8 @@ class AlgorithmTrainerParams(DataClassJSONMixin):
 
 @dataclass()
 class AlgorithmTrainerSettings:
+    from omr.steps.symboldetection.torchpixelclassifier.params import PageSegmentationTrainerTorchParams
+
     dataset_params: DatasetParams
     train_data: List[PcGts]
     validation_data: List[PcGts]

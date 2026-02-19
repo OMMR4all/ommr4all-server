@@ -3,26 +3,19 @@ import os
 from typing import List, Optional, Generator
 
 from omr.confidence.symbol_sequence_confidence import SymbolSequenceConfidenceLookUp, SequenceSetting
-from segmentation.model_builder import ModelBuilderLoad
-from segmentation.network_postprocessor import NetworkMaskPostProcessor
-from segmentation.scripts.train import get_default_device
-from segmentation.preprocessing.source_image import SourceImage
+
 
 from database.file_formats.pcgts import *
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset, SymbolDetectionDatasetTorch
 from omr.dataset import RegionLineMaskData, DatasetParams
 from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorSettings
-import cv2
-import numpy as np
+
 from omr.steps.symboldetection.yolo_detector.meta import Meta
 from omr.imageoperations.music_line_operations import SymbolLabel
 from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePredictionResult, PredictionResult
-from segmentation.network import Network, EnsemblePredictor
-from omr.steps.symboldetection.postprocessing.symbol_extraction_from_prob_map import extract_symbols
+
 from omr.steps.symboldetection.postprocessing.symobl_background_knwoledge_postprocessing import *
 from loguru import logger
-from ultralytics import YOLO
-from ultralytics.utils.plotting import Annotator
 
 from shared.pcgtscanvas import PcGtsCanvas
 
@@ -37,6 +30,7 @@ class PCTorchPredictor(SymbolsPredictor):
         import torch
         use_cuda = torch.cuda.is_available()
         path = os.path.join(settings.model.path)
+        from ultralytics import YOLO
 
         #modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(path, 'best.torch'),
         #                                          device=get_default_device())
@@ -66,6 +60,7 @@ class PCTorchPredictor(SymbolsPredictor):
         dataset = SymbolDetectionDatasetTorch(pcgts_files, self.dataset_params)
         df = dataset.to_memory_dataset(train=False)
         clefs = []
+        from ultralytics import YOLO
 
         for index, row in df.iterrows():
             mask, image, data = row['masks'], row['images'], row['original']

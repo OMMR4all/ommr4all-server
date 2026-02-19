@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from albumentations.pytorch import ToTensorV2
 from segmentation.datasets.dataset import MemoryDataset
+from segmentation.modules import Architecture
 from torch.utils.data import DataLoader
 
 from omr.imageoperations.music_line_operations import SymbolLabel
@@ -16,7 +17,7 @@ from segmentation.callback import ModelWriterCallback
 # from segmentation.dataset import MemoryDataset
 from segmentation.losses import Losses
 from segmentation.metrics import Metrics
-from segmentation.model_builder import ModelBuilderMeta
+from segmentation.model_builder import ModelBuilderMeta, ModelBuilderLoad
 from segmentation.network import NetworkTrainer
 from segmentation.optimizer import Optimizers
 from segmentation.preprocessing.workflow import GrayToRGBTransform, ColorMapTransform, NetworkEncoderTransform, \
@@ -36,7 +37,7 @@ import logging
 from omr.steps.stafflines.detection.dataset import DatasetParams
 from omr.steps.algorithm import TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
 from omr.steps.stafflines.detection.pixelclassifier_torch.meta import Meta
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +104,10 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
                                  transforms=transforms.get_test_transforms(), scale_area=9999999999)
         train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
         val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
-
+        if len(val_data) == 0:
+            val_loader = train_loader
         predfined_nw_settings = PredefinedNetworkSettings(
-            architecture=self.settings.page_segmentation_torch_params.architecture,
+            architecture=Architecture(self.settings.page_segmentation_torch_params.architecture),
             encoder=self.settings.page_segmentation_torch_params.encoder,
             classes=len(color_map),
             encoder_depth=self.settings.page_segmentation_torch_params.predefined_encoder_depth,
@@ -125,19 +127,28 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
             weight_sharing=False if CustomModelSettings.weight_sharing else True,
             scaled_image_input=CustomModelSettings.scaled_image_input
         )
+        def build_model_from_loaded(load, device) -> Tuple['Network', 'ModelConfiguration']:
+            base_model_file = ModelBuilderLoad.from_disk(model_weights=load, device=device)
+            base_model = base_model_file.get_model()
+            base_config = base_model_file.get_model_configuration()
+            return base_model, base_config
+        if self.params.model_to_load():
+            path = self.params.model_to_load().local_file('best.torch')
+            device = get_default_device()
+            network, config = build_model_from_loaded(path, device)
+        else:
+            config = ModelConfiguration(use_custom_model=self.settings.page_segmentation_torch_params.custom_model,
+                                        network_settings=predfined_nw_settings if not self.settings.page_segmentation_torch_params.custom_model else None,
+                                        custom_model_settings=custom_nw_settings if self.settings.page_segmentation_torch_params.custom_model else None,
+                                        preprocessing_settings=ProcessingSettings(input_padding_value=32,
+                                                                                  rgb=True,
+                                                                                  scale_max_area=999999999,
+                                                                                  preprocessing=Preprocessingfunction(
+                                                                                      self.settings.page_segmentation_torch_params.encoder) if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction(),
+                                                                                  transforms=transforms.to_dict()),
 
-        config = ModelConfiguration(use_custom_model=self.settings.page_segmentation_torch_params.custom_model,
-                                    network_settings=predfined_nw_settings if not self.settings.page_segmentation_torch_params.custom_model else None,
-                                    custom_model_settings=custom_nw_settings if self.settings.page_segmentation_torch_params.custom_model else None,
-                                    preprocessing_settings=ProcessingSettings(input_padding_value=32,
-                                                                              rgb=True,
-                                                                              scale_max_area=999999999,
-                                                                              preprocessing=Preprocessingfunction(
-                                                                                  self.settings.page_segmentation_torch_params.encoder) if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction(),
-                                                                              transforms=transforms.to_dict()),
-
-                                    color_map=color_map)
-        network = ModelBuilderMeta(config, device=get_default_device()).get_model()
+                                        color_map=color_map)
+            network = ModelBuilderMeta(config, device=get_default_device()).get_model()
         mw = ModelWriterCallback(network, config, save_path=Path(self.settings.model.path), prefix="",
                                  metric_watcher_index=0)
         callbacks = [mw, pc_callback]
@@ -168,10 +179,13 @@ if __name__ == "__main__":
     e = DatabaseBook('Pa_14819_gt')
     f = DatabaseBook('Assisi')
     g = DatabaseBook('Cai_72')
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[b, c, d, e, f, g])
+    h = DatabaseBook('Rom_1')
+    i = DatabaseBook('Graduel_Syn_orig_line')
+
+    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True)], datasets=[h, i])
     trainer = BasicStaffLinesTrainerTorch(AlgorithmTrainerSettings(
         dataset_params=DatasetParams(),
         train_data=train,
         validation_data=val,
     ))
-    trainer.train(b)
+    trainer.train(h)

@@ -2,11 +2,10 @@ import os
 
 from typing import List, Optional, Generator
 
+
+
 from omr.confidence.symbol_sequence_confidence import SymbolSequenceConfidenceLookUp, SequenceSetting
-from segmentation.model_builder import ModelBuilderLoad
-from segmentation.network_postprocessor import NetworkMaskPostProcessor, MaskPredictionResult
-from segmentation.scripts.train import get_default_device
-from segmentation.preprocessing.source_image import SourceImage
+
 
 from database.file_formats.pcgts import *
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset, SymbolDetectionDatasetTorch
@@ -17,7 +16,7 @@ import numpy as np
 from omr.steps.symboldetection.torchpixelclassifier.meta import Meta
 from omr.imageoperations.music_line_operations import SymbolLabel
 from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePredictionResult
-from segmentation.network import Network, EnsemblePredictor
+
 from omr.steps.symboldetection.postprocessing.symbol_extraction_from_prob_map import extract_symbols, \
     render_prediction_labels
 from omr.steps.symboldetection.postprocessing.symobl_background_knwoledge_postprocessing import *
@@ -31,6 +30,11 @@ class PCTorchPredictor(SymbolsPredictor):
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
         import torch
+        from segmentation.model_builder import ModelBuilderLoad
+        from segmentation.network_postprocessor import NetworkMaskPostProcessor, MaskPredictionResult
+        from segmentation.scripts.train import get_default_device
+        from segmentation.preprocessing.source_image import SourceImage
+        from segmentation.network import Network, EnsemblePredictor
         use_cuda = torch.cuda.is_available()
         path = os.path.join(settings.model.path)
         modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(path, 'best.torch'),
@@ -45,6 +49,9 @@ class PCTorchPredictor(SymbolsPredictor):
 
         base_model = modelbuilder.get_model()
         config = modelbuilder.get_model_configuration()
+        logger.info(config)
+        device = get_default_device()
+        logger.info(f"Using device: {device}")
         preprocessing_settings = modelbuilder.get_model_configuration().preprocessing_settings
         self.predictor = EnsemblePredictor([base_model], [preprocessing_settings])
         self.nmaskpredictor = NetworkMaskPostProcessor(self.predictor, config.color_map)
@@ -53,6 +60,8 @@ class PCTorchPredictor(SymbolsPredictor):
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[
         SingleLinePredictionResult, None, None]:
+        from segmentation.network_postprocessor import MaskPredictionResult
+        from segmentation.preprocessing.source_image import SourceImage
         dataset = SymbolDetectionDatasetTorch(pcgts_files, self.dataset_params)
         df = dataset.to_memory_dataset(train=False)
         clefs = []
@@ -73,12 +82,13 @@ class PCTorchPredictor(SymbolsPredictor):
             from scipy.special import softmax
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
             second_mask_softmax = None
-            if output.prediction_result.other_probability_map[0] is not None:
-                second_mask_softmax = softmax(np.squeeze(output.prediction_result.other_probability_map[0]), axis=-1)
+            if output.prediction_result.other_probability_map is not None:
+                if len(output.prediction_result.other_probability_map) > 0:
+                    second_mask_softmax = softmax(np.squeeze(output.prediction_result.other_probability_map[0]), axis=-1)
 
             m: RegionLineMaskData = data
             symbols = extract_symbols(prob_map_softmax, labels, m, dataset=dataset, min_symbol_area=-1,
-                                      clef=self.settings.params.use_rule_based_post_processing and self.settings.params.use_rule_based_post_processing , lookup=self.look_up,
+                                      clef=self.settings.params.use_rule_based_post_processing and self.settings.params.use_pis_clef_correction , lookup=self.look_up,
                                       probability=0.5, second_mask=second_mask_softmax)
 
             additional_symbols = filter_unique_symbols_by_coord(symbols,
@@ -115,16 +125,16 @@ class PCTorchPredictor(SymbolsPredictor):
                 symbols = add_neume_start_pos(m.operation.page, symbols, PageScaleReference.NORMALIZED_X2, m=m, debug=False)
                 line = Line(symbols=symbols)
 
-                if self.settings.params.use_missing_clef_correction:
 
-                    initial_clef = None
-                    if len(symbols) > 0:
-                        if symbols[0].symbol_type == symbols[0].symbol_type.CLEF:
-                            clefs.append(symbols[0])
-                            initial_clef = symbols[0]
-                        elif len(clefs) > 0:
+                initial_clef = None
+                if len(symbols) > 0:
+                    if symbols[0].symbol_type == symbols[0].symbol_type.CLEF:
+                        clefs.append(symbols[0])
+                        initial_clef = symbols[0]
+                    elif len(clefs) > 0:
+                        if self.settings.params.use_missing_clef_correction:
                             initial_clef = clefs[-1]
-                    line.update_note_names(initial_clef=initial_clef)
+                line.update_note_names(initial_clef=initial_clef)
 
                 symbols = line.symbols
 

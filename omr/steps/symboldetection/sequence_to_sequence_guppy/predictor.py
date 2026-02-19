@@ -19,9 +19,8 @@ import numpy as np
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset, SymbolDetectionDatasetTorch
 from omr.steps.symboldetection.predictor import SymbolsPredictor, AlgorithmPredictorSettings, PredictionCallback, \
     SingleLinePredictionResult, PredictionResult
-from omr.steps.symboldetection.sequence_to_sequence_guppy.api import GuppyOCR
 from omr.steps.symboldetection.sequence_to_sequence_guppy.meta import Meta
-from omr.steps.text.guppy.predictor import resize_with_pad, GreedyDecoder
+
 
 
 class OMRPredictor(SymbolsPredictor):
@@ -33,7 +32,8 @@ class OMRPredictor(SymbolsPredictor):
         super().__init__(settings)
         self.dict_corrector = None
         path = settings.model.local_file('model_best.pth')
-
+        from omr.steps.text.guppy.predictor import resize_with_pad, GreedyDecoder
+        from omr.steps.symboldetection.sequence_to_sequence_guppy.api import GuppyOCR
         # print(path)
         # print(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
         #                   'network_config', 'ocr_config.yaml'))
@@ -47,7 +47,8 @@ class OMRPredictor(SymbolsPredictor):
         self.network.model.eval()
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[SingleLinePredictionResult, None, None]:
-
+        from omr.steps.text.guppy.predictor import resize_with_pad, GreedyDecoder
+        from omr.steps.symboldetection.sequence_to_sequence_guppy.api import GuppyOCR
         # if self.database_hyphen_dictionary is None:
         #    db = DatabaseDictionary.load(book=book)
         #    self.database_hyphen_dictionary = db.to_hyphen_dict()

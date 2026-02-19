@@ -1,10 +1,9 @@
 import random
 import os
 import cv2
-import torch
 
-from ultralytics import YOLO
-from ultralytics.utils.plotting import Annotator
+
+
 
 from omr.dataset import RegionLineMaskData
 from omr.steps.layout.drop_capitals_yolo.dataset import DropCapitalDatasetDataset
@@ -44,6 +43,9 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
 
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
+        import torch
+        from ultralytics import YOLO
+        from ultralytics.utils.plotting import Annotator
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         #self.model = torch.load(os.path.join(settings.model.local_file(LAYOUT_DROP_CAPITAL_MODEL_DEFAULT_NAME)),
@@ -57,6 +59,9 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
         model_weights = os.path.join(path, 'best.pt')
         self.model = YOLO(model_weights)
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> PredictionType:
+        import torch
+        from ultralytics import YOLO
+        from ultralytics.utils.plotting import Annotator
         dc_dataset = DropCapitalDatasetDataset(pcgts_files, self.dataset_params)
         images, masks, adds = dc_dataset.to_yolo_drop_capital_dataset(train_path="")
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

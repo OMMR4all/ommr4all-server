@@ -55,21 +55,21 @@ import omr.steps.layout.simplelyrics.meta
 import omr.steps.layout.drop_capitals_yolo.meta
 
 import omr.steps.layout.standard.meta
-import omr.steps.symboldetection.pixelclassifier.meta
+#import omr.steps.symboldetection.pixelclassifier.meta
 import omr.steps.symboldetection.torchpixelclassifier.meta
-import omr.steps.symboldetection.sequencetosequence.meta
-import omr.steps.symboldetection.sequence_to_sequence_nautilus.meta
+#import omr.steps.symboldetection.sequencetosequence.meta
+#import omr.steps.symboldetection.sequence_to_sequence_nautilus.meta
 import omr.steps.symboldetection.sequence_to_sequence_guppy.meta
 import omr.steps.symboldetection.yolo_detector.meta
 
 import omr.steps.postprocessing.meta
 
 import omr.steps.layout.correction_tools.connectedcomponentsselector.meta
-import omr.steps.text.calamari.meta
-import omr.steps.text.pytorch_ocr.meta
+#import omr.steps.text.calamari.meta
+#import omr.steps.text.pytorch_ocr.meta
 import omr.steps.text.guppy.meta
 
-import omr.steps.syllables.syllablesfromtext.meta
+#import omr.steps.syllables.syllablesfromtext.meta
 import omr.steps.syllables.syllablesfromtexttorch.meta
 
 import omr.steps.syllables.syllablesinorder.meta

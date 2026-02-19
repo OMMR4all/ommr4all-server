@@ -112,10 +112,6 @@ class Predictor(AlgorithmPredictor):
 
             for a in ocr_r.text_lines:
                 for z in a.chars:
-                    print(z[0])
-                    for t in z[1]:
-                        print(t.x)
-                        print(ocr_r.dataset_page.pcgts().page.page_to_image_scale(t.x, scale_reference))
                     line = [ (ocr_r.dataset_page.pcgts().page.page_to_image_scale(x.x, scale_reference),
                               ocr_r.dataset_page.pcgts().page.page_to_image_scale(x.y, scale_reference)) for x in z[1]]
                     draw.line(line)

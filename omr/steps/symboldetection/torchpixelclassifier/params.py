@@ -4,13 +4,9 @@ import albumentations
 import cv2
 from albumentations import RandomScale, RandomGamma, RandomBrightnessContrast, OneOf, ToGray, CLAHE, Compose, Affine, \
     ShiftScaleRotate
-from segmentation.datasets.dataset import compose
 
-from segmentation.modules import Architecture
 import albumentations as albu
 
-from segmentation.preprocessing.workflow import BinarizeDoxapy
-from segmentation.settings import PredefinedNetworkSettings, CustomModelSettings
 
 
 
@@ -19,6 +15,8 @@ def remove_nones(x):
 
 
 def default_transform():
+    from segmentation.preprocessing.workflow import BinarizeDoxapy
+
     result = Compose([
         #RandomScale(),
         ShiftScaleRotate(rotate_limit=2, scale_limit=(-0.1, 0.1), shift_limit_x=0.2, shift_limit_y=0.2, border_mode=cv2.BORDER_CONSTANT, value=(255,255,255), mask_value=0),
@@ -41,6 +39,8 @@ def default_transform():
     ], additional_targets={'add_symbols_mask': 'mask'} )
     return result
 def symbol_transform():
+    from segmentation.datasets.dataset import compose
+
     result = [
         # albu.HorizontalFlip(),
         albu.Rotate((-2, 2), border_mode=0, value=0),
@@ -52,18 +52,20 @@ def symbol_transform():
 
 
 class PageSegmentationTrainerTorchParams(NamedTuple):
+
+
     data_augmentation: bool = True
-    augmentation = default_transform()
-    architecture: Architecture = Architecture.UNET
+    augmentation = None
+    architecture: str = 'unet'
     encoder: str = 'efficientnet-b3'
     custom_model: bool = False
-    predefined_encoder_depth = PredefinedNetworkSettings.encoder_depth
-    predefined_decoder_channel = PredefinedNetworkSettings.decoder_channel #(256, 256, 196, 128, 64) #(256, 128, 64, 32, 16) #(256, 256, 196, 128, 64)
+    predefined_encoder_depth = 5
+    predefined_decoder_channel = (256, 128, 64, 32, 16) #(256, 256, 196, 128, 64) #(256, 128, 64, 32, 16) #(256, 256, 196, 128, 64)
     use_batch_norm_layer = True
     custom_model_encoder_filter = [16, 32, 64, 256, 512]
     custom_model_decoder_filter = [16, 32, 64, 256, 512]
-    custom_model_encoder_depth = CustomModelSettings.encoder_depth
-    additional_number_of_heads: int = 1
+    custom_model_encoder_depth = 4
+    additional_number_of_heads: int = 0
 
     # augmentation_settings: AugmentationSettings = AugmentationSettings(
     #    rotation_range=2.5,
