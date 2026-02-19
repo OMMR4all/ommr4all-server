@@ -40,9 +40,12 @@ class EvaluatorParams(NamedTuple):
     staff_n_lines_threshold: int = 2
     staff_line_found_distance: int = 3
     ignore_gapped_symbols: bool = False
+    filter_test_files: List[str] = None
 
 
 class GlobalDataArgs(NamedTuple):
+
+
     magic_prefix: Optional[str]
     model_dir: str
     cross_folds: int
@@ -105,7 +108,7 @@ class ExperimenterScheduler:
         global_args = self.global_args
         logger.info("Finding PcGts files with valid ground truth")
         train_args = generate_dataset(
-            lock_states=[LockState(Locks.STAFF_LINES, True), LockState(Locks.LAYOUT, True)],
+            lock_states=[LockState(Locks.STAFF_LINES, True), LockState(Locks.LAYOUT, True), LockState(self.global_args.algorithm_type.group().group_2_lock_mapping(), True)],
             n_train=n_train,
             val_amount=val_amount,
             cross_folds=cross_folds,
@@ -157,10 +160,6 @@ class Experimenter(ABC):
         model_path = os.path.join(args.model_dir, 'best')
 
         if not global_args.skip_train:
-            #fold_log.info(args.train_pcgts_files)
-            #print(len(args.train_pcgts_files))
-            #print(len(args.validation_pcgts_files))
-            #print(len(args.test_pcgts_files))
             validation_data = args.validation_pcgts_files if args.validation_pcgts_files else args.train_pcgts_files
             fold_log.info(f"Starting training. Training:{len(args.train_pcgts_files)} and Val: {len(validation_data)}")
 
@@ -180,6 +179,12 @@ class Experimenter(ABC):
             trainer.train()
 
         test_pcgts_files = args.test_pcgts_files
+        if global_args.evaluation_params.filter_test_files:
+            len_bef = len(test_pcgts_files)
+            test_pcgts_files = [t for t in test_pcgts_files if t.dataset_page().book.book in global_args.evaluation_params.filter_test_files]
+            fold_log.info("Before filtering: {}, after filtering: {}".format(len_bef, len(test_pcgts_files)))
+
+
         if not global_args.skip_predict:
             fold_log.info("Starting prediction")
             pred_params = deepcopy(global_args.predictor_params)

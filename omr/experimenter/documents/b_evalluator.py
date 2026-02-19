@@ -101,14 +101,14 @@ def evaluate_symbols(pred_symbols: List[List[MusicSymbol]], gt_symbols: List[Lis
     return excel_lines
 
 
-def evaluate_text(pred_text: List[str], gt_text: List[str]):
+def evaluate_text(pred_text: List[str], gt_text: List[str], confusion_map = False):
     ##pred_text, gt_text = prepare_text_gt(pred_book, gt_book)
     s_data = SingleDataArgs(0, None, None, None, None,
                             GlobalDataArgs("EXPERIMENT_OUT=", None, None, None, None, None, None, None, DatasetParams(),
                                            None, None, None, None, None,
                                            None, None, None, None))
     exp = TextExperimenter(s_data, logger)
-    results = exp.evaluate((pred_text, gt_text), EvaluatorParams(debug=False))
+    results = exp.evaluate((pred_text, gt_text), EvaluatorParams(debug=False), confusion_map=confusion_map)
     # results = counts, prf1, (all_tp_staves, all_fp_staves, all_fn_staves)
     # print(results)
     output_string = exp.print_results(

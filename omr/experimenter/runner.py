@@ -84,7 +84,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_number_of_staff_lines", default=4, type=int)
 
     #parser.add_argument("--page_segmentation_architecture", type=lambda t: Architecture[t], choices=list(Architecture), default=PageSegmentationTrainerParams().architecture)
-    parser.add_argument("--page_segmentation_torch_architecture", type=lambda t: TorchArchitecture[t],
+    parser.add_argument("--page_segmentation_torch_architecture", type=lambda t: TorchArchitecture(t),
                              choices=list(TorchArchitecture), default=PageSegmentationTrainerTorchParams().architecture)
     parser.add_argument("--page_segmentation_torch_encoder", type=str, choices=list(ENCODERS),
                         default=PageSegmentationTrainerTorchParams().encoder)
@@ -113,6 +113,7 @@ if __name__ == "__main__":
     parser.add_argument("--line_hit_overlap_threshold", default=EvaluatorParams().line_hit_overlap_threshold, type=float)
     parser.add_argument("--staff_n_lines_threshold", default=EvaluatorParams().staff_line_found_distance, type=int)
     parser.add_argument("--ignore_gapped_symbols", default=EvaluatorParams().ignore_gapped_symbols, action='store_true')
+    parser.add_argument("--filter_test_files", type=str, default=None, nargs="+")
 
     # symbol predictor params
     parser.add_argument("--use_rule_based_post_processing", action="store_true")
@@ -131,7 +132,7 @@ if __name__ == "__main__":
         np.random.seed(args.seed)
 
     if not args.use_regions and args.cut_region:
-        logger.warning("Cannot bot set 'cut_region' and 'staff_lines_only'. Setting 'cut_region=False'")
+        logger.warning("Cannot both set 'cut_region' and 'staff_lines_only'. Setting 'cut_region=False'")
         args.cut_region = False
     global_args = GlobalDataArgs(
         args.magic_prefix,
@@ -171,6 +172,7 @@ if __name__ == "__main__":
             line_hit_overlap_threshold=args.line_hit_overlap_threshold,
             staff_n_lines_threshold=args.staff_n_lines_threshold,
             ignore_gapped_symbols=args.ignore_gapped_symbols,
+            filter_test_files=args.filter_test_files,
         ),
         predictor_params=AlgorithmPredictorParams(
             minNumberOfStaffLines=args.min_number_of_staff_lines,

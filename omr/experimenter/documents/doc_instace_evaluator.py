@@ -21,7 +21,7 @@ from omr.experimenter.documents.evaluater import evaluate_stafflines, logger
 from tools.simple_gregorianik_text_export import Lyrics, Lyric_info
 
 
-def prepare_document(pred_book: DatabaseBook, gt_book: DatabaseBook, ignore=None, ignore_char=["$", "%"]) -> Tuple[List[DocSpanType], int, int]:
+def prepare_document(pred_book: DatabaseBook, gt_book: DatabaseBook, ignore=None, ignore_char=["$", "%", "#"]) -> Tuple[List[DocSpanType], int, int]: # added #
     documents = DatabaseBookDocuments().load(gt_book)
     documents_pred = DatabaseBookDocuments().load(pred_book)
 
@@ -907,7 +907,7 @@ if __name__ == "__main__":
         excel_symbol = evaluate_symbols(pred, gt)
 
         pred, gt = text_eval_data.get_text_data()
-        excel_text = evaluate_text(pred, gt)
+        excel_text = evaluate_text(pred, gt, confusion_map = True)
         pred, gt = text_eval_data.get_text_data_ignore_line_endings()
         excel_text2 = evaluate_text(pred, gt)
         ex_syll, errors = evaluate_syllabels(syl_eval_data.get_syl_data())
@@ -961,6 +961,7 @@ if __name__ == "__main__":
               'mul_2_end_w_gt_symbols_and_text', "mul_2_end_w_gt_symbols_w_finetune_no_pp_gt_text_seg3", "mul_2_rsync_gt_symobl_gt_text_gt_syllabels", "mul_2_end_w_finetune_basic_w_doc_pp_gt_text", "mul_2_rsync_gt_inferred_symbols_gt_text", "mul_2_end_w_finetune_symbols_no_finetune_no_pp2", "mul_2_end_w_finetune_symbols_w_finetune_no_pp2", "mul_2_end_w_finetune_symbols_no_finetune_w_pp2"]
     #books2 = ["mul_2_end_w_finetune_symbols_w_finetune_w_pp2"]
     books2 = ["Geesebook1_base_predict_full_ignore_gapped_predict", "Geesebook1_base_predict_full_symbolonlygapped", "Geesebook1textandsymbolgt", "Geesebook1_base_predict_gt_text", "Geesebook1_base_predict", "Geesebook1lines"]
+    books2 = ["Geesebook1_base_predict"]
 
     for i in books2:
         b = DatabaseBook(i)
