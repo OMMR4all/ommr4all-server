@@ -2,7 +2,7 @@ from database import DatabaseBook
 
 if __name__ == "__main__":
 
-    book = DatabaseBook('mul_2_gt_22_03')
+    book = DatabaseBook('Geesebook1_complete')
 
     for i in book.pages():
         for t in i.pcgts().page.all_text_lines():

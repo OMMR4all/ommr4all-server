@@ -11,7 +11,7 @@ from omr.dataset.dataset import LyricsNormalizationProcessor, LyricsNormalizatio
 from tools.simple_gregorianik_text_export import Lyric_info, Lyrics
 
 if __name__ == "__main__":
-    book = DatabaseBook('mul_2_gt_22_03')
+    book = DatabaseBook('Geesebook1_complete')
     documents = DatabaseBookDocuments().load(book)
     docs = documents.database_documents.documents
     text_normalizer = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.WORDS))
@@ -41,7 +41,7 @@ if __name__ == "__main__":
                     lowest_ed = 0
                     lowest_text = text2
                     lyric_info = b
-            if lyric_info:
+            if lyric_info and lowest_ed /len(text) < 0.1:
                 i.document_meta_infos.genre = lyric_info.genre
                 i.document_meta_infos.url = lyric_info.url
                 i.document_meta_infos.festum = lyric_info.meta_info
