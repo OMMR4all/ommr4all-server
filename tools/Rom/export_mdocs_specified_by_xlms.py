@@ -31,9 +31,9 @@ def soruce_meta(id):
     return meta
 
 if __name__ == "__main__":
-    source = "Geesebook1"
+    source = "Rom_1_export"
     source_meta = soruce_meta(source)
-    book = DatabaseBook('Geesebook1_complete_fixed_ro')
+    book = DatabaseBook('Rom_1_export')
     documents = DatabaseBookDocuments().load(book)
     docs = documents.database_documents.documents
     wb_obj = openpyxl.load_workbook("/tmp/CM Default Metadatendatei.xlsx", data_only=True)
@@ -56,22 +56,26 @@ if __name__ == "__main__":
             #print(sheet_obj["O" + str(i)].value)
             i = i + 1
             continue
-
+        print("123")
         if cell_obj:
+            print("1234")
+
             try:
                 document = documents.database_documents.get_document_by_id(cell_obj)
                 pages = [DatabasePage(book, x) for x in document.pages_names]
                 pcgts = [DatabaseFile(page, 'pcgts', create_if_not_existing=True).page.pcgts() for page in pages]
+                if i == 9:
+                    pass
+                    pass
                 try:
-                    root = PcgtsToMonodiConverter(pcgts, document=document, replace_filename="folio_", remove_char="%")
+                    root = PcgtsToMonodiConverter(pcgts, document=document, replace_filename="folio", remove_char="%")
 
-                    meta, nodes = root.get_meta_and_notes(document=document, editor=str("OMMR4all"), sourceIIF="Ass695",
-                               doc_source="Ass695", suffix=".jpg", url="https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/")
-
+                    meta, nodes = root.get_meta_and_notes(document=document, editor=str("ANONYMIZED"), sourceIIF="Graduale_Synopticum",
+                               doc_source="Graduale Synopticum", suffix=".png", url="ANONYMIZED.xyz/iiif/3/")
                 except Exception as e:
-                    print(i)
-                    print([i.local_path() for i in pages])
-                    print(document.start.row)
+                    #print(i)
+                    #print([i.local_path() for i in pages])
+                    #print(document.start.row)
                     raise e
                 os.makedirs(f"/tmp/export/{source}/{document.monody_id}", exist_ok=True)
                 with open(f"/tmp/export/{source}/{document.monody_id}/data.json", "w") as f:

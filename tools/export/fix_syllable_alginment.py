@@ -16,11 +16,12 @@ def get_previous_note_start_symbol(symbols: List[MusicSymbol], index: int):
 
 if __name__ == "__main__":
 
-    book = DatabaseBook('Graduel_Syn2')
+    book = DatabaseBook('Geesebook1_complete')
 
     pages = book.pages()
     for i in pages:
         page = i.pcgts().page
+        change = False
         annotation = page.annotations
         for con in annotation.connections:
             prev_syl_con = None
@@ -30,8 +31,10 @@ if __name__ == "__main__":
                     n_symbol = get_previous_note_start_symbol(symbols, symbols.index(syl_con.note))
                     if prev_syl_con is None or prev_syl_con.note != n_symbol:
                         syl_con.note = n_symbol
-                prev_syl_con = syl_con
+                        change = True
 
-        i.pcgts().to_file(i.file('pcgts').local_path())
+                prev_syl_con = syl_con
+        if change:
+            i.pcgts().to_file(i.file('pcgts').local_path())
 
 

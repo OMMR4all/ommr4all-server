@@ -15,8 +15,7 @@ export_dir = "/home/alexanderh/Downloads/mc_export/export/"
 monodoy_documents, lyrics, lyrics_with_syllabels= populate("/home/alexanderh/Downloads/mc_export/export/")
 print("loaded monody")
 genre=[]
-for i in monodoy_documents:
-    i.genre
+
 with open("latine_collection_gr.json") as f:
     json1 = json.load(f)
     lyrics2 = Lyrics.from_dict(json1)
@@ -59,9 +58,11 @@ all_lyrics = Lyrics(all_lyrics)
 # for i in monodoy_documents.keys():
 #    initial, text = monodoy_documents[i]
 #    texts[text].append(i)
+lyrics_to_eval = lyrics3
+before  = len(lyrics_to_eval.lyrics )
 similar_docs_monody = defaultdict(list)
 similarity_score = 0.95
-for i in tqdm(all_lyrics.lyrics):
+for i in tqdm(lyrics_to_eval.lyrics):
     text = i.latine.lower().replace("<", " ").replace(">", " ")
     if len(text) == 0:
         continue
@@ -77,28 +78,29 @@ for i in tqdm(all_lyrics.lyrics):
             insert = False
     if insert:
         similar_docs_monody[text].append((text, i))
+print(f"before: {before}, After: {len(similar_docs_monody)}")
+if False:
 
-lyrics_by_sources = []
-for i in sorted(similar_docs_monody.keys()):
-    text = i
-    sim = similar_docs_monody[i]
-    #variant_texts = "\n ".join(set(["Lyric:{} |id:{}".format(x[0], x[1]) for x in sim])).strip()
-    #variants = []
-    #for a in sim:
-    #    variants.append(Variant(source=a[1], latine=a[0]))
-    #worksheet.write(row, 0, text)
-    #worksheet.write(row, 1, sim[0][1])
-    #worksheet.write(row, 2, len(sim))
-    #worksheet.write(row, 3, variant_texts)
-    #row += 1
-    lyrics = sim[0][1]
-    lyrics.variants = None
-    lyrics_by_sources.append(sim[0][1])
-
-lyrics_by_sources = Lyrics(lyrics_by_sources)
-print(lyrics_by_sources)
-with open('lyrics_by_sources.json', 'w', encoding='utf-8') as f:
-    json.dump(lyrics_by_sources.to_dict(), f, ensure_ascii=False, indent=4)
+    lyrics_by_sources = []
+    for i in sorted(similar_docs_monody.keys()):
+        text = i
+        sim = similar_docs_monody[i]
+        #variant_texts = "\n ".join(set(["Lyric:{} |id:{}".format(x[0], x[1]) for x in sim])).strip()
+        #variants = []
+        #for a in sim:
+        #    variants.append(Variant(source=a[1], latine=a[0]))
+        #worksheet.write(row, 0, text)
+        #worksheet.write(row, 1, sim[0][1])
+        #worksheet.write(row, 2, len(sim))
+        #worksheet.write(row, 3, variant_texts)
+        #row += 1
+        lyrics = sim[0][1]
+        lyrics.variants = None
+        lyrics_by_sources.append(sim[0][1])
+    lyrics_by_sources = Lyrics(lyrics_by_sources)
+    print(lyrics_by_sources)
+    with open('lyrics_by_sources.json', 'w', encoding='utf-8') as f:
+        json.dump(lyrics_by_sources.to_dict(), f, ensure_ascii=False, indent=4)
 
 #workbook.close()
 

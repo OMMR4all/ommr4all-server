@@ -29,6 +29,7 @@ if __name__ == '__main__':
     parser.add_argument("--ignore-page", nargs="+", default=[])
     parser.add_argument("--specific-pages-only", nargs="+", default=[])
     parser.add_argument("--below-specific-page", type=str)
+
     args = parser.parse_args()
     if len(args.specific_pages_only) > 0:
         ignore_pages = gen_ignore_pages(args.specific_pages_only, [DatabaseBook(book) for book in args.books])

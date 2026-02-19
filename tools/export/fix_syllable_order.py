@@ -4,7 +4,7 @@ from database.file_formats.pcgts.page import Sentence
 
 if __name__ == "__main__":
 
-    book = DatabaseBook('Graduel_Syn2')
+    book = DatabaseBook('Geesebook1_complete')
 
     pages = book.pages()
     for i in pages:
@@ -12,8 +12,6 @@ if __name__ == "__main__":
         annotation = page.annotations
         change = False
         #print(page.location.page)
-        if page.location.page != "0186":
-            continue
         for t in page.all_text_lines():
             syls = []
             sentence: Sentence = t.sentence
@@ -37,11 +35,11 @@ if __name__ == "__main__":
             t.sentence = Sentence([s for s, _ in syls])
             #print(t.sentence.text())
             if text != t.sentence.text():
-                #print(i.page)
+                print(i.page)
                 change = True
                 #print(sentence.text())
                 #print(t.sentence.text())
                 #print("ERROR")
-        i.pcgts().to_file(i.file('pcgts').local_path())
+        #i.pcgts().to_file(i.file('pcgts').local_path())
 
 
