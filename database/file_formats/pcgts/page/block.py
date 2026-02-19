@@ -34,12 +34,12 @@ class Block(Region):
             [Line.from_json(l) for l in d.get('lines', [])],
         )
 
-    def to_json(self) -> dict:
+    def to_json(self, skip_confidence=False) -> dict:
         return {
             **super().to_json(),
             **{
                 'type': self.block_type.value,
-                'lines': [l.to_json(self.block_type) for l in self.lines],
+                'lines': [l.to_json(self.block_type, skip_confidence=skip_confidence) for l in self.lines],
             }
         }
 

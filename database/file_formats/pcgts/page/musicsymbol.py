@@ -261,6 +261,33 @@ class MusicSymbol:
         else:
             return str(self.accid_type.name)
 
+    def __repr__(self, ignore_gaped=True, melody=False):
+        parts = [self.symbol_type.value]
+        if self.symbol_type == self.symbol_type.NOTE:
+            parts.append(str(self.note_type.value))
+        elif self.symbol_type == self.symbol_type.CLEF:
+            parts.append(str(self.clef_type.value))
+        elif self.symbol_type == self.symbol_type.ACCID:
+            parts.append(str(self.accid_type.value))
+
+        if melody == False and self.position_in_staff is not None:
+            parts.append(str(self.position_in_staff.value))
+        elif melody == True and self.note_name is not None:
+            parts.append(str(self.note_name.value))
+            parts.append(str(self.octave))
+
+
+        if self.symbol_type == SymbolType.NOTE and self.graphical_connection is not None:
+            if ignore_gaped:
+                if self.graphical_connection == self.graphical_connection.GAPED:
+                    parts.append(str(2))
+                else:
+                    parts.append(str(self.graphical_connection.value))
+            else:
+                parts.append(str(self.graphical_connection.value))
+
+        note_string = "|".join(parts)
+        return f"({note_string})"
     @staticmethod
     def from_json(d: dict) -> 'MusicSymbol':
         if d.get('accidType') == 'neutral':
@@ -285,7 +312,7 @@ class MusicSymbol:
                 'advancedSymbolColor') is not None else AdvancedSymbolColor.black
         )
 
-    def to_json(self) -> dict:
+    def to_json(self, skip_confidence=False) -> dict:
         # export to dict, but omit non required fields for type
         d = {
             'id': self.id,
@@ -305,7 +332,7 @@ class MusicSymbol:
         elif self.symbol_type == SymbolType.ACCID:
             d['accidType'] = self.accid_type.value
 
-        d['symbolConfidence'] = self.symbol_confidence.to_json() if self.symbol_confidence else None
+        d['symbolConfidence'] = None if skip_confidence else self.symbol_confidence.to_json() if self.symbol_confidence else None
         d['advancedSymbolClass'] = self.advanced_class.value if self.advanced_class is not None else AdvancedSymbolClass.normal.value
         d['advancedSymbolColor'] = self.advanced_color.value if self.advanced_color is not None else AdvancedSymbolColor.black.value
 
