@@ -116,11 +116,13 @@ def generate_dataset(lock_states: List[LockState],
         test_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in test_books])
 
         if val_amount == 0:
+            def wrap(f1, f2):
+                return f1 + f2
             train_args = [
                 GeneratedData(fold,
-                              train if n_train < 0 else train[:n_train], None, test_pcgts,
+                              wrap(train,  val) if n_train < 0 else wrap(train, val)[:n_train], None, test_pcgts,
                               )
-                for fold, train, _ in cross_fold(train_pcgts, cross_folds)
+                for fold, val, train in cross_fold(train_pcgts, cross_folds)
             ]
         else:
             train_args = [
