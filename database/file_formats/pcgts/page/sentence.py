@@ -41,8 +41,8 @@ class Sentence:
             syllables=[s for s in [Syllable.from_json(s) for s in json.get('syllables', [])] if len(s.text) > 0],
         )
 
-    # syllable_re = re.compile(r"(([\w.!?,;]+[~\-])|([\w.!?,;]+$))")
-    syllable_re = re.compile(r"([~\-]?[\w.!?,;]+)")
+    #syllable_re = re.compile(r"(([\w.!?,;]+[~\-])|([\w.!?,;]+$))")
+    syllable_re = re.compile(r"([~\-]?[\w.!?$,;]+)")
 
     @staticmethod
     def from_string(text: str):

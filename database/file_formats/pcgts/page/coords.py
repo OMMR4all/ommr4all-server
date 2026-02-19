@@ -385,6 +385,9 @@ class Rect:
     def area(self):
         return self.size.h * self.size.w
 
+    def height(self):
+        return self.size.h
+
     def noIntersectionWithRect(self, rect: "Rect") -> bool:
         return (self.br.x < rect.tl.x or self.tl.x > rect.br.x or self.br.y < rect.tl.y or self.tl.y > rect.br.y)
 

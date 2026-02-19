@@ -79,9 +79,9 @@ class Page:
         page.update_note_names()
         return page
 
-    def to_json(self):
+    def to_json(self, skip_confidence=False):
         return {
-            "blocks": [t.to_json() for t in self.blocks],
+            "blocks": [t.to_json(skip_confidence=skip_confidence) for t in self.blocks],
             "imageFilename": self.image_filename,
             "imageWidth": self.image_width,
             "imageHeight": self.image_height,
@@ -201,7 +201,7 @@ class Page:
 
         return [c['lines'] for c in columns]
 
-    def all_text_lines(self, only_lyric=False):
+    def all_text_lines(self, only_lyric=False) -> List[Line]:
         return sum([b.lines for b in self.text_blocks(only_lyric)], [])
 
     def all_lines_by_type(self, types:List[BlockType]):
@@ -222,6 +222,10 @@ class Page:
         avg = np.mean([v for v in [d.avg_line_distance(default=-1) for d in staffs] if v > 0])
         return max([0.001, avg])
 
+    def avg_stave_height(self):
+        staffs = self.all_music_lines()
+        avg = np.mean([s.aabb.height() for s in staffs if s.aabb.height() > 0])
+        return max([0.001, avg])
     def closest_below_text_line_to_music_line(self, ml: Line, only_lyric=False):
         closest = None
         d = 10000000000

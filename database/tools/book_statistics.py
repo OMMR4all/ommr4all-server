@@ -33,6 +33,7 @@ class Callback(ABC):
 def compute_books_statistics(books: List[DatabaseBook], ignore_page: List[str] = None, callback: Callback = None) -> Counts:
     ignore_page = ignore_page if ignore_page else []
     pages = sum([[page.pcgts() for page in book.pages() if not any([s in page.page for s in ignore_page])] for book in books], [])
+    #pages = [p for p in pages if p.dataset_page().page_progress().verified_allowed()]
     return get_counts(pages, callback)
 
 

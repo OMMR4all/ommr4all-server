@@ -71,7 +71,7 @@ class Line(Region):
             return True
         return False
 
-    def to_json(self, block_type: Optional[BlockType] = None) -> dict:
+    def to_json(self, block_type: Optional[BlockType] = None, skip_confidence=False) -> dict:
         d = {
             **super().to_json(),
             **{
@@ -83,7 +83,7 @@ class Line(Region):
 
         if block_type == BlockType.MUSIC:
             d['staffLines'] = self.staff_lines.to_json()
-            d['symbols'] = [s.to_json() for s in self.symbols]
+            d['symbols'] = [s.to_json(skip_confidence=skip_confidence) for s in self.symbols]
             d['additionalSymbols'] = [s.to_json() for s in self.additional_symbols]
 
         elif block_type is not None:

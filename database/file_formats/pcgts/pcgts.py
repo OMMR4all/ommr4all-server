@@ -67,11 +67,11 @@ class PcGts:
             pcgts.page.image_width, pcgts.page.image_height = image_shape
         return pcgts
 
-    def to_json(self):
+    def to_json(self, skip_confidence=False):
         return {
             'version': self.version,
             'meta': self.meta.to_json(),
-            'page': self.page.to_json(),
+            'page': self.page.to_json(skip_confidence=skip_confidence),
         }
 
 
