@@ -447,17 +447,19 @@ class PcgtsToMonodiConverter:
         break
         """
 
-    def run2(self, pcgts: List[ns_pcgts.PcGts], document: Document = None, replace_fn="", ignore_gap_symbols=False, add_bracket_gap_symbols=True):
+    def run2(self, pcgts: List[ns_pcgts.PcGts], document: Document = None, replace_fn="", ignore_gap_symbols=False,
+             add_bracket_gap_symbols=True):
         if not document:
             self.run(pcgts, document)
         else:
-            def add_line_symbols(line_symbols: List[ns_pcgts.MusicSymbol]):
+            def add_line_symbols(line_symbols: List[ns_pcgts.MusicSymbol], force_syllable=None):
                 clc = self.get_or_create_current_line_container()
-                current_syllable: Optional[Syllable] = None
+                current_syllable: Optional[Syllable] = force_syllable
                 for line_symbol in line_symbols:
 
                     if line_symbol.symbol_type != ns_pcgts.SymbolType.NOTE:
-                        current_syllable = None
+                        if not force_syllable:
+                            current_syllable = None
 
                     if line_symbol.symbol_type == ns_pcgts.SymbolType.CLEF:
                         clc.children.append(
@@ -468,7 +470,7 @@ class PcgtsToMonodiConverter:
                             )
                         )
                     elif line_symbol.symbol_type == ns_pcgts.SymbolType.ACCID:
-                        syllable = self.get_or_create_syllables()
+                        syllable = current_syllable if current_syllable else self.get_or_create_syllables()
                         syllable.notes.spaced.append(
                             NonSpacesNotes([GroupedNotes([
                                 Note(
@@ -550,16 +552,9 @@ class PcgtsToMonodiConverter:
 
                             document_started = True
                             connections_b = page.annotations.connections
-                            connections_d = [c.music_region for c in connections_b for con in
-                                             c.syllable_connections if
-                                             con.syllable in i.sentence.syllables]
-
                             connections: List[SyllableConnector] = [con for c in connections_b for con in
                                                                     c.syllable_connections if
                                                                     con.syllable in i.sentence.syllables]
-                            #connections_p: List[Connection] = [c for c in connections_b for con in
-                            #                                        c.syllable_connections if
-                            #                                        con.syllable in i.sentence.syllables]
                             connections = sorted(connections, key=lambda x: x.note.coord.x)
                             music_block = page.closest_music_block_to_text_line(i)
 
@@ -569,26 +564,29 @@ class PcgtsToMonodiConverter:
                                 key=lambda x: x.note.coord.x)
                             music_region = page.closest_music_line_to_text_line(i)
                             all_symbols = music_region.symbols
+                            all_symbols = [s for s in all_symbols if i.aabb.left() <= s.coord.x <= i.aabb.right()]
+
                             if ignore_gap_symbols:
                                 all_connections = [i for i in all_connections if not i.note.missing]
                                 connections = [i for i in connections if not i.note.missing]
                                 all_symbols = [i for i in all_symbols if not i.missing]
                             if len(connections) > 0:
-
                                 note = connections[0].note
                                 try:
                                     current_symbol_index = all_symbols.index(note)
-                                except Exception as e:
-                                    print(connections[0].syllable.text)
-                                    raise e
+                                except ValueError:
+                                    continue
+
+                                if current_symbol_index > 0 and last_syllable is not None:
+                                    leading_symbols = all_symbols[0:current_symbol_index]
+                                    add_line_symbols(leading_symbols, force_syllable=last_syllable)
+
                                 first = True
                                 for sc in connections:
-
                                     note = sc.note
                                     try:
                                         neume_pos = all_symbols.index(note)
-                                    except ValueError as e:
-
+                                    except ValueError:
                                         continue
                                     if first:
                                         types = [x.symbol_type for x in all_symbols[0:current_symbol_index]]
@@ -603,65 +601,47 @@ class PcgtsToMonodiConverter:
                                     add_line_symbols(line_symbols)
                                     current_symbol_index = neume_pos
 
-                                    # add the syllable
-                                    #ls = self.get_last_syllables()
                                     s_text = sc.syllable.text
+
                                     if self.remove_char:
                                         s_text = s_text.replace(self.remove_char, "")
                                     if add_bracket_gap_symbols:
                                         if sc.note.missing:
-                                            s_text = f"[{s_text}]"
-                                    syllable = Syllable(s_text,
-                                            SpacedNotes([]))
+                                            s_text = f"<{s_text}>"
+                                    syllable = Syllable(s_text, SpacedNotes([]))
                                     if sc.syllable.connection != sc.syllable.connection.NEW:
                                         if last_syllable is not None:
-                                            print("TODO: fix last syllable connection")
-
                                             last_syllable.text = last_syllable.text + "-"
-                                    self.get_or_create_current_line_container().children.append(syllable
-
-                                    )
+                                    self.get_or_create_current_line_container().children.append(syllable)
                                     last_syllable = syllable
                                     first = False
-                                # new_start = [ind for ind, s in enumerate(all_symbols[current_symbol_index:]) if s.symbol_type == s.symbol_type.NOTE and s.graphical_connection == s.graphical_connection.NEUME_START][0] + current_symbol_index
+
                                 index = all_connections.index(connections[-1])
                                 if index == len(all_connections) - 1:
                                     new_start = len(all_symbols)
                                 else:
-                                    new_start = all_symbols.index(all_connections[index + 1].note)
-                                add_line_symbols(all_symbols[current_symbol_index:new_start + 1])  # todo
+                                    next_note = None
+                                    for next_conn in all_connections[index + 1:]:
+                                        if next_conn.note in all_symbols:
+                                            next_note = next_conn.note
+                                            break
+
+                                    if next_note:
+                                        new_start = all_symbols.index(next_note)
+                                    else:
+                                        new_start = len(all_symbols)
+                                add_line_symbols(all_symbols[current_symbol_index:new_start])
                             else:
-                                if len(all_connections) > 0:
+                                def filter_c_by_text_line(c: List[SyllableConnector]):
+                                    return [con for con in c if
+                                            con.syllable in i.sentence.syllables]
+                                if len(filter_c_by_text_line(all_connections)) > 0:
+
+
                                     new_start = all_symbols.index(all_connections[0].note)
-                                    add_line_symbols(all_symbols[0:new_start])  # todo
-
-                                    pass
+                                    add_line_symbols(all_symbols[0:new_start], force_syllable=last_syllable)
                                 else:
-                                    add_line_symbols(all_symbols)  # todo
-
-                            """
-                            nonlocal current_symbol_index
-                            all_syllable_connections = sum([c.syllable_connections for c in connections], [])
-                            all_syllable_connections.sort(key=lambda sc: sc.note.coord.x)
-                            for sc in all_syllable_connections:
-                                note = sc.note
-                                try:
-                                    neume_pos = symbols.index(note, current_symbol_index)
-                                except ValueError as e:
-                                    print(e)
-                                    continue
-                                line_symbols = symbols[current_symbol_index:neume_pos]
-                                # add symbols until position of connection
-                                add_line_symbols(line_symbols)
-                                current_symbol_index = neume_pos
-    
-                                # add the syllable
-                                self.get_or_create_current_line_container().children.append(
-                                    Syllable(sc.syllable.text, SpacedNotes([]))
-                                )
-    
-                            add_line_symbols(symbols[current_symbol_index:])
-                            """
+                                    add_line_symbols(all_symbols, force_syllable=last_syllable)
 
                 if stop:
                     break
@@ -742,10 +722,8 @@ class PcgtsToMonodiConverter:
                     print(e)
                     continue
                 line_symbols = symbols[current_symbol_index:neume_pos]
-                # add symbols until position of connection
                 add_line_symbols(line_symbols)
                 current_symbol_index = neume_pos
-                # add the syllable
                 self.get_or_create_current_line_container().children.append(
                     Syllable(
                         sc.syllable.text if sc.syllable.connection == sc.syllable.connection.NEW else "-" + sc.syllable.text,
