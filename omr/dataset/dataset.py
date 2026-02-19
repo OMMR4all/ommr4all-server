@@ -70,7 +70,7 @@ class LyricsNormalization(Enum):
 @dataclass
 class LyricsNormalizationParams(DataClassJSONMixin):
     lyrics_normalization: LyricsNormalization = LyricsNormalization.WORDS
-    lower_only: bool = True
+    lower_only: bool = False
     unified_u: bool = False
     unified_s: bool = False
     remove_brackets: bool = True
@@ -565,8 +565,16 @@ class Dataset(ABC):
             text = data.operation.text_line.text(with_drop_capital=False)
             return LyricsNormalizationProcessor(self.params.lyrics_normalization).apply(text)
 
-        images = [255 - get_input_image(d).astype(np.uint8) for d in lines]
-        gts = [extract_text(d) for d in lines]
+        #images = [255 - get_input_image(d).astype(np.uint8) for d in lines]
+        #gts = [extract_text(d) for d in lines]
+        images = []
+        gts = []
+        for i in lines:
+            if "#" in extract_text(i):
+                continue
+            gts.append(extract_text(i))
+            images.append(255 - get_input_image(i).astype(np.uint8))
+
         if only_with_gt and train:
             indexes = []
             for ind, i in enumerate(gts):
@@ -630,7 +638,4 @@ class Dataset(ABC):
             except (NoStaffsAvailable, NoStaffLinesAvailable):
                 pass
             except Exception as e:
-                print(e)
-                logger.info(e)
-                raise e
                 logger.info("Exception during processing of page: {}".format(f.page.location.local_path()))
