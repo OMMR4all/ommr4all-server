@@ -8,7 +8,6 @@ import torch
 from PIL import Image
 import numpy as np
 from omr.dataset.datastructs import CalamariCodec
-from omr.steps.symboldetection.sequence_to_sequence_guppy.arch import train_model
 from omr.steps.symboldetection.trainer import SymbolDetectionTrainer
 
 if __name__ == '__main__':
@@ -68,6 +67,7 @@ class OMRTrainer(SymbolDetectionTrainer):
             callback.resolving_files()
 
         from ommr4all.settings import BASE_DIR
+        from omr.steps.symboldetection.sequence_to_sequence_guppy.arch import train_model
 
         def create_tempfiles(dir: str, dataset: Tuple[List[np.array], List[str]], type="train",
                                       subfolder: str = "train"):

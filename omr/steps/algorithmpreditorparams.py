@@ -10,7 +10,7 @@ from typing import Optional, TYPE_CHECKING, List
 from .algorithmtypes import AlgorithmTypes
 from database.file_formats.pcgts import Coords
 #from calamari_ocr.ocr.model.ctcdecoder.ctc_decoder import CTCDecoderParams, CTCDecoderType
-from google.protobuf.json_format import MessageToDict, ParseDict
+#from google.protobuf.json_format import MessageToDict, ParseDict
 
 def dataclass_from_dict(klass, dikt):
     try:

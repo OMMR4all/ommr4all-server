@@ -1,3 +1,5 @@
+import sys
+
 from .taskqueue import TaskNotFinishedException
 from .taskcommunicator import TaskCommunicationData
 from .task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
@@ -7,7 +9,6 @@ from omr.dataset.datafiles import EmptyDataSetException
 import logging
 from .taskresources import TaskResource
 logger = logging.getLogger(__name__)
-
 
 class TaskWorkerThread:
     def __init__(self, resource: TaskResource, task: Task, com_queue: Queue):
@@ -39,7 +40,14 @@ class TaskWorkerThread:
     @staticmethod
     def _run_task(name: str, task: Task, com_queue: Queue, gpu_id: int):
         logger.info('THREAD: Running new task {} of type {}'.format(task.task_id, type(task.task_runner)))
-        
+        #import os
+        #import django
+
+        #os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
+        #django.setup()
+        if "torch" in sys.modules:
+            logger.info('THREAD: Torch already Loaded')
+
         import os
         if gpu_id < 0:
             os.environ['CUDA_VISIBLE_DEVICES'] = ''

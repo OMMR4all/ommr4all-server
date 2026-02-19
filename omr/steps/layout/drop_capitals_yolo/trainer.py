@@ -22,12 +22,13 @@ from database import DatabaseBook
 
 from database.file_formats.performance.pageprogress import Locks
 from omr.steps.algorithm import AlgorithmTrainer, TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
-import torchvision
 from omr.steps.layout.drop_capitals_yolo.meta import Meta
 from loguru import logger
 
 def get_model_instance_segmentation(num_classes):
     # load an instance segmentation model pre-trained on COCO
+    import torchvision
+
     model = torchvision.models.detection.maskrcnn_resnet50_fpn(pretrained=True)
 
     # get number of input features for the classifier

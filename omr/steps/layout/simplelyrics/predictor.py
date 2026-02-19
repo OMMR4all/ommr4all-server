@@ -76,6 +76,9 @@ class Predictor(LayoutAnalysisPredictor):
 
             avg_staff_distance = np.mean(
                 [m2.staff_lines[0].center_y() - m1.staff_lines[-1].center_y() for m1, m2 in zip(mls[:-1], mls[1:])])
+            #avg_staff_height = np.mean(
+            #    [m.staff_lines.aabb().height() for m in mls])
+
             for m1, m2 in zip(mls[:-1], mls[1:]):
                 top_l = m1.staff_lines[-1]
                 bot_l = m2.staff_lines[0]
@@ -86,19 +89,24 @@ class Predictor(LayoutAnalysisPredictor):
                     bot_points,
                     [(top_l.coords.points[-1][0], bot_l.interpolate_y(top_l.coords.points[-1][0]))],
                 ])
-                lyric_coords.append(IdCoordsPair(Coords(np.concatenate([
-                    top_l.coords.points + pad_tup,
-                    [top_l.coords.points[-1] + (
-                        0, bot_points[-1][1] - top_l.coords.interpolate_y(bot_points[-1][0])) - pad_tup],
-                    bot_points[::-1] - pad_tup,
-                    [top_l.coords.points[0] + (
-                        0, bot_points[0][1] - top_l.coords.interpolate_y(bot_points[0][0])) - pad_tup],
-                ], axis=0))))
-
+                if False:
+                    lyric_coords.append(IdCoordsPair(Coords(np.concatenate([
+                        top_l.coords.points + pad_tup,
+                        [top_l.coords.points[-1] + (
+                            0, bot_points[-1][1] - top_l.coords.interpolate_y(bot_points[-1][0])) - pad_tup],
+                        bot_points[::-1] - pad_tup,
+                        [top_l.coords.points[0] + (
+                            0, bot_points[0][1] - top_l.coords.interpolate_y(bot_points[0][0])) - pad_tup],
+                    ], axis=0))))
+                else:
+                    lyric_coords.append(IdCoordsPair(Coords(np.concatenate([
+                        top_l.coords.points + pad_tup,
+                        top_l.coords.points[::-1] + (0, avg_staff_distance),
+                    ], axis=0))))
             top_l = mls[-1].staff_lines[-1]
             lyric_coords.append(IdCoordsPair(Coords(np.concatenate((
                 top_l.coords.points + pad_tup,
-                top_l.coords.points[::-1] + (0, avg_staff_distance - pad),
+                top_l.coords.points[::-1] + (0, avg_staff_distance),
             ), axis=0))))
         drop_capital_blocks = []
         # Todo filter drop capitals
@@ -120,7 +128,14 @@ class Predictor(LayoutAnalysisPredictor):
                             del drop_capital_blocks[smaller]
                             loop = True
                             break
+        if self.settings.params.dropCapitals and self.drop_capital is not None:
+            print("hallo")
+            size = self.settings.params.documentStartsDropCapitalMinHeight
 
+            for d in drop_capital_blocks:
+                print(f"heigth: {d.coords.aabb().height()}, sf: {pcgts_file.page.avg_stave_height()}, size {size}")
+            drop_capital_blocks = [d for d in drop_capital_blocks if
+                                   d.coords.aabb().height() >= size * pcgts_file.page.avg_stave_height()]
         # Todo improve drop capital-lyric matching
         if self.settings.params.documentStarts:
             w_dc = []

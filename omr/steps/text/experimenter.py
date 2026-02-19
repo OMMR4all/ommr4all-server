@@ -164,7 +164,7 @@ class TextExperimenter(Experimenter):
     def output_debug_images(self, predictions):
         raise NotImplemented
 
-    def evaluate(self, predictions: Tuple[List[str], List[str]], evaluation_params):
+    def evaluate(self, predictions: Tuple[List[str], List[str]], evaluation_params, confusion_map=False):
 
         gt, pred = predictions
 
@@ -192,6 +192,15 @@ class TextExperimenter(Experimenter):
         result = Evaluator.evaluate_single_list(eval_results=result)
         syllable_result = [edit_on_tokens(sentence_to_syllable_tokens(a), sentence_to_syllable_tokens(b)) for a, b in zip(gt_sentence, pred_sentence)]
         words_result = [edit_on_tokens(sentence_to_words(a), sentence_to_words(b)) for a, b in zip(gt_sentence, pred_sentence)]
+
+        if confusion_map:
+            with open("/tmp/conf.csv", "w") as f:
+                f.write(f"GT, Pred, Count\n")
+
+                for k, c in result['confusion'].items():
+                    gt_c, pred_c = k
+                    f.write(f"{gt_c},{pred_c}, {c}\n")
+
         result['total_syllables'] = sum([n for _, n in syllable_result])
         result['avg_ser'] = np.mean([n for n, _ in syllable_result])
         result['total_words'] = sum([n for _, n in words_result])
@@ -208,3 +217,7 @@ class TextExperimenter(Experimenter):
         self.fold_log.debug(pt)
 
         return result
+
+if __name__ == "__main__":
+    synclist = synchronize(["AbcdEfG", "cdEFG"])
+    print([s.get_text() for s in synclist])

@@ -4,14 +4,11 @@ from itertools import groupby
 
 import torch
 from PIL import Image
-from guppyocr.api import GuppyOCR, InvalidInputImage
-from guppyocr.predict_pxml import preprocess_image
+
 from nautilus_ocr.decoder import DecoderType, DecoderOutput
 
 from database.database_dictionary import DatabaseDictionary
 from omr.steps.text.guppy.meta import Meta
-
-from nautilus_ocr.predict import Network, get_config
 from omr.steps.text.correction_tools.dictionary_corrector.predictor import DictionaryCorrector
 from ommr4all.settings import BASE_DIR
 import cv2
@@ -170,7 +167,8 @@ class GuppyPredictor(TextPredictor):
         super().__init__(settings)
         self.dict_corrector = None
         path = settings.model.local_file('model_best.pth')
-
+        from guppyocr.api import GuppyOCR, InvalidInputImage
+        from guppyocr.predict_pxml import preprocess_image
         # print(path)
         # print(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
         #                   'network_config', 'ocr_config.yaml'))
@@ -184,7 +182,7 @@ class GuppyPredictor(TextPredictor):
 
     def _predict(self, dataset: TextDataset, callback: Optional[PredictionCallback] = None) -> Generator[
         SingleLinePredictionResult, None, None]:
-
+        from guppyocr.predict_pxml import preprocess_image
         # print(callback)
         """
         hyphen = HyphenatorFromDictionary(
@@ -208,6 +206,7 @@ class GuppyPredictor(TextPredictor):
         loaded_dataset = dataset.load()
         len_dataset = len(loaded_dataset)
         for i, y in enumerate(loaded_dataset):  # dataset_cal[0]:
+
             image = 255 - y.line_image
             if not len(image.shape) == 3:
                 continue
@@ -237,11 +236,11 @@ class GuppyPredictor(TextPredictor):
             #print(self.dict_corrector)
             if self.dict_corrector:
                 if len(sentence.decoded_string) > 0:
-                    hyphenated = self.dict_corrector.segmentate_correct_and_hyphenate_text(sentence.decoded_string.replace(".",""))
+                    hyphenated = self.dict_corrector.segmentate_correct_and_hyphenate_text(sentence.decoded_string)
                 else:
                     hyphenated = sentence.decoded_string
             else:
-                hyphenated = hyphen.apply_to_sentence(sentence.decoded_string.replace(".","").replace("ſ","s"))
+                hyphenated = hyphen.apply_to_sentence(sentence.decoded_string)
             percentage = (i + 1) / len(loaded_dataset)
             if callback:
                 callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len(loaded_dataset))

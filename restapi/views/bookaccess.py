@@ -233,7 +233,9 @@ class BooksView(APIView):
         pageSize = request.query_params.get("pageSize", len(books))  # by default all books
 
         paginatedBooks = books[pageIndex:pageIndex + pageSize]
-
+        import sys
+        if "torch" in sys.modules:
+            logger.info('THREAD: Torch already Loaded')
         return Response({
             'totalPages': len(books),
             'books': sorted([{

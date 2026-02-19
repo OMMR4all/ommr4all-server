@@ -1,11 +1,14 @@
+import logging
 import os
 from pathlib import Path
 
 import albumentations
+import cv2
 import torch
-from albumentations import Compose
+from albumentations import Compose, ShiftScaleRotate, Affine, RandomGamma, RandomBrightnessContrast
 from albumentations.pytorch import ToTensorV2
 from segmentation.datasets.dataset import MemoryDataset
+from segmentation.modules import Architecture
 
 from omr.steps.callback import SegmentationProcessTrainCallback
 from omr.steps.symboldetection.torchpixelclassifier.params import remove_nones
@@ -38,17 +41,12 @@ from omr.steps.algorithm import TrainerCallback, AlgorithmTrainerParams, Algorit
 from omr.imageoperations.music_line_operations import SymbolLabel, AdditionalSymbolLabel
 # from ocr4all_pixel_classifier.lib.trainer import Trainer, Loss, Monitor, Architecture
 from omr.steps.symboldetection.torchpixelclassifier.meta import Meta
-from segmentation.network import Network, NetworkTrainer
 # from segmentation.dataset import MemoryDataset
 
 from torch.nn.utils.rnn import pad_sequence
 
 
-def build_model_from_loaded(load, device) -> Tuple[Network, ModelConfiguration]:
-    base_model_file = ModelBuilderLoad.from_disk(model_weights=load, device=device)
-    base_model = base_model_file.get_model()
-    base_config = base_model_file.get_model_configuration()
-    return base_model, base_config
+
 
 
 class PCTorchTrainer(SymbolDetectionTrainer):
@@ -90,6 +88,37 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         pc_callback = SegmentationProcessTrainCallback(callback, epochs=self.params.n_epoch) if callback else None
         if callback:
             callback.resolving_files()
+        from segmentation.network import Network, NetworkTrainer
+        def default_transform():
+            from segmentation.preprocessing.workflow import BinarizeDoxapy
+
+            result = Compose([
+                # RandomScale(),
+                ShiftScaleRotate(rotate_limit=2, scale_limit=(-0.1, 0.1), shift_limit_x=0.2, shift_limit_y=0.2,
+                                 border_mode=cv2.BORDER_CONSTANT, value=(255, 255, 255), mask_value=0),
+                Affine(shear=2, cval=(255, 255, 255), cval_mask=0),
+                # albumentations.HorizontalFlip(p=0.25),
+                RandomGamma(),
+                RandomBrightnessContrast(),
+                albumentations.OneOf([
+                    albumentations.OneOf([
+                        BinarizeDoxapy("sauvola"),
+                        BinarizeDoxapy("ocropus"),
+                        BinarizeDoxapy("isauvola"),
+                    ]),
+                    albumentations.OneOf([
+                        albumentations.ToGray(),
+                        albumentations.CLAHE()
+                    ])
+                ], p=0.3)
+
+            ], additional_targets={'add_symbols_mask': 'mask'})
+            return result
+        def build_model_from_loaded(load, device) -> Tuple['Network', 'ModelConfiguration']:
+            base_model_file = ModelBuilderLoad.from_disk(model_weights=load, device=device)
+            base_model = base_model_file.get_model()
+            base_config = base_model_file.get_model_configuration()
+            return base_model, base_config
 
         train_data_pd = self.train_dataset.to_memory_dataset(callback, same_dim=False)
         color_map = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
@@ -100,8 +129,10 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             ColorMapTransform(color_map=color_map2.to_albumentation_color_map())
 
         ]), additional_targets={'add_symbols_mask': 'mask'} )
-        aug_transforms = self.settings.page_segmentation_torch_params.augmentation \
-            if self.settings.page_segmentation_torch_params.data_augmentation else None
+
+        transform = self.settings.page_segmentation_torch_params.augmentation if self.settings.page_segmentation_torch_params.augmentation is not None else default_transform()
+
+        aug_transforms = transform if self.settings.page_segmentation_torch_params.data_augmentation else None
         tta_transforms = None
         post_transforms = Compose(remove_nones([
             # NetworkEncoderTransform(Preprocessingfunction.name),
@@ -118,12 +149,13 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         val_data_pd = self.validation_dataset.to_memory_dataset(callback)
         train_data = MemoryDataset(df=train_data_pd, transforms=transforms.get_train_transforms())
         val_data = MemoryDataset(df=val_data_pd, transforms=transforms.get_test_transforms())
-
         train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
         val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
-
+        logging.info(f"Training samples: {len(train_data)}, Validation samples: {len(val_data)}")
+        if len(val_data) == 0:
+            val_loader = train_loader
         predfined_nw_settings = PredefinedNetworkSettings(
-            architecture=self.settings.page_segmentation_torch_params.architecture,
+            architecture=Architecture(self.settings.page_segmentation_torch_params.architecture),
             encoder=self.settings.page_segmentation_torch_params.encoder,
             classes=len(SymbolLabel),
             encoder_depth=self.settings.page_segmentation_torch_params.predefined_encoder_depth,
@@ -177,12 +209,13 @@ class PCTorchTrainer(SymbolDetectionTrainer):
                                                                metrics=[Metrics("accuracy")],
                                                                watcher_metric_index=0,
                                                                loss=Losses.cross_entropy_loss,
-                                                               additional_heads = 1,
+                                                               additional_heads = self.settings.page_segmentation_torch_params.additional_number_of_heads,
                                                                additional_classes=[len(color_map2)],
                                                                ), get_default_device(),
                                  callbacks=callbacks, debug_color_map=config.color_map)
 
         os.makedirs(os.path.dirname(self.settings.model.path), exist_ok=True)
+
         trainer.train_epochs(train_loader=train_loader, val_loader=val_loader, n_epoch=self.params.n_epoch, lr_schedule=None)
 
 
@@ -201,13 +234,15 @@ if __name__ == '__main__':
     #j = DatabaseBook('Geesebook1')
     #k = DatabaseBook('Geesebook2gt')
     #l = DatabaseBook('Winterburger')
+    m = DatabaseBook('Koeln_Dombibl_1001b_part_gt')
 
-    train, val = dataset_by_locked_pages(0.8, [LockState(Locks.SYMBOLS, True)], datasets=[b,c,d,e,f,g,h,i])
+
+    train, val = dataset_by_locked_pages(1, [LockState(Locks.SYMBOLS, True)], datasets=[b, c, d, e, f, g, h, i, m])
     settings = AlgorithmTrainerSettings(
         DatasetParams(),
         train ,
         val,
-        #params=AlgorithmTrainerParams(load="e/Graduel_Part_1_gt/symbols_pc_torch/2023-02-02T14:01:14")
+        params=AlgorithmTrainerParams(load="e/Graduel_Part_1_gt/symbols_pc_torch/2023-02-02T14:01:14")
     )
     trainer = PCTorchTrainer(settings)
-    trainer.train(d)
+    trainer.train(m)
