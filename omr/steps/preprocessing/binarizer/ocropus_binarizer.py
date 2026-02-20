@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.ndimage import filters, interpolation, morphology
+from scipy.ndimage import percentile_filter, binary_dilation, zoom, gaussian_filter
 from skimage.transform import resize
 import scipy.stats as stats
 from PIL import Image
@@ -8,16 +8,16 @@ from omr.image_util import normalize_raw_image
 from .binarize import Binarizer
 
 
-def estimate_local_whitelevel(image, zoom=0.5, perc=80, range=20, debug=0):
+def estimate_local_whitelevel(image, zoom_val=0.5, perc=80, range=20, debug=0):
     '''flatten it by estimating the local whitelevel
     zoom for page background estimation, smaller=faster, default: %(default)s
     percentage for filters, default: %(default)s
     range for filters, default: %(default)s
     '''
-    m = interpolation.zoom(image,zoom)
-    m = filters.percentile_filter(m,perc,size=(range,2))
-    m = filters.percentile_filter(m,perc,size=(2,range))
-    m = interpolation.zoom(m,1.0/zoom)
+    m = zoom(image,zoom_val)
+    m = percentile_filter(m,perc,size=(range,2))
+    m = percentile_filter(m,perc,size=(2,range))
+    m = zoom(m,1.0/zoom_val)
     if m.shape != image.shape:
         m = resize((m * 255).astype(np.uint8), image.shape, preserve_range=True) / 255
 
@@ -45,11 +45,11 @@ def estimate_thresholds(flat, bignore=0.1, escale=1.0, lo=5, hi=90, debug=0):
         # significant variance; this makes the percentile
         # based low and high estimates more reliable
         e = escale
-        v = est-filters.gaussian_filter(est,e*20.0)
-        v = filters.gaussian_filter(v**2,e*20.0)**0.5
+        v = est-gaussian_filter(est,e*20.0)
+        v = gaussian_filter(v**2,e*20.0)**0.5
         v = (v>0.3*np.amax(v))
-        v = morphology.binary_dilation(v,structure=np.ones((int(e*50),1)))
-        v = morphology.binary_dilation(v,structure=np.ones((1,int(e*50))))
+        v = binary_dilation(v,structure=np.ones((int(e*50),1)))
+        v = binary_dilation(v,structure=np.ones((1,int(e*50))))
         est = est[v]
     lo = stats.scoreatpercentile(est.ravel(),lo)
     hi = stats.scoreatpercentile(est.ravel(),hi)

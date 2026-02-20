@@ -2,9 +2,13 @@ import csv
 from typing import Optional, Type, Dict, List, Tuple
 
 import numpy as np
+import torch
+from guppyocr.train_calamares import train_model
+
 from database.file_formats.pcgts import BlockType
 from database.file_formats.performance.pageprogress import Locks
 from omr.dataset import DatasetParams, LyricsNormalization
+from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 from database import DatabaseBook
 import os
 from omr.steps.algorithm import AlgorithmTrainerParams, AlgorithmTrainerSettings, TrainerCallback, AlgorithmMeta
@@ -51,7 +55,7 @@ class PytorchGuppyyTrainer(TextTrainerBase):
     def force_dataset_params(params: DatasetParams):
         params.height = 64
         params.text_image_color_type = "color"
-        params.pad = (5, 5, 5, 5)
+        params.pad = [5, 5, 5, 5]
         params.text_types = [BlockType.LYRICS]
 
         # params.lyrics_normalization = params.lyrics_normalization.lyrics_normalization.WORDS
@@ -91,6 +95,7 @@ class PytorchGuppyyTrainer(TextTrainerBase):
             create_tempfiles(dirpath, train_dataset, type="", subfolder="train")
             create_tempfiles(dirpath, val_dataset, type="", subfolder="test")
             from guppyocr.train_calamares import TrainingOpts
+            print( self.params.model_to_load().local_file('model_best.pth'))
             training_opts = TrainingOpts(
                 output=self.settings.model.path,
                 dataset=os.path.join(dirpath),

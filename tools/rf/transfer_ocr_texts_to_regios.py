@@ -50,7 +50,7 @@ def assign_text_to_lines(db_page: DatabasePage, rendered: {}):
     hyphen = CombinedHyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1,
                                 right=1)
     file_path = dataset_json_file_path + rendered[db_page.page]
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, 'r') as f:
         t = json.load(f)
         lyric_info = Lyric_info.from_dict(t)
         latine = lyric_info.latine.replace(".", "")
@@ -157,7 +157,7 @@ def fill_meta_infos_to_docs(book: DatabaseBook, page: DatabasePage, rendered: {}
     file_path = dataset_json_file_path + rendered[page.page]
     pcgts = page.pcgts()
     #print(file_path)
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, 'r') as f:
         t = json.load(f)
         lyric_info = Lyric_info.from_dict(t)
     for idx, doc in enumerate(sorted(docs_db.get_documents_of_page(pcgts.page), key=lambda x: x.start.row)):

@@ -15,7 +15,8 @@ export_dir = "/home/alexanderh/Downloads/mc_export/export/"
 monodoy_documents, lyrics, lyrics_with_syllabels= populate("/home/alexanderh/Downloads/mc_export/export/")
 print("loaded monody")
 genre=[]
-
+for i in monodoy_documents:
+    i.genre
 with open("latine_collection_gr.json") as f:
     json1 = json.load(f)
     lyrics2 = Lyrics.from_dict(json1)

@@ -108,7 +108,7 @@ class BookUploadView(APIView):
         for type, file in request.FILES.items():
             logger.debug('Received new image of content type {}'.format(file.content_type))
             name = os.path.splitext(os.path.basename(file.name))[0]
-            name = re.sub('[^\w]', '_', name)
+            name = re.sub(r'[^\w]', '_', name)
             type = file.content_type
 
             def image_to_page(img, page_name):
@@ -228,7 +228,6 @@ class BooksView(APIView):
     def get(self, request, format=None):
         # TODO: sort by in request
         books = DatabaseBook.list_available_book_metas_for_user(request.user, DatabaseBookPermissionFlag.READ)
-
         pageIndex = request.query_params.get("pageIndex", 0)
         pageSize = request.query_params.get("pageSize", len(books))  # by default all books
 
@@ -249,7 +248,7 @@ class BookDownloaderView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def post(self, request, book, type):
         import json, zipfile, io, os
-        pages = json.loads(request.body, encoding='utf-8').get('pages', [])
+        pages = json.loads(request.body).get('pages', [])
         book = DatabaseBook(book)
         pages = book.pages() if len(pages) == 0 else [book.page(p) for p in pages]
         if type == 'annotations.zip':

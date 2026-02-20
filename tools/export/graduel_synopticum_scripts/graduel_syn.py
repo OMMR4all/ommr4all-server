@@ -80,7 +80,7 @@ def web_page_b_index2(index: int):
     lyric_info = Lyric_info(index=str(index), id=id, meta_info=meta_info, latine=latine, variants=variants,
                             meta_infos_extended=meta_infos, genre=genre, initium=initium, url=url, cantus_id=cantus_id)
 
-    with open(f"/tmp/files/{index}.json",  'w', encoding='utf-8') as f:
+    with open(f"/tmp/files/{index}.json",  'w') as f:
         json.dump(lyric_info.to_dict(), f, ensure_ascii=False, indent=4)
     with open(f"/tmp/files/{index}.png", 'wb') as f:
         f.write(image.content)
@@ -106,14 +106,14 @@ def crawl(start=1, stop=4000, interval=7000):
             lyrics.append(a)
             if current_len > interval:
                 lyr = Lyrics(lyrics)
-                with open('data_an{}.json'.format(json_interval), 'w', encoding='utf-8') as f:
+                with open('data_an{}.json'.format(json_interval), 'w') as f:
                     json.dump(lyr.to_dict(), f, ensure_ascii=False, indent=4)
                 lyrics = []
                 json_interval += 1
         current_len += 1
     """
     #lyr = Lyrics(lyrics)
-    #with open('data_an{}.json'.format(json_interval), 'w', encoding='utf-8') as f:
+    #with open('data_an{}.json'.format(json_interval), 'w') as f:
     #    json.dump(lyr.to_dict(), f, ensure_ascii=False, indent=4)
 if __name__ == "__main__":
     crawl()

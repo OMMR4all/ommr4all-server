@@ -190,11 +190,8 @@ class PageMatchResult(NamedTuple):
         return self.pcgts.page
 
 
-class PredictionResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__class__):
-    pass
-
-
-class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=PredictionResultMeta):
+@dataclass(frozen=True)
+class PredictionResult(AlgorithmPredictionResult):
     annotations: Annotations
     page_match_result: PageMatchResult
 

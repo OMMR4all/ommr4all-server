@@ -1,5 +1,6 @@
 import os
 from collections import namedtuple, defaultdict
+from dataclasses import dataclass
 
 from database import DatabaseBook, DatabasePage
 from database.file_formats.pcgts import *
@@ -102,11 +103,8 @@ def _process_single(args: Tuple[DatabasePage, AlgorithmPredictorParams]):
     return PageResult(p_result, pcgts)
 
 
-class PredictionResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__class__):
-    pass
-
-
-class PostProcessingResult(AlgorithmPredictionResult, NamedTuple, metaclass=PredictionResultMeta):
+@dataclass(frozen=True)
+class PostProcessingResult(AlgorithmPredictionResult):
     page: DatabasePage
     result: PageResult
 

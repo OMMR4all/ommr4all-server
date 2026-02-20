@@ -3,7 +3,7 @@ from typing import List, Optional
 from omr.dataset import DatasetParams
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 from database.model import Model
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 #from mashumaro import DataClassJSONMixin
 from mashumaro.mixins.json import DataClassJSONMixin
 
@@ -48,6 +48,6 @@ class AlgorithmTrainerSettings:
     model: Optional[Model] = None
     params: Optional[AlgorithmTrainerParams] = None
     #page_segmentation_params: PageSegmentationTrainerParams = PageSegmentationTrainerParams()
-    page_segmentation_torch_params: PageSegmentationTrainerTorchParams = PageSegmentationTrainerTorchParams()
-    calamari_params: CalamariParams = CalamariParams()
+    page_segmentation_torch_params: PageSegmentationTrainerTorchParams = field(default_factory=PageSegmentationTrainerTorchParams)
+    calamari_params: CalamariParams = field(default_factory=CalamariParams)
 

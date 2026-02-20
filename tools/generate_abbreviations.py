@@ -74,5 +74,5 @@ def get_abbreviations(csv_path):
 if __name__ == "__main__":
     csv_path = "/home/alexanderh/Pictures/cantuscorpus-v0.2/csv/chant.csv"
     abbreviations = get_abbreviations(csv_path)
-    with open('abbreviations.json', 'w', encoding='utf-8') as f:
+    with open('abbreviations.json', 'w') as f:
         json.dump(abbreviations.to_dict(), f, ensure_ascii=False, indent=4)

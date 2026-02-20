@@ -38,7 +38,7 @@ if __name__ == "__main__":
                     doc = documents.database_documents.get_document_by_id(sheet["A" + str(val)].value)
                     text = doc.get_text_of_document(book).replace(".", "").replace("-", "").replace(" ", "")
                     file_path = dataset_json_file_path + rendered_json_files[doc.start.page_name]
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, 'r') as f:
                         t = json.load(f)
                         lyric_info = Lyric_info.from_dict(t)
                         latine = lyric_info.latine.replace(".", "")

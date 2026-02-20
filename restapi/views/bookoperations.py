@@ -23,7 +23,7 @@ class BookPageSelectionView(APIView):
 
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def post(self, request, book, operation):
-        body = json.loads(request.body, encoding='utf-8')
+        body = json.loads(request.body)
         book = DatabaseBook(book)
         algorithm = Step.predictor(AlgorithmTypes(operation))
         page_selection = PageSelection.from_params(PageSelectionParams.from_dict(body), book)
@@ -117,7 +117,7 @@ class BookOperationStatusView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, operation):
         book = DatabaseBook(book)
-        body = json.loads(request.body, encoding='utf-8') if request.body else {}
+        body = json.loads(request.body) if request.body else {}
         task_runner = BookOperationView.op_to_task_runner(operation, book, body)
         if task_runner is not None:
             task_id = operation_worker.id_by_task_runner(task_runner)
@@ -172,7 +172,7 @@ class BookOperationView(APIView):
     # enforce WRITE here, since this ops will overwrite the files locally (workflow)
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     def put(self, request, book, operation):
-        body = json.loads(request.body, encoding='utf-8')
+        body = json.loads(request.body)
         book = DatabaseBook(book)
         task_runner = BookOperationView.op_to_task_runner(operation, book, body)
         if task_runner:
@@ -190,7 +190,7 @@ class BookOperationView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def post(self, request, book, operation):
         book = DatabaseBook(book)
-        body = json.loads(request.body, encoding='utf-8') if request.body else {}
+        body = json.loads(request.body) if request.body else {}
         task_runner = BookOperationView.op_to_task_runner(operation, book, body)
         if task_runner is not None:
             task_id = operation_worker.id_by_task_runner(task_runner)
@@ -207,7 +207,7 @@ class BookOperationModelsView(APIView):
     def get(self, request, book, operation):
 
         book = DatabaseBook(book)
-        body = json.loads(request.body, encoding='utf-8') if request.body else {}
+        body = json.loads(request.body) if request.body else {}
         task_runner = BookOperationView.op_to_task_runner(operation, book, body)
         models = task_runner.list_available_models_for_book(book)
 

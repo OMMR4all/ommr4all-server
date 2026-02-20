@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import List, Generator, NamedTuple, Tuple, Optional
 
 from database import DatabasePage
@@ -23,12 +24,8 @@ class SingleLinePredictionResult(NamedTuple):
                 'id': self.line.operation.text_line.id,
                 }
 
-
-class PredictionResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__class__):
-    pass
-
-
-class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=PredictionResultMeta):
+@dataclass(frozen=True)
+class PredictionResult(AlgorithmPredictionResult):
     pcgts: PcGts
     dataset_page: DatabasePage
     text_lines: List[SingleLinePredictionResult]
