@@ -40,10 +40,10 @@ class SegmentationProcessTrainCallback(TrainCallback):
             self.stats = acc
             self.best_loss = loss
             self.best_loss_iter = epoch
-            self.best_acc= acc.stats[self.metric_watcher_index].value().item()
+            self.best_acc= acc.stats[self.metric_watcher_index].value()
         # Custom logic for when a validation epoch ends
-        rounded = round(acc.stats[self.metric_watcher_index].value().item(), 2)
-        acc = acc.stats[self.metric_watcher_index].value().item()
+        rounded = round(acc.stats[self.metric_watcher_index].value(), 2)
+        acc = acc.stats[self.metric_watcher_index].value()
         self.current_epoch = epoch
         self.callback.next_iteration(epoch, loss, acc / 100)
         self.callback.next_best_model(epoch,  acc / 100, self.best_loss_iter)

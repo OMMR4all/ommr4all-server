@@ -29,7 +29,7 @@ class TextDataset(Dataset):
         return ImageOperationList(operations)
 
     def __init__(self, pcgts: List[PcGts], params: DatasetParams):
-        params.pad = (5, 10, 5, 20)
+        params.pad = [5, 10, 5, 20]
         params.dewarp = False
         params.staff_lines_only = True
         params.cut_region = True

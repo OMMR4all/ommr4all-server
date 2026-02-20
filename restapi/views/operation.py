@@ -71,7 +71,7 @@ class OperationStatusView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, page, operation):
         page = DatabasePage(DatabaseBook(book), page)
-        body = json.loads(request.body, encoding='utf-8') if request.body else {}
+        body = json.loads(request.body) if request.body else {}
         task_runner = OperationView.op_to_task_runner(operation, page, body)
         if task_runner is not None:
             task_id = operation_worker.id_by_task_runner(task_runner)
@@ -113,7 +113,7 @@ class OperationView(APIView):
 
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def post(self, request, book, page, operation):
-        body = json.loads(request.body, encoding='utf-8')
+        body = json.loads(request.body)
         page = DatabasePage(DatabaseBook(book), page)
         task_runner = OperationView.op_to_task_runner(operation, page, body)
         if task_runner:
@@ -129,7 +129,7 @@ class OperationView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.EDIT])
     def put(self, request, book, page, operation):
 
-        body = json.loads(request.body, encoding='utf-8')
+        body = json.loads(request.body)
         page = DatabasePage(DatabaseBook(book), page)
         task_runner = OperationView.op_to_task_runner(operation, page, body)
         if task_runner:

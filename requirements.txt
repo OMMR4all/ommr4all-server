@@ -1,9 +1,9 @@
-django==3.2.7
-channels==4.0.0
-albumentations==1.3.0
+django==5.2.0
+channels
+albumentations
 locked_dict
-opencv-python-headless==4.9.0.80
-pillow==9.5.0
+opencv-python-headless
+pillow
 scikit-image
 tqdm
 numpy
@@ -12,20 +12,19 @@ edit_distance
 xlsxwriter
 lxml
 protobuf
-djangorestframework==3.14.0
-djangorestframework-jwt==1.11.0
+djangorestframework==3.16
+djangorestframework-simplejwt
 prettytable
 ezodf
 cryptography
-mashumaro==3.1
+mashumaro
 unidecode
 pdf2image
-dataclasses-json==0.5.5
+dataclasses-json
 scikit-learn
-h5py<3.0.0
+h5py
 midiutil
 scipy
-dataclasses
 matplotlib
 six
 attrs
@@ -34,12 +33,14 @@ openpyxl
 symspellpy
 tensorboard
 torch
--e git+https://github.com/githubharald/CTCWordBeamSearch.git@master#egg=word-beam-search
--e git+https://github.com/githubharald/CTCDecoder.git@master#egg=ctc-decoder
 edlib
--e git+https://github.com/Gawajn/nautilus.git#egg=nautilus-ocr
 beautifulsoup4
 loguru
--e git+https://github.com/Gawajn/segmentation-pytorch.git#egg=pixel_classifier_torch
 guppyocr @ git+https://gitlab+deploy-token-113:pdXYgWy8yHMq5it7CxK6@gitlab2.informatik.uni-wuerzburg.de/nof36hn/guppyocr.git
 ultralytics
+peakutils
+word-beam-search @ git+https://github.com/githubharald/CTCWordBeamSearch.git@master
+ctc-decoder @ git+https://github.com/githubharald/CTCDecoder.git@master
+nautilus-ocr @ git+https://github.com/Gawajn/nautilus.git
+pixel_classifier_torch @ git+https://github.com/Gawajn/segmentation-pytorch.git
+guppyocr @ git+https://gitlab+deploy-token-113:pdXYgWy8yHMq5it7CxK6@gitlab2.informatik.uni-wuerzburg.de/nof36hn/guppyocr.git

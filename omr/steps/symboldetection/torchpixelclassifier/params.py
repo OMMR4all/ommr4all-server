@@ -19,8 +19,8 @@ def default_transform():
 
     result = Compose([
         #RandomScale(),
-        ShiftScaleRotate(rotate_limit=2, scale_limit=(-0.1, 0.1), shift_limit_x=0.2, shift_limit_y=0.2, border_mode=cv2.BORDER_CONSTANT, value=(255,255,255), mask_value=0),
-        Affine(shear=2, cval=(255,255,255), cval_mask=0),
+        ShiftScaleRotate(rotate_limit=2, scale_limit=(-0.1, 0.1), shift_limit_x=0.2, shift_limit_y=0.2, border_mode=cv2.BORDER_CONSTANT, fill=(255,255,255), fill_mask=0),
+        Affine(shear=2, interpolation=cv2.INTER_NEAREST, fill=(255,255,255), fill_mask=0, mask_interpolation=cv2.INTER_NEAREST),
         #albumentations.HorizontalFlip(p=0.25),
         RandomGamma(),
         RandomBrightnessContrast(),

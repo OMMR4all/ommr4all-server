@@ -1,16 +1,16 @@
 import numpy as np
-from scipy.ndimage import interpolation
+from scipy.ndimage import rotate
 from PIL import Image
 
 from omr.steps.preprocessing.deskewer import Deskewer
 
 
 def estimate_skew_angle(image,angles):
-    image = interpolation.rotate(image, -1, order=0, mode='constant')
+    image = rotate(image, -1, order=0, mode='constant')
 
     estimates = []
     for a in angles:
-        v = np.mean(interpolation.rotate(image, a, order=0, mode='constant'), axis=1)
+        v = np.mean(rotate(image, a, order=0, mode='constant'), axis=1)
         v = np.var(v)
         estimates.append((v, a))
 

@@ -5,7 +5,7 @@ from typing import List
 import cv2
 from scipy import spatial
 from skimage.measure import approximate_polygon
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage import gaussian_filter
 
 import itertools as IT
 def scale_polygon(path,offset):

@@ -45,11 +45,8 @@ def grouper(iterable, n, fillvalue=None):
     return zip_longest(*args, fillvalue=fillvalue)
 
 
-class ResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__class__):
-    pass
-
-
-class SingleDocumentResult(NamedTuple, AlgorithmPredictionResult, metaclass=ResultMeta):
+@dataclass(frozen=True)
+class SingleDocumentResult(AlgorithmPredictionResult):
     matched_document: str
     page_id: str
     document_id: str
@@ -62,8 +59,8 @@ class SingleDocumentResult(NamedTuple, AlgorithmPredictionResult, metaclass=Resu
                 "page_id": self.page_id,
                 "document_id": self.document_id}
 
-
-class Result(NamedTuple, AlgorithmPredictionResult, metaclass=ResultMeta):
+@dataclass(frozen=True)
+class Result(AlgorithmPredictionResult):
     documents: List[SingleDocumentResult]
 
     def to_dict(self):

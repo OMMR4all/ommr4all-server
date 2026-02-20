@@ -1,5 +1,7 @@
 import logging
 import os
+from dataclasses import dataclass
+
 from database.database_book_documents import DatabaseBookDocuments
 from database.database_dictionary import DatabaseDictionary
 from database.file_formats import PcGts
@@ -55,10 +57,6 @@ class DictionaryCorrector(SymSpell):
             logger.info("Successfully loaded bigram dict" if loaded else "Failed to load bigram dict")
 
 
-class PredictionResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__class__):
-    pass
-
-
 class PredictionResultSingleLine(NamedTuple):
     line: Line
     hyphenated: str
@@ -68,8 +66,8 @@ class PredictionResultSingleLine(NamedTuple):
                 'id': self.line.id,
                 }
 
-
-class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=PredictionResultMeta):
+@dataclass(frozen=True)
+class PredictionResult(AlgorithmPredictionResult):
     pcgts: PcGts
     dataset_page: DatabasePage
     text_lines: List[PredictionResultSingleLine]
@@ -82,10 +80,6 @@ class PredictionResult(AlgorithmPredictionResult, NamedTuple, metaclass=Predicti
             line.line.sentence = Sentence.from_string(line.hyphenated)
         self.pcgts.page.annotations.connections.clear()
         self.pcgts.to_file(self.dataset_page.file('pcgts').local_path())
-
-
-class ResultMeta(NamedTuple.__class__, AlgorithmPredictionResult.__class__):
-    pass
 
 
 class Predictor(AlgorithmPredictor):
