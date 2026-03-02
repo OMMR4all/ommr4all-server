@@ -13,9 +13,8 @@ if __name__ == '__main__':
 
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
-    from database.start_up.load_text_variants_in_memory import load_model
-    load_model()
-from database.start_up.load_text_variants_in_memory import lyrics, syllable_dictionary
+
+from database.start_up.load_text_variants_in_memory import lyrics_store
 
 from database.database_book_documents import DatabaseBookDocuments
 from database.database_dictionary import DatabaseDictionary
@@ -665,7 +664,7 @@ class Predictor(AlgorithmPredictor):
         self.document_id = settings.params.documentId
         # self.document_similar_tester = SimilarDocumentChecker()
         self.text_normalizer = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.WORDS))
-        self.database_hyphen_dictionary = syllable_dictionary
+        self.database_hyphen_dictionary = lyrics_store.syllable_dictionary
 
     @classmethod
     def unprocessed(cls, page: DatabasePage) -> bool:
@@ -711,7 +710,7 @@ class Predictor(AlgorithmPredictor):
                 #print(text)
                 #print(text2)
             else:
-                for b in lyrics.lyrics:
+                for b in lyrics_store.lyrics.lyrics:
                     b: Lyric_info = b
                     text2 = self.text_normalizer.apply(b.latine)
                     ed = edlib.align(text.replace(" ", ""), text2.replace(" ", ""), mode="SHW", k=lowest_ed)

@@ -2,8 +2,7 @@ import multiprocessing
 import sys
 import inspect
 import logging
-lyrics = None
-syllable_dictionary = None
+
 
 
 original_import = __import__
@@ -43,40 +42,47 @@ def my_custom_import(name, globals=None, locals=None, fromlist=(), level=0):
     logging.info("-" * 50)
 
     return module
-import json
-import os
 
 from ommr4all import settings
 from tools.simple_gregorianik_text_export import Lyrics
 from loguru import logger
 
+import os
+import json
+import logging
+from django.conf import settings
 
-def load_model():
-    #try:
-    #    multiprocessing.set_start_method('spawn')
-    #except:
-    #    pass
-
-    global lyrics
-    global syllable_dictionary
-    path = os.path.join(settings.BASE_DIR, 'internal_storage', 'resources', 'lyrics_collection',
-                        'lyrics_by_sources.json')
-    assert os.path.exists(path)
-
-    path2 = os.path.join(settings.BASE_DIR, 'internal_storage', 'default_dictionary', 'syllable_dictionary.json')
-    assert os.path.exists(path)
-    with open(path) as f:
-        json1 = json.load(f)
-        lyrics = Lyrics.from_dict(json1)
-    logger.info("Successfully imported Lyrics database into memory")
-
-    with open(path2) as f:
-        json1 = json.load(f)
-        syllable_dictionary = json1
-    logger.info("Successfully imported Syllable dictionary into memory")
+logger = logging.getLogger(__name__)
 
 
-def get_data():
-    if lyrics is None:
-        raise Exception("Expensive model not loaded")
-    return lyrics
+class LyricsData:
+    _instance = None
+    _is_initialized = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(LyricsData, cls).__new__(cls)
+        return cls._instance
+
+    def load(self):
+        if self._is_initialized:
+            return
+
+        lyrics_path = os.path.join(settings.BASE_DIR, 'internal_storage', 'resources', 'lyrics_collection',
+                                   'lyrics_by_sources.json')
+        if os.path.exists(lyrics_path):
+            with open(lyrics_path) as f:
+                self.lyrics = Lyrics.from_dict(json.load(f))
+            logger.info("Successfully imported Lyrics database.")
+
+        dict_path = os.path.join(settings.BASE_DIR, 'internal_storage', 'default_dictionary',
+                                 'syllable_dictionary.json')
+        if os.path.exists(dict_path):
+            with open(dict_path) as f:
+                self.syllable_dictionary = json.load(f)
+            logger.info("Successfully imported Syllable dictionary.")
+
+        self._is_initialized = True
+
+
+lyrics_store = LyricsData()

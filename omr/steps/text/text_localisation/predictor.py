@@ -28,7 +28,6 @@ from omr.text_matching.populate_db import SimilarDocumentChecker
 from tools.simple_gregorianik_text_export import Lyric_info
 from omr.steps.text.text_localisation.meta import Meta
 from database.file_formats.pcgts import Coords, PageScaleReference, Point
-from database.start_up.load_text_variants_in_memory import lyrics
 
 from itertools import zip_longest
 from omr.steps.text.predictor import PredictionResult as TextPredictionResult

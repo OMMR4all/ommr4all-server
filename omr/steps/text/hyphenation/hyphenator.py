@@ -40,12 +40,12 @@ class Hyphenator(ABC):
 class CombinedHyphenator(Hyphenator):
 
     def __init__(self, lang='la', left=2, right=2):
-        from database.start_up.load_text_variants_in_memory import syllable_dictionary
+        from database.start_up.load_text_variants_in_memory import lyrics_store
 
         super().__init__()
         from thirdparty.pyphen import Pyphen
         self.pyphen = Pyphen(filename=lang, lang=lang, left=left, right=right)
-        self.dictionary = syllable_dictionary
+        self.dictionary = lyrics_store.syllable_dictionary
 
     def apply_to_word(self, word: str):
         l_word = word.lower()
@@ -133,7 +133,7 @@ if __name__ == "__main__":
 
     os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
     django.setup()
-    from database.start_up.load_text_variants_in_memory import lyrics, syllable_dictionary
+    from database.start_up.load_text_variants_in_memory import lyrics_store
 
     #db = DatabaseDictionary.load(book=DatabaseBook("mulhouse_mass_transcription"))
     #database_hyphen_dictionary = db.to_hyphen_dict()
@@ -151,7 +151,7 @@ if __name__ == "__main__":
     #hyphen2 = CombinedHyphenator(lang=HyphenDicts.classic.get_internal_file_path(), left=1, right=1, dictionary=
     #database_hyphen_dictionary)
     hyphen3 = CombinedHyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1, right=1, dictionary=
-    syllable_dictionary)
+    lyrics_store.syllable_dictionary)
     #hyphen4 = CombinedHyphenator(lang=HyphenDicts.modern.get_internal_file_path(), left=1, right=1, dictionary=
     #database_hyphen_dictionary)
     hyphenators = [hyphen3]
