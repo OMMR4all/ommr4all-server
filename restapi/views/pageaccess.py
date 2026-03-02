@@ -16,13 +16,12 @@ from restapi.views.bookaccess import require_permissions, DatabaseBookPermission
 from restapi.models.error import *
 from django.views.static import serve
 from json import JSONDecodeError
-import logging
 import json
 import re
 import zipfile
 import datetime
+from loguru import logger
 
-logger = logging.getLogger(__name__)
 
 
 def require_lock(func):
@@ -214,7 +213,6 @@ class PagePcGtsView(APIView):
         book = DatabaseBook(book)
         page = DatabasePage(book, page)
         obj = json.loads(request.body)
-
         pcgts = PcGts.from_json(obj, page)
         pcgts.to_file(page.file('pcgts').local_path())
         # add to backup archive

@@ -5,13 +5,12 @@ import edlib
 
 from database import DatabaseBook
 from database.database_book_documents import DatabaseBookDocuments
-from database.start_up.load_text_variants_in_memory import lyrics, syllable_dictionary
 from ommr4all import settings
 from omr.dataset.dataset import LyricsNormalizationProcessor, LyricsNormalizationParams, LyricsNormalization, logger
 from tools.simple_gregorianik_text_export import Lyric_info, Lyrics
 
 if __name__ == "__main__":
-    book = DatabaseBook('Geesebook1_complete')
+    book = DatabaseBook('Geesebook2_andreas')
     documents = DatabaseBookDocuments().load(book)
     docs = documents.database_documents.documents
     text_normalizer = LyricsNormalizationProcessor(LyricsNormalizationParams(LyricsNormalization.WORDS))

@@ -31,9 +31,9 @@ def soruce_meta(id):
     return meta
 
 if __name__ == "__main__":
-    source = "Geesebook1"
+    source = "Geesebook2"
     source_meta = soruce_meta(source)
-    book = DatabaseBook('Geesebook1_complete_fixed_ro')
+    book = DatabaseBook('Geesebook2_andreas')
     documents = DatabaseBookDocuments().load(book)
     docs = documents.database_documents.documents
     wb_obj = openpyxl.load_workbook("/tmp/CM Default Metadatendatei.xlsx", data_only=True)
@@ -63,10 +63,11 @@ if __name__ == "__main__":
                 pages = [DatabasePage(book, x) for x in document.pages_names]
                 pcgts = [DatabaseFile(page, 'pcgts', create_if_not_existing=True).page.pcgts() for page in pages]
                 try:
+
                     root = PcgtsToMonodiConverter(pcgts, document=document, replace_filename="folio_", remove_char="%")
 
-                    meta, nodes = root.get_meta_and_notes(document=document, editor=str("OMMR4all"), sourceIIF="Ass695",
-                               doc_source="Ass695", suffix=".jpg", url="https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/")
+                    meta, nodes = root.get_meta_and_notes(document=document, editor=str("OMMR4all"), sourceIIF="Geesebook2",
+                               doc_source="Geesebook2", suffix=".jpg", url="https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/")
 
                 except Exception as e:
                     print(i)
