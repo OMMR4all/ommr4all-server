@@ -5,7 +5,23 @@ from typing import NamedTuple, List
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+import sys
+import traceback
 
+class TorchImportWatcher:
+    def find_spec(self, fullname, path, target=None):
+        if fullname == 'torch':
+            print("\n" + "!" * 60)
+            print(f"🚨 TORCH IMPORT DETECTED!")
+            print(f"Process ID: {os.getpid()}")
+            print("Traceback (How did Torch get here?):")
+            for line in traceback.format_stack():
+                if "importlib" not in line:
+                    print(line.strip())
+            print("!" * 60 + "\n")
+        return None
+
+#sys.meta_path.insert(0, TorchImportWatcher())
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.1/howto/deployment/checklist/
 
