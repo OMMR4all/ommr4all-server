@@ -3,7 +3,6 @@ import math
 import numpy as np
 import shapely.ops
 from shapely.geometry import Polygon, LineString
-from skimage.measure import approximate_polygon
 from typing import Type, Union
 from mashumaro.types import SerializableType
 
@@ -206,6 +205,8 @@ class Coords(SerializableType):
         return np.interp(x, self.points[:, 0], self.points[:, 1])
 
     def approximate(self, distance):
+        from skimage.measure import approximate_polygon
+
         self.points = approximate_polygon(self.points, distance)
 
     def draw(self, canvas, color=(0, 255, 0), thickness=5, fill=False, offset=(0, 0), scale=None):

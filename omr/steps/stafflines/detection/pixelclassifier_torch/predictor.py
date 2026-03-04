@@ -67,8 +67,10 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
         super().__init__(settings)
 
         params = StaffLinePredictorParameters()
+        device = get_default_device()
+        logger.info(f"Using device: {device}")
         modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(settings.model.local_file('best.torch')),
-                                                  device=get_default_device())
+                                                  device=device)
 
         base_model = modelbuilder.get_model()
         config = modelbuilder.get_model_configuration()

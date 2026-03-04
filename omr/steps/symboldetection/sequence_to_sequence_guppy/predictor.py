@@ -21,7 +21,7 @@ from omr.steps.symboldetection.predictor import SymbolsPredictor, AlgorithmPredi
     SingleLinePredictionResult, PredictionResult
 from omr.steps.symboldetection.sequence_to_sequence_guppy.meta import Meta
 
-
+from loguru import logger
 
 class OMRPredictor(SymbolsPredictor):
     @staticmethod
@@ -38,8 +38,7 @@ class OMRPredictor(SymbolsPredictor):
         # print(os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
         #                   'network_config', 'ocr_config.yaml'))
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.device = torch.device('cpu')
-
+        logger.info(f"Using device: {self.device}")
         self.network = GuppyOCR.load_model(path, self.device)
         self.settings = settings
         self.dict_corrector = None

@@ -132,9 +132,12 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
             base_model = base_model_file.get_model()
             base_config = base_model_file.get_model_configuration()
             return base_model, base_config
+
+        device = get_default_device()
+        logger.info(f"Using device: {device}")
         if self.params.model_to_load():
             path = self.params.model_to_load().local_file('best.torch')
-            device = get_default_device()
+
             network, config = build_model_from_loaded(path, device)
         else:
             config = ModelConfiguration(use_custom_model=self.settings.page_segmentation_torch_params.custom_model,
@@ -148,7 +151,7 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
                                                                                   transforms=transforms.to_dict()),
 
                                         color_map=color_map)
-            network = ModelBuilderMeta(config, device=get_default_device()).get_model()
+            network = ModelBuilderMeta(config, device=device).get_model()
         mw = ModelWriterCallback(network, config, save_path=Path(self.settings.model.path), prefix="",
                                  metric_watcher_index=0)
         callbacks = [mw, pc_callback]
@@ -162,7 +165,7 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
                                                                metrics=[Metrics("accuracy")],
                                                                watcher_metric_index=0,
                                                                loss=Losses.cross_entropy_loss,
-                                                               ), get_default_device(),
+                                                               ), device,
                                  callbacks=callbacks, debug_color_map=config.color_map)
 
         os.makedirs(os.path.dirname(self.settings.model.path), exist_ok=True)
