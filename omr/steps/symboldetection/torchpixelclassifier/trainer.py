@@ -7,6 +7,7 @@ import cv2
 import torch
 from albumentations import Compose, ShiftScaleRotate, Affine, RandomGamma, RandomBrightnessContrast
 from albumentations.pytorch import ToTensorV2
+from loguru import logger
 from segmentation.datasets.dataset import MemoryDataset
 from segmentation.modules import Architecture
 
@@ -182,6 +183,7 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         if self.params.model_to_load():
             path = self.params.model_to_load().local_file('best.torch')
             device = get_default_device()
+            logger.info(f"Using device: {device}")
             network, config = build_model_from_loaded(path, device)
         else:
             config = ModelConfiguration(use_custom_model=self.settings.page_segmentation_torch_params.custom_model,
