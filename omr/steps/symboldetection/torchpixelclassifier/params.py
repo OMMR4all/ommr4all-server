@@ -1,21 +1,15 @@
 from typing import NamedTuple
-
-import albumentations
-import cv2
-from albumentations import RandomScale, RandomGamma, RandomBrightnessContrast, OneOf, ToGray, CLAHE, Compose, Affine, \
-    ShiftScaleRotate
-
-import albumentations as albu
-
-
-
-
 def remove_nones(x):
     return [y for y in x if y is not None]
 
 
 def default_transform():
     from segmentation.preprocessing.workflow import BinarizeDoxapy
+    import cv2
+    from albumentations import RandomGamma, RandomBrightnessContrast, Compose, \
+        Affine, \
+        ShiftScaleRotate
+    import albumentations
 
     result = Compose([
         #RandomScale(),
@@ -40,7 +34,7 @@ def default_transform():
     return result
 def symbol_transform():
     from segmentation.datasets.dataset import compose
-
+    import albumentations as albu
     result = [
         # albu.HorizontalFlip(),
         albu.Rotate((-2, 2), border_mode=0, value=0),

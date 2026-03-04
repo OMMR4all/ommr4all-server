@@ -5,6 +5,7 @@ from database.file_formats.performance import LockState
 from omr.dataset import DatasetCallback, Dataset
 from typing import Optional, List, Type, Union, Generator
 from omr.experimenter.experimenter import Experimenter
+
 from .algorithmtrainerparams import AlgorithmTrainerSettings, AlgorithmTrainerParams, DatasetParams
 from .algorithmpreditorparams import AlgorithmPredictorSettings, AlgorithmPredictorParams
 from database.model import Models, Model, ModelMeta, MetaId, ModelsId, Storage
@@ -216,6 +217,7 @@ class AlgorithmPredictor(ABC):
 
 
 class AlgorithmMeta(ABC):
+
     @staticmethod
     @abstractmethod
     def type() -> AlgorithmTypes:

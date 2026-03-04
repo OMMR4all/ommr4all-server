@@ -8,7 +8,8 @@ from database.database_available_models import DatabaseAvailableModels, DefaultM
 from database.database_page import DatabasePage, DatabaseBook
 from omr.steps.step import Step, AlgorithmTypes, AlgorithmMeta
 from omr.steps.algorithmtypes import AlgorithmGroups
-
+import sys
+from loguru import logger
 
 class TaskRunner(ABC):
     def __init__(self,
@@ -27,6 +28,10 @@ class TaskRunner(ABC):
 
     @abstractmethod
     def run(self, task: Task, com_queue: Queue) -> dict:
+        if 'torch' in sys.modules:
+            logger.warning("PARENT PROCESS WARNING: Torch is already loaded!")
+        else:
+            logger.info("PARENT PROCESS: Clean (No Torch loaded)")
         return {}
 
     def list_available_models_for_book(self, book: DatabaseBook) -> DatabaseAvailableModels:

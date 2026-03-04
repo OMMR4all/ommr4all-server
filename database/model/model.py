@@ -36,7 +36,6 @@ class Model:
         if not self._meta:
             try:
                 with open(self.meta_path, 'r') as f:
-                    print(self.meta_path)
                     self._meta = ModelMeta.from_json(f.read())
             except (FileNotFoundError, ValueError):
                 logger.warning("ModelMeta file not existing at {}. Creating a new one!".format(self.meta_path))
