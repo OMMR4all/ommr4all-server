@@ -58,6 +58,8 @@ class Step(ABC):
             import omr.steps.text.correction_tools.document_matching_corrector.meta
             import omr.steps.text.correction_tools.document_corrector.meta
             import omr.steps.tools.meta
+
+            import omr.steps.tools.symbol_pattern_matching.meta
             cls._INITIALIZED = True
             logger.debug(f"OMR REGISTRY: Successfully registered {len(cls.METAS)} algorithms.")
 

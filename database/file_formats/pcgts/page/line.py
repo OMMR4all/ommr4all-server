@@ -7,7 +7,7 @@ from .coords import Point
 from .sentence import Sentence
 from .staffline import StaffLines
 from .musicsymbol import MusicSymbol, MusicSymbolPositionInStaff, create_clef, ClefType, SymbolType, \
-    GraphicalConnectionType, SymbolSequenceConfidence
+    GraphicalConnectionType, SymbolSequenceConfidence, NoteName
 from uuid import uuid4
 
 
@@ -204,4 +204,36 @@ class Line(Region):
             else:
                 last_no_note = True
 
+    def get_relative_pitch_sequence(self) -> List[int]:
+        notes = [s for s in self.symbols if s.symbol_type == SymbolType.NOTE and s.note_name != NoteName.UNDEFINED]
 
+        if not notes:
+            return []
+
+
+        def to_abs_pitch(note):
+            return (note.octave * 7) + note.note_name.value
+
+        rel_pitches = []
+
+        last_val = to_abs_pitch(notes[0])
+        rel_pitches.append(0)
+
+        for i in range(1, len(notes)):
+            curr_val = to_abs_pitch(notes[i])
+            rel_pitches.append(curr_val - last_val)
+            last_val = curr_val
+
+        return rel_pitches
+
+    def count_pattern_occurrences(self, patterns: List[List[int]]) -> int:
+        line_intervals = self.get_relative_pitch_sequence()
+        total_matches = 0
+
+        for pattern in patterns:
+            n = len(pattern)
+            if n == 0: continue
+            for i in range(len(line_intervals) - n + 1):
+                if line_intervals[i: i + n] == pattern:
+                    total_matches += 1
+        return total_matches
