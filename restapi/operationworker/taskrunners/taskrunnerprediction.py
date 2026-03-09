@@ -1,3 +1,5 @@
+from absl.logging import exception
+
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, AlgorithmTypes
 from ..taskcommunicator import TaskCommunicationData
@@ -53,13 +55,13 @@ class TaskRunnerPrediction(TaskRunner):
             params=self.settings.params,
         )
 
-        staff_line_detector: AlgorithmPredictor = meta.create_predictor(params)
+        abc_detector: AlgorithmPredictor = meta.create_predictor(params)
         com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
 
         pages = self.selection.get_pages(meta.predictor().unprocessed)
         logger.debug("Algorithm {} processing {} pages".format(self.algorithm_type.name, len(pages)))
 
-        staves = list(staff_line_detector.predict(pages, Callback()))
+        staves = list(abc_detector.predict(pages, Callback()))
         results = [
             page_staves.to_dict() for page_staves in staves
         ]

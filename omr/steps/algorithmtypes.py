@@ -42,6 +42,7 @@ class AlgorithmTypes(Enum):
     # Tools
     LAYOUT_CONNECTED_COMPONENTS_SELECTION = "layout_connected_components_selection"
     SYMBOLS_SEQUENCE_CONFIDENCE_CALCULATOR = "symbol_sequence_confidence_calculator"
+    SYMBOLS_PATTERN_MATCHER =  "symbols_pattern_matcher"
 
     POSTPROCESSING = "postprocessing"
 
@@ -81,7 +82,7 @@ class AlgorithmGroups(Enum):
             AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_IN_ORDER,
                                         AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH],
             AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION,
-                                    AlgorithmTypes.DOCUMENT_ALIGNMENT, AlgorithmTypes.TEXT_LOCALISATION],
+                                    AlgorithmTypes.DOCUMENT_ALIGNMENT, AlgorithmTypes.TEXT_LOCALISATION, AlgorithmTypes.SYMBOLS_PATTERN_MATCHER],
         }
 
     def types(self) -> List[AlgorithmTypes]:

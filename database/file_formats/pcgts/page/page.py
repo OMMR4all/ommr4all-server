@@ -425,3 +425,20 @@ class Page:
 
     def get_all_music_symbols_of_page(self):
         return sum([b.get_all_music_symbols() for b in self.music_blocks()], [])
+
+    def get_pattern_stats(self, patterns: List[List[int]], granular=False):
+        """
+        If granular=True, returns a list of (line_id, count).
+        If granular=False, returns the total count for the page.
+        """
+        page_total = 0
+        line_results = []
+
+        for mb in self.music_blocks():
+            for line in mb.lines:
+                count = line.count_pattern_occurrences(patterns)
+                if count > 0:
+                    page_total += count
+                    line_results.append((line.id, count))
+
+        return line_results if granular else page_total

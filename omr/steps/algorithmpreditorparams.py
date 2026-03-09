@@ -84,6 +84,7 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
 
     useDictionaryCorrection: bool = False
 
+    patterns: Optional[List[List[int]]] = None
 
 @dataclass()
 class AlgorithmPredictorSettings:
