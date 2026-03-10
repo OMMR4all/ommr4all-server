@@ -1,11 +1,15 @@
-from typing import List
-
-from database import DatabasePage
-from database.file_formats.pcgts import Page, SymbolType
+import os
+from database import DatabasePage, DatabaseBook
+from database.file_formats.pcgts import Page, SymbolType, PageScaleReference
+from database.file_formats.performance.pageprogress import Locks
 from omr.steps.algorithm import AlgorithmPredictionResult, AlgorithmPredictor, AlgorithmPredictionResultGenerator, \
     PredictionCallback, AlgorithmMeta
+from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmPredictorSettings
 from omr.steps.tools.symbol_pattern_matching.meta import Meta
 from loguru import logger
+import numpy as np
+import logging
+from typing import List
 
 class MusicPatternSearch:
     def __init__(self, patterns: List[List[int]]):
@@ -147,3 +151,63 @@ class MelodicPatternPredictor(AlgorithmPredictor):
                     matches=page_matches,
                     total_count=page_total
                 )
+
+logging.basicConfig(level=logging.INFO)
+
+
+def draw_predictions(image_path: str, prediction_results: MelodicPatternResult, ide):
+    import cv2
+    image = cv2.imread(image_path)
+    if image is None:
+        print(f"Error: Could not load image at {image_path}")
+        return
+    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+    for ind, match in enumerate(prediction_results.matches):
+        aabbs = match.get_aabbs()[0]
+        padding = ide.page.pcgts().page.avg_staff_line_distance() * 1/2
+        padding_left = ide.page.pcgts().page.avg_staff_line_distance() * 1/4
+
+        ps = PageScaleReference(0)
+        x_min = int(ide.page.pcgts().page.page_to_image_scale(aabbs["x"] - padding_left , ps))
+        y_min = int(ide.page.pcgts().page.page_to_image_scale(aabbs["y"] - padding, ps))
+        x_max = int(ide.page.pcgts().page.page_to_image_scale(aabbs["x"] + aabbs["w"] + padding_left, ps))
+        y_max = int(ide.page.pcgts().page.page_to_image_scale(aabbs["y"] + aabbs["h"] + padding, ps))
+        print(f"x_min, {x_min}, y_min, {y_min}, x_max, {x_max}, y_max {y_max}")
+        cv2.rectangle(image, (x_min, y_min), (x_max, y_max), colors[ind%len(colors)], 3)
+
+        label = f"Pattern: {match.pattern}"
+        cv2.putText(image, label, (x_min, y_min - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[ind%len(colors)], 2)
+    import matplotlib
+    matplotlib.use('QtAgg')  # This tells Matplotlib to use PyQt6
+    from matplotlib import pyplot as plt
+
+    plt.imshow(np.array(image))
+    plt.show()
+
+
+
+if __name__ == "__main__":
+    import django
+
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'ommr4all.settings'
+    django.setup()
+    import random
+    from omr.dataset.datafiles import dataset_by_locked_pages, LockState
+    random.seed(1)
+    np.random.seed(1)
+    b = DatabaseBook('Graduel_Part_3_gt')
+    train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True), LockState(Locks.LAYOUT, True)], True, [b])
+
+    pred = MelodicPatternPredictor(AlgorithmPredictorSettings(
+        model=Meta.best_model_for_book(b), params=AlgorithmPredictorParams(patterns=[[1,1], [1,2,1], [-1,0,0]])
+    ))
+    pages = [p.page.location for p in train_pcgts[1:4]]
+    for ind, t in enumerate(pred.predict(pages)):
+        page = pages[ind]
+        ide = page.file("color_original")
+        draw_predictions(ide.local_path(), t, ide)
+        print(t.to_dict())
+    # 5. Visualize
+    # draw_predictions("path/to/original_score_image.png", results_gen)
+
