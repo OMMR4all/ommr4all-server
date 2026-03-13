@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from omr.imageoperations.music_line_operations import SymbolLabel
 from omr.steps.callback import SegmentationProcessTrainCallback
 from omr.steps.stafflines.detection.trainer import StaffLineDetectionTrainer
-from omr.steps.symboldetection.torchpixelclassifier.params import remove_nones
+from omr.steps.symboldetection.torchpixelclassifier.params import remove_nones, default_transform
 from segmentation.callback import ModelWriterCallback
 # from segmentation.dataset import MemoryDataset
 from segmentation.losses import Losses
@@ -71,17 +71,17 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
                               ClassSpec(label=1, name="line", color=[255, 0, 0])])
 
         input_transforms = albumentations.Compose(remove_nones([
-            GrayToRGBTransform() if True else None,
-            ColorMapTransform(color_map=color_map.to_albumentation_color_map())
+            GrayToRGBTransform(p=1.0) if True else None,
+            ColorMapTransform(color_map=color_map.to_albumentation_color_map(), p=1.0)
 
         ]))
         aug_transforms = self.settings.page_segmentation_torch_params.augmentation \
-            if self.settings.page_segmentation_torch_params.data_augmentation else None
+            if self.settings.page_segmentation_torch_params.augmentation is not None else default_transform()
         tta_transforms = None
         post_transforms = albumentations.Compose(remove_nones([
             NetworkEncoderTransform(
-                self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name),
-            ToTensorV2()
+                self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name, p=1.0),
+            ToTensorV2(p=1.0)
         ]))
         transforms = PreprocessingTransforms(
             input_transform=input_transforms,
