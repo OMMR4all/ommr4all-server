@@ -35,12 +35,6 @@ class MusicPatternSearch:
 from typing import List, Dict, Any, Type, Optional, Generator
 from dataclasses import dataclass
 
-@dataclass
-class PatternMatch:
-    line_id: str
-    pattern: List[int]
-    count: int
-
 from dataclasses import dataclass
 from typing import List, Dict, Any, Type, Optional, Generator
 
@@ -145,6 +139,7 @@ class MelodicPatternPredictor(AlgorithmPredictor):
                         page_total += match_count
 
             if page_total > 0:
+                logger.info(f"Found {len([t for match in page_matches for t in match.occurrences_coords])} Pattern on Page {db_page.page}:")
 
                 yield MelodicPatternResult(
                     page_id=db_page.page,
@@ -163,23 +158,25 @@ def draw_predictions(image_path: str, prediction_results: MelodicPatternResult, 
         return
     colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
     for ind, match in enumerate(prediction_results.matches):
-        aabbs = match.get_aabbs()[0]
-        padding = ide.page.pcgts().page.avg_staff_line_distance() * 1/2
-        padding_left = ide.page.pcgts().page.avg_staff_line_distance() * 1/4
+        for  aabbs in match.get_aabbs():
+            padding = ide.page.pcgts().page.avg_staff_line_distance() * 1/2
+            padding_left = ide.page.pcgts().page.avg_staff_line_distance() * 1/4
 
-        ps = PageScaleReference(0)
-        x_min = int(ide.page.pcgts().page.page_to_image_scale(aabbs["x"] - padding_left , ps))
-        y_min = int(ide.page.pcgts().page.page_to_image_scale(aabbs["y"] - padding, ps))
-        x_max = int(ide.page.pcgts().page.page_to_image_scale(aabbs["x"] + aabbs["w"] + padding_left, ps))
-        y_max = int(ide.page.pcgts().page.page_to_image_scale(aabbs["y"] + aabbs["h"] + padding, ps))
-        print(f"x_min, {x_min}, y_min, {y_min}, x_max, {x_max}, y_max {y_max}")
-        cv2.rectangle(image, (x_min, y_min), (x_max, y_max), colors[ind%len(colors)], 3)
+            ps = PageScaleReference(0)
+            print(f"x, {aabbs["x"]}, y, {aabbs["y"]}, height, {aabbs["h"]}, width {aabbs["w"]}")
 
-        label = f"Pattern: {match.pattern}"
-        cv2.putText(image, label, (x_min, y_min - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[ind%len(colors)], 2)
+            x_min = int(ide.page.pcgts().page.page_to_image_scale(aabbs["x"] - padding_left , ps))
+            y_min = int(ide.page.pcgts().page.page_to_image_scale(aabbs["y"] - padding, ps))
+            x_max = int(ide.page.pcgts().page.page_to_image_scale(aabbs["x"] + aabbs["w"] + padding_left, ps))
+            y_max = int(ide.page.pcgts().page.page_to_image_scale(aabbs["y"] + aabbs["h"] + padding, ps))
+            print(f"x_min, {x_min}, y_min, {y_min}, x_max, {x_max}, y_max {y_max}")
+            cv2.rectangle(image, (x_min, y_min), (x_max, y_max), colors[ind%len(colors)], 3)
+
+            label = f"Pattern: {match.pattern}"
+            cv2.putText(image, label, (x_min, y_min - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[ind%len(colors)], 2)
     import matplotlib
-    matplotlib.use('QtAgg')  # This tells Matplotlib to use PyQt6
+    #matplotlib.use('QtAgg')  # This tells Matplotlib to use PyQt6
     from matplotlib import pyplot as plt
 
     plt.imshow(np.array(image))
@@ -196,11 +193,11 @@ if __name__ == "__main__":
     from omr.dataset.datafiles import dataset_by_locked_pages, LockState
     random.seed(1)
     np.random.seed(1)
-    b = DatabaseBook('Graduel_Part_3_gt')
+    b = DatabaseBook('demo')
     train_pcgts, val_pcgts = dataset_by_locked_pages(0.8, [LockState(Locks.STAFF_LINES, True), LockState(Locks.LAYOUT, True)], True, [b])
 
     pred = MelodicPatternPredictor(AlgorithmPredictorSettings(
-        model=Meta.best_model_for_book(b), params=AlgorithmPredictorParams(patterns=[[1,1], [1,2,1], [-1,0,0]])
+        model=Meta.best_model_for_book(b), params=AlgorithmPredictorParams(patterns=[[1,1]])
     ))
     pages = [p.page.location for p in train_pcgts[1:4]]
     for ind, t in enumerate(pred.predict(pages)):

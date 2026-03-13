@@ -126,8 +126,8 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         color_map2= ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in AdditionalSymbolLabel])
 
         input_transforms = Compose(remove_nones([
-            GrayToRGBTransform() if True else None,
-            ColorMapTransform(color_map=color_map2.to_albumentation_color_map())
+            GrayToRGBTransform(p=1.0) if True else None,
+            ColorMapTransform(color_map=color_map2.to_albumentation_color_map(), p=1.0)
 
         ]), additional_targets={'add_symbols_mask': 'mask'} )
 
@@ -138,8 +138,8 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         post_transforms = Compose(remove_nones([
             # NetworkEncoderTransform(Preprocessingfunction.name),
             NetworkEncoderTransform(
-                self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name),
-            ToTensorV2()
+                self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name, p=1.0),
+            ToTensorV2(p=1.0)
         ]), additional_targets={'add_symbols_mask': 'mask'} )
         transforms = PreprocessingTransforms(
             input_transform=input_transforms,

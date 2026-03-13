@@ -78,7 +78,7 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
         self.predictor = EnsemblePredictor([base_model], [preprocessing_settings])
         self.nmaskpredictor = NetworkMaskPostProcessor(self.predictor, config.color_map)
         from linesegmentation.detection import LineDetectionSettings, LineDetection
-        self.settings = LineDetectionSettings(
+        self.line_settings = LineDetectionSettings(
             min_lines_per_system=self.params.minNumberOfStaffLines,
             line_number=self.params.maxNumberOfStaffLines,
             horizontal_min_length=6,
@@ -87,10 +87,10 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
             target_line_space_height=self.dataset_params.target_staff_line_distance,
             post_process=params.post_processing,
             best_fit_scale=params.best_fit_scale,
-            debug=False,
-            debug_model=False,
+            #debug=True,
+            #debug_model=True,
         )
-        self.line_detection = LineDetection(self.settings)
+        self.line_detection = LineDetection(self.line_settings)
 
     def predict(self, pages: List[DatabasePage], callback: Optional[LineDetectionPredictorCallback] = None) -> AlgorithmPredictionResultGenerator:
         pcgts_files = [p.pcgts() for p in pages]
@@ -101,7 +101,11 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(SourceImage.from_numpy(i.line_image))
             from scipy.special import softmax
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
+            #from matplotlib import pyplot as plt
+            #plt.imshow(output.generated_mask)
+            #plt.show()
             #output.generated_mask.show()
+
             r = self.line_detection.detect_prob_map(output.prediction_result.source_image.get_grayscale_array(), prob_map_softmax)
 
             rlmd: RegionLineMaskData = i
