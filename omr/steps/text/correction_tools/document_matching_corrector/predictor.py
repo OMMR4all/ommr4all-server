@@ -57,6 +57,8 @@ class SingleDocumentResult(AlgorithmPredictionResult):
         return {'similarText': self.matched_document,
                 "page_id": self.page_id,
                 "document_id": self.document_id}
+    def store_to_page(self):
+        pass
 
 @dataclass(frozen=True)
 class Result(AlgorithmPredictionResult):
