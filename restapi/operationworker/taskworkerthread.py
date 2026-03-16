@@ -59,6 +59,7 @@ class TaskWorkerThread:
             com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.INITIALIZING)))
             result = task.task_runner.run(task, com_queue)
             logger.info("THREAD {}: Task finished. It ran for {}s".format(name, time.time() - start))
+
             if result is None:
                 # process canceled
                 raise TaskNotFinishedException()
