@@ -78,7 +78,6 @@ class PytorchGuppyyTrainer(TextTrainerBase):
                 csv_writer.writerow(header)
                 for ind, (image, gt) in enumerate(zip(dataset[0], dataset[1])):
                     uuid_ = uuid.uuid4()
-                    
                     Image.fromarray(image).save(os.path.join(path, str(ind) +str(uuid_)+ ".png"))
                     with open(os.path.join(path, str(ind) + str(uuid_)+ ".txt"), 'w', encoding='UTF8') as gt_txt:
                         gt_txt.write(gt)

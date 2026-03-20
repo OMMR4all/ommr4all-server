@@ -54,17 +54,19 @@ class ImageExtractDeskewedLyrics(ImageOperation):
         dewarper = Dewarper(images[0].size, s)
         dew_page, = tuple(map(np.array, dewarper.dewarp(images)))
         out = []
-
+        img_h, img_w = dew_page.shape[:2]
         for tl in all_tls:
             dew_coords = Coords(dewarper.transform_points(transform_point(tl.coords.points)))
             aabb = dew_coords.aabb()
             if aabb.area() == 0:
                 continue
-            image = dew_page[
-                    int(aabb.top()) - self.pad[0]: int(aabb.bottom()) + self.pad[2],
-                    int(aabb.left()) - self.pad[1]: int(aabb.right()) + self.pad[3]]
+            y_start = max(0, int(aabb.top()) - self.pad[0])
+            y_end = min(img_h, int(aabb.bottom()) + self.pad[2])
+            x_start = max(0, int(aabb.left()) - self.pad[1])
+            x_end = min(img_w, int(aabb.right()) + self.pad[3])
+            image = dew_page[y_start:y_end, x_start:x_end]
 
-
+            #print(f"shape: {image.shape}, bb: Top: {aabb.top()}, bot: {aabb.bottom()}, left: {aabb.left()}, right: {aabb.right()}, pads: {self.pad}")
             #image = dew_page[
             #        int(aabb.top()): int(aabb.bottom()),
             #        int(aabb.left()): int(aabb.right())]

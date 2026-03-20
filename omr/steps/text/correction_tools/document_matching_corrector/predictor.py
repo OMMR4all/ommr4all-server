@@ -275,7 +275,7 @@ def best_new_line_position2(word: List[synced_char], word_indices: List[int], hy
     return current_new_line_ind2
 
 def align_documents2(b: Lyric_info, document: Document, doc_text: str, doc_list: List[str],
-                    normalizer: LyricsNormalizationProcessor, hyphen: Hyphenator):
+                    normalizer: LyricsNormalizationProcessor, hyphen: Hyphenator, debug = False):
     from collections import Counter
 
     def most_common(lst):
@@ -301,11 +301,21 @@ def align_documents2(b: Lyric_info, document: Document, doc_text: str, doc_list:
 
     ed_final = edlib.align(only_text.lower(), only_text_gt_cropped.lower(), mode="NW", task="path")
     nice = edlib.getNiceAlignment(ed_final, only_text, only_text_gt_cropped, gap_char)
-    print("___")
-    print(f"Original: {only_text_gt}")
-    print(f"Fragment: {only_text_gt_cropped}")
-    print(f"To Map: {only_text}")
-    print("___")
+    if debug:
+        # --- DEBUG: ALIGNMENT PHASE ---
+        print("\n" + "=" * 40)
+        print("=== DEBUG: ALIGNMENT PHASE ===")
+        print("=" * 40)
+        print(f"HW Match Locations in Full GT: {start_idx} to {end_idx}")
+        print(f"Original DB Text: {only_text_gt}")
+        print(f"Cropped DB Text:  {only_text_gt_cropped}")
+        print(f"OCR Query Text:   {only_text}")
+        print("\n--- EDLIB NICE ALIGNMENT ---")
+        print(f"Query (OCR):   {nice['query_aligned']}")
+        print(f"Matched:       {nice['matched_aligned']}")
+        print(f"Target (DB):   {nice['target_aligned']}")
+        print("-" * 40 + "\n")
+
     @dataclass
     class SyncedCharInfo:
         char_pred: str
@@ -314,50 +324,63 @@ def align_documents2(b: Lyric_info, document: Document, doc_text: str, doc_list:
         pred_line: int
         gt_char_of_word: int
 
-    for ind, i in enumerate(nice["query_aligned"]):
-        if i == gap_char:
-            text_pred.insert(ind, (gap_char, None))
-
-    for ind, i in enumerate(nice["target_aligned"]):
-        if i == gap_char:
-            text_gt.insert(ind, (gap_char, None))
     synced_text = []
 
-    for i in zip(text_pred, nice["matched_aligned"], text_gt_cropped):
-        p_c = i[0]
-        op_c = i[1]
-        o_c = i[2]
-        if op_c == "|":
-            synced_text.append(
-                SyncedCharInfo(char_pred=p_c[0], char_gt=o_c[0], operation=sync_operation.MATCH, pred_line=p_c[1],
-                               gt_char_of_word=o_c[1]))
-        elif op_c == ".":
-            synced_text.append(
-                SyncedCharInfo(char_pred=p_c[0], char_gt=o_c[0], operation=sync_operation.MISMATCH, pred_line=p_c[1],
-                               gt_char_of_word=o_c[1]))
-        elif op_c == gap_char:
-            if p_c[0] == gap_char:
-                synced_text.append(SyncedCharInfo(char_pred=None, char_gt=o_c[0], operation=sync_operation.INSERT,
-                                                  pred_line=None, gt_char_of_word=o_c[1]))
-            elif o_c[0] == gap_char:
-                synced_text.append(SyncedCharInfo(char_pred=p_c[0], char_gt=None, operation=sync_operation.DELETE,
-                                                  pred_line=p_c[1], gt_char_of_word=None))
+    q_idx = 0
+    t_idx = 0
 
-    word_list=[]
-    word = []
-    prev_word = 0
-    for i in synced_text:
-        if i.gt_char_of_word != prev_word:
+    for q_char, match_op, t_char in zip(nice["query_aligned"], nice["matched_aligned"], nice["target_aligned"]):
+
+        if q_char != gap_char:
+            p_c = text_pred[q_idx]
+            q_idx += 1
+        else:
+            p_c = (gap_char, None)
+
+        if t_char != gap_char:
+            t_c = text_gt_cropped[t_idx]
+            t_idx += 1
+        else:
+            t_c = (gap_char, None)
+
+        if match_op == "|":
+            synced_text.append(SyncedCharInfo(char_pred=p_c[0], char_gt=t_c[0], operation="MATCH", pred_line=p_c[1],
+                                              gt_char_of_word=t_c[1]))
+        elif match_op == ".":
+            synced_text.append(SyncedCharInfo(char_pred=p_c[0], char_gt=t_c[0], operation="MISMATCH", pred_line=p_c[1],
+                                              gt_char_of_word=t_c[1]))
+        else:
+            if q_char == gap_char:
+                synced_text.append(SyncedCharInfo(char_pred=None, char_gt=t_c[0], operation="INSERT", pred_line=None,
+                                                  gt_char_of_word=t_c[1]))
+            elif t_char == gap_char:
+                synced_text.append(SyncedCharInfo(char_pred=p_c[0], char_gt=None, operation="DELETE", pred_line=p_c[1],
+                                                  gt_char_of_word=None))
+
+        word_list = []
+        word = []
+        prev_word = None
+
+        for i in synced_text:
             if i.gt_char_of_word is not None:
-                prev_word = i.gt_char_of_word
-                word_list.append(word)
-                word = []
-        word.append(i)
-    word_list.append(word)
+                if prev_word is None:
+                    prev_word = i.gt_char_of_word
+
+                if i.gt_char_of_word != prev_word:
+                    word_list.append(word)
+                    word = []
+                    prev_word = i.gt_char_of_word
+
+            word.append(i)
+
+        if word:
+            word_list.append(word)
+    if debug:
+        print("=== DEBUG: SEGMENTATION & LINE MAPPING ===")
     lines = []
     c_line =[]
     c_line_index = 0
-    for w in word_list:
+    for w_index, w in enumerate(word_list):
         w = [i for i in w if i.char_gt is not None]
         word =  "".join([i.char_gt for i in w if i.char_gt is not None])
         hyphen_word = hyphen.apply_to_word(word)
@@ -365,18 +388,24 @@ def align_documents2(b: Lyric_info, document: Document, doc_text: str, doc_list:
         syl_gap_char_indexes = [i - ind for ind, i in enumerate(syl_gap_char_indexes)]
         syl_gap_char_indexes.append(len(word))
         prev = 0
-
+        if debug:
+            print(f"\nProcessing Word {w_index}: '{word}' -> Hyphenated: '{hyphen_word}'")
         for i in syl_gap_char_indexes:
             syl = w[prev:i]
+            syl_str = "".join([c.char_gt for c in syl if c.char_gt is not None])
             syl_line = [s_c.pred_line for s_c in syl if s_c.pred_line is not None]
             if len(syl_line) > 0:
                 line_index = most_common(syl_line)
             else:
                 line_index = c_line_index
+            if debug:
+                print(f"  - Syllable: '{syl_str}' | Source lines: {syl_line} -> Assigned Line: {line_index}")
             prev = i
             if line_index == c_line_index:
                 c_line.append(syl)
             else:
+                if debug:
+                    print(f" Line Break: Moving from line {c_line_index} to {line_index}")
                 c_line_index = line_index
                 lines.append(c_line)
                 c_line = []
@@ -385,11 +414,30 @@ def align_documents2(b: Lyric_info, document: Document, doc_text: str, doc_list:
         c_line.append([SyncedCharInfo(char_gt=" ", char_pred=" ", operation=None, pred_line=None, gt_char_of_word=None)])
     lines.append(c_line)
     doc = ""
-    for t in lines:
-        l = "".join([c.char_gt for i in t for c in i])
-        doc += l.lstrip().rstrip()
-        doc += "\n"
+    if debug:
 
+        print("\n" + "=" * 40)
+        print("=== DEBUG: FINAL RECONSTRUCTED DOC ===")
+        print("=" * 40)
+    for line_idx, t in enumerate(lines):
+        l = "".join([c.char_gt for i in t for c in i])
+        clean_line = l.lstrip().rstrip()
+        if debug:
+            if clean_line:
+                pred_lines = [c.pred_line for i in t for c in i if c.pred_line is not None]
+                if pred_lines:
+                    orig_idx = most_common(pred_lines)
+                    orig_ocr = doc_list[orig_idx] if orig_idx < len(doc_list) else "[Line Missing in OCR]"
+                else:
+                    orig_idx = line_idx
+                    orig_ocr = doc_list[orig_idx] if orig_idx < len(doc_list) else "[Line Missing in OCR]"
+                print(f"Line {orig_idx} [OCR]: {orig_ocr.strip()}")
+                print(f"Line {orig_idx} [GT ]: {clean_line}")
+                print("-" * 30)
+        doc += clean_line
+        doc += "\n"
+    if debug:
+        print("=" * 40 + "\n")
     return doc
 
 
