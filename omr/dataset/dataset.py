@@ -573,7 +573,8 @@ class Dataset(ABC):
             if "#" in extract_text(i):
                 continue
             gts.append(extract_text(i))
-            images.append(255 - get_input_image(i).astype(np.uint8))
+            image = 255 - get_input_image(i).astype(np.uint8)
+            images.append(image)
 
         if only_with_gt and train:
             indexes = []

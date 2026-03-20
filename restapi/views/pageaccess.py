@@ -125,10 +125,8 @@ class PageLockView(APIView):
             if page.is_locked_by_user(request.user):
                 return Response({'locked': True})
             else:
-                # locked by another user
                 user = page.lock_user()
                 if not user:
-                    # unknown user, we can force it
                     pass
                 else:
                     return Response({'locked': False, 'first_name': user.first_name, 'last_name': user.last_name,
