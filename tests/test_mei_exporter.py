@@ -1,6 +1,6 @@
 import unittest
 
-from six import BytesIO
+from io import BytesIO
 
 import ommr4all.settings as settings
 from database import DatabaseBook

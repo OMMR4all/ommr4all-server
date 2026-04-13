@@ -1,4 +1,4 @@
-from six import StringIO
+from io import StringIO
 
 import database.file_formats.pcgts as ns_pcgts
 from typing import List, NamedTuple, Union, Optional
