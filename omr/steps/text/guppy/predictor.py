@@ -2,7 +2,6 @@ import os
 from dataclasses import dataclass
 from itertools import groupby
 
-import torch
 from PIL import Image
 
 from nautilus_ocr.decoder import DecoderType, DecoderOutput
@@ -164,6 +163,7 @@ class GuppyPredictor(TextPredictor):
         return Meta
 
     def __init__(self, settings: AlgorithmPredictorSettings):
+        import torch
         super().__init__(settings)
         self.dict_corrector = None
         path = settings.model.local_file('model_best.pth')
@@ -205,6 +205,7 @@ class GuppyPredictor(TextPredictor):
 
         loaded_dataset = dataset.load()
         len_dataset = len(loaded_dataset)
+        import torch
         for i, y in enumerate(loaded_dataset):  # dataset_cal[0]:
 
             image = 255 - y.line_image

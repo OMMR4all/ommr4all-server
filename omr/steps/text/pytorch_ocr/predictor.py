@@ -1,6 +1,5 @@
 import os
 
-import torch
 from PIL import Image
 from nautilus_ocr.decoder import DecoderType, DecoderOutput
 
@@ -38,6 +37,7 @@ class PytorchPredictor(TextPredictor):
         return Meta
 
     def __init__(self, settings: AlgorithmPredictorSettings):
+        import torch
         super().__init__(settings)
         self.dict_corrector = None
         self.chars = ' "#,.abcdefghiklmnopqrstuvxyzſω'

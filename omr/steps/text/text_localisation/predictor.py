@@ -4,7 +4,6 @@ import re
 
 import edlib
 import numpy as np
-import torch
 from PIL import Image, ImageDraw, ImageFont
 from nautilus_ocr.decoder import DecoderOutput, DecoderType
 from nautilus_ocr.predict import Network

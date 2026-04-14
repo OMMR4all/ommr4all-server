@@ -1,12 +1,6 @@
 import os
 
-from segmentation.model_builder import ModelBuilderLoad
-from segmentation.network import EnsemblePredictor
-from segmentation.network_postprocessor import NetworkMaskPostProcessor, MaskPredictionResult
-from segmentation.preprocessing.source_image import SourceImage
-from segmentation.scripts.train import get_default_device
 from tqdm import tqdm
-
 from shared.pcgtscanvas import PcGtsCanvas
 
 if __name__ == '__main__':
@@ -64,6 +58,11 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
         return Meta
 
     def __init__(self, settings: AlgorithmPredictorSettings):
+        from segmentation.model_builder import ModelBuilderLoad
+        from segmentation.network import EnsemblePredictor
+        from segmentation.network_postprocessor import NetworkMaskPostProcessor
+        from segmentation.preprocessing.source_image import SourceImage
+        from segmentation.scripts.train import get_default_device
         super().__init__(settings)
 
         params = StaffLinePredictorParameters()
@@ -93,12 +92,13 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
         self.line_detection = LineDetection(self.line_settings)
 
     def predict(self, pages: List[DatabasePage], callback: Optional[LineDetectionPredictorCallback] = None) -> AlgorithmPredictionResultGenerator:
+        from segmentation.preprocessing.source_image import SourceImage
         pcgts_files = [p.pcgts() for p in pages]
         pc_dataset = PCDatasetTorch(pcgts_files, self.dataset_params)
         dataset = pc_dataset.to_line_detection_dataset()
 
         for ind, i in enumerate(tqdm(dataset, total=len(pages))):
-            output: MaskPredictionResult = self.nmaskpredictor.predict_image(SourceImage.from_numpy(i.line_image))
+            output = self.nmaskpredictor.predict_image(SourceImage.from_numpy(i.line_image))
             from scipy.special import softmax
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
             #from matplotlib import pyplot as plt

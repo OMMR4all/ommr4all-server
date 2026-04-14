@@ -2,7 +2,6 @@ import os
 from typing import List, Optional, Generator, Tuple
 from database.file_formats.pcgts import *
 
-import torch
 from PIL import Image
 from guppyocr.predict_pxml import preprocess_image
 from nautilus_ocr.decoder import DecoderOutput, DecoderType
@@ -29,6 +28,7 @@ class OMRPredictor(SymbolsPredictor):
         return Meta
 
     def __init__(self, settings: AlgorithmPredictorSettings):
+        import torch
         super().__init__(settings)
         self.dict_corrector = None
         path = settings.model.local_file('model_best.pth')
@@ -46,6 +46,7 @@ class OMRPredictor(SymbolsPredictor):
         self.network.model.eval()
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[SingleLinePredictionResult, None, None]:
+        import torch
         from omr.steps.text.guppy.predictor import resize_with_pad, GreedyDecoder
         from omr.steps.symboldetection.sequence_to_sequence_guppy.api import GuppyOCR
         # if self.database_hyphen_dictionary is None:

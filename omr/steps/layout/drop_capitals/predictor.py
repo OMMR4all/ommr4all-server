@@ -1,7 +1,6 @@
 import random
 
 import cv2
-import torch
 import os
 from omr.dataset import RegionLineMaskData
 from omr.steps.layout.drop_capitals.dataset import DropCapitalDatasetDataset
@@ -24,6 +23,7 @@ LAYOUT_DROP_CAPITAL_MODEL_DEFAULT_NAME = "layout_drop_capital.pt"
 
 
 def get_outputs(image, model, threshold):
+    import torch
     with torch.no_grad():
         # forward pass of the image through the modle
         outputs = model(image)
@@ -205,6 +205,7 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
         return Meta
 
     def __init__(self, settings: AlgorithmPredictorSettings):
+        import torch
         super().__init__(settings)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -215,6 +216,7 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
             map_location=torch.device(device))
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> PredictionType:
+        import torch
         dc_dataset = DropCapitalDatasetDataset(pcgts_files, self.dataset_params)
         dataset = dc_dataset.to_drop_capital_dataset()
         length = len(dataset.imgs)
