@@ -2,6 +2,10 @@
 import os
 import sys
 
+# Prevent CUDA from initializing in the parent process before any fork().
+# Worker children override this in taskworkerthread.py.
+os.environ.setdefault('CUDA_VISIBLE_DEVICES', '')
+
 if __name__ == '__main__':
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ommr4all.settings')
     try:
