@@ -23,7 +23,6 @@ from restapi.views.user import UserBookPermissionsView
 from restapi.views.bookstyles import BookStyleView, BookStylesView
 from restapi.views.administrativedefaultmodels import AdministrativeDefaultModelsView
 from restapi.views.tasks import TasksView, TaskView
-from restapi.views.monodi_pattern_search import MonodiPatternSearchView
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
