@@ -96,9 +96,45 @@ class ChantMeta:
 
 
 @dataclass
+class MonodiPageLine:
+    """
+    One physical staff line on one folio page.
+
+    Created by :func:`parse_data_json_by_page`, which walks the flat sequence
+    of ``LineChange`` / ``FolioChange`` / ``Syllable`` nodes across all
+    ``ZeileContainer`` blocks and splits them into individual manuscript lines.
+
+    Attributes
+    ----------
+    folio:
+        Folio identifier string as it appears in ``FolioChange.text`` or is
+        taken from the chant's ``foliostart`` meta field for the very first
+        line.  Example values: ``"18"``, ``"86v"``.
+    line_number:
+        1-indexed line number on *this* folio.  The first line of the chant
+        starts at ``int(ChantMeta.zeilenstart)``; the counter resets to 1
+        whenever a new folio begins.
+    syllables:
+        The syllables (and their notes) that belong to this line.
+    """
+    folio: str
+    line_number: int
+    syllables: List[MonodiSyllable] = field(default_factory=list)
+
+    @property
+    def all_notes(self) -> List[MonodiNote]:
+        return [n for s in self.syllables for n in s.notes]
+
+    @property
+    def text(self) -> str:
+        return " ".join(s.text for s in self.syllables if s.text.strip())
+
+
+@dataclass
 class MonodiChant:
     meta: ChantMeta
-    rows: List[MonodiRow]
+    rows: List[MonodiRow]          # one entry per ZeileContainer (section view)
+    page_lines: List[MonodiPageLine] = field(default_factory=list)  # one per physical staff line
 
 
 @dataclass
@@ -184,6 +220,83 @@ def parse_data_json(data: dict) -> List[MonodiRow]:
     return rows
 
 
+def parse_data_json_by_page(
+    data: dict,
+    foliostart: str,
+    zeilenstart: int,
+) -> List[MonodiPageLine]:
+    """
+    Parse a monodi+ ``data.json`` into an ordered list of :class:`MonodiPageLine`
+    objects — one entry per physical staff line on the manuscript page.
+
+    Algorithm
+    ---------
+    All ``ZeileContainer`` nodes are collected in document order.  Their
+    children are then walked **as a single flat stream**.  Whenever a
+    ``LineChange`` is encountered the current line segment is closed and a new
+    one opened on the *same* folio (line number incremented).  Whenever a
+    ``FolioChange`` is encountered the current segment is closed and the folio
+    switches to the value in ``FolioChange.text``; the line counter resets to
+    1 (first line of the new folio, to be incremented by the next
+    ``LineChange`` if one immediately follows).
+
+    The very first content (before any explicit ``LineChange``/``FolioChange``)
+    is placed on folio *foliostart*, line *zeilenstart*.
+
+    Parameters
+    ----------
+    data:
+        Parsed ``data.json`` dict (``RootContainer``).
+    foliostart:
+        Folio identifier string from the chant's ``meta.json``
+        (e.g. ``"18"`` or ``"86v"``).
+    zeilenstart:
+        Integer line number of the first line of this chant on *foliostart*.
+    """
+    row_containers: List[dict] = []
+    _collect_row_containers(data, row_containers)
+
+    page_lines: List[MonodiPageLine] = []
+    current_folio = foliostart
+    current_line  = zeilenstart
+    current_syllables: List[MonodiSyllable] = []
+
+    def _flush() -> None:
+        """Save the current syllable buffer as a MonodiPageLine."""
+        if current_syllables:
+            page_lines.append(MonodiPageLine(
+                folio=current_folio,
+                line_number=current_line,
+                syllables=list(current_syllables),
+            ))
+            current_syllables.clear()
+
+    for container in row_containers:
+        for child in container.get("children", []):
+            kind = child.get("kind")
+
+            if kind == "LineChange":
+                _flush()
+                current_line += 1
+
+            elif kind == "FolioChange":
+                _flush()
+                current_folio = str(child.get("text", current_folio)).strip()
+                current_line  = 1   # first line of the new folio
+
+            elif kind == "Syllable":
+                notes = _extract_notes(child.get("notes", {"spaced": []}))
+                current_syllables.append(MonodiSyllable(
+                    uuid=child.get("uuid", ""),
+                    text=child.get("text", ""),
+                    syllable_type=child.get("syllableType", "Normal"),
+                    notes=notes,
+                ))
+
+    _flush()   # save any trailing content
+    return page_lines
+
+
 def parse_chant_meta(meta_data: dict) -> ChantMeta:
     return ChantMeta(
         id=meta_data.get("id", ""),
@@ -240,9 +353,20 @@ def load_manuscript(folder_path: str) -> MonodiManuscript:
         with open(chant_data_path, "r", encoding="utf-8") as fh:
             chant_data = json.load(fh)
 
+        chant_meta = parse_chant_meta(chant_meta_data)
+        try:
+            zeilenstart = int(chant_meta.zeilenstart)
+        except (ValueError, TypeError):
+            zeilenstart = 1
+
         chants.append(MonodiChant(
-            meta=parse_chant_meta(chant_meta_data),
+            meta=chant_meta,
             rows=parse_data_json(chant_data),
+            page_lines=parse_data_json_by_page(
+                chant_data,
+                foliostart=chant_meta.foliostart,
+                zeilenstart=zeilenstart,
+            ),
         ))
 
     return MonodiManuscript(meta=man_meta, chants=chants)
