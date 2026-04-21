@@ -56,7 +56,10 @@ _NOTE_DIATONIC: Dict[str, int] = {
 
 def _monodi_pitch_key(note: MonodiNote) -> str:
     """Single-character pitch key used for SequenceMatcher alignment."""
-    return note.base   # "A"–"G"
+    # Normalise to uppercase so that lowercase bases in the monodi JSON
+    # ('a'–'g') still match the uppercase PCGTS note-name letters.
+    base = note.base.upper() if note.base else "?"
+    return base if base in "ABCDEFG" else "?"
 
 
 def _pcgts_pitch_key(symbol) -> Optional[str]:
@@ -69,8 +72,9 @@ def _pcgts_pitch_key(symbol) -> Optional[str]:
         return None
     if symbol.note_name == NoteName.UNDEFINED:
         return None
-    # NoteName values map to 'C','D','E','F','G','A','B'
-    return symbol.note_name.value.upper() if hasattr(symbol.note_name, 'value') else None
+    # NoteName is an IntEnum (A=0 … G=6); .name gives the enum member name
+    # ("A", "B", … "G") directly — do NOT use .value which is an int.
+    return symbol.note_name.name
 
 
 # ---------------------------------------------------------------------------
@@ -271,8 +275,17 @@ def compare_chant_page(
     monodi_lines = [pl for pl in chant.page_lines if str(pl.folio) == str(folio)]
 
     line_results: List[LineComparisonResult] = []
-    for ml, pl in zip(pcgts_music_lines, monodi_lines):
-        result = compare_page_line(pl, ml, include_note_types=include_note_types)
+    for monodi_line in monodi_lines:
+        # line_number is 1-based from the top of the folio; convert to 0-based
+        # PCGTS index so that chants starting mid-page (zeilenstart > 1) are
+        # mapped to the correct staff line rather than always to line 0.
+        line_idx = monodi_line.line_number - 1
+        if line_idx < 0 or line_idx >= len(pcgts_music_lines):
+            continue
+        result = compare_page_line(
+            monodi_line, pcgts_music_lines[line_idx],
+            include_note_types=include_note_types,
+        )
         line_results.append(result)
 
     return ChantPageComparisonResult(

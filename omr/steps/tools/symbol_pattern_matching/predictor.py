@@ -133,7 +133,6 @@ class MelodicPatternPredictor(AlgorithmPredictor):
                     abs_pitches = [(n.octave * 7) + n.note_name.value for n in chunk_notes]
                     rel_pitches = [0] + [abs_pitches[k] - abs_pitches[k - 1] for k in range(1, len(abs_pitches))]
 
-                    # We ALWAYS build the sequence with connections now
                     chunk_sequence = []
                     for k in range(len(chunk_notes)):
                         pitch = rel_pitches[k]

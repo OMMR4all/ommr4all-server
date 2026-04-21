@@ -136,7 +136,9 @@ _IDX_TO_LETTER = ["A", "B", "C", "D", "E", "F", "G"]
 
 
 def _monodi_pitch_key(note: MonodiNote) -> str:
-    return note.base if note.base in _VALID_BASES else "?"
+    # Normalise to uppercase: monodi JSON sometimes stores 'a'–'g' in lowercase.
+    base = note.base.upper() if note.base else "?"
+    return base if base in _VALID_BASES else "?"
 
 
 def _pcgts_note_pitch_key(note_json: dict) -> str:
@@ -201,6 +203,22 @@ def _collect_pcgts_music_lines(page_json: dict) -> List[dict]:
 def _collect_pcgts_notes(music_line_json: dict) -> List[dict]:
     """All note-type symbol JSON nodes from a PCGTS music-line."""
     return [s for s in music_line_json.get("symbols", []) if s.get("type") == "note"]
+
+
+def _pitch_overlap_score(
+    monodi_notes: List[MonodiNote],
+    pcgts_notes:  List[dict],
+) -> int:
+    """
+    Fast heuristic: count how many distinct pitch letters appear in BOTH note
+    lists.  Used to rank candidate PCGTS lines when the expected line index
+    is out of range or empty.
+    """
+    if not monodi_notes or not pcgts_notes:
+        return 0
+    m_set = {_monodi_pitch_key(n) for n in monodi_notes} - {"?"}
+    p_set = {_pcgts_note_pitch_key(n) for n in pcgts_notes} - {"?"}
+    return len(m_set & p_set)
 
 
 def _extract_pcgts_syllable_map(page_json: dict) -> Dict[str, str]:
@@ -287,7 +305,8 @@ def _adapt_typed_page(page) -> Tuple[List[dict], Dict[str, str]]:
                     "id":              sym.id,
                     "coord":           coord_str,
                     "positionInStaff": sym.position_in_staff.value,
-                    # pname stores NoteName int (A=0…G=6); _IDX_TO_LETTER maps correctly
+                    # pname: NoteName int value (A=0, B=1, C=2, D=3, E=4, F=5, G=6)
+                    # _IDX_TO_LETTER[pname] gives the correct letter.
                     "pname":           sym.note_name.value,
                 })
             line_coords_str: str = line.coords.to_string() if line.coords is not None else ""
@@ -382,13 +401,23 @@ def _make_position(
 # ---------------------------------------------------------------------------
 
 def _align_notes_edlib(
-    monodi_notes: List[MonodiNote],
-    pcgts_notes:  List[dict],
-    pcgts_line:   dict,
+    monodi_notes:    List[MonodiNote],
+    pcgts_notes:     List[dict],
+    pcgts_line:      dict,
+    accept_mismatch: bool = False,
 ) -> Dict[str, InjectedPosition]:
     """
     Align *monodi_notes* to *pcgts_notes* on pitch keys using edlib.
     Returns monodi UUID → InjectedPosition for matched and interpolated notes.
+
+    Parameters
+    ----------
+    accept_mismatch:
+        When *True*, edlib ``X`` (mismatch) pairs are accepted in addition to
+        ``=`` (exact) pairs.  Use this when a higher-level anchor (e.g. a
+        matching syllable text) already provides strong evidence that the two
+        notes correspond, so a single-step pitch discrepancy should not block
+        the alignment.  Pure-pitch fallback calls should leave this *False*.
     """
     if not monodi_notes or not pcgts_notes:
         return {}
@@ -399,13 +428,14 @@ def _align_notes_edlib(
     result = edlib.align(monodi_keys, pcgts_keys, mode="NW", task="path")
     pairs  = _cigar_to_pairs(result["cigar"])
 
-    # monodi index → pcgts index (direct '=' matches only)
+    # monodi index → pcgts index
     direct: Dict[int, int] = {}
     for qi, ti in pairs:
         if qi is not None and ti is not None:
-            # edlib returns both = and X; accept only exact pitch matches
             if monodi_keys[qi] == pcgts_keys[ti]:
-                direct[qi] = ti
+                direct[qi] = ti          # exact pitch match — always accept
+            elif accept_mismatch:
+                direct[qi] = ti          # mismatch tolerated inside syllable pair
 
     return _build_positions(monodi_notes, pcgts_notes, pcgts_line, direct)
 
@@ -466,6 +496,16 @@ def _group_pcgts_notes_by_syllable(
     """
     Group PCGTS notes by syllable text in document order.
 
+    Orphaned notes — those with no syllable connector AND that appear before
+    any connector has been seen (e.g. a neume that carries over from the
+    previous staff line) — are buffered and prepended to the first real
+    syllable group.  This prevents them from forming a silent empty-text
+    group that the level-1 syllable alignment can never match.
+
+    For orphaned notes that appear *after* at least one connector has been
+    seen (typical neume continuation notes), fill-forward assigns them to
+    the current syllable group as before.
+
     Returns:
         syllable_texts  – list of normalised syllable texts (one per group)
         note_groups     – parallel list of note lists
@@ -474,20 +514,30 @@ def _group_pcgts_notes_by_syllable(
     note_groups: List[List[dict]] = []
     current_syl: Optional[str] = None
     current_notes: List[dict] = []
+    # Notes seen before the very first syllable connector on this line.
+    leading_orphans: List[dict] = []
 
     for note in pcgts_notes:
         syl_text = note_to_syllable.get(note.get("id", ""), "")
-        # Fill-forward: continuation notes within a neume/ligature carry no
-        # explicit syllable connector in PCGTS; they belong to the previous
-        # syllable group rather than forming an anonymous new group.
-        if not syl_text and current_syl is not None:
-            syl_text = current_syl
+
+        if not syl_text:
+            if current_syl is not None:
+                # Fill-forward: neume-continuation note → same syllable group.
+                syl_text = current_syl
+            else:
+                # Before any connector has been seen: buffer for prepending to
+                # the first real syllable group instead of forming an orphan group.
+                leading_orphans.append(note)
+                continue
+
         if syl_text != current_syl:
             if current_notes:
                 syllable_texts.append(current_syl or "")
                 note_groups.append(current_notes)
             current_syl   = syl_text
-            current_notes = [note]
+            # Prepend any buffered leading orphans to the first real group.
+            current_notes = leading_orphans + [note]
+            leading_orphans = []
         else:
             current_notes.append(note)
 
@@ -582,8 +632,13 @@ def _align_with_syllables(
         if include_note_types is not None:
             m_notes = [n for n in m_notes if n.note_type in include_note_types]
 
-        # Level 2: note alignment within the syllable pair
-        positions = _align_notes_edlib(m_notes, pcgts_grp, pcgts_line)
+        # Level 2: note alignment within the syllable pair.
+        # accept_mismatch=True: the syllable-text match already anchors
+        # both notes to the same syllable, so a small pitch discrepancy
+        # should not prevent the position from being assigned.
+        positions = _align_notes_edlib(
+            m_notes, pcgts_grp, pcgts_line, accept_mismatch=True
+        )
         all_positions.update(positions)
 
     return all_positions
@@ -663,14 +718,24 @@ class MonodiPositionEnricher:
                 monodi_line, pcgts_notes, pcgts_line,
                 note_to_syllable, self.include_note_types,
             )
-            # Fall back to pure pitch for any note left without a position
+            # Fall back to pure pitch for any monodi note still without a position.
+            # Exclude PCGTS notes that were already directly matched so the
+            # fallback cannot assign the same PCGTS note to a second monodi note.
             unpositioned = [
                 n for n in self._filter(monodi_line.all_notes)
                 if n.uuid not in positions
             ]
             if unpositioned:
-                fallback = _align_notes_edlib(unpositioned, pcgts_notes, pcgts_line)
-                # Only add positions that do not already exist
+                matched_pcgts_ids = {
+                    pos.pcgts_symbol_id
+                    for pos in positions.values()
+                    if pos.matched and pos.pcgts_symbol_id
+                }
+                pcgts_for_fallback = [
+                    n for n in pcgts_notes
+                    if n.get("id", "") not in matched_pcgts_ids
+                ]
+                fallback = _align_notes_edlib(unpositioned, pcgts_for_fallback, pcgts_line)
                 for uuid, pos in fallback.items():
                     if uuid not in positions:
                         positions[uuid] = pos
@@ -681,12 +746,76 @@ class MonodiPositionEnricher:
             self._filter(monodi_line.all_notes), pcgts_notes, pcgts_line
         )
 
+    def _resolve_pcgts_line_idx(
+        self,
+        expected_idx:  int,
+        pcgts_lines:   List[dict],
+        monodi_notes:  List[MonodiNote],
+        search_radius: int,
+    ) -> Optional[int]:
+        """
+        Return the best PCGTS-line index to use for *monodi_notes*.
+
+        Strategy
+        --------
+        1. If *expected_idx* is in range and the line has notes → use it directly.
+        2. If *expected_idx* is in range but the line has **no notes** (empty or
+           not yet transcribed staff) → search within ``±search_radius`` for the
+           nearest line that does have notes.
+        3. If *expected_idx* is **out of range** (PCGTS page shorter than the
+           monodi line-numbering expects) → search the entire reachable window
+           ``[expected_idx - search_radius, len(pcgts_lines) - 1]`` and rank
+           candidates by pitch-key overlap with the monodi notes so that the
+           line whose note content best matches is preferred.
+
+        Returns *None* when no usable candidate is found.
+        """
+        if not pcgts_lines:
+            return None
+
+        # --- Case 1: expected index in range and has notes ---
+        if 0 <= expected_idx < len(pcgts_lines):
+            if _collect_pcgts_notes(pcgts_lines[expected_idx]):
+                return expected_idx
+
+            # --- Case 2: expected index in range but line is empty ---
+            for delta in range(1, search_radius + 1):
+                for sign in (-1, 1):
+                    idx = expected_idx + sign * delta
+                    if 0 <= idx < len(pcgts_lines):
+                        if _collect_pcgts_notes(pcgts_lines[idx]):
+                            return idx
+            # All nearby lines also empty → return expected as-is (alignment
+            # will simply produce no positions but at least no line is skipped).
+            return expected_idx
+
+        # --- Case 3: expected index out of range ---
+        # Build a ranked list of candidates within the reachable window.
+        lo = max(0, expected_idx - search_radius)
+        hi = len(pcgts_lines) - 1
+        if lo > hi:
+            return None
+
+        best_idx   = hi          # default: last line
+        best_score = -1
+        for idx in range(lo, hi + 1):
+            notes = _collect_pcgts_notes(pcgts_lines[idx])
+            if not notes:
+                continue
+            score = _pitch_overlap_score(monodi_notes, notes)
+            if score > best_score:
+                best_score = score
+                best_idx   = idx
+
+        return best_idx
+
     def enrich_full_chant(
         self,
         chant:               MonodiChant,
         data_json:           dict,
         folio_to_pcgts_json: Optional[Dict[str, dict]] = None,
         folio_to_db_page:    Optional[Dict[str, Any]]  = None,
+        search_radius:       int = 1,
     ) -> dict:
         """
         Enrich all folios of a chant in one call.
@@ -704,7 +833,15 @@ class MonodiPositionEnricher:
         folio_to_pcgts_json:
             ``{folio_id: pcgts_json}`` — fallback (raw JSON dicts).  Used when
             ``folio_to_db_page`` is *None*.
+        search_radius:
+            How many PCGTS lines to search around the expected index when the
+            expected line is out of range or has no notes.  Default ``1``.
+            Increase to ``2`` or ``3`` when PCGTS pages are missing several
+            staves.  Set to ``0`` to restore the previous strict behaviour.
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         if folio_to_db_page is None and folio_to_pcgts_json is None:
             raise ValueError("Provide either folio_to_db_page or folio_to_pcgts_json.")
 
@@ -734,15 +871,42 @@ class MonodiPositionEnricher:
 
         for monodi_line in chant.page_lines:
             folio = str(monodi_line.folio)
+
             if folio not in pcgts_lines_by_folio:
+                logger.warning(
+                    "Folio '%s' has no PCGTS data — %d notes unpositioned",
+                    folio, len(monodi_line.all_notes),
+                )
                 continue
-            pcgts_lines = pcgts_lines_by_folio[folio]
+
+            pcgts_lines  = pcgts_lines_by_folio[folio]
             # line_number is 1-based within the folio; convert to 0-based index.
             # zeilenstart in the chant meta gives the starting line number so
             # chants that begin mid-page correctly index into the PCGTS lines.
-            line_idx = monodi_line.line_number - 1
-            if line_idx < 0 or line_idx >= len(pcgts_lines):
+            expected_idx = monodi_line.line_number - 1
+
+            line_idx = self._resolve_pcgts_line_idx(
+                expected_idx, pcgts_lines,
+                self._filter(monodi_line.all_notes),
+                search_radius,
+            )
+
+            if line_idx is None:
+                logger.warning(
+                    "Folio '%s' line %d (expected pcgts idx %d): "
+                    "PCGTS page has %d lines — no candidate found, %d notes unpositioned",
+                    folio, monodi_line.line_number, expected_idx,
+                    len(pcgts_lines), len(monodi_line.all_notes),
+                )
                 continue
+
+            if line_idx != expected_idx:
+                logger.debug(
+                    "Folio '%s' line %d: expected pcgts idx %d, "
+                    "using idx %d (page has %d lines)",
+                    folio, monodi_line.line_number, expected_idx,
+                    line_idx, len(pcgts_lines),
+                )
 
             positions = self._align_line(
                 monodi_line,

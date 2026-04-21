@@ -171,9 +171,10 @@ def _extract_notes(note_dict: dict) -> List[MonodiNote]:
     for spaced in note_dict.get("spaced", []):
         for non_spaced in spaced.get("nonSpaced", []):
             for grouped in non_spaced.get("grouped", []):
+                raw_base = grouped.get("base", "C")
                 notes.append(MonodiNote(
                     uuid=grouped.get("uuid", ""),
-                    base=grouped.get("base", "C"),
+                    base=raw_base.upper() if raw_base else "C",
                     octave=grouped.get("octave", 4),
                     note_type=grouped.get("noteType", "Normal"),
                     liquescent=grouped.get("liquescent", False),
@@ -356,6 +357,12 @@ def load_manuscript(folder_path: str) -> MonodiManuscript:
         chant_meta = parse_chant_meta(chant_meta_data)
         try:
             zeilenstart = int(chant_meta.zeilenstart)
+            if zeilenstart < 1:
+                # 0 (or negative) is not a valid manuscript line number;
+                # treat it as "starts at line 1" so line_idx = 0 in the
+                # enricher (line_idx = line_number - 1 would otherwise be
+                # negative and every line would be silently skipped).
+                zeilenstart = 1
         except (ValueError, TypeError):
             zeilenstart = 1
 
