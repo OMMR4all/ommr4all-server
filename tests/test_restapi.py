@@ -57,7 +57,7 @@ class OperationTests(APITestCase):
             'password': self.password
         }
         # URL using path name
-        url = reverse('jwtAuth')
+        url = reverse('token_obtain_pair')
 
         # Since Force Authentication method doesen't work, we have to create a user as
         # a workaround in order to authentication works.
@@ -67,9 +67,17 @@ class OperationTests(APITestCase):
         # First post to get the JWT token
         response = self.client.post(url, self.data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
-        token = response.data['token']
+        token = response.data['access']
         # Next post/get's will require the token to connect
-        self.client.credentials(HTTP_AUTHORIZATION='JWT {0}'.format(token))
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer {0}'.format(token))
+        
+        # Clean up stale lock files from previous test runs
+        storage_root = os.path.join(BASE_DIR, 'tests', 'storage', 'demo', 'pages')
+        if os.path.exists(storage_root):
+            for page_dir in os.listdir(storage_root):
+                lock_file = os.path.join(storage_root, page_dir, '.lock')
+                if os.path.exists(lock_file):
+                    os.remove(lock_file)
 
     def test_books(self):
         response = self.client.get('/api/books', format='json')
@@ -171,7 +179,7 @@ class OperationTests(APITestCase):
         self._test_predictor('page_test_symbol_detection_002', AlgorithmTypes.SYMBOLS_PC_TORCH)
 
     def test_text_recognition_001(self):
-        self._test_predictor('page_test_text_recognition_001', AlgorithmTypes.OCR_NAUTILUS)
+        self._test_predictor('page_test_text_recognition_001', AlgorithmTypes.OCR_GUPPY)
 
     def test_syllable_detection_from_text_001(self):
         self._test_predictor('page_test_syllable_detection_001', AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH)

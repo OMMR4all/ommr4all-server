@@ -73,6 +73,7 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
 
         base_model = modelbuilder.get_model()
         config = modelbuilder.get_model_configuration()
+        print(f"PREDICTOR INIT: model path={settings.model.path}, classes={config.network_settings.classes if config.network_settings else 'N/A'}, color_map entries={len(config.color_map.class_spec) if config.color_map else 'N/A'}")
         preprocessing_settings = modelbuilder.get_model_configuration().preprocessing_settings
         self.predictor = EnsemblePredictor([base_model], [preprocessing_settings])
         self.nmaskpredictor = NetworkMaskPostProcessor(self.predictor, config.color_map)
@@ -101,6 +102,7 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
             output = self.nmaskpredictor.predict_image(SourceImage.from_numpy(i.line_image))
             from scipy.special import softmax
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
+            print(f"PREDICTOR DEBUG: prob_map_softmax shape={prob_map_softmax.shape}, line_class mean={prob_map_softmax[:,:,1].mean():.4f}, line_class max={prob_map_softmax[:,:,1].max():.4f}")
             #from matplotlib import pyplot as plt
             #plt.imshow(output.generated_mask)
             #plt.show()

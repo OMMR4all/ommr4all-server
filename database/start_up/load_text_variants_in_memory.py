@@ -68,6 +68,8 @@ class LyricsData:
         if self._is_initialized:
             return
 
+        logger.info("Loading lyrics data...")
+
         lyrics_path = os.path.join(settings.BASE_DIR, 'internal_storage', 'resources', 'lyrics_collection',
                                    'lyrics_by_sources.json')
         if os.path.exists(lyrics_path):

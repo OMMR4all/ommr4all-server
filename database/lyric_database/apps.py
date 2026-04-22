@@ -9,5 +9,4 @@ class LyricsConfig(AppConfig):
     name = 'database.lyric_database'
 
     def ready(self):
-        if os.environ.get('RUN_MAIN') == 'true':
-            lyrics_store.load()
+        lyrics_store.load()

@@ -1,6 +1,6 @@
 from enum import Enum
 import os
-from ommr4all.settings import BASE_DIR, PRIVATE_MEDIA_ROOT
+from ommr4all import settings as ommr4all_settings
 from typing import Optional, NamedTuple, List, Mapping
 from omr.steps.algorithmtypes import AlgorithmTypes
 from mashumaro.types import SerializableType
@@ -18,8 +18,8 @@ class StorageType(Enum):
 
     def path(self):
         return {
-            StorageType.INTERNAL: os.path.join(BASE_DIR, 'internal_storage'),
-            StorageType.EXTERNAL: PRIVATE_MEDIA_ROOT,
+            StorageType.INTERNAL: os.path.join(ommr4all_settings.BASE_DIR, 'internal_storage'),
+            StorageType.EXTERNAL: ommr4all_settings.PRIVATE_MEDIA_ROOT,
             StorageType.CUSTOM: '',
         }[self]
 
