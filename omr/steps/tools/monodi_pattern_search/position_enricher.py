@@ -160,9 +160,51 @@ def _pcgts_note_pitch_key(note_json: dict) -> str:
 def _normalise_syllable(text: str) -> str:
     """
     Normalise a syllable text for comparison.
-    Lower-cased; leading/trailing hyphens and whitespace stripped.
+
+    - Converts the medieval long s (U+017F, ``ſ``) to a regular ``s`` so that
+      ``aſ`` matches ``as``.
+    - Strips leading/trailing hyphens and whitespace.
+    - Strips trailing punctuation (``.``, ``!``, ``?``) that may appear in
+      PCGTS text blocks but not in monodi note data.
+    - Lower-cased.
     """
-    return text.strip().strip("-").lower()
+    return (text
+            .replace('\u017f', 's')
+            .replace('ſ', 's')
+            .strip()
+            .strip("-")
+            .rstrip(".!?,;:")
+            .lower())
+
+
+def _text_match(a: str, b: str) -> bool:
+    """
+    Decide whether two normalised syllable texts are close enough to serve
+    as alignment anchors.
+
+    Exact match is always accepted.  When the texts differ we also accept
+    a **boundary-shift match**: the shorter string matches the **prefix or
+    suffix** of the longer string, indicating a shifted syllable boundary
+    (e.g. ``pe`` / ``pec`` or ``ect`` / ``pec``).
+
+    A **length-ratio constraint** (shorter ≥ 40 % of longer) prevents
+    spurious matches like ``"om"`` / ``"omnipotens"``.  Unlike raw substring
+    matching, boundary-shift detection rejects coincidental overlaps
+    (e.g. ``"an"`` inside ``"Rex"``) that would create false anchors and
+    corrupt the alignment chain.
+    """
+    if a == b:
+        return True
+    if not a or not b:
+        return False
+    # Ensure ``a`` is the longer (or equal) string.
+    if len(a) < len(b):
+        a, b = b, a
+    # Length-ratio constraint: shorter must be ≥ 40 % of longer.
+    if len(b) < 0.4 * len(a):
+        return False
+    # Boundary-shift: ``b`` matches the prefix or suffix of ``a``.
+    return b == a[:len(b)] or b == a[len(a) - len(b):]
 
 
 # ---------------------------------------------------------------------------
@@ -621,8 +663,8 @@ def _align_with_syllables(
     for qi, ti in syl_pairs:
         if qi is None or ti is None:
             continue
-        if monodi_syl_texts[qi] != norm_pcgts_texts[ti]:
-            continue   # substitution — skip (texts differ)
+        if not _text_match(monodi_syl_texts[qi], norm_pcgts_texts[ti]):
+            continue   # texts differ and neither is a substring of the other
 
         monodi_syl   = monodi_syllables[qi]
         pcgts_grp    = pcgts_note_groups[ti]
@@ -752,51 +794,80 @@ class MonodiPositionEnricher:
         pcgts_lines:   List[dict],
         monodi_notes:  List[MonodiNote],
         search_radius: int,
+        valid_lo: int = -1,
+        valid_hi: int = 999999,
     ) -> Optional[int]:
         """
         Return the best PCGTS-line index to use for *monodi_notes*.
 
+        Parameters
+        ----------
+        expected_idx :
+            0-based index of the expected PCGTS line.
+        pcgts_lines :
+            List of PCGTS music-line dicts for the folio.
+        monodi_notes :
+            Notes from the current monodi line (used for pitch-overlap scoring).
+        search_radius :
+            How many lines to search around *expected_idx* when the expected
+            line is empty or out of range.
+        valid_lo, valid_hi :
+            Constrain the search to lines whose 0-based index falls within
+            ``[valid_lo, valid_hi]``.  This is used when multiple chants
+            share a PCGTS page — each chant should only consider its own
+            line range.  Default ``(-1, 999999)`` means "no constraint".
+
         Strategy
         --------
-        1. If *expected_idx* is in range and the line has notes → use it directly.
-        2. If *expected_idx* is in range but the line has **no notes** (empty or
-           not yet transcribed staff) → search within ``±search_radius`` for the
-           nearest line that does have notes.
-        3. If *expected_idx* is **out of range** (PCGTS page shorter than the
-           monodi line-numbering expects) → search the entire reachable window
-           ``[expected_idx - search_radius, len(pcgts_lines) - 1]`` and rank
-           candidates by pitch-key overlap with the monodi notes so that the
-           line whose note content best matches is preferred.
+        1. If *expected_idx* is in range and has notes → use it directly.
+        2. If *expected_idx* is in range but the line is empty → search
+           within ``±search_radius`` for the nearest line with notes.
+        3. If *expected_idx* is **out of range** → search the reachable
+           window and rank candidates by pitch-key overlap.
 
         Returns *None* when no usable candidate is found.
         """
         if not pcgts_lines:
             return None
 
+        def _in_valid(idx: int) -> bool:
+            return valid_lo <= idx <= valid_hi
+
         # --- Case 1: expected index in range and has notes ---
         if 0 <= expected_idx < len(pcgts_lines):
             if _collect_pcgts_notes(pcgts_lines[expected_idx]):
-                return expected_idx
+                if _in_valid(expected_idx):
+                    return expected_idx
+                # Expected line has notes but is outside this chant's range.
+                # Fall through to Case 2 to search for a valid candidate.
 
-            # --- Case 2: expected index in range but line is empty ---
+            # --- Case 2: expected index in range but line is empty or out of range ---
             for delta in range(1, search_radius + 1):
                 for sign in (-1, 1):
                     idx = expected_idx + sign * delta
-                    if 0 <= idx < len(pcgts_lines):
+                    if 0 <= idx < len(pcgts_lines) and _in_valid(idx):
                         if _collect_pcgts_notes(pcgts_lines[idx]):
                             return idx
-            # All nearby lines also empty → return expected as-is (alignment
-            # will simply produce no positions but at least no line is skipped).
-            return expected_idx
+            # All nearby lines are empty or out of the valid range.
+            # Return expected_idx only if it is inside the valid range — we
+            # must not cross into another chant's territory just because no
+            # better candidate was found nearby.
+            if _in_valid(expected_idx):
+                return expected_idx
+            return None
 
         # --- Case 3: expected index out of range ---
-        # Build a ranked list of candidates within the reachable window.
+        # Build a ranked list of candidates within the reachable window,
+        # constrained to the valid range.
         lo = max(0, expected_idx - search_radius)
-        hi = len(pcgts_lines) - 1
+        hi = min(len(pcgts_lines) - 1, expected_idx + search_radius)
+        # Clamp to valid range
+        lo = max(lo, valid_lo)
+        hi = min(hi, valid_hi)
         if lo > hi:
             return None
 
-        best_idx   = hi          # default: last line
+        best_idx   = hi          # default: last valid line
         best_score = -1
         for idx in range(lo, hi + 1):
             notes = _collect_pcgts_notes(pcgts_lines[idx])
@@ -869,6 +940,24 @@ class MonodiPositionEnricher:
 
         all_positions: Dict[str, InjectedPosition] = {}
 
+        # Compute per-folio min/max line numbers for this chant so that when
+        # multiple chants share a PCGTS page we can constrain each chant to
+        # its own line range and avoid cross-chant note collisions.
+        #
+        # IMPORTANT: line_number resets to 1 on every FolioChange, so we must
+        # track the range PER FOLIO rather than globally.  A global min/max
+        # would collapse chant_min_line to 1 (from any later-folio reset),
+        # making valid_lo=0 for all folios and defeating the constraint on
+        # folios where the chant actually starts mid-page.
+        folio_line_ranges: Dict[str, tuple] = {}  # folio → (min_line, max_line)
+        for pl in chant.page_lines:
+            fk = str(pl.folio)
+            if fk not in folio_line_ranges:
+                folio_line_ranges[fk] = (pl.line_number, pl.line_number)
+            else:
+                lo, hi = folio_line_ranges[fk]
+                folio_line_ranges[fk] = (min(lo, pl.line_number), max(hi, pl.line_number))
+
         for monodi_line in chant.page_lines:
             folio = str(monodi_line.folio)
 
@@ -881,14 +970,24 @@ class MonodiPositionEnricher:
 
             pcgts_lines  = pcgts_lines_by_folio[folio]
             # line_number is 1-based within the folio; convert to 0-based index.
-            # zeilenstart in the chant meta gives the starting line number so
             # chants that begin mid-page correctly index into the PCGTS lines.
             expected_idx = monodi_line.line_number - 1
+
+            # Compute the search window for this chant on THIS folio only.
+            # Only lines within [folio_min_line, folio_max_line] are valid
+            # candidates — this prevents a chant that starts mid-page from
+            # accidentally aligning against lines that belong to a different
+            # chant on the same physical page.
+            folio_min, folio_max = folio_line_ranges[folio]
+            valid_lo = folio_min - 1
+            valid_hi = folio_max - 1
 
             line_idx = self._resolve_pcgts_line_idx(
                 expected_idx, pcgts_lines,
                 self._filter(monodi_line.all_notes),
                 search_radius,
+                valid_lo=valid_lo,
+                valid_hi=valid_hi,
             )
 
             if line_idx is None:

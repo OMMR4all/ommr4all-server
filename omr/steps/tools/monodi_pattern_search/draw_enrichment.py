@@ -650,15 +650,15 @@ def main() -> None:
     # -----------------------------------------------------------------------
     # Pass 1: collect monodi annotations per folio
     # -----------------------------------------------------------------------
-    # folio → list of NoteAnnotation
+    # page_name → list of NoteAnnotation   (keyed by RESOLVED page name)
     folio_annotations:    Dict[str, List[NoteAnnotation]]   = defaultdict(list)
-    # folio → set of PCGTS symbol IDs that were directly matched
+    # page_name → set of PCGTS symbol IDs that were directly matched
     folio_matched_ids:    Dict[str, Set[str]]               = defaultdict(set)
-    # folio → {line_number: unpositioned_count}  (aggregated across chants)
+    # page_name → {line_number: unpositioned_count}  (aggregated across chants)
     # line_number is 1-based (same as MonodiPageLine.line_number).
     # Stored as int so Pass 2 can index PCGTS lines with line_number - 1.
     folio_line_unpos:     Dict[str, Dict[int, int]]         = defaultdict(lambda: defaultdict(int))
-    # folio → resolved page name
+    # raw folio string → resolved page name  (for deduplication)
     folio_to_page:        Dict[str, str]                    = {}
 
     print(f"\nScanning enriched manuscript: {args.monodi_path}")
@@ -699,15 +699,22 @@ def main() -> None:
                 if page_name:
                     folio_to_page[folio] = page_name
 
+            # Key by RESOLVED page name so that different folio strings
+            # that point to the same physical page (e.g. "135v" vs "f. 135v")
+            # are merged into one entry.  Without this, each folio variant
+            # would produce a separate dict entry and the image would be
+            # overwritten in Pass 2, leaving one chant's PCGTS notes all red.
+            page_key = folio_to_page.get(folio, folio)
+
             # Collect per-line unpositioned count for this page_line
             line_anns: List[NoteAnnotation] = []
             unpos_count = 0
             for note in pl.all_notes:
                 if note.uuid in positioned:
                     ann = positioned[note.uuid]
-                    folio_annotations[folio].append(ann)
+                    folio_annotations[page_key].append(ann)
                     if ann.pcgts_symbol_id:
-                        folio_matched_ids[folio].add(ann.pcgts_symbol_id)
+                        folio_matched_ids[page_key].add(ann.pcgts_symbol_id)
                     line_anns.append(ann)
                 else:
                     unpos_count += 1
@@ -715,7 +722,7 @@ def main() -> None:
             if unpos_count > 0:
                 # Key by line_number (1-based) so Pass 2 can look up the
                 # PCGTS line geometry even when no notes were positioned.
-                folio_line_unpos[folio][pl.line_number] += unpos_count
+                folio_line_unpos[page_key][pl.line_number] += unpos_count
 
     # -----------------------------------------------------------------------
     # Pass 2: per folio — load PCGTS, find unmatched notes, draw
@@ -723,18 +730,20 @@ def main() -> None:
     total_drawn   = 0
     total_skipped = 0
 
-    folios_sorted = sorted(folio_annotations.keys(),
-                           key=lambda f: folio_to_page.get(f, f))
+    # Keys in folio_annotations are already resolved page names (or raw folio
+    # strings when resolution failed).  Sort by key value directly.
+    folios_sorted = sorted(folio_annotations.keys())
 
-    print(f"\nDrawing annotations for {len(folios_sorted)} unique folios …\n")
+    print(f"\nDrawing annotations for {len(folios_sorted)} unique pages …\n")
 
-    for folio in folios_sorted:
-        annotations  = folio_annotations[folio]
-        matched_ids  = folio_matched_ids[folio]
-        page_name    = folio_to_page.get(folio)
+    for page_name in folios_sorted:
+        annotations  = folio_annotations[page_name]
+        matched_ids  = folio_matched_ids[page_name]
 
+        # If this key is an unresolvable raw folio string it won't match any
+        # real page name — the image / PCGTS lookup below will catch it.
         if page_name is None:
-            print(f"  ⚠  Folio '{folio}' — unresolvable; skipped")
+            print(f"  ⚠  Unresolvable page key; skipped")
             total_skipped += 1
             continue
 
@@ -744,7 +753,7 @@ def main() -> None:
         if page_index is not None:
             db_page    = page_index.get(page_name)
             if db_page is None:
-                print(f"  ⚠  Folio '{folio}' → '{page_name}' — not in book; skipped")
+                print(f"  ⚠  Page '{page_name}' — not in book; skipped")
                 total_skipped += 1
                 continue
             image_path = _image_path_from_book(db_page, args.image_key)
@@ -752,7 +761,7 @@ def main() -> None:
             image_path = _image_path_from_dir(args.images_dir, page_name)
 
         if not image_path:
-            print(f"  ⚠  Folio '{folio}' → '{page_name}' — image not found; skipped")
+            print(f"  ⚠  Page '{page_name}' — image not found; skipped")
             total_skipped += 1
             continue
 
@@ -785,11 +794,11 @@ def main() -> None:
         out_name = f"{page_name}_annotated{ext}"
         out_path = os.path.join(args.output_dir, out_name)
 
-        # Build per-line unmatched indicators for this folio.
+        # Build per-line unmatched indicators for this page.
         # Resolve each line_number (1-based) to its PCGTS music-line coords
         # by looking it up in the sorted list of lines from the PCGTS page.
         indicators: List[LineUnmatchedIndicator] = []
-        unpos_by_line_number = folio_line_unpos.get(folio, {})
+        unpos_by_line_number = folio_line_unpos.get(page_name, {})
         if unpos_by_line_number:
             pcgts_line_coords_list: List[str] = []
             if db_page is not None:
@@ -813,7 +822,7 @@ def main() -> None:
 
         n_matched      = sum(1 for a in annotations if a.matched)
         n_interpolated = sum(1 for a in annotations if not a.matched)
-        print(f"  {folio:<14} → {page_name}   "
+        print(f"  {page_name:<16}   "
               f"monodi: {len(annotations)} ({n_matched} matched, "
               f"{n_interpolated} interp., {n_unpos_total} unpositioned)   "
               f"pcgts unmatched: {len(unmatched_pcgts)}   "
