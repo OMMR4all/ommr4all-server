@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 # load the currently required scripts of the webapp from the client's index.html
 # do this dynamically since the hashes are included
 
-script_search = re.compile(r"<script src=\"(\S*)\" (\S*)></script>")
-styles_search = re.compile(r"<link rel=\"stylesheet\" href=\"(\S*)\">")
+script_search = re.compile(r'<script src="([^"]*)"([^>]*)></script>')
+styles_search = re.compile(r'<link rel="stylesheet" href="([^"]*)"')
 index_files = None
 
 
@@ -22,14 +22,11 @@ def extract_content(language_code):
     scripts = []
     styles = []
     with open(os.path.join(client_dir, 'index.html'), 'r') as f:
-        for line in f.readlines():
-            line = line.strip()
-            if line.startswith("<link rel=\"stylesheet\""):
-                for m in styles_search.finditer(line):
-                    styles.append({'href': m.group(1)})
-            elif line.startswith("<script src="):
-                for m in script_search.finditer(line):
-                    scripts.append({'src': m.group(1), 'module': m.group(2)})
+        content = f.read()
+    for m in styles_search.finditer(content):
+        styles.append({'href': m.group(1)})
+    for m in script_search.finditer(content):
+        scripts.append({'src': m.group(1), 'module': m.group(2).strip()})
     return scripts, styles
 
 
