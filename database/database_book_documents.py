@@ -27,11 +27,15 @@ class DocSpanType:
 
 class DatabaseBookDocuments:
     def __init__(self, b_id: str = None, monodi_id: int = None, name: str = '', created: datetime = datetime.now(),
-                 creator: Optional[RestAPIUser] = None, database_documents: Documents = None):
+                 creator: Optional[RestAPIUser] = None, database_documents: Documents = None,
+                 pcgts_state: Optional[List] = None):
         self.b_id = b_id
         self.name: str = name
         self.created: datetime = created
         self.database_documents: Documents = database_documents
+        # Snapshot of the pcgts files (max mtime + count) at the time the documents were computed.
+        # Used to skip the expensive full recomputation when no page changed.
+        self.pcgts_state: Optional[List] = pcgts_state
 
     def __iter__(self):
         return iter(self.database_documents.documents)
@@ -39,7 +43,6 @@ class DatabaseBookDocuments:
     @staticmethod
     def load(book: DatabaseBook):
         path = book.local_path('book_documents.json')
-        print(path)
         try:
             with open(path) as f:
                 d = DatabaseBookDocuments.from_book_json(book, json.load(f))
@@ -68,14 +71,16 @@ class DatabaseBookDocuments:
         return DatabaseBookDocuments(
             name=json.get('name', ""),
             created=datetime.fromisoformat(json.get('created', datetime.now().isoformat())),
-            database_documents=Documents.from_json(json.get('database_documents', []))
+            database_documents=Documents.from_json(json.get('database_documents', [])),
+            pcgts_state=json.get('pcgts_state', None)
         )
 
     def to_json(self):
         return {
             "name": self.name,
             "created": self.created.isoformat(),
-            "database_documents": self.database_documents.to_json() if self.database_documents else []
+            "database_documents": self.database_documents.to_json() if self.database_documents else [],
+            "pcgts_state": self.pcgts_state,
         }
 
     def get_documents_of_page(self, page: Page, only_start=False) -> List[DocSpanType]:
@@ -214,6 +219,34 @@ class DatabaseBookDocuments:
         self.database_documents.documents += new_docs
 
         return self
+
+    @staticmethod
+    def compute_pcgts_state(book: DatabaseBook) -> List:
+        max_mtime = 0.0
+        count = 0
+        for page in book.pages():
+            path = page.file('pcgts').local_path()
+            if os.path.exists(path):
+                max_mtime = max(max_mtime, os.path.getmtime(path))
+                count += 1
+        return [max_mtime, count]
+
+    @staticmethod
+    def update_book_documents_cached(book: DatabaseBook) -> 'DatabaseBookDocuments':
+        """Recompute the documents of the book only if a pcgts file changed since the last computation.
+
+        Returns the up-to-date DatabaseBookDocuments and persists them to file if they were recomputed.
+        """
+        d = DatabaseBookDocuments.load(book)
+        state = DatabaseBookDocuments.compute_pcgts_state(book)
+        if d.database_documents is not None and d.pcgts_state == state:
+            return d
+
+        d = DatabaseBookDocuments.update_book_documents(book)
+        # update_book_documents may create missing pcgts files, therefore recompute the state afterwards
+        d.pcgts_state = DatabaseBookDocuments.compute_pcgts_state(book)
+        d.to_file(book)
+        return d
 
     @staticmethod
     def update_book_documents(book: DatabaseBook):

@@ -102,7 +102,7 @@ class Documents:
         return bytes
 
     @staticmethod
-    def export_documents_to_xls(documents: List[Document], filename, editor, book=None, extended = False, flag_char=None):
+    def export_documents_to_xls(documents: List[Document], filename, editor, book=None, extended = False, flag_char=None, callback=None):
         import xlsxwriter
         from database.file_formats.exporter.monodi.ods import MonodiXlsxConfig
         from io import BytesIO
@@ -138,8 +138,9 @@ class Documents:
             worksheet.write(doc_ind, config.dict['Editor'].cell.column, str(editor))
             worksheet.write(doc_ind, config.dict['Doc-Id\' (intern)'].cell.column, doc.monody_id)
             worksheet.write(doc_ind, config.dict['Quellen-ID (intern)'].cell.column, 'Editorenordner')
-            worksheet.write(doc_ind, config.dict['Lyric'].cell.column, doc.get_text_of_document(book))
-            worksheet.write(doc_ind, config.dict['Skip'].cell.column, "yes" if flag_char and flag_char in doc.get_text_of_document(book) else "no")
+            text_of_doc = doc.get_text_of_document(book)
+            worksheet.write(doc_ind, config.dict['Lyric'].cell.column, text_of_doc)
+            worksheet.write(doc_ind, config.dict['Skip'].cell.column, "yes" if flag_char and flag_char in text_of_doc else "no")
             symbols_of_doc = doc.get_symbols(book)
             symbols = []
             for i in symbols_of_doc[0]:
@@ -149,6 +150,8 @@ class Documents:
             worksheet.write(doc_ind, config.dict['Skip_Symbol'].cell.column, "yes" if missing else "no")
             only_clef = any(True for i in symbols if i.symbol_type != i.symbol_type.CLEF)
             worksheet.write(doc_ind, config.dict['Empty_Symbol'].cell.column, "yes" if not only_clef else "no")
+            if callback:
+                callback(doc_ind)
 
         workbook.close()
         xlsx_data_bytes = output.getvalue()

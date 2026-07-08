@@ -65,8 +65,7 @@ class BookDocumentsView(APIView):
         book = DatabaseBook(book)
 
         def documents_of_book(b):
-            d_b = DatabaseBookDocuments.update_book_documents(b)
-            d_b.to_file(b)
+            d_b = DatabaseBookDocuments.update_book_documents_cached(b)
             return d_b.to_json()
 
         data = documents_of_book(book)
@@ -117,7 +116,8 @@ class BookDocumentsOdsView(APIView):
         bytes = documents.database_documents.export_documents_to_xls(
             documents=documents.database_documents.documents,
             filename=filename,
-            editor=str(request.user.username))
+            editor=str(request.user.username),
+            book=book)
         return HttpResponse(bytes, content_type="application/vnd.oasis.opendocument.spreadsheet")
 
 
