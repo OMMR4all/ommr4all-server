@@ -84,6 +84,34 @@ class OperationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
         self.assertEqual('demo', response.data['books'][0]['id'], response.content)
 
+    def test_book_meta_one_click_workflow_roundtrip(self):
+        meta_path = os.path.join(BASE_DIR, 'tests', 'storage', 'demo', 'book_meta.json')
+        original = None
+        if os.path.exists(meta_path):
+            with open(meta_path) as f:
+                original = f.read()
+        try:
+            response = self.client.get('/api/book/demo/meta', format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+            meta = json.loads(response.content)
+            workflow = [
+                {'algorithmType': 'preprocessing', 'params': {}, 'enabled': True},
+                {'algorithmType': 'staff_lines_pc_torch', 'params': {'modelId': 'some_model'}, 'enabled': False},
+            ]
+            meta['oneClickWorkflow'] = workflow
+            response = self.client.put('/api/book/demo/meta', meta, format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+            response = self.client.get('/api/book/demo/meta', format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+            self.assertEqual(json.loads(response.content)['oneClickWorkflow'], workflow)
+        finally:
+            if original is None:
+                if os.path.exists(meta_path):
+                    os.remove(meta_path)
+            else:
+                with open(meta_path, 'w') as f:
+                    f.write(original)
+
     def test_pcgts_content(self):
         response = self.client.get('/api/book/demo/page/page00000001/content/pcgts', format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)

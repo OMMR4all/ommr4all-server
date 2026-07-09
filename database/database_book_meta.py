@@ -11,7 +11,7 @@ from datetime import datetime
 # from mashumaro import DataClassJSONMixin
 from mashumaro.mixins.json import DataClassJSONMixin
 
-from typing import Optional, Dict
+from typing import Any, Optional, Dict, List
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmTypes
 from restapi.models.auth import RestAPIUser
 from dateutil import parser
@@ -43,6 +43,8 @@ class DatabaseBookMeta(DataClassJSONMixin):
     algorithmPredictorParams: Dict[AlgorithmTypes, AlgorithmPredictorParams] = field(default_factory=lambda: {})
     dateOfOrigin: str = ''
     placeOfOrigin: str = ''
+    # configured one-click workflow of the client; the server only stores it
+    oneClickWorkflow: List[Dict[str, Any]] = field(default_factory=list)
 
     def algorithm_predictor_params(self, algorithm_type: AlgorithmTypes) -> AlgorithmPredictorParams:
         params = self.algorithmPredictorParams.get(algorithm_type, AlgorithmPredictorParams())
