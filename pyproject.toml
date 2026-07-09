@@ -45,6 +45,9 @@ dependencies = [
     "tensorboard>=2.20.0",
     "torch>=2.11.0",
     "tqdm>=4.67.3",
+    # llm based text transcription (text_llm step): local Chandra 2 inference
+    "transformers>=4.57.0",
+    "accelerate>=1.0.0",
     "ultralytics>=8.4.31",
     "unidecode>=1.4.0",
     "word-beam-search",

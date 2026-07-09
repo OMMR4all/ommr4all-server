@@ -49,6 +49,7 @@ class Step(ABC):
             # import omr.steps.text.calamari.meta
             # import omr.steps.text.pytorch_ocr.meta
             import omr.steps.text.guppy.meta
+            import omr.steps.text.llm.meta
 
             # import omr.steps.syllables.syllablesfromtext.meta
             import omr.steps.syllables.syllablesfromtexttorch.meta

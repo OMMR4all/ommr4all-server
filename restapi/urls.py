@@ -23,6 +23,7 @@ from restapi.views.user import UserBookPermissionsView
 from restapi.views.bookstyles import BookStyleView, BookStylesView
 from restapi.views.administrativedefaultmodels import AdministrativeDefaultModelsView
 from restapi.views.tasks import TasksView, TaskView
+from restapi.views.llmproviders import LLMProvidersView
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -38,6 +39,9 @@ urlpatterns = \
         path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
         # ping
         path('ping', ping),
+
+        # available llm providers for text transcription (text_llm)
+        path('llm_providers', LLMProvidersView.as_view()),
 
         # auth
         re_path(r'^auth/(?P<auth>\w+)$', AuthView.as_view(), name='AuthView'),

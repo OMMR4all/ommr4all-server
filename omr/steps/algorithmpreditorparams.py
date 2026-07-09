@@ -84,6 +84,13 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
 
     useDictionaryCorrection: bool = False
 
+    # llm based text transcription (text_llm)
+    # api keys/urls are NOT part of the params: they are configured on the server
+    # via environment variables only (GEMINI_API_KEY, OPENAI_API_KEY, OPENAI_API_URL)
+    llmProvider: str = 'chandra'          # key into omr.steps.text.llm.adapters.ADAPTER_REGISTRY
+    llmModel: Optional[str] = None        # provider specific model id (e.g. HF id or 'gemini-2.5-flash')
+    llmCustomPrompt: Optional[str] = None # overrides the default transcription prompt
+
     # Pattern algorithm configuation
     patterns: Optional[List[List[List[Optional[int]]]]] = None
     include_graphical_connection: bool = True

@@ -27,6 +27,7 @@ class AlgorithmTypes(Enum):
     OCR_CALAMARI = "text_calamari"
     OCR_NAUTILUS = "text_nautilus"
     OCR_GUPPY = "text_guppy"
+    OCR_LLM = "text_llm"
 
     TEXT_DOCUMENT = "text_documents"
     TEXT_DOCUMENT_CORRECTOR = "text_documents_corrector"
@@ -78,7 +79,7 @@ class AlgorithmGroups(Enum):
             AlgorithmGroups.LAYOUT: [AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES,
                                      AlgorithmTypes.LAYOUT_COMPLEX_STANDARD, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO],
             AlgorithmGroups.SYMBOLS: [AlgorithmTypes.SYMBOLS_PC_TORCH, AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE_GUPPY],
-            AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_GUPPY, AlgorithmTypes.TEXT_DOCUMENT],
+            AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_GUPPY, AlgorithmTypes.OCR_LLM, AlgorithmTypes.TEXT_DOCUMENT],
             AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_IN_ORDER,
                                         AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH],
             AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION,
