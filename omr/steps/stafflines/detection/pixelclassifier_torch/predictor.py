@@ -41,17 +41,7 @@ class PCPredictionCallback(LineDetectionCallback):
             self.get_processed_pages(),
         )
 
-class PCPredictionCallback(LineDetectionCallback):
-    def __init__(self, callback: LineDetectionPredictorCallback):
-        self.callback = callback
-        super().__init__()
 
-    def changed(self):
-        self.callback.progress_updated(
-            self.get_progress(),
-            self.get_total_pages(),
-            self.get_processed_pages(),
-        )
 class BasicStaffLinePredictorTorch(StaffLinePredictor):
     @staticmethod
     def meta() -> Meta.__class__:
@@ -97,6 +87,12 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
         pcgts_files = [p.pcgts() for p in pages]
         pc_dataset = PCDatasetTorch(pcgts_files, self.dataset_params)
         dataset = pc_dataset.to_line_detection_dataset()
+
+        if callback:
+            # TODO: Line detection callback of line-detection not as class member variable
+            ld_callback = PCPredictionCallback(callback)
+            ld_callback.set_total_pages(len(pages))
+            self.line_detection.callback = ld_callback
 
         for ind, i in enumerate(tqdm(dataset, total=len(pages))):
             output = self.nmaskpredictor.predict_image(SourceImage.from_numpy(i.line_image))
