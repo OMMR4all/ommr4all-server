@@ -33,6 +33,8 @@ openpyxl
 symspellpy
 tensorboard
 torch
+torchvision
+transformers
 edlib
 beautifulsoup4
 loguru

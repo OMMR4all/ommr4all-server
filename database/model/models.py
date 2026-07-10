@@ -8,8 +8,7 @@ class Models:
     def __init__(self, models_id: ModelsId):
         self.models_id = models_id
         self.models_path = models_id.path()
-        if not os.path.exists(self.models_path):
-            os.makedirs(self.models_path)
+        os.makedirs(self.models_path, exist_ok=True)
 
     def list_models(self) -> List[Model]:
         return [Model(MetaId(self.models_id, d)) for d in reversed(sorted(os.listdir(self.models_path)))]

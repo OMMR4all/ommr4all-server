@@ -167,12 +167,20 @@ class HuggingFaceVLMAdapter(LLMOCRAdapter):
     @classmethod
     def is_available(cls) -> bool:
         import importlib.util
-        return (importlib.util.find_spec('transformers') is not None
-                and importlib.util.find_spec('torch') is not None)
+        if (importlib.util.find_spec('transformers') is None
+                or importlib.util.find_spec('torch') is None):
+            return False
+        # running a multi-billion parameter VLM on CPU takes hours per page and
+        # effectively hangs the task/tests, so require a GPU
+        import torch
+        return torch.cuda.is_available()
 
     def _load(self):
         if self.model not in self._CACHE:
             import torch
+            if not torch.cuda.is_available():
+                raise RuntimeError(
+                    "The '{}' text transcription requires a GPU; refusing to run on CPU.".format(self.model))
             from transformers import AutoProcessor, AutoModelForImageTextToText
             logger.info("Loading HuggingFace VLM '%s' (this may take a while)", self.model)
             processor = AutoProcessor.from_pretrained(self.model, trust_remote_code=True)

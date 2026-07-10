@@ -166,6 +166,9 @@ class BookOperationView(APIView):
         elif operation == 'train_character_recognition':
             from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
             return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.OCR_GUPPY)
+        elif operation == 'train_end2end':
+            from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
+            return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.END2END_SWIN)
         elif operation == 'documents_export':
             from restapi.operationworker.taskrunners.taskrunnerdocumentsexport import TaskRunnerDocumentsExport
             return TaskRunnerDocumentsExport(book, body.get('format', TaskRunnerDocumentsExport.FORMAT_MONODI_META_XLSX))

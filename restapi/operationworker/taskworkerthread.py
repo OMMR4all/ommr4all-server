@@ -1,6 +1,14 @@
 import atexit
 import logging
 import multiprocessing as mp
+# multiprocessing.util registers an atexit _exit_function that JOINS all
+# non-daemon child processes. It is normally imported lazily on the first
+# Process.start(), i.e. AFTER our atexit.register(_shutdown_workers) below —
+# atexit runs LIFO, so the join would then run before our terminate and block
+# the interpreter on the idle worker (the "hangs after tests finish" bug).
+# Importing it here pins the order: _exit_function first registered, ours last
+# registered, ours runs first.
+import multiprocessing.util  # noqa: F401
 import pickle
 import time
 from typing import Dict, Optional

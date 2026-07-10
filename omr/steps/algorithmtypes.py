@@ -39,6 +39,8 @@ class AlgorithmTypes(Enum):
 
     SYLLABLES_IN_ORDER = 'syllables_in_order'
 
+    END2END_SWIN = "end2end_swin"
+
     DOCUMENT_ALIGNMENT = 'document_alignment'
     # Tools
     LAYOUT_CONNECTED_COMPONENTS_SELECTION = "layout_connected_components_selection"
@@ -68,6 +70,7 @@ class AlgorithmGroups(Enum):
     SYMBOLS = 'symbols'
     TEXT = 'text'
     SYLLABLES = 'syllables'
+    END2END = 'end2end'
     TOOLS = 'tools'
     POSTPROCESSING = 'postprocessing'
 
@@ -82,6 +85,7 @@ class AlgorithmGroups(Enum):
             AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_GUPPY, AlgorithmTypes.OCR_LLM, AlgorithmTypes.TEXT_DOCUMENT],
             AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_IN_ORDER,
                                         AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH],
+            AlgorithmGroups.END2END: [AlgorithmTypes.END2END_SWIN],
             AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION,
                                     AlgorithmTypes.DOCUMENT_ALIGNMENT, AlgorithmTypes.TEXT_LOCALISATION, AlgorithmTypes.SYMBOLS_PATTERN_MATCHER],
         }
@@ -97,5 +101,6 @@ class AlgorithmGroups(Enum):
             AlgorithmGroups.SYMBOLS: Locks.SYMBOLS,
             AlgorithmGroups.TEXT: Locks.TEXT,
             AlgorithmGroups.SYLLABLES: Locks.TEXT,
+            AlgorithmGroups.END2END: Locks.SYMBOLS,
             AlgorithmGroups.TOOLS: None,
         }[self]
