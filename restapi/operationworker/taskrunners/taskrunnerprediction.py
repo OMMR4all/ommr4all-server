@@ -31,6 +31,7 @@ class TaskRunnerPrediction(TaskRunner):
 
     def run(self, task: Task, com_queue: Queue) -> dict:
         from omr.steps.algorithm import PredictionCallback, AlgorithmPredictor, AlgorithmPredictorSettings
+        from omr.steps import predictorcache
         meta = self.algorithm_meta()
 
         class Callback(PredictionCallback):
@@ -55,7 +56,7 @@ class TaskRunnerPrediction(TaskRunner):
             params=self.settings.params,
         )
 
-        abc_detector: AlgorithmPredictor = meta.create_predictor(params)
+        abc_detector: AlgorithmPredictor = predictorcache.get_or_create(meta, params)
         com_queue.put(TaskCommunicationData(task, TaskStatus(TaskStatusCodes.RUNNING, TaskProgressCodes.WORKING)))
 
         pages = self.selection.get_pages(meta.predictor().unprocessed)

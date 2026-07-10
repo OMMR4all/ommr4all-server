@@ -13,7 +13,9 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)-12s %(level
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Change database to test storage
+# Change database to test storage; the env var makes the spawned task worker
+# processes (which re-import settings) use the test storage as well
+os.environ['OMMR4ALL_STORAGE_ROOT'] = os.path.join(BASE_DIR, 'tests', 'storage')
 settings.PRIVATE_MEDIA_ROOT = os.path.join(BASE_DIR, 'tests', 'storage')
 
 

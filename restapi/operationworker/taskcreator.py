@@ -98,7 +98,7 @@ class TaskCreator:
                     if len(available_resources_for_group) > 0:
                         task.task_status.code = TaskStatusCodes.RUNNING
                         r = available_resources_for_group[0]
-                        tasks.append(TaskWorkerThread(r, task, self.task_communicator.queue))
+                        tasks.append(TaskWorkerThread(r, task, self.task_communicator))
                         break
 
             time.sleep(self.sleep)

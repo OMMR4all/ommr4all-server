@@ -165,7 +165,9 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, "static")
 
 PRIVATE_MEDIA_URL = '/storage/'
-PRIVATE_MEDIA_ROOT = os.path.join(BASE_DIR, 'storage')
+# overridable via environment so that spawned task worker processes (which
+# re-import settings) see the same storage root as the parent, e.g. in tests
+PRIVATE_MEDIA_ROOT = os.environ.get('OMMR4ALL_STORAGE_ROOT', os.path.join(BASE_DIR, 'storage'))
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
 
@@ -328,3 +330,9 @@ class TaskOperationWatcherSettings(NamedTuple):
 TASK_OPERATION_WATCHER_SETTINGS = TaskOperationWatcherSettings(
     -1,  # Default off, set to time > 0 to enable
 )
+
+# Task worker processes (restapi/operationworker) are spawned once per
+# resource and kept alive between tasks to keep loaded models warm.
+# After this many seconds without a task a worker exits to free its
+# memory/VRAM; 0 disables the idle shutdown (workers live forever).
+TASK_WORKER_IDLE_TIMEOUT = int(os.environ.get('TASK_WORKER_IDLE_TIMEOUT', '600'))
