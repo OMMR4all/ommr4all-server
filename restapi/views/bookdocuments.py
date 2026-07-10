@@ -28,6 +28,7 @@ from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodi
 from database.file_formats.pcgts import PageScaleReference
 from ommr4all.settings import BASE_DIR
 from omr.util import PerformanceCounter
+from restapi.consumers import notify_book_documents_changed, update_book_documents_and_notify
 from restapi.models.error import APIError, ErrorCodes
 from restapi.views.bookaccess import require_permissions
 from restapi.views.pageaccess import require_lock
@@ -74,11 +75,12 @@ class BookDocumentsView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.SAVE])
     def put(self, request, book):
         book = DatabaseBook(book)
-        ## Todo Mutex/lock
         obj = json.loads(request.body)
-        db = DatabaseBookDocuments.from_json(obj)
-        db.to_file(book)
+        with DatabaseBookDocuments.lock(book):
+            db = DatabaseBookDocuments.from_json(obj)
+            db.to_file(book)
         logger.debug('Successfully saved DatabaseFile to {}'.format(book.local_path))
+        notify_book_documents_changed(book.book)
 
         return Response()
 
@@ -89,20 +91,12 @@ class BookPageDocumentsUpdateView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, page):
         book = DatabaseBook(book)
-        page = DatabasePage(page=page, book=book)
 
-        documents = DatabaseBookDocuments().load(book)
+        # The incremental update only reparses changed pages, so updating the whole
+        # book is as cheap as the former single-page update (and far more robust).
+        d_b = DatabaseBookDocuments.update_book_documents_cached(book)
 
-        def documents_of_book(documents, book, page):
-            d_b = documents.update_documents_of_page(page=page, book=book)
-
-            d_b.to_file(book)
-
-            return d_b.to_json()
-
-        data = documents_of_book(documents, book, page)
-
-        return Response(data)
+        return Response(d_b.to_json())
 
 
 class BookDocumentsOdsView(APIView):
@@ -164,12 +158,14 @@ class DocumentView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.SAVE])
     def put(self, request, book, document):
         book = DatabaseBook(book)
-        documents = DatabaseBookDocuments().load(book)
-        document: Document = documents.database_documents.get_document_by_id(document)
         obj = json.loads(request.body)
-        doc_obj = Document.from_json(obj)
-        documents.database_documents.documents[documents.database_documents.documents.index(document)] = doc_obj
-        documents.to_file(book=book)
+        with DatabaseBookDocuments.lock(book):
+            documents = DatabaseBookDocuments().load(book)
+            document: Document = documents.database_documents.get_document_by_id(document)
+            doc_obj = Document.from_json(obj)
+            documents.database_documents.documents[documents.database_documents.documents.index(document)] = doc_obj
+            documents.to_file(book=book)
+        notify_book_documents_changed(book.book)
         return Response()
 
 
@@ -181,12 +177,11 @@ class DocumentPCGTSUpdatesView(APIView):
         book = DatabaseBook(book)
         documents = DatabaseBookDocuments().load(book)
         document: Document = documents.database_documents.get_document_by_id(document)
-        ## Todo Mutex/lock
         obj = json.loads(request.body)
         document.update_pcgts(book=book, lines=obj)
-        # db = DatabaseBookDocuments.from_json(obj)
-        # db.to_file(book)
         logger.debug('Successfully updated document text of DatabaseFile to {}'.format(book.local_path))
+        # the pcgts of the document's pages changed, so the derived documents may have, too
+        update_book_documents_and_notify(book)
 
         return Response()
 

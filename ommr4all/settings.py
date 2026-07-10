@@ -38,6 +38,7 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'channels',
+    'daphne',  # makes `manage.py runserver` serve ASGI (websockets); must precede staticfiles
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -85,6 +86,23 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ommr4all.wsgi.application'
 ASGI_APPLICATION = 'ommr4all.routing.application'
+
+# Channel layer for websocket group broadcasts (live chant/document list updates).
+# The in-memory layer only works while all traffic is served by a single process
+# (manage.py runserver). Behind Apache/mod_wsgi with a separate ASGI server for
+# websockets, set REDIS_URL (e.g. redis://localhost:6379/0) so events cross
+# process boundaries.
+if os.environ.get('REDIS_URL'):
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {'hosts': [os.environ['REDIS_URL']]},
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'},
+    }
 
 # Database
 # https://docs.djangoproject.com/en/2.1/ref/settings/#databases

@@ -219,6 +219,11 @@ class PagePcGtsView(APIView):
 
         logger.debug('Successfully saved pcgts file to {}'.format(page.file('pcgts').local_path()))
 
+        # keep the book's chant/document list in sync (cheap: only this page is reparsed)
+        # and notify clients watching it; best effort, never fails the save
+        from restapi.consumers import update_book_documents_and_notify
+        update_book_documents_and_notify(book)
+
         return Response()
 
     @require_permissions([DatabaseBookPermissionFlag.READ])

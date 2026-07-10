@@ -1,14 +1,15 @@
 import json
 import time
-from collections import namedtuple
 from dataclasses import dataclass, field
+
+from filelock import FileLock
 
 from database import DatabasePage
 from database.database_book import DatabaseBook
 import os
 from database.database_internal import DEFAULT_MODELS
 from datetime import datetime
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 
 from database.file_formats.book.document import Document, DocumentConnection
 from database.file_formats.book.documents import Documents
@@ -25,17 +26,96 @@ class DocSpanType:
     index: int
 
 
+@dataclass
+class FragmentLine:
+    """A text line of a page's reading order, reduced to what document assembly needs."""
+    id: str
+    start: bool = False
+    text: str = ''
+
+    @staticmethod
+    def from_json(d: dict) -> 'FragmentLine':
+        return FragmentLine(id=d.get('id'), start=d.get('start', False), text=d.get('text', ''))
+
+    def to_json(self) -> dict:
+        d = {'id': self.id}
+        if self.start:
+            d['start'] = True
+            d['text'] = self.text
+        return d
+
+
+@dataclass
+class PageDocumentFragment:
+    """Per-page slice of the pcgts needed to assemble the documents of a book.
+
+    Cached in book_documents.json keyed by the pcgts file's mtime, so a document
+    update only has to reparse the pages that actually changed.
+    """
+    page_name: str
+    p_id: str
+    mtime: float
+    lines: List[FragmentLine] = field(default_factory=list)
+    text_line_count: int = 0
+    last_text_line_id: Optional[str] = None
+
+    @staticmethod
+    def extract(db_page: DatabasePage, mtime: float) -> 'PageDocumentFragment':
+        page = db_page.pcgts().page
+        all_text_lines = page.all_text_lines()
+        return PageDocumentFragment(
+            page_name=db_page.page,
+            p_id=page.p_id,
+            mtime=mtime,
+            lines=[FragmentLine(id=t_line.id, start=t_line.document_start,
+                                text=t_line.sentence.text(True) if t_line.document_start else '')
+                   for t_line in page.reading_order.reading_order],
+            text_line_count=len(all_text_lines),
+            last_text_line_id=all_text_lines[-1].id if len(all_text_lines) > 0 else None,
+        )
+
+    @staticmethod
+    def from_json(d: dict) -> 'PageDocumentFragment':
+        return PageDocumentFragment(
+            page_name=d.get('page_name'),
+            p_id=d.get('p_id'),
+            mtime=d.get('mtime', 0.0),
+            lines=[FragmentLine.from_json(line) for line in d.get('lines', [])],
+            text_line_count=d.get('text_line_count', 0),
+            last_text_line_id=d.get('last_text_line_id', None),
+        )
+
+    def to_json(self) -> dict:
+        return {
+            'page_name': self.page_name,
+            'p_id': self.p_id,
+            'mtime': self.mtime,
+            'lines': [line.to_json() for line in self.lines],
+            'text_line_count': self.text_line_count,
+            'last_text_line_id': self.last_text_line_id,
+        }
+
+
 class DatabaseBookDocuments:
     def __init__(self, b_id: str = None, monodi_id: int = None, name: str = '', created: datetime = datetime.now(),
                  creator: Optional[RestAPIUser] = None, database_documents: Documents = None,
-                 pcgts_state: Optional[List] = None):
+                 page_fragments: Optional[List[PageDocumentFragment]] = None):
         self.b_id = b_id
         self.name: str = name
         self.created: datetime = created
         self.database_documents: Documents = database_documents
-        # Snapshot of the pcgts files (max mtime + count) at the time the documents were computed.
-        # Used to skip the expensive full recomputation when no page changed.
-        self.pcgts_state: Optional[List] = pcgts_state
+        # Per-page snapshots (keyed by pcgts mtime) from which the documents were assembled.
+        # Only pages whose pcgts file changed since then need to be reparsed.
+        self.page_fragments: Optional[List[PageDocumentFragment]] = page_fragments
+
+    @staticmethod
+    def lock(book: DatabaseBook) -> FileLock:
+        """Inter-process lock guarding read-modify-write cycles on book_documents.json.
+
+        Not reentrant across FileLock instances: don't call update_book_documents_cached
+        (which acquires it internally) while holding it.
+        """
+        return FileLock(book.local_path('book_documents.json.lock'), timeout=30)
 
     def __iter__(self):
         return iter(self.database_documents.documents)
@@ -68,11 +148,15 @@ class DatabaseBookDocuments:
 
     @staticmethod
     def from_json(json: dict):
+        page_fragments = json.get('page_fragments', None)
         return DatabaseBookDocuments(
             name=json.get('name', ""),
             created=datetime.fromisoformat(json.get('created', datetime.now().isoformat())),
             database_documents=Documents.from_json(json.get('database_documents', [])),
-            pcgts_state=json.get('pcgts_state', None)
+            # Files written before the fragment cache (only a coarse 'pcgts_state') yield None,
+            # which forces a full re-extraction on the next update.
+            page_fragments=[PageDocumentFragment.from_json(f) for f in page_fragments]
+            if page_fragments is not None else None,
         )
 
     def to_json(self):
@@ -80,7 +164,8 @@ class DatabaseBookDocuments:
             "name": self.name,
             "created": self.created.isoformat(),
             "database_documents": self.database_documents.to_json() if self.database_documents else [],
-            "pcgts_state": self.pcgts_state,
+            "page_fragments": [f.to_json() for f in self.page_fragments]
+            if self.page_fragments is not None else None,
         }
 
     def get_documents_of_page(self, page: Page, only_start=False) -> List[DocSpanType]:
@@ -94,240 +179,133 @@ class DatabaseBookDocuments:
 
         return docs
 
-    def update_documents_of_page(self, page: DatabasePage, book: DatabaseBook):
-        def get_current_documents_of_page(page: Page):
-            doc_starts = namedtuple("DocStart", "line prev_line index")
-            line: List[doc_starts] = []
-            prev_line = None
-            for ind, t_line in enumerate(page.reading_order.reading_order):
-                if t_line.document_start:
-                    line.append(doc_starts(t_line, prev_line, ind))
-                prev_line = t_line
-            return line
-
-        page_p = page.pcgts().page
-
-        docs = self.get_documents_of_page(page_p)
-
-        pages = book.pages(load_pcgts=True)
-
-        index = [index for index, i in enumerate(pages) if i.pcgts().page.p_id == page_p.p_id][0]
-        prev_page = pages[index - 1].pcgts().page
-        if index > 0:
-            prev_docs = self.get_documents_of_page(prev_page)
-            prev_docs.sort(key=lambda i: i.index)
-            prev_doc = prev_docs[-1].doc if len(prev_docs) > 0 else None
-        else:
-            prev_doc = None
-        # prev_doc = [i for i in docs if i.p_start != page_p.p_id]
-        end_doc = [i for i in docs if i.p_end != page_p.p_id]
-        # db_pages: List[DatabasePage] = book.pages()
-        starts = get_current_documents_of_page(page_p)
-        new_docs = []
-
-        for ind, line in enumerate(starts):
-
-            if prev_doc:
-                if line.prev_line is not None:
-                    prev_doc.end = DocumentConnection(line_id=line.prev_line.id, page_id=page_p.p_id,
-                                                      row=line.index - 1,
-                                                      page_name=page_p.location.page)
-                    prev_doc.textline_count = 0
-                    prev_doc.update_textline_count(book=book)
-                else:
-                    all_text_lines = prev_page.get_reading_order()
-                    lline = all_text_lines[-1]
-                    prev_doc.end = DocumentConnection(line_id=lline, page_id=prev_page.p_id,
-                                                      row=len(all_text_lines),
-                                                      page_name=prev_page.location.page)
-                    prev_doc.update_textline_count(book=book)
-
-            if ind + 1 == len(starts):
-                if len(end_doc) > 0:
-                    end_doc[0].doc.start = DocumentConnection(line_id=line.line.id, page_id=page_p.p_id, row=line.index,
-                                                              page_name=page_p.location.page)
-                    end_doc[0].doc.update_textline_count(book=book)
-                    end_doc[0].doc.textinitium = line.line.sentence.text(True)
-
-                    continue
-                else:
-                    search = True
-                    i = 1
-                    pages_id = [page_p.p_id]
-                    page_location = [page_p.location.page]
-                    prev_page = page_p
-                    prev_line = line
-
-                    while search:
-                        if index + i < len(pages):
-                            next_page = pages[index + 1].pcgts().page
-                            pages_id.append(next_page.p_id)
-                            page_location.append(next_page.location.page)
-
-                            for ind, li in enumerate(next_page.get_reading_order()):
-                                if li.document_start:
-                                    if i == 1 and ind == 0:
-                                        pages_id = pages_id[:-1]
-                                        page_location = page_location[:-1]
-
-                                    new_docs.append(Document([pages_id], [page_location],
-                                                             start=DocumentConnection(line_id=line.line.id,
-                                                                                      page_id=page_p.p_id,
-                                                                                      row=line.index,
-                                                                                      page_name=page_p.location.page),
-                                                             end=DocumentConnection(line_id=prev_line.line.id,
-                                                                                    page_id=prev_page.p_id,
-                                                                                    row=prev_line.index,
-                                                                                    page_name=prev_page.location.page),
-                                                             textinitium=line.line.sentence.text(True),
-                                                             textline_count=0)
-                                                    )
-                                prev_line = li
-                                prev_page = next_page
-                                search = False
-                                break
-                        else:
-                            new_docs.append(Document([pages_id], [page_location],
-                                                     start=DocumentConnection(line_id=line.line.id,
-                                                                              page_id=page_p.p_id,
-                                                                              row=line.index,
-                                                                              page_name=page_p.location.page),
-                                                     end=DocumentConnection(line_id=prev_line.id,
-                                                                            page_id=prev_page.p_id,
-                                                                            row=prev_line.index,
-                                                                            page_name=prev_page.location.page),
-                                                     textinitium=line.line.sentence.text(True).replace("-", "").replace("~", ""),
-                                                     textline_count=0)
-                                            )
-                            search = False
-                            break
-                    continue
-            next_line = starts[ind + 1]
-            new_docs.append(Document([page_p.p_id], [page_p.location.page],
-                                     start=DocumentConnection(line_id=line.line.id, page_id=page_p.p_id, row=line.index,
-                                                              page_name=page_p.location.page),
-                                     end=DocumentConnection(line_id=next_line.prev_line.id, page_id=page_p.p_id,
-                                                            row=next_line.index -1,
-                                                            page_name=page_p.location.page),
-                                     textinitium=line.line.sentence.text(True).replace("-", "").replace("~", ""), textline_count=0)
-                            )
-        for doc in new_docs:
-            doc.update_textline_count(book)
-
-        for line in sorted(docs, key=lambda x: x.index, reverse= True):
-            del self.database_documents.documents[line.index]
-        self.database_documents.documents += new_docs
-
-        return self
-
     @staticmethod
-    def compute_pcgts_state(book: DatabaseBook) -> List:
-        max_mtime = 0.0
-        count = 0
-        for page in book.pages():
-            path = page.file('pcgts').local_path()
-            if os.path.exists(path):
-                max_mtime = max(max_mtime, os.path.getmtime(path))
-                count += 1
-        return [max_mtime, count]
+    def _update_page_fragments(book: DatabaseBook, fragments: Optional[List[PageDocumentFragment]]) \
+            -> Tuple[List[PageDocumentFragment], bool]:
+        """Revalidate the per-page fragments against the pcgts files on disk.
 
-    @staticmethod
-    def update_book_documents_cached(book: DatabaseBook) -> 'DatabaseBookDocuments':
-        """Recompute the documents of the book only if a pcgts file changed since the last computation.
-
-        Returns the up-to-date DatabaseBookDocuments and persists them to file if they were recomputed.
+        Returns the up-to-date fragments (in page order) and whether anything changed,
+        i.e. whether the documents need to be reassembled. Only pages whose pcgts mtime
+        differs from the cached fragment are reparsed.
         """
-        d = DatabaseBookDocuments.load(book)
-        state = DatabaseBookDocuments.compute_pcgts_state(book)
-        if d.database_documents is not None and d.pcgts_state == state:
-            return d
-
-        d = DatabaseBookDocuments.update_book_documents(book)
-        # update_book_documents may create missing pcgts files, therefore recompute the state afterwards
-        d.pcgts_state = DatabaseBookDocuments.compute_pcgts_state(book)
-        d.to_file(book)
-        return d
+        cached: Dict[str, PageDocumentFragment] = {f.page_name: f for f in (fragments or [])}
+        updated: List[PageDocumentFragment] = []
+        changed = fragments is None
+        for db_page in book.pages():
+            path = db_page.file('pcgts').local_path()
+            if not os.path.exists(path):
+                db_page.pcgts()  # creates the missing pcgts file
+            mtime = os.path.getmtime(path)
+            fragment = cached.get(db_page.page)
+            if fragment is None or fragment.mtime != mtime:
+                fragment = PageDocumentFragment.extract(db_page, mtime)
+                changed = True
+            updated.append(fragment)
+        if len(updated) != len(cached):
+            changed = True
+        return updated, changed
 
     @staticmethod
-    def update_book_documents(book: DatabaseBook):
-        d: DatabaseBookDocuments = DatabaseBookDocuments.load(book)
-        db_pages: List[DatabasePage] = book.pages(True)
+    def _assemble_documents(fragments: List[PageDocumentFragment]) -> List[Document]:
+        """Assemble the documents (chants) of the whole book from the per-page fragments.
+
+        A line flagged as document start opens a chant and closes the previous one.
+        """
         document_page_ids = []
         document_page_names = []
         textinitium = ''
         documents: List[Document] = []
         start = None
         line_count = 0
-        for page_ind, db_page in enumerate(db_pages):
-            page = db_page.pcgts().page
+        for page_ind, fragment in enumerate(fragments):
             if start is not None:
-                document_page_ids.append(page.p_id)
-                document_page_names.append(page.location.page)
+                document_page_ids.append(fragment.p_id)
+                document_page_names.append(fragment.page_name)
 
-            for ind, t_line in enumerate(page.reading_order.reading_order, start=1):
-
-                if t_line.document_start:
+            for ind, line in enumerate(fragment.lines, start=1):
+                if line.start:
                     if start is None:
-                        start = DocumentConnection(line_id=t_line.id, page_id=page.p_id, row=ind,
-                                                   page_name=page.location.page)
-                        textinitium = t_line.sentence.text(True)
-                        document_page_ids.append(page.p_id)
-                        document_page_names.append(page.location.page)
+                        start = DocumentConnection(line_id=line.id, page_id=fragment.p_id, row=ind,
+                                                   page_name=fragment.page_name)
+                        textinitium = line.text
+                        document_page_ids.append(fragment.p_id)
+                        document_page_names.append(fragment.page_name)
                     else:
-                        end_row = ind - 1 if ind - 1 != 0 else len(db_pages[page_ind - 1].pcgts().page.all_text_lines())
-                        end_page = page.location.page if ind - 1 != 0 else db_pages[
-                            page_ind - 1].pcgts().page.location.page
+                        prev_fragment = fragments[page_ind - 1]
+                        end_row = ind - 1 if ind - 1 != 0 else prev_fragment.text_line_count
+                        end_page = fragment.page_name if ind - 1 != 0 else prev_fragment.page_name
                         documents.append(Document(document_page_ids, document_page_names,
                                                   start=start,
-                                                  end=DocumentConnection(line_id=t_line.id, page_id=page.p_id,
+                                                  end=DocumentConnection(line_id=line.id, page_id=fragment.p_id,
                                                                          row=end_row, page_name=end_page),
                                                   textinitium=textinitium, textline_count=line_count))
-                        document_page_ids = [page.p_id]
-                        document_page_names = [page.location.page]
+                        document_page_ids = [fragment.p_id]
+                        document_page_names = [fragment.page_name]
 
-                        start = DocumentConnection(line_id=t_line.id, page_id=page.p_id, row=ind,
-                                                   page_name=page.location.page)
-                        textinitium = t_line.sentence.text(True)
+                        start = DocumentConnection(line_id=line.id, page_id=fragment.p_id, row=ind,
+                                                   page_name=fragment.page_name)
+                        textinitium = line.text
                         line_count = 0
                 if start is not None:
                     line_count += 1
 
         if start is not None:
-            db_page = db_pages[-1]
-            page = db_page.pcgts().page
-            lines = page.all_text_lines()
-
+            fragment = fragments[-1]
             documents.append(Document(document_page_ids, document_page_names,
                                       start=start,
-                                      end=DocumentConnection(line_id=lines[-1].id if len(lines) > 0 else None,
-                                                             page_id=page.p_id, row=len(lines),
-                                                             page_name=page.location.page), textinitium=textinitium,
-                                      textline_count=line_count))
+                                      end=DocumentConnection(line_id=fragment.last_text_line_id,
+                                                             page_id=fragment.p_id, row=fragment.text_line_count,
+                                                             page_name=fragment.page_name),
+                                      textinitium=textinitium, textline_count=line_count))
+        return documents
 
+    def _merge_into_existing(self, documents: List[Document]) -> List[Document]:
+        """Adopt freshly assembled documents, keeping doc_id/monody_id/meta infos of
+        existing documents whose start connection is unchanged."""
+        if not self.database_documents:
+            return documents
         updated_documents: List[Document] = []
         for doc in documents:
-            if d.database_documents:
-                found = False
-                for orig_doc in d.database_documents.documents:
-                    if doc.start == orig_doc.start:
-                        updated_doc = orig_doc
-                        updated_doc.pages_names = doc.pages_names
-                        updated_doc.pages_ids = doc.pages_ids
-                        updated_doc.end = doc.end
-                        updated_doc.textinitium = doc.textinitium
-                        updated_doc.textline_count = doc.textline_count
-                        updated_documents.append(updated_doc)
-                        found = True
-                        break
-                if not found:
-                    updated_documents.append(doc)
-
-
+            for orig_doc in self.database_documents.documents:
+                if doc.start == orig_doc.start:
+                    orig_doc.pages_names = doc.pages_names
+                    orig_doc.pages_ids = doc.pages_ids
+                    orig_doc.end = doc.end
+                    orig_doc.textinitium = doc.textinitium
+                    orig_doc.textline_count = doc.textline_count
+                    updated_documents.append(orig_doc)
+                    break
             else:
                 updated_documents.append(doc)
+        return updated_documents
 
-        d.database_documents = Documents(documents=updated_documents)
+    @staticmethod
+    def update_book_documents_cached(book: DatabaseBook) -> 'DatabaseBookDocuments':
+        """Bring the documents of the book up to date, reparsing only the pages whose
+        pcgts file changed since the last computation.
 
+        Persists the result if anything changed. Guarded by the book_documents file lock,
+        so concurrent requests cannot clobber each other.
+        """
+        with DatabaseBookDocuments.lock(book):
+            d = DatabaseBookDocuments.load(book)
+            fragments, changed = DatabaseBookDocuments._update_page_fragments(book, d.page_fragments)
+            if not changed and d.database_documents is not None:
+                return d
+            d.database_documents = Documents(documents=d._merge_into_existing(
+                DatabaseBookDocuments._assemble_documents(fragments)))
+            d.page_fragments = fragments
+            d.to_file(book)
+            return d
+
+    @staticmethod
+    def update_book_documents(book: DatabaseBook) -> 'DatabaseBookDocuments':
+        """Full recomputation ignoring the fragment cache. Does not persist."""
+        d: DatabaseBookDocuments = DatabaseBookDocuments.load(book)
+        fragments, _ = DatabaseBookDocuments._update_page_fragments(book, None)
+        d.database_documents = Documents(documents=d._merge_into_existing(
+            DatabaseBookDocuments._assemble_documents(fragments)))
+        d.page_fragments = fragments
         return d
 
 
