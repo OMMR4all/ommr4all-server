@@ -4,6 +4,14 @@ from typing import Dict, List
 from database.file_formats.performance.pageprogress import Locks
 from loguru import logger
 
+class WorkerResource(Enum):
+    """Worker resource class a task can be scheduled on (see
+    restapi/operationworker): CPU workers mask CUDA, GPU workers are bound to
+    a physical GPU via CUDA_VISIBLE_DEVICES."""
+    CPU = 'cpu'
+    GPU = 'gpu'
+
+
 class AlgorithmTypes(Enum):
     PREPROCESSING = "preprocessing"
 

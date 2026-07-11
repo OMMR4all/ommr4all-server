@@ -12,7 +12,7 @@ from database.model import Models, Model, ModelMeta, MetaId, ModelsId, Storage
 from database.database_available_models import DatabaseAvailableModels
 import os
 import uuid
-from .algorithmtypes import AlgorithmTypes, AlgorithmGroups
+from .algorithmtypes import AlgorithmTypes, AlgorithmGroups, WorkerResource
 
 
 class TrainerCallback(DatasetCallback, ABC):
@@ -240,6 +240,25 @@ class AlgorithmMeta(ABC):
     @classmethod
     def experimenter(cls) -> Type[Experimenter]:
         pass
+
+    # Worker resource policy: which resource class (CPU/GPU worker) tasks of
+    # this algorithm run on by default and are allowed to run on. The request
+    # may override the default, but only within the allowed set.
+    @classmethod
+    def default_predictor_resource(cls) -> WorkerResource:
+        return WorkerResource.CPU
+
+    @classmethod
+    def allowed_predictor_resources(cls) -> List[WorkerResource]:
+        return [WorkerResource.CPU, WorkerResource.GPU]
+
+    @classmethod
+    def default_trainer_resource(cls) -> WorkerResource:
+        return WorkerResource.GPU
+
+    @classmethod
+    def allowed_trainer_resources(cls) -> List[WorkerResource]:
+        return [WorkerResource.CPU, WorkerResource.GPU]
 
     @classmethod
     def create_trainer(cls, settings: AlgorithmTrainerSettings) -> AlgorithmTrainer:

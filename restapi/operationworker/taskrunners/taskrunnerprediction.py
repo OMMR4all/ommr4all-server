@@ -2,6 +2,7 @@ from absl.logging import exception
 
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, AlgorithmTypes
+from ..workerresources import groups_for, WorkerResource
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
 from .pageselection import PageSelection, DatabasePage
@@ -23,9 +24,11 @@ class TaskRunnerPrediction(TaskRunner):
                  algorithm_type: AlgorithmTypes,
                  selection: PageSelection,
                  settings: Settings,
+                 worker_resource: WorkerResource = WorkerResource.CPU,
                  ):
-        super().__init__(algorithm_type, selection, [TaskWorkerGroup.NORMAL_TASKS_CPU])
+        super().__init__(algorithm_type, selection, groups_for(worker_resource, training=False))
         self.settings = settings
+        self.worker_resource = worker_resource
     def identifier(self) -> Tuple:
         return self.selection.identifier(), self.algorithm_type
 

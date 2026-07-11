@@ -48,6 +48,9 @@ class TaskStatus(DataClassDictMixin):
     loss: float = -1
     n_processed: int = 0
     n_total: int = 0
+    # while QUEUED: number of queued tasks ahead that compete for the same
+    # worker groups (0 = next in line); -1 = not queued/unknown
+    queue_position: int = -1
 
 
 @dataclass

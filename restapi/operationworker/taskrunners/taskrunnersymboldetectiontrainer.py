@@ -1,4 +1,5 @@
 from .taskrunner import TaskRunner, Queue, TaskWorkerGroup, Tuple, AlgorithmTypes, PageSelection
+from ..workerresources import groups_for, WorkerResource
 from database import DatabaseBook, DatabasePage
 from ..taskcommunicator import TaskCommunicationData
 from ..task import Task, TaskStatus, TaskStatusCodes, TaskProgressCodes
@@ -15,11 +16,13 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
     def __init__(self,
                  book: DatabaseBook,
                  params: TaskTrainerParams,
+                 worker_resource: WorkerResource = WorkerResource.GPU,
                  ):
         super().__init__(AlgorithmTypes.SYMBOLS_PC_TORCH,
                          PageSelection.from_book(book),
-                         [TaskWorkerGroup.LONG_TASKS_GPU, TaskWorkerGroup.LONG_TASKS_CPU])
+                         groups_for(worker_resource, training=True))
         self.params = params
+        self.worker_resource = worker_resource
 
     def identifier(self) -> Tuple:
         return self.selection.identifier(),

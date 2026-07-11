@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import List, Optional, NamedTuple, Dict, TYPE_CHECKING
 from .task import Task, \
     TaskAlreadyQueuedException, TaskNotFinishedException, TaskNotFoundException, \
@@ -71,6 +72,16 @@ class TaskQueue:
         with self.mutex:
             for task in self.tasks:
                 if task.task_id == task_id:
+                    if task.task_status.code == TaskStatusCodes.QUEUED:
+                        groups = set(task.task_runner.task_group)
+                        n_ahead = 0
+                        for other in self.tasks:
+                            if other.task_id == task_id:
+                                break
+                            if other.task_status.code == TaskStatusCodes.QUEUED \
+                                    and groups & set(other.task_runner.task_group):
+                                n_ahead += 1
+                        return replace(task.task_status, queue_position=n_ahead)
                     return task.task_status
 
             raise TaskNotFoundException()

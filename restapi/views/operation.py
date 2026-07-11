@@ -9,7 +9,10 @@ from restapi.operationworker.taskrunners.pageselection import PageSelection
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from restapi.models.error import *
 from restapi.views.bookaccess import require_permissions, DatabaseBookPermissionFlag
+from restapi.operationworker.workerresources import \
+    resolve_worker_resource, n_workers, InvalidWorkerResourceException
 from dataclasses import field
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -90,11 +93,13 @@ class OperationView(APIView):
     @dataclass()
     class AlgorithmRequest(DataClassDictMixin):
         params: AlgorithmPredictorParams = field(default_factory=lambda: AlgorithmPredictorParams())
+        worker_resource: Optional[str] = None   # 'cpu'/'gpu', None = algorithm default
 
     @staticmethod
     def op_to_task_runner(operation, page: DatabasePage, body: dict):
         # check if operation is linked to a task
         from omr.steps.algorithmtypes import AlgorithmTypes
+        from omr.steps.step import Step
         for at in AlgorithmTypes:
             if at.value == operation:
                 from restapi.operationworker.taskrunners.taskrunnerprediction import TaskRunnerPrediction, AlgorithmPredictorParams, Settings
@@ -104,9 +109,11 @@ class OperationView(APIView):
 
                 meta = page.book.get_meta()
                 meta.algorithmPredictorParams[at] = r.params
+                worker_resource = resolve_worker_resource(Step.create_meta(at), r.worker_resource, training=False)
                 return TaskRunnerPrediction(at,
                                             PageSelection.from_page(page),
-                                            Settings(meta.algorithm_predictor_params(at), store_to_pcgts=False)
+                                            Settings(meta.algorithm_predictor_params(at), store_to_pcgts=False),
+                                            worker_resource=worker_resource,
                                             )
 
         return None
@@ -131,7 +138,21 @@ class OperationView(APIView):
 
         body = json.loads(request.body)
         page = DatabasePage(DatabaseBook(book), page)
-        task_runner = OperationView.op_to_task_runner(operation, page, body)
+        try:
+            task_runner = OperationView.op_to_task_runner(operation, page, body)
+        except InvalidWorkerResourceException as e:
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            str(e),
+                            "The requested worker resource (CPU/GPU) is not supported by this algorithm.",
+                            ErrorCodes.OPERATION_TASK_INVALID_WORKER_RESOURCE,
+                            ).response()
+        if task_runner and body.get('worker_resource') and n_workers(task_runner.task_group) == 0:
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            "No worker for the requested resource '{}' is configured on this server.".format(
+                                body.get('worker_resource')),
+                            "The requested worker resource (CPU/GPU) is not available on this server.",
+                            ErrorCodes.OPERATION_TASK_WORKER_RESOURCE_UNAVAILABLE,
+                            ).response()
         if task_runner:
             try:
                 id = operation_worker.put(task_runner, request.user)

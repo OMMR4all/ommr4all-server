@@ -24,6 +24,7 @@ from restapi.views.bookstyles import BookStyleView, BookStylesView
 from restapi.views.administrativedefaultmodels import AdministrativeDefaultModelsView
 from restapi.views.tasks import TasksView, TaskView
 from restapi.views.llmproviders import LLMProvidersView
+from restapi.views.workerresources import OperationWorkerResourcesView
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -42,6 +43,9 @@ urlpatterns = \
 
         # available llm providers for text transcription (text_llm)
         path('llm_providers', LLMProvidersView.as_view()),
+
+        # worker resources (cpu/gpu) usable for an operation + queue occupancy
+        re_path(r'^operation/(?P<operation>\w+)/worker_resources$', OperationWorkerResourcesView.as_view()),
 
         # auth
         re_path(r'^auth/(?P<auth>\w+)$', AuthView.as_view(), name='AuthView'),

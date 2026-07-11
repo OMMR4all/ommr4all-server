@@ -13,7 +13,10 @@ from restapi.operationworker.taskrunners.pageselection import PageSelection, Pag
 from omr.dataset.datafiles import EmptyDataSetException
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from omr.steps.step import Step, AlgorithmTypes
+from restapi.operationworker.workerresources import \
+    resolve_worker_resource, groups_for, n_workers, TRAIN_OPERATIONS, InvalidWorkerResourceException
 from dataclasses import field, dataclass
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +138,7 @@ class AlgorithmRequest(DataClassDictMixin):
     store_to_pcgts: bool = True
     params: AlgorithmPredictorParams = field(default_factory=lambda: AlgorithmPredictorParams())
     selection: PageSelectionParams = field(default_factory=lambda: PageSelectionParams())
+    worker_resource: Optional[str] = None   # 'cpu'/'gpu', None = algorithm default
 
 
 class BookOperationView(APIView):
@@ -149,26 +153,23 @@ class BookOperationView(APIView):
                 r = AlgorithmRequest.from_dict(body)
                 meta = book.get_meta()
                 meta.algorithmPredictorParams[at] = r.params
+                worker_resource = resolve_worker_resource(Step.create_meta(at), r.worker_resource, training=False)
                 return TaskRunnerPrediction(at,
                                             PageSelection.from_params(r.selection, book),
-                                            Settings(meta.algorithm_predictor_params(at), store_to_pcgts=r.store_to_pcgts)
+                                            Settings(meta.algorithm_predictor_params(at), store_to_pcgts=r.store_to_pcgts),
+                                            worker_resource=worker_resource,
                                             )
         # check if operation is linked to a task
-        if operation == 'train_symbols':
-            from restapi.operationworker.taskrunners.taskrunnersymboldetectiontrainer import TaskRunnerSymbolDetectionTrainer, TaskTrainerParams
-            return TaskRunnerSymbolDetectionTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})))
-        elif operation == 'train_staff_line_detector':
-            from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
-            return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.STAFF_LINES_PC_Torch)
-        elif operation == 'train_layout_detector':
-            from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
-            return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO)
-        elif operation == 'train_character_recognition':
-            from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
-            return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.OCR_GUPPY)
-        elif operation == 'train_end2end':
-            from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer, TaskTrainerParams
-            return TaskRunnerTrainer(book, TaskTrainerParams.from_dict(body.get('trainParams', {})), AlgorithmTypes.END2END_SWIN)
+        if operation in TRAIN_OPERATIONS:
+            trained_type = TRAIN_OPERATIONS[operation]
+            from restapi.operationworker.taskrunners.taskrunnertrainer import TaskTrainerParams
+            worker_resource = resolve_worker_resource(Step.create_meta(trained_type), body.get('worker_resource'), training=True)
+            train_params = TaskTrainerParams.from_dict(body.get('trainParams', {}))
+            if operation == 'train_symbols':
+                from restapi.operationworker.taskrunners.taskrunnersymboldetectiontrainer import TaskRunnerSymbolDetectionTrainer
+                return TaskRunnerSymbolDetectionTrainer(book, train_params, worker_resource=worker_resource)
+            from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer
+            return TaskRunnerTrainer(book, train_params, trained_type, worker_resource=worker_resource)
         elif operation == 'documents_export':
             from restapi.operationworker.taskrunners.taskrunnerdocumentsexport import TaskRunnerDocumentsExport
             return TaskRunnerDocumentsExport(book, body.get('format', TaskRunnerDocumentsExport.FORMAT_MONODI_META_XLSX))
@@ -180,8 +181,22 @@ class BookOperationView(APIView):
     def put(self, request, book, operation):
         body = json.loads(request.body)
         book = DatabaseBook(book)
-        task_runner = BookOperationView.op_to_task_runner(operation, book, body)
+        try:
+            task_runner = BookOperationView.op_to_task_runner(operation, book, body)
+        except InvalidWorkerResourceException as e:
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            str(e),
+                            "The requested worker resource (CPU/GPU) is not supported by this algorithm.",
+                            ErrorCodes.OPERATION_TASK_INVALID_WORKER_RESOURCE,
+                            ).response()
         if task_runner:
+            if body.get('worker_resource') and n_workers(task_runner.task_group) == 0:
+                return APIError(status.HTTP_400_BAD_REQUEST,
+                                "No worker for the requested resource '{}' is configured on this server.".format(
+                                    body.get('worker_resource')),
+                                "The requested worker resource (CPU/GPU) is not available on this server.",
+                                ErrorCodes.OPERATION_TASK_WORKER_RESOURCE_UNAVAILABLE,
+                                ).response()
             try:
                 id = operation_worker.put(task_runner, request.user)
                 return Response({'task_id': id}, status=status.HTTP_202_ACCEPTED)
