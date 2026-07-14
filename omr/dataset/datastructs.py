@@ -114,6 +114,8 @@ class CalamariSequence:
         return out
 
     def __init__(self, codec: CalamariCodec, symbols: List[MusicSymbol]):
+        # tolerate symbol types the codec cannot represent (e.g. newly added classes)
+        symbols = [s for s in symbols if s.symbol_type in (SymbolType.NOTE, SymbolType.CLEF, SymbolType.ACCID)]
         out = list(map(codec.encode, map(codec.type_of_symbol, symbols)))
 
         self.codec = codec

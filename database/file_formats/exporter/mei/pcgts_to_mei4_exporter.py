@@ -112,6 +112,9 @@ class PcgtsToMeiConverter:
 
     def add_node_symbols(self, symbol: ns_pcgts.MusicSymbol):
         x, y = symbol.coord.xy()
+        if symbol.symbol_type not in (ns_pcgts.SymbolType.NOTE, ns_pcgts.SymbolType.CLEF, ns_pcgts.SymbolType.ACCID):
+            # tolerate symbol types this exporter does not support
+            return
         if symbol.symbol_type == ns_pcgts.SymbolType.CLEF:
             clef = etree.SubElement(self.layer, 'clef', oct=str(symbol.octave),
                                              shape=str(symbol.note_name), line=str(symbol.position_in_staff // 2))

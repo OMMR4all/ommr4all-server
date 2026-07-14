@@ -1,4 +1,3 @@
-import symbol
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
 from dataclasses import dataclass

@@ -457,6 +457,9 @@ class Dataset(ABC):
             img = Image.fromarray(i.region)
             draw = ImageDraw.Draw(img)
             for s in i.operation.music_line.symbols:
+                if SymbolLabel.music_symbol_to_symbol_label(s) == SymbolLabel.BACKGROUND:
+                    # symbol classes without a trainable label are skipped
+                    continue
                 #print(i.operation.music_line.avg_line_distance())
                 #print(i.operation.music_line.avg_line_distance() * i.line_image.shape[0])
 

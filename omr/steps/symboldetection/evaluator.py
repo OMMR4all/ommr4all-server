@@ -321,7 +321,8 @@ class Codec:
                 else:
                     sequence.append((symbol.symbol_type, symbol.note_type, symbol.position_in_staff, True))
             else:
-                raise Exception('Unknown symbol type')
+                # tolerate symbol types this evaluator does not support
+                continue
 
         return list(map(self.get, sequence))
 

@@ -91,14 +91,21 @@ class BasicNeumeType(IntEnum):
     OTHER = -1
 
 
+# To add a new symbol class (e.g. a new clef variant), see the guide in
+# doc/adding_symbol_classes.md. Server side, a new subtype only needs an
+# enum value here (clefs additionally need their pitch offset below); every
+# downstream consumer (exporters, training, evaluation) tolerates subtypes
+# it does not explicitly support.
 class ClefType(Enum):
     C = 'c'
     F = 'f'
+    G = 'g'
 
     def offset(self):
         return {
             ClefType.C: -3,
             ClefType.F: 0,
+            ClefType.G: 1,
         }[self]
 
 
@@ -257,7 +264,7 @@ class MusicSymbol:
         if self.symbol_type == self.symbol_type.NOTE:
             return str(self.position_in_staff.value) + str(self.graphical_connection.value)
         elif self.symbol_type == self.symbol_type.CLEF:
-            return "Clef_C" if self.clef_type == self.clef_type.C else "Clef_F"
+            return "Clef_{}".format(self.clef_type.value.upper())
         else:
             return str(self.accid_type.name)
 

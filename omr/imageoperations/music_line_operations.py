@@ -84,6 +84,9 @@ class SymbolLabel(IntEnum):
                 8: [0, 0, 120]}[self.value]
     @staticmethod
     def music_symbol_to_symbol_label(s: MusicSymbol):
+        # Symbol classes without a trainable label (e.g. newly added classes that are
+        # not part of the SymbolLabel set yet) map to BACKGROUND, i.e. they are
+        # ignored by the pixel classifier training/prediction.
         if s is None:
             return SymbolLabel.BACKGROUND
         elif s.symbol_type == SymbolType.NOTE:
@@ -101,7 +104,8 @@ class SymbolLabel(IntEnum):
             elif s.clef_type == ClefType.F:
                 return SymbolLabel.CLEF_F
             else:
-                raise Exception('Invalid clef type')
+                logger.warning('Clef type {} has no trainable label, treating as background'.format(s.clef_type))
+                return SymbolLabel.BACKGROUND
         elif s.symbol_type == SymbolType.ACCID:
             if s.accid_type == AccidType.NATURAL:
                 return SymbolLabel.ACCID_NATURAL
@@ -110,9 +114,11 @@ class SymbolLabel(IntEnum):
             elif s.accid_type == AccidType.FLAT:
                 return SymbolLabel.ACCID_FLAT
             else:
-                raise Exception('Invalid accid type')
+                logger.warning('Accid type {} has no trainable label, treating as background'.format(s.accid_type))
+                return SymbolLabel.BACKGROUND
         else:
-            raise Exception('Invalid symbol type')
+            logger.warning('Symbol type {} has no trainable label, treating as background'.format(s.symbol_type))
+            return SymbolLabel.BACKGROUND
 
 # extract image of a staff line, and as mask, the highlighted staff lines
 class ImageExtractStaffLineImages(ImageOperation):
@@ -422,15 +428,17 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
             elif s.symbol_type == SymbolType.CLEF:
                 if s.clef_type == ClefType.F:
                     set(s.coord, SymbolLabel.CLEF_F, dy=4 * radius)
-                else:
+                elif s.clef_type == ClefType.C:
                     set(s.coord, SymbolLabel.CLEF_C, dy=4 * radius)
+                # clef types without a trainable label are ignored (background)
             elif s.symbol_type == SymbolType.ACCID:
                 if s.accid_type == AccidType.NATURAL:
                     set(s.coord, SymbolLabel.ACCID_NATURAL)
                 elif s.accid_type == AccidType.FLAT:
                     set(s.coord, SymbolLabel.ACCID_FLAT)
-                else:
+                elif s.accid_type == AccidType.SHARP:
                     set(s.coord, SymbolLabel.ACCID_SHARP)
+                # accid types without a trainable label are ignored (background)
 
         return img
     def _symbols_to_mask2(self, ml: Line, img: np.ndarray, page: Page, scale: PageScaleReference):
@@ -466,15 +474,17 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
             elif s.symbol_type == SymbolType.CLEF:
                 if s.clef_type == ClefType.F:
                     set(s.coord, AdditionalSymbolLabel.CLEF_F, dy=4 * radius)
-                else:
+                elif s.clef_type == ClefType.C:
                     set(s.coord, AdditionalSymbolLabel.CLEF_C, dy=4 * radius)
+                # clef types without a trainable label are ignored (background)
             elif s.symbol_type == SymbolType.ACCID:
                 if s.accid_type == AccidType.NATURAL:
                     set(s.coord, AdditionalSymbolLabel.ACCID_NATURAL)
                 elif s.accid_type == AccidType.FLAT:
                     set(s.coord, AdditionalSymbolLabel.ACCID_FLAT)
-                else:
+                elif s.accid_type == AccidType.SHARP:
                     set(s.coord, AdditionalSymbolLabel.ACCID_SHARP)
+                # accid types without a trainable label are ignored (background)
 
         return img
     def local_to_global_pos(self, p: Point, params: Any):

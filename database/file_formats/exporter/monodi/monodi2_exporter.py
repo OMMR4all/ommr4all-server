@@ -456,6 +456,9 @@ class PcgtsToMonodiConverter:
                 clc = self.get_or_create_current_line_container()
                 current_syllable: Optional[Syllable] = force_syllable
                 for line_symbol in line_symbols:
+                    if line_symbol.symbol_type not in (ns_pcgts.SymbolType.NOTE, ns_pcgts.SymbolType.CLEF, ns_pcgts.SymbolType.ACCID):
+                        # tolerate symbol types this exporter does not support
+                        continue
 
                     if line_symbol.symbol_type != ns_pcgts.SymbolType.NOTE:
                         if not force_syllable:
@@ -652,6 +655,9 @@ class PcgtsToMonodiConverter:
                 clc = self.get_or_create_current_line_container()
                 current_syllable: Optional[Syllable] = None
                 for line_symbol in line_symbols:
+                    if line_symbol.symbol_type not in (ns_pcgts.SymbolType.NOTE, ns_pcgts.SymbolType.CLEF, ns_pcgts.SymbolType.ACCID):
+                        # tolerate symbol types this exporter does not support
+                        continue
                     if line_symbol.symbol_type != ns_pcgts.SymbolType.NOTE:
                         current_syllable = None
 
