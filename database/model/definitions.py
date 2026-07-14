@@ -125,6 +125,9 @@ class MetaId(SerializableType):
 
     @classmethod
     def _deserialize(cls, value: str) -> Optional['MetaId']:
+        if not value:
+            # The client sends '' when "default model" is selected — not an error
+            return None
         try:
             return MetaId.from_str(value)
         except Exception as e:

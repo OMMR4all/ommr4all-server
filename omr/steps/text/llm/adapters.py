@@ -57,7 +57,114 @@ def build_prompt(image: Image.Image, custom_prompt: Optional[str] = None) -> str
     return prompt.replace('{width}', str(image.width)).replace('{height}', str(image.height))
 
 
-def _scale_bbox(bbox: List[float], image_size: Tuple[int, int]) -> Optional[Tuple[float, float, float, float]]:
+# Chandra's native ocr_layout prompt (chandra/prompts.py in datalab-to/chandra).
+# The model is fine-tuned on exactly this instruction and answers with HTML
+# layout blocks; free-form instructions (e.g. asking for JSON) yield degraded
+# output, so the HuggingFace adapter uses the native prompt by default.
+CHANDRA_ALLOWED_TAGS = [
+    "math", "br", "i", "b", "u", "del", "sup", "sub", "table", "tr", "td", "p",
+    "th", "div", "pre", "h1", "h2", "h3", "h4", "h5", "ul", "ol", "li", "input",
+    "a", "span", "img", "hr", "tbody", "small", "caption", "strong", "thead",
+    "big", "code", "chem",
+]
+CHANDRA_ALLOWED_ATTRIBUTES = [
+    "class", "colspan", "rowspan", "display", "checked", "type", "border",
+    "value", "style", "href", "alt", "align", "data-bbox", "data-label",
+]
+CHANDRA_PROMPT_ENDING = f"""
+Only use these tags {CHANDRA_ALLOWED_TAGS}, and these attributes {CHANDRA_ALLOWED_ATTRIBUTES}.
+
+Guidelines:
+* Inline math: Surround math with <math>...</math> tags. Math expressions should be rendered in KaTeX-compatible LaTeX. Use display for block math.
+* Tables: Use colspan and rowspan attributes to match table structure.
+* Formatting: Maintain consistent formatting with the image, including spacing, indentation, subscripts/superscripts, and special characters.
+* Images: Include a description of any images in the alt attribute of an <img> tag. Do not fill out the src property. Describe in detail inside the div tag. Also convert charts to high fidelity data, and convert diagrams to mermaid.
+* Forms: Mark checkboxes and radio buttons properly.
+* Text: join lines together properly into paragraphs using <p>...</p> tags.  Use <br> tags for line breaks within paragraphs, but only when absolutely necessary to maintain meaning.
+* Chemistry: Use <chem>...</chem> tags for chemical formulas with reactive SMILES.
+* Lists: Preserve indents and proper list markers.
+* Use the simplest possible HTML structure that accurately represents the content of the block.
+* Make sure the text is accurate and easy for a human to read and interpret.  Reading order should be correct and natural.
+""".strip()
+CHANDRA_LAYOUT_PROMPT = f"""
+OCR this image to HTML, arranged as layout blocks.  Each layout block should be a div with the data-bbox attribute representing the bounding box of the block in x0 y0 x1 y1 format.  Bboxes are normalized 0-1000. The data-label attribute is the label for the block.
+
+Use the following labels:
+- Caption
+- Footnote
+- Equation-Block
+- List-Group
+- Page-Header
+- Page-Footer
+- Image
+- Section-Header
+- Table
+- Text
+- Complex-Block
+- Code-Block
+- Form
+- Table-Of-Contents
+- Figure
+- Chemical-Block
+- Diagram
+- Bibliography
+- Blank-Page
+
+{CHANDRA_PROMPT_ENDING}
+""".strip()
+
+# layout block labels that never contain transcribable text lines
+CHANDRA_SKIP_LABELS = {'image', 'figure', 'diagram', 'blank-page'}
+
+
+def _strip_think(text: str) -> str:
+    """Remove <think>...</think> reasoning blocks emitted by thinking VLMs."""
+    return re.sub(r'<think>.*?(?:</think>|$)', '', text, flags=re.DOTALL).strip()
+
+
+def parse_chandra_layout_html(raw: str, image_size: Tuple[int, int]) -> List[LLMTextLine]:
+    """Parse chandra's native ocr_layout HTML answer: one <div> per layout
+    block with data-bbox="x0 y0 x1 y1" (normalized to 0-1000 of the image)
+    and data-label. A block spanning several physical lines is split at
+    <br>/<p>/... boundaries and its bbox is distributed evenly in y."""
+    text = _strip_think(raw)
+    if 'data-bbox' not in text:
+        return []
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(text, 'html.parser')
+    w, h = image_size
+    lines: List[LLMTextLine] = []
+    for div in soup.find_all(attrs={'data-bbox': True}):
+        if div.find_parent(attrs={'data-bbox': True}) is not None:
+            continue  # nested block, already covered by its parent
+        label = (div.get('data-label') or '').strip().lower()
+        if label in CHANDRA_SKIP_LABELS:
+            continue
+        try:
+            x1, y1, x2, y2 = [float(v) for v in div['data-bbox'].split()]
+        except (ValueError, KeyError):
+            continue
+        x1, x2 = x1 / 1000 * w, x2 / 1000 * w
+        y1, y2 = y1 / 1000 * h, y2 / 1000 * h
+        if x2 <= x1 or y2 <= y1:
+            continue
+        for br in div.find_all('br'):
+            br.replace_with('\n')
+        for tag in div.find_all(['p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'tr', 'div']):
+            tag.append('\n')
+        parts = [p.strip() for p in div.get_text().split('\n') if p.strip()]
+        if not parts:
+            continue
+        line_h = (y2 - y1) / len(parts)
+        for i, part in enumerate(parts):
+            lines.append(LLMTextLine(text=part,
+                                     bbox=(x1, y1 + i * line_h, x2, y1 + (i + 1) * line_h)))
+    return lines
+
+
+def _scale_bbox(bbox, image_size: Tuple[int, int]) -> Optional[Tuple[float, float, float, float]]:
+    if isinstance(bbox, str):
+        bbox = bbox.replace(',', ' ').split()
     if not bbox or len(bbox) != 4:
         return None
     try:
@@ -91,18 +198,24 @@ def parse_llm_response(raw: str, image_size: Tuple[int, int]) -> List[LLMTextLin
     Preferred format is a JSON array of {"text", "bbox"} objects, but plain
     text (one transcription per line) is accepted as fallback.
     """
-    text = raw.strip()
+    # chandra style HTML layout blocks take precedence
+    html_lines = parse_chandra_layout_html(raw, image_size)
+    if html_lines:
+        return html_lines
+
+    text = _strip_think(raw)
     # strip markdown code fences
     fence = re.search(r'```(?:json)?\s*(.*?)```', text, re.DOTALL)
     if fence:
         text = fence.group(1).strip()
 
-    # try to locate a JSON array in the response
+    # parse the first complete JSON array in the response; trailing garbage
+    # (e.g. a looping model repeating its answer) is ignored
     data = None
-    start, end = text.find('['), text.rfind(']')
-    if start >= 0 and end > start:
+    start = text.find('[')
+    if start >= 0:
         try:
-            data = json.loads(text[start:end + 1])
+            data, _ = json.JSONDecoder().raw_decode(text[start:])
         except json.JSONDecodeError:
             data = None
 
@@ -197,7 +310,9 @@ class HuggingFaceVLMAdapter(LLMOCRAdapter):
     def transcribe(self, image: Image.Image) -> LLMPageTranscription:
         import torch
         processor, model = self._load()
-        prompt = build_prompt(image, self.prompt)
+        # chandra is fine-tuned on its native layout prompt; a custom prompt
+        # (llmCustomPrompt) overrides it
+        prompt = build_prompt(image, self.prompt) if self.prompt else CHANDRA_LAYOUT_PROMPT
         messages = [{
             'role': 'user',
             'content': [
@@ -212,8 +327,17 @@ class HuggingFaceVLMAdapter(LLMOCRAdapter):
             return_dict=True,
             return_tensors='pt',
         ).to(model.device)
+        # the model's generation_config only stops at <|endoftext|>, but the
+        # chat turn ends with <|im_end|> — without adding it as stop token the
+        # model keeps generating turn after turn until max_new_tokens
+        eos = model.generation_config.eos_token_id
+        eos = [eos] if isinstance(eos, int) else list(eos or [])
+        im_end = processor.tokenizer.convert_tokens_to_ids('<|im_end|>')
+        if im_end is not None and im_end >= 0 and im_end not in eos:
+            eos.append(im_end)
         with torch.no_grad():
-            generated = model.generate(**inputs, max_new_tokens=4096, do_sample=False)
+            generated = model.generate(**inputs, max_new_tokens=12288, do_sample=False,
+                                       eos_token_id=eos or None)
         raw = processor.batch_decode(
             generated[:, inputs['input_ids'].shape[1]:],
             skip_special_tokens=True,

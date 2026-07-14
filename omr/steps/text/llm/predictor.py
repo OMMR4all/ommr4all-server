@@ -97,9 +97,56 @@ def assign_llm_lines_to_regions(page: Page,
     target_lines = sort_lines_in_reading_order(target_lines)
     with_bbox = [l for l in llm_lines if l.bbox is not None]
 
+    logger.info("LLM alignment: %d LLM lines (%d with bbox) -> %d target line regions",
+                len(llm_lines), len(with_bbox), len(target_lines))
+    for i, line in enumerate(target_lines):
+        aabb = line.aabb
+        logger.info("  target[%d] id=%s aabb=(l=%.4f t=%.4f r=%.4f b=%.4f)",
+                    i, line.id, aabb.left(), aabb.top(), aabb.right(), aabb.bottom())
+
     if with_bbox and len(with_bbox) >= len(llm_lines) * 0.5:
-        return _assign_by_bbox(page, target_lines, with_bbox, scale_reference)
-    return _assign_by_order(target_lines, llm_lines)
+        logger.info("LLM alignment strategy: bbox overlap (%d/%d lines have a bbox)",
+                    len(with_bbox), len(llm_lines))
+        assignment = _assign_by_bbox(page, target_lines, with_bbox, scale_reference)
+    else:
+        logger.info("LLM alignment strategy: reading order (only %d/%d lines have a bbox)",
+                    len(with_bbox), len(llm_lines))
+        assignment = _assign_by_order(target_lines, llm_lines)
+
+    for line_id, text in assignment.items():
+        logger.info("LLM alignment result: line %s -> %r", line_id, text)
+    unassigned = [l.id for l in target_lines if l.id not in assignment]
+    if unassigned:
+        logger.info("LLM alignment: %d target lines got no text: %s", len(unassigned), unassigned)
+    return assignment
+
+
+def _split_words_between_lines(text: str,
+                               x1: float, x2: float,
+                               candidates: List[Line]) -> List[Tuple[Line, float, str]]:
+    """Distribute the words of one LLM text line over several side-by-side
+    target lines: each word's x-position is estimated by its character offset
+    within the llm bbox and the word goes to the line whose x-range is
+    closest. Returns (line, x-position, text) per line that received words."""
+    words = text.split()
+    total_chars = sum(len(w) for w in words) + max(0, len(words) - 1)
+    per_line: Dict[str, List[Tuple[float, str]]] = {}
+    by_id = {l.id: l for l in candidates}
+    pos = 0
+    for word in words:
+        wx = x1 + ((pos + len(word) / 2) / total_chars) * (x2 - x1)
+
+        def x_dist(line: Line) -> float:
+            aabb = line.aabb
+            if aabb.left() <= wx <= aabb.right():
+                return 0.0
+            return min(abs(wx - aabb.left()), abs(wx - aabb.right()))
+
+        target = min(candidates, key=x_dist)
+        per_line.setdefault(target.id, []).append((wx, word))
+        pos += len(word) + 1
+    return [(by_id[lid], parts[0][0], ' '.join(w for _, w in parts))
+            for lid, parts in per_line.items()]
 
 
 def _assign_by_bbox(page: Page,
@@ -117,6 +164,7 @@ def _assign_by_bbox(page: Page,
         cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
 
         best, best_score = None, 0.0
+        strong: List[Line] = []  # lines mostly covered by the llm box (same text row)
         for line in target_lines:
             aabb = line.aabb
             # intersection over area of the llm box
@@ -126,6 +174,25 @@ def _assign_by_bbox(page: Page,
             score = (ix * iy) / area if area > 0 else 0.0
             if score > best_score:
                 best, best_score = line, score
+            w = aabb.right() - aabb.left()
+            h = aabb.bottom() - aabb.top()
+            if w > 0 and h > 0 and ix >= 0.5 * w and iy >= 0.5 * min(h, y2 - y1):
+                strong.append(line)
+
+        # one llm line spanning several target lines that sit side by side on
+        # the same y-level (e.g. lyrics split at a drop capital): distribute
+        # the words by their estimated x-position instead of winner-takes-all
+        if len(strong) >= 2:
+            strong.sort(key=lambda l: l.aabb.left())
+            x_disjoint = all(nxt.aabb.left() >= prv.aabb.right()
+                             - 0.2 * min(prv.aabb.right() - prv.aabb.left(),
+                                         nxt.aabb.right() - nxt.aabb.left())
+                             for prv, nxt in zip(strong, strong[1:]))
+            if x_disjoint:
+                for line, wx, part in _split_words_between_lines(llm_line.text, x1, x2, strong):
+                    logger.info("LLM bbox assign (split %d-way): %r -> line %s", len(strong), part, line.id)
+                    collected.setdefault(line.id, []).append((wx, part))
+                continue
 
         if best is None:
             # no overlap at all: fall back to the closest line center
@@ -139,11 +206,43 @@ def _assign_by_bbox(page: Page,
                 continue
             logger.warning("LLM text line '%s' has no overlap with any text region, assigned to closest line %s",
                            llm_line.text, best.id)
+        else:
+            logger.info("LLM bbox assign: %r bbox_px=%s bbox_page=(%.4f, %.4f, %.4f, %.4f) -> line %s (overlap=%.2f)",
+                        llm_line.text, llm_line.bbox, x1, y1, x2, y2, best.id, best_score)
 
         collected.setdefault(best.id, []).append((x1, llm_line.text))
 
     return {line_id: ' '.join(t for _, t in sorted(parts, key=lambda p: p[0]))
             for line_id, parts in collected.items()}
+
+
+def join_spaced_syllables(text: str, word_dictionary: Optional[Dict[str, str]]) -> str:
+    """In manuscripts the syllables of a word are often written spaced apart
+    (aligned under the neumes) and the LLM transcribes them as separate
+    tokens, e.g. 'Al le lu ia'. Greedily merge runs of consecutive tokens
+    whose concatenation is a known word of the lyrics dictionary (longest
+    match first), so hyphenation afterwards yields 'Al-le-lu-ia'."""
+    if not word_dictionary:
+        return text
+    tokens = text.split()
+    out: List[str] = []
+    i = 0
+    while i < len(tokens):
+        merged = None
+        for j in range(min(len(tokens), i + 8), i + 1, -1):
+            candidate = ''.join(tokens[i:j])
+            key = candidate.lower().strip('.,;:!?')
+            if len(key) >= 3 and key.isalpha() and key in word_dictionary:
+                merged = candidate
+                break
+        if merged is not None:
+            logger.info("LLM syllable join: %r -> %r", ' '.join(tokens[i:j]), merged)
+            out.append(merged)
+            i = j
+        else:
+            out.append(tokens[i])
+            i += 1
+    return ' '.join(out)
 
 
 def _assign_by_order(target_lines: List[Line], llm_lines: List[LLMTextLine]) -> Dict[str, str]:
@@ -152,6 +251,10 @@ def _assign_by_order(target_lines: List[Line], llm_lines: List[LLMTextLine]) -> 
         logger.warning("LLM returned %d text lines but the page has %d text line regions. "
                        "Assigning in reading order, remaining entries are dropped.",
                        len(llm_texts), len(target_lines))
+    for line, text in zip(target_lines, llm_texts):
+        logger.info("LLM order assign: line %s <- %r", line.id, text)
+    for text in llm_texts[len(target_lines):]:
+        logger.info("LLM order assign: dropped (no region left): %r", text)
     return {line.id: text for line, text in zip(target_lines, llm_texts)}
 
 
@@ -199,8 +302,12 @@ class LLMTextPredictor(AlgorithmPredictor):
                 image = Image.open(image_path).convert('RGB')
 
                 transcription = self.adapter.transcribe(image)
-                logger.debug("LLM transcription of page %s returned %d lines",
-                             db_page.page, len(transcription.lines))
+                logger.info("LLM raw response for page %s (image %dx%d px):\n%s",
+                            db_page.page, image.width, image.height, transcription.raw_response)
+                logger.info("LLM transcription of page %s parsed into %d lines:",
+                            db_page.page, len(transcription.lines))
+                for i, llm_line in enumerate(transcription.lines):
+                    logger.info("  llm[%d] bbox=%s text=%r", i, llm_line.bbox, llm_line.text)
 
                 assignment = assign_llm_lines_to_regions(page, target_lines, transcription.lines,
                                                          self.scale_reference)
@@ -209,6 +316,7 @@ class LLMTextPredictor(AlgorithmPredictor):
                     text = assignment.get(line.id, '')
                     if not text:
                         continue
+                    text = join_spaced_syllables(text, hyphen.dictionary)
                     if self.dict_corrector:
                         hyphenated = self.dict_corrector.segmentate_correct_and_hyphenate_text(text)
                     else:
