@@ -393,5 +393,159 @@ class OperationTests(APITestCase):
         return data
 
 
+class BookOverviewStatsTests(APITestCase):
+    def setUp(self):
+        url = reverse('token_obtain_pair')
+        User.objects.create_superuser(username='user', email='user@mail.com', password='user')
+        response = self.client.post(url, {'username': 'user', 'password': 'user'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer {0}'.format(response.data['access']))
+
+        self.demo_dir = os.path.join(BASE_DIR, 'tests', 'storage', 'demo')
+        self.cache_path = os.path.join(self.demo_dir, 'book_overview_stats_cache.json')
+        self.meta_path = os.path.join(self.demo_dir, 'book_meta.json')
+        self._remove_cache()
+
+    def tearDown(self):
+        self._remove_cache()
+
+    def _remove_cache(self):
+        if os.path.exists(self.cache_path):
+            os.remove(self.cache_path)
+
+    def _get_stats(self):
+        response = self.client.get('/api/book/demo/overview_stats', format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        return json.loads(response.content)
+
+    def _read_file_or_none(self, path):
+        if os.path.exists(path):
+            with open(path) as f:
+                return f.read()
+        return None
+
+    def _restore_file(self, path, content):
+        if content is None:
+            if os.path.exists(path):
+                os.remove(path)
+        else:
+            with open(path, 'w') as f:
+                f.write(content)
+
+    def _reset_updated(self, book):
+        meta = book.get_meta()
+        meta.updated = None
+        meta.to_file(book)
+        self.assertIsNone(book.get_meta().updated)
+
+    def test_overview_stats(self):
+        from database.file_formats.performance.pageprogress import Locks
+        stats = self._get_stats()
+        self.assertGreater(stats['pages'], 0)
+        self.assertSetEqual(set(stats['locks'].keys()), {l.value for l in Locks})
+        self.assertSetEqual(set(stats['percentages'].keys()), {l.value for l in Locks})
+        self.assertIn(stats['state'], ['empty', 'no_transcription', 'transcription_uncorrected',
+                                       'partially_corrected', 'fully_corrected'])
+        self.assertGreaterEqual(stats['pagesWithSymbols'], 0)
+        self.assertGreaterEqual(stats['verified'], 0)
+
+        # cache file was created and a second (cached) request yields the same result
+        self.assertTrue(os.path.exists(self.cache_path))
+        self.assertEqual(stats, self._get_stats())
+
+    def test_overview_stats_cache_invalidation(self):
+        from database.file_formats.performance.pageprogress import Locks, PageProgress
+        progress_path = os.path.join(self.demo_dir, 'pages', 'page00000001', 'page_progress.json')
+        original = self._read_file_or_none(progress_path)
+        try:
+            stats = self._get_stats()
+            originally_locked = {l: False for l in Locks}
+            if original is not None:
+                pp = PageProgress.from_json_file(progress_path)
+                originally_locked = {l: bool(pp.locked.get(l, False)) for l in Locks}
+
+            with open(progress_path, 'w') as f:
+                json.dump({'locked': {l.value: True for l in Locks}, 'verified': False}, f)
+
+            new_stats = self._get_stats()
+            for l in Locks:
+                expected = stats['locks'][l.value] + (0 if originally_locked[l] else 1)
+                self.assertEqual(new_stats['locks'][l.value], expected)
+        finally:
+            self._restore_file(progress_path, original)
+
+    def test_overview_stats_unauthorized(self):
+        client = Client()
+        response = client.get('/api/book/demo/overview_stats')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
+
+    def test_updated_in_book_list_and_bumped(self):
+        original_meta = self._read_file_or_none(self.meta_path)
+        try:
+            # legacy books expose the field as null
+            response = self.client.get('/api/books', format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+            demo = [b for b in json.loads(response.content)['books'] if b['id'] == 'demo'][0]
+            self.assertIn('updated', demo)
+
+            book = DatabaseBook('demo')
+            self._reset_updated(book)
+            book.mark_updated(User.objects.get(username='user'))
+            meta = book.get_meta()
+            self.assertIsNotNone(meta.updated)
+            self.assertEqual(meta.updatedBy, 'user')
+
+            # without a user the timestamp is set but the attribution cleared
+            book.mark_updated()
+            self.assertIsNone(book.get_meta().updatedBy)
+
+            # a meta save without the fields must not clear them
+            book.mark_updated(User.objects.get(username='user'))
+            response = self.client.get('/api/book/demo/meta', format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+            meta = json.loads(response.content)
+            del meta['updated']
+            del meta['updatedBy']
+            response = self.client.put('/api/book/demo/meta', meta, format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+            stored = DatabaseBook('demo').get_meta()
+            self.assertIsNotNone(stored.updated)
+            self.assertEqual(stored.updatedBy, 'user')
+        finally:
+            self._restore_file(self.meta_path, original_meta)
+
+    def test_updated_bumped_on_page_progress_save(self):
+        original_meta = self._read_file_or_none(self.meta_path)
+        progress_path = os.path.join(self.demo_dir, 'pages', 'page00000001', 'page_progress.json')
+        page_meta_path = os.path.join(self.demo_dir, 'pages', 'page00000001', 'meta.json')
+        original_progress = self._read_file_or_none(progress_path)
+        original_page_meta = self._read_file_or_none(page_meta_path)
+        try:
+            self._reset_updated(DatabaseBook('demo'))
+            page = DatabaseBook('demo').page('page00000001')
+            page.page_progress()  # load (and create) the progress
+            page.save_page_progress(User.objects.get(username='user'))
+
+            book_meta = DatabaseBook('demo').get_meta()
+            self.assertIsNotNone(book_meta.updated)
+            self.assertEqual(book_meta.updatedBy, 'user')
+
+            # the page itself tracks its last change as well
+            page_meta = DatabaseBook('demo').page('page00000001').meta()
+            self.assertIsNotNone(page_meta.updated)
+            self.assertEqual(page_meta.updatedBy, 'user')
+        finally:
+            self._restore_file(self.meta_path, original_meta)
+            self._restore_file(progress_path, original_progress)
+            self._restore_file(page_meta_path, original_page_meta)
+
+    def test_meta_backward_compatible_without_updated(self):
+        from database.database_book_meta import DatabaseBookMeta
+        meta = DatabaseBookMeta.from_json('{"id": "x", "name": "x"}')
+        self.assertIsNone(meta.updated)
+        meta.updated = None
+        self.assertIn('"updated": null', meta.to_json())
+
+
 if __name__ == '__main__':
     unittest.main()

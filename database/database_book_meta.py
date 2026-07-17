@@ -36,6 +36,10 @@ class DatabaseBookMeta(DataClassJSONMixin):
     name: str = ''
     created: datetime = field(default_factory=lambda: datetime.now(),
                               metadata=field_options(serialization_strategy=FormattedDateTime()))
+    # timestamp and user of the last content modification (page/pcgts/progress writes); None for legacy books
+    updated: Optional[datetime] = field(default=None,
+                                        metadata=field_options(serialization_strategy=FormattedDateTime()))
+    updatedBy: Optional[str] = None
     creator: Optional[RestAPIUser] = None
     last_opened: str = ''
     notationStyle: str = field(default_factory=lambda: get_default_book_style())

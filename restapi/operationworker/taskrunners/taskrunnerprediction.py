@@ -73,6 +73,10 @@ class TaskRunnerPrediction(TaskRunner):
         if self.settings.store_to_pcgts:
             for page_staves in staves:
                 page_staves.store_to_page()
+            if len(staves) > 0:
+                for page in pages:
+                    page.mark_updated(task.creator, propagate=False)
+                self.selection.book.mark_updated(task.creator)
 
         if self.selection.single_page:
             return results[0]

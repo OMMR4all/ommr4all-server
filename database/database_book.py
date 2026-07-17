@@ -150,6 +150,18 @@ class DatabaseBook:
         from database.database_book_meta import DatabaseBookMeta
         return DatabaseBookMeta.load(self)
 
+    def mark_updated(self, user=None):
+        # best effort: a failed timestamp bump must never fail the actual write
+        try:
+            from datetime import datetime
+            meta = self.get_meta()
+            meta.updated = datetime.now()
+            meta.updatedBy = getattr(user, 'username', None) or None
+            meta.to_file(self)
+        except Exception as e:
+            logger.warning('Could not update the last-modified timestamp of book {}'.format(self.book))
+            logger.exception(e)
+
     def save_json_to_meta(self, obj: dict):
         from database.database_book_meta import DatabaseBookMeta
         meta = DatabaseBookMeta.from_dict(obj)

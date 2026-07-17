@@ -160,7 +160,7 @@ class PageProgressVerifyView(APIView):
                             "Verfication not allowed, not all locks are set.",
                             ErrorCodes.PAGE_PROGRESS_VERIFICATION_REQUIRES_ALL_PROGRESS_LOCKS,
                             ).response()
-        page.save_page_progress()
+        page.save_page_progress(request.user)
         return Response()
 
     @require_permissions([DatabaseBookPermissionFlag.VERIFY_PAGE])
@@ -168,7 +168,7 @@ class PageProgressVerifyView(APIView):
         page = DatabasePage(DatabaseBook(book), page)
         pp = page.page_progress()
         pp.verified = False
-        page.save_page_progress()
+        page.save_page_progress(request.user)
         return Response()
 
 
@@ -187,7 +187,7 @@ class PageProgressView(APIView):
         verify_allowed = user_permissions.has(DatabaseBookPermissionFlag.VERIFY_PAGE)
         pp.merge_local(PageProgress.from_dict(obj), locks=True, verified=verify_allowed)
         page.set_page_progress(pp)
-        page.save_page_progress()
+        page.save_page_progress(request.user)
 
         # add to backup archive
         with zipfile.ZipFile(page.file('page_progress_backup').local_path(), 'a',
@@ -218,6 +218,8 @@ class PagePcGtsView(APIView):
             zf.writestr('pcgts_{}.json'.format(datetime.datetime.now()), json.dumps(pcgts.to_json(), indent=2))
 
         logger.debug('Successfully saved pcgts file to {}'.format(page.file('pcgts').local_path()))
+
+        page.mark_updated(request.user)
 
         # keep the book's chant/document list in sync (cheap: only this page is reparsed)
         # and notify clients watching it; best effort, never fails the save
@@ -301,4 +303,5 @@ class PageRenameView(APIView):
                             ErrorCodes.PAGE_EXISTS,
                             ).response()
 
+        page.book.mark_updated(request.user)
         return Response()

@@ -110,12 +110,13 @@ class DatabasePage:
     def set_page_progress(self, page_progress: 'PageProgress'):
         self._page_progress = page_progress
 
-    def save_page_progress(self):
+    def save_page_progress(self, user=None):
         if not self._page_progress:
             return
 
         self._page_progress.to_json_file(self.file('page_progress').local_path())
         logger.debug('Successfully saved page progress file to {}'.format(self.file('page_progress').local_path()))
+        self.mark_updated(user)
 
     def pcgts(self, create_if_not_existing=True) -> 'PcGts':
         if not self._pcgts:
@@ -137,6 +138,22 @@ class DatabasePage:
     def save_meta(self):
         if self._meta:
             self._meta.save(self)
+
+    def mark_updated(self, user=None, propagate=True):
+        # best effort: a failed timestamp bump must never fail the actual write
+        try:
+            from datetime import datetime
+            meta = self.meta()
+            meta.updated = datetime.now()
+            meta.updatedBy = getattr(user, 'username', None) or None
+            self.save_meta()
+        except Exception as e:
+            logger.warning('Could not update the last-modified timestamp of page {}/{}'.format(
+                self.book.book, self.page))
+            logger.exception(e)
+
+        if propagate:
+            self.book.mark_updated(user)
 
     def is_valid(self):
         if not os.path.exists(self.local_path()):

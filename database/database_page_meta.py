@@ -1,6 +1,12 @@
-from dataclasses import dataclass
-from database.database_page import DatabasePage
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Optional
+
+from mashumaro import field_options
 from mashumaro.mixins.json import DataClassJSONMixin
+
+from database.database_page import DatabasePage
+from database.database_book_meta import FormattedDateTime
 
 
 @dataclass()
@@ -14,6 +20,10 @@ class Preprocessing(DataClassJSONMixin):
 @dataclass
 class DatabasePageMeta(DataClassJSONMixin):
     preprocessing: Preprocessing
+    # timestamp and user of the last content modification of this page; None for legacy pages
+    updated: Optional[datetime] = field(default=None,
+                                        metadata=field_options(serialization_strategy=FormattedDateTime()))
+    updatedBy: Optional[str] = None
 
     @staticmethod
     def load(page: DatabasePage):

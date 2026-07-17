@@ -174,7 +174,9 @@ class OperationView(APIView):
                 if key != 'color_original':
                     DatabaseFile(page, key).delete()
 
+            page.mark_updated(request.user)
             return Response()
         elif operation == 'delete':
             page.delete()
+            page.book.mark_updated(request.user)
             return Response()

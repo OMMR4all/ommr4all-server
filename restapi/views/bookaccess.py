@@ -57,6 +57,15 @@ class BookStatsView(APIView):
         return Response(DatasetStatisticsResult(0, 0, compute_book_statistics(book)).to_dict())
 
 
+class BookOverviewStatsView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book):
+        from database.tools.book_overview_stats import compute_overview_stats
+        return Response(compute_overview_stats(DatabaseBook(book)))
+
+
 class BookMetaView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -70,6 +79,11 @@ class BookMetaView(APIView):
         from database.database_book_meta import DatabaseBookMeta
         book = DatabaseBook(book)
         meta = DatabaseBookMeta.from_book_json(book, request.body)
+        if meta.updated is None:
+            # clients do not send the last-modified timestamp; keep the stored one
+            stored = book.get_meta()
+            meta.updated = stored.updated
+            meta.updatedBy = stored.updatedBy
         book.save_json_to_meta(meta.to_dict())
         return Response()
 
@@ -119,6 +133,7 @@ class BookUploadView(APIView):
                 original = DatabaseFile(page, 'color_original')
                 img.save(original.local_path())
                 logger.debug('Created page at {}'.format(page.local_path()))
+                page.mark_updated(request.user, propagate=False)
 
             try:
                 if type.startswith('image/'):
@@ -137,6 +152,7 @@ class BookUploadView(APIView):
                 logger.exception(e)
                 return Response(status=status.HTTP_400_BAD_REQUEST)
 
+        book.mark_updated(request.user)
         return Response()
 
 
@@ -400,4 +416,5 @@ class BookRenamePagesView(APIView):
                             ErrorCodes.PAGE_EXISTS,
                             ).response()
 
+        book.mark_updated(request.user)
         return Response()
