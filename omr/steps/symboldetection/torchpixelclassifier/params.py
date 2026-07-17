@@ -30,7 +30,7 @@ def default_transform():
             ])
         ], p=0.3)
 
-    ], additional_targets={'add_symbols_mask': 'mask'} )
+    ])
     return result
 def symbol_transform():
     from segmentation.datasets.dataset import compose

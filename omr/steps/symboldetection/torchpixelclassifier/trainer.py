@@ -39,7 +39,8 @@ from database import DatabaseBook
 
 from database.file_formats.performance.pageprogress import Locks
 from omr.steps.algorithm import TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
-from omr.imageoperations.music_line_operations import SymbolLabel, AdditionalSymbolLabel
+from omr.imageoperations.music_line_operations import SymbolLabel
+from omr.imageoperations.symbol_heads import SYMBOL_DETECTION_HEADS, head_classes, head_color_maps
 # from ocr4all_pixel_classifier.lib.trainer import Trainer, Loss, Monitor, Architecture
 from omr.steps.symboldetection.torchpixelclassifier.meta import Meta
 # from segmentation.dataset import MemoryDataset
@@ -113,23 +114,48 @@ class PCTorchTrainer(SymbolDetectionTrainer):
                     ])
                 ], p=0.3)
 
-            ], additional_targets={'add_symbols_mask': 'mask'})
+            ])
             return result
-        def build_model_from_loaded(load, device) -> Tuple['Network', 'ModelConfiguration']:
-            base_model_file = ModelBuilderLoad.from_disk(model_weights=load, device=device)
-            base_model = base_model_file.get_model()
-            base_config = base_model_file.get_model_configuration()
-            return base_model, base_config
 
-        train_data_pd = self.train_dataset.to_memory_dataset(callback, same_dim=False)
         color_map = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
-        color_map2= ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in AdditionalSymbolLabel])
+        # Requested head layout: the registry defines all available additional heads; the
+        # additional_number_of_heads param only switches them on or off for this run.
+        want_heads = self.settings.page_segmentation_torch_params.additional_number_of_heads > 0
+        logger.info()
+        requested_heads = len(SYMBOL_DETECTION_HEADS) if want_heads else 0
+        requested_classes = head_classes() if want_heads else []
+
+        def build_model_from_loaded(load, device) -> Tuple['Network', 'ModelConfiguration']:
+            import copy
+            base_model_file = ModelBuilderLoad.from_disk(model_weights=load, device=device)
+            base_config = base_model_file.get_model_configuration()
+            if not want_heads or base_config.head_config() == (requested_heads, requested_classes):
+                # head layout unchanged (or heads not requested): keep the checkpoint as-is,
+                # including any heads it already has (their losses are skipped via None masks)
+                network, config = base_model_file.get_model(), base_config
+            else:
+                # requested head layout differs from the checkpoint: rebuild with the requested
+                # heads and warm-start shared weights; new heads stay randomly initialized
+                from segmentation.model_builder import load_weights_into
+                config = copy.deepcopy(base_config)
+                nw_settings = config.custom_model_settings if config.use_custom_model else config.network_settings
+                nw_settings.add_number_of_heads = requested_heads
+                nw_settings.add_classes = list(requested_classes)
+                config.additional_color_maps = head_color_maps()
+                logger.info(f"Head layout of loaded model {base_config.head_config()} != requested "
+                            f"({requested_heads}, {requested_classes}): warm-starting a rebuilt model")
+                network = ModelBuilderMeta(config, device).get_model()
+                load_weights_into(network, load, device)
+            if len(config.color_map) != len(color_map):
+                # heal legacy models that stored the additional color map as main color map
+                config.color_map = color_map
+            return network, config
 
         input_transforms = Compose(remove_nones([
             GrayToRGBTransform(p=1.0) if True else None,
-            ColorMapTransform(color_map=color_map2.to_albumentation_color_map(), p=1.0)
+            ColorMapTransform(color_map=color_map.to_albumentation_color_map(), p=1.0)
 
-        ]), additional_targets={'add_symbols_mask': 'mask'} )
+        ]))
 
         transform = self.settings.page_segmentation_torch_params.augmentation if self.settings.page_segmentation_torch_params.augmentation is not None else default_transform()
 
@@ -140,21 +166,13 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             NetworkEncoderTransform(
                 self.settings.page_segmentation_torch_params.encoder if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction.name, p=1.0),
             ToTensorV2(p=1.0)
-        ]), additional_targets={'add_symbols_mask': 'mask'} )
+        ]))
         transforms = PreprocessingTransforms(
             input_transform=input_transforms,
             aug_transform=aug_transforms,
             # tta_transforms=tta_transforms,
             post_transforms=post_transforms,
         )
-        val_data_pd = self.validation_dataset.to_memory_dataset(callback)
-        train_data = MemoryDataset(df=train_data_pd, transforms=transforms.get_train_transforms())
-        val_data = MemoryDataset(df=val_data_pd, transforms=transforms.get_test_transforms())
-        train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
-        val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
-        logging.info(f"Training samples: {len(train_data)}, Validation samples: {len(val_data)}")
-        if len(val_data) == 0:
-            val_loader = train_loader
         predfined_nw_settings = PredefinedNetworkSettings(
             architecture=Architecture(self.settings.page_segmentation_torch_params.architecture),
             encoder=self.settings.page_segmentation_torch_params.encoder,
@@ -162,8 +180,8 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             encoder_depth=self.settings.page_segmentation_torch_params.predefined_encoder_depth,
             decoder_channel=self.settings.page_segmentation_torch_params.predefined_decoder_channel,
             use_batch_norm_layer=self.settings.page_segmentation_torch_params.use_batch_norm_layer,
-            add_number_of_heads=self.settings.page_segmentation_torch_params.additional_number_of_heads,
-            add_classes=[len(AdditionalSymbolLabel)] if self.settings.page_segmentation_torch_params.additional_number_of_heads > 0 else []
+            add_number_of_heads=requested_heads,
+            add_classes=list(requested_classes)
         )
         custom_nw_settings = CustomModelSettings(
             encoder_filter=self.settings.page_segmentation_torch_params.custom_model_encoder_filter,
@@ -178,7 +196,9 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             padding=CustomModelSettings.padding,
             kernel_size=CustomModelSettings.kernel_size,
             weight_sharing=False if CustomModelSettings.weight_sharing else True,
-            scaled_image_input=CustomModelSettings.scaled_image_input
+            scaled_image_input=CustomModelSettings.scaled_image_input,
+            add_number_of_heads=requested_heads,
+            add_classes=list(requested_classes)
         )
         if self.params.model_to_load():
             path = self.params.model_to_load().local_file('best.torch')
@@ -196,8 +216,30 @@ class PCTorchTrainer(SymbolDetectionTrainer):
                                                                                       self.settings.page_segmentation_torch_params.encoder) if not self.settings.page_segmentation_torch_params.custom_model else Preprocessingfunction(),
                                                                                   transforms=transforms.to_dict()),
 
-                                        color_map=color_map2)
+                                        color_map=color_map,
+                                        additional_color_maps=head_color_maps() if want_heads else None)
             network = ModelBuilderMeta(config, device=get_default_device()).get_model()
+
+        # the final head count may come from a loaded checkpoint; register the augmentation
+        # targets for it (albumentations does not serialize additional_targets, so this must
+        # happen after the transforms are (re)built)
+        n_heads, add_classes = config.head_config()
+        if n_heads > 0:
+            transforms.register_additional_targets([f"mask_head_{i}" for i in range(n_heads)])
+        additional_color_maps = config.additional_color_maps or (head_color_maps() if n_heads > 0 else None)
+
+        train_data_pd = self.train_dataset.to_memory_dataset(callback, same_dim=False,
+                                                             additional_mask_columns=want_heads)
+        val_data_pd = self.validation_dataset.to_memory_dataset(callback, additional_mask_columns=want_heads)
+        train_data = MemoryDataset(df=train_data_pd, transforms=transforms.get_train_transforms(),
+                                   additional_color_maps=additional_color_maps)
+        val_data = MemoryDataset(df=val_data_pd, transforms=transforms.get_test_transforms(),
+                                 additional_color_maps=additional_color_maps)
+        train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
+        val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
+        logging.info(f"Training samples: {len(train_data)}, Validation samples: {len(val_data)}")
+        if len(val_data) == 0:
+            val_loader = train_loader
         mw = ModelWriterCallback(network, config, save_path=Path(self.settings.model.path), prefix="",
                                  metric_watcher_index=0)
         callbacks = [mw, pc_callback]
@@ -211,8 +253,8 @@ class PCTorchTrainer(SymbolDetectionTrainer):
                                                                metrics=[Metrics("accuracy")],
                                                                watcher_metric_index=0,
                                                                loss=Losses.cross_entropy_loss,
-                                                               additional_heads = self.settings.page_segmentation_torch_params.additional_number_of_heads,
-                                                               additional_classes=[len(color_map2)],
+                                                               additional_heads=n_heads,
+                                                               additional_classes=list(add_classes),
                                                                ), get_default_device(),
                                  callbacks=callbacks, debug_color_map=config.color_map)
 

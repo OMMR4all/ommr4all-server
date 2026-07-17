@@ -192,12 +192,24 @@ class Dataset(ABC):
     def to_line_detection_dataset(self, callback: Optional[DatasetCallback] = None) -> List[RegionLineMaskData]:
         return self.load(callback)
 
-    def to_memory_dataset(self, callback: Optional[DatasetCallback] = None, same_dim=False, train=False):
+    def to_memory_dataset(self, callback: Optional[DatasetCallback] = None, same_dim=False, train=False,
+                          additional_mask_columns=True):
+        # The df always contains one `add_mask_{i}` column per symbol head; with
+        # additional_mask_columns=False the values are None, which makes the
+        # segmentation trainer skip those heads' losses (zero-size tensor sentinel).
+        from omr.imageoperations.symbol_heads import SYMBOL_DETECTION_HEADS
         if self.params.origin_staff_line_distance == self.params.target_staff_line_distance:
             images = []
             masks = []
             data = []
-            masks2 = []
+            add_masks = [[] for _ in SYMBOL_DETECTION_HEADS]
+
+            def append_additional(x):
+                for i in range(len(SYMBOL_DETECTION_HEADS)):
+                    if additional_mask_columns and i < len(x.additional_masks):
+                        add_masks[i].append(x.additional_masks[i])
+                    else:
+                        add_masks[i].append(None)
             # import matplotlib.pyplot as plt
             # cmap = plt.get_cmap('Set1')
             # color_map = ColorMap(
@@ -238,7 +250,7 @@ class Dataset(ABC):
                         images.append(t_image)
                         masks.append(x.mask)
                         data.append(x)
-                        masks2.append(x.mask2)
+                        append_additional(x)
                         #plt.imshow(t_image)
                         #plt.show()
                 else:
@@ -247,14 +259,13 @@ class Dataset(ABC):
                     images.append(t_image)
                     masks.append(x.mask)
                     data.append(x)
-                    masks2.append(x.mask2)
+                    append_additional(x)
 
                     #plt.imshow(t_image)
                     #plt.show()
             if same_dim:
                 images_s = []
                 mask_s = []
-                mask_s2 = []
                 max_width = 0
                 max_height = 0
                 dim = 0
@@ -281,16 +292,18 @@ class Dataset(ABC):
                     dif = max_width - w
                     i = np.pad(i, ((0, 0), (0, dif)), 'constant', constant_values=0)
                     mask_s.append(i)
-                for i in masks2:
-                    h, w = i.shape[:2]
-                    dif = max_width - w
-                    i = np.pad(i, ((0, 0), (0, dif)), 'constant', constant_values=0)
-                    mask_s2.append(i)
+                for head_masks in add_masks:
+                    for n, i in enumerate(head_masks):
+                        if i is None:
+                            continue
+                        h, w = i.shape[:2]
+                        dif = max_width - w
+                        head_masks[n] = np.pad(i, ((0, 0), (0, dif)), 'constant', constant_values=0)
                 images = images_s
-                masks2 = mask_s2
                 masks = mask_s
 
-            df = pd.DataFrame(data={'images': images, 'masks': masks, 'original': data, "add_symbols_mask": masks2})
+            df = pd.DataFrame(data={'images': images, 'masks': masks, 'original': data,
+                                    **{f'add_mask_{i}': add_masks[i] for i in range(len(SYMBOL_DETECTION_HEADS))}})
             return df
         else:
             raise NotImplementedError()

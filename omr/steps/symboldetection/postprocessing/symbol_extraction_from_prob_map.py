@@ -1,5 +1,5 @@
 from cProfile import label
-from typing import List
+from typing import List, Optional, Sequence
 
 import numpy as np
 from database.file_formats.pcgts import *
@@ -8,6 +8,7 @@ from database.file_formats.pcgts import MusicSymbol, SymbolPredictionConfidence,
     SymbolConfidence, ClefType, create_clef, create_accid, AccidType, Point
 from omr.dataset import RegionLineMaskData
 from omr.imageoperations.music_line_operations import SymbolLabel, AdditionalSymbolLabel
+from omr.imageoperations.symbol_heads import SymbolHeadSpec, SYMBOL_DETECTION_HEADS
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset
 import cv2
 
@@ -61,15 +62,24 @@ def render_pred_labels2(labels, img=None):
     return np.array(pil_i)
 
 def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
-                    dataset: SymbolDetectionDataset, probability=0.5, clef=True, min_symbol_area=4, lookup= None, second_mask:np.ndarray=None) -> List[
+                    dataset: SymbolDetectionDataset, probability=0.5, clef=True, min_symbol_area=4, lookup= None,
+                    additional_masks: Optional[List[Optional[np.ndarray]]] = None,
+                    heads: Optional[Sequence[Optional[SymbolHeadSpec]]] = None) -> List[
     MusicSymbol]:
     # n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(((probs[:, :, 0] < 0.5) | (p > 0)).astype(np.uint8))
 
+    if heads is None:
+        heads = SYMBOL_DETECTION_HEADS
 
     p = (np.argmax(probs[:, :, 1:], axis=-1) + 1) * (probs[:, :, 0] < probability)
-    p2 = None
-    if second_mask is not None:
-        p2 = (np.argmax(second_mask[:, :, 1:], axis=-1) + 1) * (second_mask[:, :, 0] < probability)
+    # per-head label maps (None if the model has no such head or it is unknown)
+    head_label_maps: List[Optional[np.ndarray]] = []
+    for spec, softmax_map in zip(heads, additional_masks or []):
+        if spec is None or softmax_map is None:
+            head_label_maps.append(None)
+        else:
+            head_label_maps.append(
+                (np.argmax(softmax_map[:, :, 1:], axis=-1) + 1) * (softmax_map[:, :, 0] < probability))
 
     #p = (np.argmax(probs, axis=-1))
     n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
@@ -95,11 +105,16 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
         area = p[y:y + h, x:x + w] * (cc[y:y + h, x:x + w] == i)
 
         label = SymbolLabel(int(np.argmax([np.sum(area == v + 1) for v in range(len(SymbolLabel) - 1)])) + 1)
-        label2 = AdditionalSymbolLabel.NORMAL
-        if p2 is not None:
-            area2 = p2[y:y + h, x:x + w] * (cc[y:y + h, x:x + w] == i)
 
-            label2 = AdditionalSymbolLabel(int(np.argmax([np.sum(area2 == v + 1) for v in range(len(AdditionalSymbolLabel) - 1)])) + 1)
+        # majority vote per additional head over the same connected component
+        decoded_head_labels = []
+        for spec, p_head in zip(heads, head_label_maps):
+            if spec is None or p_head is None:
+                continue
+            area_head = p_head[y:y + h, x:x + w] * (cc[y:y + h, x:x + w] == i)
+            head_label = spec.labels(int(np.argmax([np.sum(area_head == v + 1)
+                                                    for v in range(len(spec.labels) - 1)])) + 1)
+            decoded_head_labels.append((spec, head_label))
 
         centroids_canvas[int(np.round(c.y)), int(np.round(c.x))] = label
         centroids_adv.append(((int(np.round(c.x)), int(np.round(c.y))), label))
@@ -113,64 +128,58 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
             position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
             # confidence_position_in_staff = m.operation.music_line.compute_confidence_position_in_staff(coord)
             # print(confidence_position_in_staff)
-            symbols.append(MusicSymbol(
+            symbol = MusicSymbol(
                 symbol_type=SymbolType.NOTE,
                 coord=coord,
                 position_in_staff=position_in_staff,
                 graphical_connection=GraphicalConnectionType.NEUME_START,
-                note_type=label2.get_note_type(),
                 confidence=SymbolConfidence(symbol_pred, None, )
-            ))
+            )
         elif label == SymbolLabel.NOTE_GAPPED:
             position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
 
-            symbols.append(MusicSymbol(
+            symbol = MusicSymbol(
                 symbol_type=SymbolType.NOTE,
                 coord=coord,
                 position_in_staff=position_in_staff,
                 graphical_connection=GraphicalConnectionType.GAPED,
-                note_type=label2.get_note_type(),
-
                 confidence=SymbolConfidence(symbol_pred, None)
 
-            ))
+            )
         elif label == SymbolLabel.NOTE_LOOPED:
             position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
 
-            symbols.append(MusicSymbol(
+            symbol = MusicSymbol(
                 symbol_type=SymbolType.NOTE,
                 coord=coord,
                 position_in_staff=position_in_staff,
                 graphical_connection=GraphicalConnectionType.LOOPED,
-                note_type=label2.get_note_type(),
-
                 confidence=SymbolConfidence(symbol_pred, None)
 
-            ))
+            )
         elif label == SymbolLabel.CLEF_C:
             position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=clef)
             coord_updated = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(coord.x,
                                                                                                   position_in_staff)
-            symbols.append(create_clef(ClefType.C, coord=coord_updated, position_in_staff=position_in_staff,
-                                       confidence=SymbolConfidence(symbol_pred, None)))
+            symbol = create_clef(ClefType.C, coord=coord_updated, position_in_staff=position_in_staff,
+                                 confidence=SymbolConfidence(symbol_pred, None))
         elif label == SymbolLabel.CLEF_F:
             position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=clef)
             coord_updated = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(coord.x,
                                                                                                   position_in_staff)
-            symbols.append(create_clef(ClefType.F, coord=coord_updated, position_in_staff=position_in_staff,
-                                       confidence=SymbolConfidence(symbol_pred, None)))
+            symbol = create_clef(ClefType.F, coord=coord_updated, position_in_staff=position_in_staff,
+                                 confidence=SymbolConfidence(symbol_pred, None))
         elif label == SymbolLabel.ACCID_FLAT:
-            symbols.append(
-                create_accid(AccidType.FLAT, coord=coord, confidence=SymbolConfidence(symbol_pred, None)))
+            symbol = create_accid(AccidType.FLAT, coord=coord, confidence=SymbolConfidence(symbol_pred, None))
         elif label == SymbolLabel.ACCID_SHARP:
-            symbols.append(
-                create_accid(AccidType.SHARP, coord=coord, confidence=SymbolConfidence(symbol_pred, None)))
+            symbol = create_accid(AccidType.SHARP, coord=coord, confidence=SymbolConfidence(symbol_pred, None))
         elif label == SymbolLabel.ACCID_NATURAL:
-            symbols.append(
-                create_accid(AccidType.NATURAL, coord=coord, confidence=SymbolConfidence(symbol_pred, None)))
+            symbol = create_accid(AccidType.NATURAL, coord=coord, confidence=SymbolConfidence(symbol_pred, None))
         else:
             raise Exception("Unknown label {} during decoding".format(label))
-        pass
+        for spec, head_label in decoded_head_labels:
+            spec.apply_label(symbol, head_label)
+        symbols.append(symbol)
 
     if False:
         from matplotlib import pyplot as plt

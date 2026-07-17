@@ -15,6 +15,7 @@ import cv2
 import numpy as np
 from omr.steps.symboldetection.torchpixelclassifier.meta import Meta
 from omr.imageoperations.music_line_operations import SymbolLabel
+from omr.imageoperations.symbol_heads import SYMBOL_DETECTION_HEADS
 from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePredictionResult
 
 from omr.steps.symboldetection.postprocessing.symbol_extraction_from_prob_map import extract_symbols, \
@@ -33,17 +34,12 @@ class PCTorchPredictor(SymbolsPredictor):
         from segmentation.model_builder import ModelBuilderLoad
         from segmentation.network_postprocessor import NetworkMaskPostProcessor, MaskPredictionResult
         from segmentation.scripts.train import get_default_device
-        from segmentation.preprocessing.source_image import SourceImage
         from segmentation.network import Network, EnsemblePredictor
-        use_cuda = torch.cuda.is_available()
         path = os.path.join(settings.model.path)
         modelbuilder = ModelBuilderLoad.from_disk(model_weights=os.path.join(path, 'best.torch'),
                                                   device=get_default_device())
         logger.info(f"Using model: {os.path.join(path, 'best.torch')}")
 
-        # model_path = "/home/alexanderh/projects/ommr4all3.8transition/ommr4all-deploy/modules/ommr4all-server/storage/Graduel_Part_1_gt/models/symbols_pc_torch/2023-02-02T14:01:14/"
-        # modelbuilder = ModelBuilderLoad.from_disk(model_weights= model_path + 'best.torch',
-        #                                          device=get_default_device())
         with open(os.path.join(path, 'dataset_params.json'), 'r') as f:
             self.dataset_params = DatasetParams.from_json(f.read())
 
@@ -52,9 +48,19 @@ class PCTorchPredictor(SymbolsPredictor):
         logger.info(config)
         device = get_default_device()
         logger.info(f"Using device: {device}")
-        preprocessing_settings = modelbuilder.get_model_configuration().preprocessing_settings
-        self.predictor = EnsemblePredictor([base_model], [preprocessing_settings])
+        self.predictor = EnsemblePredictor.from_model_config([base_model], [config])
         self.nmaskpredictor = NetworkMaskPostProcessor(self.predictor, config.color_map)
+        # match the model's additional heads to the registry by position + class count;
+        # unknown heads are ignored instead of crashing on a foreign checkpoint
+        n_heads, head_cls = config.head_config()
+        self.head_specs = []
+        for i in range(n_heads):
+            spec = SYMBOL_DETECTION_HEADS[i] if i < len(SYMBOL_DETECTION_HEADS) else None
+            if spec is None or len(spec.labels) != head_cls[i]:
+                logger.warning(f"Model head {i} ({head_cls[i]} classes) does not match any known "
+                               f"symbol head, its predictions are ignored")
+                spec = None
+            self.head_specs.append(spec)
         self.look_up = SymbolSequenceConfidenceLookUp(SequenceSetting.NOTE_3GRAM)
         # print(self.dataset_params.to_json())
 
@@ -67,7 +73,7 @@ class PCTorchPredictor(SymbolsPredictor):
         clefs = []
         total_lines = len(list(df.iterrows()))
         for index, row in df.iterrows():
-            mask, image, data, mask2 = row['masks'], row['images'], row['original'], row['add_symbols_mask']
+            mask, image, data, mask2 = row['masks'], row['images'], row['original'], row.get('add_mask_0')
             source_image = SourceImage.from_numpy(image)
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(source_image)
             #output.generated_mask.show()
@@ -81,22 +87,22 @@ class PCTorchPredictor(SymbolsPredictor):
             labels = np.argmax(output.prediction_result.probability_map, axis=-1)
             from scipy.special import softmax
             prob_map_softmax = softmax(output.prediction_result.probability_map, axis=-1)
-            second_mask_softmax = None
-            if output.prediction_result.other_probability_map is not None:
-                if len(output.prediction_result.other_probability_map) > 0:
-                    second_mask_softmax = softmax(np.squeeze(output.prediction_result.other_probability_map[0]), axis=-1)
+            other_probability_maps = output.prediction_result.other_probability_map or []
+            head_softmaxes = [softmax(np.squeeze(pm), axis=-1) if spec is not None else None
+                              for pm, spec in zip(other_probability_maps, self.head_specs)]
 
             m: RegionLineMaskData = data
             symbols = extract_symbols(prob_map_softmax, labels, m, dataset=dataset, min_symbol_area=-1,
                                       clef=self.settings.params.use_rule_based_post_processing and self.settings.params.use_pis_clef_correction , lookup=self.look_up,
-                                      probability=0.5, second_mask=second_mask_softmax)
+                                      probability=0.5, additional_masks=head_softmaxes, heads=self.head_specs)
 
             additional_symbols = filter_unique_symbols_by_coord(symbols,
                                                                 extract_symbols(prob_map_softmax, labels, m,
                                                                                 dataset,
                                                                                 probability=0.95,
                                                                                 clef=self.settings.params.use_rule_based_post_processing and self.settings.params.use_pis_clef_correction,
-                                                                                min_symbol_area=4, lookup=self.look_up, second_mask=second_mask_softmax))
+                                                                                min_symbol_area=4, lookup=self.look_up,
+                                                                                additional_masks=head_softmaxes, heads=self.head_specs))
 
             if self.settings.params.use_rule_based_post_processing:
                 if self.settings.params.use_block_layout_correction:

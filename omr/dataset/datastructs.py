@@ -130,7 +130,12 @@ class RegionLineMaskData:
         self.line_image = op.images[1].image if len(op.images) > 1 else op.images[0].image
         self.region = op.images[0].image
         self.mask = op.images[2].image if len(op.images) > 2 else None
-        self.mask2 = op.images[3].image if len(op.images) > 3 else None
+        # one mask per additional symbol head (see omr.imageoperations.symbol_heads)
+        self.additional_masks = [im.image for im in op.images[3:]]
+
+    @property
+    def mask2(self):
+        return self.additional_masks[0] if self.additional_masks else None
 
     def calamari_sequence(self, codec: CalamariCodec):
         return CalamariSequence(codec, self.operation.music_line.symbols)

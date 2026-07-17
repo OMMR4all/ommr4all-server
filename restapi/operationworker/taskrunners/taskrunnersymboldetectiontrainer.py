@@ -108,6 +108,7 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
             "Starting training with {} training and {} validation files".format(len(train), len(val)))
         logger.debug("Training files: {}".format([p.page.location.local_path() for p in train]))
         logger.debug("Validation files: {}".format([p.page.location.local_path() for p in val]))
+        from omr.steps.symboldetection.torchpixelclassifier.params import PageSegmentationTrainerTorchParams
         settings = AlgorithmTrainerSettings(
             train_data=train,
             validation_data=val,
@@ -121,6 +122,9 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
                 center=True,
                 staff_lines_only=True,
                 keep_graphical_connection=[True, True, True] if self.params.symbol_enable_neume_training else [True, False, True],
+            ),
+            page_segmentation_torch_params=PageSegmentationTrainerTorchParams(
+                additional_number_of_heads=1 if self.params.symbol_enable_additional_symbol_types else 0,
             ),
         )
 
