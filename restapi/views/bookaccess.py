@@ -45,7 +45,8 @@ class BookStatsView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book):
         book = DatabaseBook(book)
-        from database.tools.book_statistics import compute_book_statistics, Counts
+        from database.tools.book_statistics import Counts
+        from database.book_index import book_counts
 
         @dataclass_json
         @dataclass
@@ -54,7 +55,7 @@ class BookStatsView(APIView):
             total: int
             counts: Counts
 
-        return Response(DatasetStatisticsResult(0, 0, compute_book_statistics(book)).to_dict())
+        return Response(DatasetStatisticsResult(0, 0, book_counts(book)).to_dict())
 
 
 class BookOverviewStatsView(APIView):
@@ -189,6 +190,10 @@ class BooksImportView(APIView):
                 logger.info("Extracting imported file to {}".format(book.local_path(os.pardir)))
                 zf.extractall(book.local_path(os.pardir))
 
+                from database.book_index import safe_index_book, safe_index_documents
+                safe_index_book(book, force=True)
+                safe_index_documents(book)
+
             except Exception as e:
                 logger.exception(e)
                 return Response(status=status.HTTP_400_BAD_REQUEST)
@@ -243,19 +248,17 @@ class BooksView(APIView):
 
     def get(self, request, format=None):
         # TODO: sort by in request
-        books = DatabaseBook.list_available_book_metas_for_user(request.user, DatabaseBookPermissionFlag.READ)
+        from database.book_index import list_books_for_user
+        books = list_books_for_user(request.user, DatabaseBookPermissionFlag.READ)
         pageIndex = request.query_params.get("pageIndex", 0)
         pageSize = request.query_params.get("pageSize", len(books))  # by default all books
 
         paginatedBooks = books[pageIndex:pageIndex + pageSize]
-        import sys
-        if "torch" in sys.modules:
-            logger.info('THREAD: Torch already Loaded')
         return Response({
             'totalPages': len(books),
             'books': sorted([{
-                **book.to_dict(), **{'permissions': DatabaseBook(book.id).resolve_user_permissions(request.user).flags}
-        } for book in paginatedBooks], key=lambda b: b['name'])})
+                **meta, **{'permissions': permission_flags}
+        } for meta, permission_flags in paginatedBooks], key=lambda b: b['name'])})
 
 
 class BookDownloaderView(APIView):

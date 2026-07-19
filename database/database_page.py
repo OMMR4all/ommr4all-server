@@ -1,7 +1,6 @@
 from json import JSONDecodeError
 
 from database.database_book import DatabaseBook, file_name_validator, InvalidFileNameException, FileExistsException
-from django.core.exceptions import EmptyResultSet
 from database.database_permissions import DatabaseBookPermissionFlag
 from typing import Optional
 import os
@@ -48,19 +47,27 @@ class DatabasePage:
     def delete(self):
         if os.path.exists(self.local_path()):
             shutil.rmtree(self.local_path())
+        from database.book_index import safe_remove_page
+        safe_remove_page(self.book.book, self.page)
 
     def rename(self, new_name):
         if not file_name_validator.fullmatch(new_name):
             raise InvalidFileNameException(new_name)
 
         old_path = self.local_path()
+        old_name = self.page
         self.page = new_name
         new_path = self.local_path()
 
         if os.path.exists(new_path):
+            self.page = old_name
             raise FileExistsException(new_name, new_path)
 
         shutil.move(old_path, new_path)
+
+        from database.book_index import safe_remove_page, safe_index_page
+        safe_remove_page(self.book.book, old_name)
+        safe_index_page(self)
 
     def file(self, fileId, create_if_not_existing=False):
         from database.database_file import DatabaseFile
@@ -124,6 +131,16 @@ class DatabasePage:
             self._pcgts = PcGts.from_file(self.file('pcgts', create_if_not_existing))
         return self._pcgts
 
+    def pcgts_cached(self) -> 'PcGts':
+        """Shared read-only PcGts from the in-process cache (mtime-validated).
+
+        Only for read paths: the returned object graph is shared between requests,
+        so it must not be mutated or saved. Writers use pcgts()."""
+        if not self._pcgts:
+            from database import pcgts_cache
+            self._pcgts = pcgts_cache.get(self)
+        return self._pcgts
+
     def pcgts_from_dict(self, d: dict) -> 'PcGts':
         from database.file_formats.pcgts import PcGts
         self._pcgts = PcGts.from_json(d, self)
@@ -155,6 +172,9 @@ class DatabasePage:
         if propagate:
             self.book.mark_updated(user)
 
+        from database.book_index import safe_index_page
+        safe_index_page(self)
+
     def is_valid(self):
         if not os.path.exists(self.local_path()):
             return True
@@ -176,55 +196,54 @@ class DatabasePage:
         shutil.copytree(self.local_path(), copy_page.local_path())
         return copy_page
 
+    def _edit_lock(self):
+        from database.models.book_index import PageEditLock
+        return PageEditLock.objects \
+            .filter(page__book__name=self.book.book, page__name=self.page) \
+            .select_related('user').first()
+
     def is_locked(self):
-        lock_path = self.local_file_path('.lock')
-        if not os.path.exists(lock_path):
+        lock = self._edit_lock()
+        if lock is None:
             return False
 
-        user = open(lock_path, 'r').read()
-        from django.contrib.auth.models import User
-        try:
-            user = User.objects.get(username=user)
-            # check if locked user has sufficient permissions
-            if self.book.resolve_user_permissions(user).has(DatabaseBookPermissionFlag.WRITE):
-                return True
-            else:
-                # invalid lock, release it
-                self.release_lock()
-                return False
-        except (EmptyResultSet, User.DoesNotExist):
+        # check if locked user has sufficient permissions
+        if self.book.resolve_user_permissions(lock.user).has(DatabaseBookPermissionFlag.WRITE):
+            return True
+        else:
+            # invalid lock, release it
+            self.release_lock()
             return False
 
     def lock_user(self) -> Optional['User']:
         if not self.is_locked():
             return None
-        else:
-            lock_path = self.local_file_path('.lock')
-            with open(lock_path, 'r') as f:
-                from django.contrib.auth.models import User
-                try:
-                    return User.objects.get(username=f.read())
-                except (EmptyResultSet, User.DoesNotExist):
-                    return None
+        lock = self._edit_lock()
+        return lock.user if lock else None
 
     def is_locked_by_user(self, user: 'User'):
-        lock_path = self.local_file_path('.lock')
-        if not os.path.exists(lock_path):
+        lock = self._edit_lock()
+        if lock is None:
             return False
 
         from database.database_permissions import DatabaseBookPermissionFlag
         if not self.book.resolve_user_permissions(user).has(DatabaseBookPermissionFlag.READ_WRITE):
             return False
 
-        with open(lock_path, 'r') as f:
-            return f.read() == user.username
+        return lock.user_id == user.id
 
     def lock(self, user: 'User'):
-        lock_path = self.local_file_path('.lock')
-        with open(lock_path, 'w') as f:
-            return f.write(user.username)
+        from django.db import transaction
+        from database.book_index import index_page
+        from database.models.book_index import PageEditLock
+        with transaction.atomic():
+            row = index_page(self)
+            PageEditLock.objects.update_or_create(page=row, defaults={'user': user})
 
     def release_lock(self):
+        from database.models.book_index import PageEditLock
+        PageEditLock.objects.filter(page__book__name=self.book.book, page__name=self.page).delete()
+        # transition: also remove a leftover pre-DB lock file
         lock_path = self.local_file_path('.lock')
         if os.path.exists(lock_path):
             os.remove(lock_path)

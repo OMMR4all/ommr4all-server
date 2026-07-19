@@ -77,7 +77,7 @@ class MelodicPatternPredictor(AlgorithmPredictor):
     @classmethod
     def unprocessed(cls, page: 'DatabasePage') -> bool:
         try:
-            return len(page.pcgts().page.music_blocks()) > 0
+            return len(page.pcgts_cached().page.music_blocks()) > 0
         except Exception:
             return False
 
@@ -88,7 +88,9 @@ class MelodicPatternPredictor(AlgorithmPredictor):
         syllable_only: bool = getattr(self.params, 'syllable_only', True)
 
         for i, db_page in enumerate(pages):
-            page_data = db_page.pcgts().page
+            # cached is safe here: update_note_names() recomputes the same derived
+            # values the parser already set, nothing else is mutated
+            page_data = db_page.pcgts_cached().page
             page_data.update_note_names()
 
             staff_space = page_data.avg_staff_line_distance()

@@ -167,10 +167,15 @@ class Document:
         xlsx_data_bytes = output.getvalue()
         return xlsx_data_bytes
 
-    def get_page_line_of_document(self, book) -> List[Tuple[Line, DatabasePage]]:
+    def get_page_line_of_document(self, book, cached=True) -> List[Tuple[Line, DatabasePage]]:
         line_page_pair = []
         started = False
         pages = [DatabasePage(book, x) for x in self.pages_names]
+        if cached:
+            # read paths: prime each page with the shared cached PcGts; all later
+            # pcgts() calls on these instances reuse it. Writers pass cached=False.
+            for page in pages:
+                page.pcgts_cached()
         for page in pages:
             for line in page.pcgts().page.reading_order.reading_order:
                 if page.pcgts().page.p_id == self.end.page_id:
@@ -216,7 +221,8 @@ class Document:
 
     def update_pcgts(self, book, lines):
         pcgts_to_save = []
-        line_page_pairs = self.get_page_line_of_document(book=book)
+        # writer: works on private (uncached) PcGts instances that it may mutate and save
+        line_page_pairs = self.get_page_line_of_document(book=book, cached=False)
         for line, line_page_pair in zip(lines["lines"], line_page_pairs):
             line_page_pair[0].sentence = Sentence.from_string(line["gt"])
             pcgts_to_save.append(line_page_pair[1])
@@ -260,6 +266,6 @@ class Document:
 
         symbols = []
         for page in pages:
-            symbols.append(page.pcgts().page.get_all_music_symbols_of_page())
+            symbols.append(page.pcgts_cached().page.get_all_music_symbols_of_page())
         return symbols
 

@@ -48,6 +48,8 @@ class PcGts:
             s = json.dumps(self.to_json(), indent=2)
             with open(filename, 'w') as f:
                 f.write(s)
+            from database import pcgts_cache
+            pcgts_cache.invalidate(filename)
         else:
             raise Exception("Invalid file extension of file '{}'".format(filename))
 

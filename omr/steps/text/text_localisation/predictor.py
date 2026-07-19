@@ -65,7 +65,8 @@ class Result(NamedTuple, AlgorithmPredictionResult, metaclass=ResultMeta):
 
     def store_to_page(self):
         for doc in self.documents:
-            lines = doc.document.get_page_line_of_document(book=doc.book)
+            # writer: mutates the lines and saves the pcgts, so no shared cache
+            lines = doc.document.get_page_line_of_document(book=doc.book, cached=False)
             matched_lines = doc.matched_document.split("\n")
             for line_ind, line in enumerate(lines):
                 line, page = line

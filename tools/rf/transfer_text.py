@@ -37,7 +37,8 @@ if __name__ == '__main__':
             docs2 = documents.database_documents.get_document_by_id(i)
             pages = []
             first = True
-            for pairs in zip(docs2.get_page_line_of_document(book), docs2.get_page_line_of_document(book2)):
+            # book is mutated and saved below, so its pcgts must not come from the shared cache
+            for pairs in zip(docs2.get_page_line_of_document(book, cached=False), docs2.get_page_line_of_document(book2)):
 
                 pair = pairs[0]
                 pair2 = pairs[1]

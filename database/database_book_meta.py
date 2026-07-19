@@ -96,6 +96,8 @@ class DatabaseBookMeta(DataClassJSONMixin):
         s = self.to_json()
         with open(book.local_path('book_meta.json'), 'w') as f:
             f.write(s)
+        from database.book_index import safe_index_book_meta
+        safe_index_book_meta(book)
 
 
 if __name__ == '__main__':

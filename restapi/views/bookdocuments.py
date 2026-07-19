@@ -65,11 +65,12 @@ class BookDocumentsView(APIView):
     def get(self, request, book):
         book = DatabaseBook(book)
 
-        def documents_of_book(b):
-            d_b = DatabaseBookDocuments.update_book_documents_cached(b)
-            return d_b.to_json()
-
-        data = documents_of_book(book)
+        # served straight from the index when provably fresh; anything stale falls
+        # back to the incremental update (which refreshes the index via to_file)
+        from database.book_index import get_documents_json
+        data = get_documents_json(book)
+        if data is None:
+            data = DatabaseBookDocuments.update_book_documents_cached(book).to_json()
         return Response(data)
 
     @require_permissions([DatabaseBookPermissionFlag.SAVE])
@@ -94,9 +95,12 @@ class BookPageDocumentsUpdateView(APIView):
 
         # The incremental update only reparses changed pages, so updating the whole
         # book is as cheap as the former single-page update (and far more robust).
-        d_b = DatabaseBookDocuments.update_book_documents_cached(book)
+        from database.book_index import get_documents_json
+        data = get_documents_json(book)
+        if data is None:
+            data = DatabaseBookDocuments.update_book_documents_cached(book).to_json()
 
-        return Response(d_b.to_json())
+        return Response(data)
 
 
 class BookDocumentsOdsView(APIView):

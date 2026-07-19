@@ -111,6 +111,11 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        # web workers and spawned task processes write the book index concurrently;
+        # wait out short write locks instead of failing immediately
+        'OPTIONS': {
+            'timeout': 20,
+        },
     }
 }
 

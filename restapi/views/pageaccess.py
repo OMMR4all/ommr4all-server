@@ -85,7 +85,7 @@ class PageSVGView(APIView):
         # with PerformanceCounter(function_name="pcgts"):
         file = DatabaseFile(page, 'pcgts', create_if_not_existing=True)
         # with PerformanceCounter(function_name="monodi_conversion"):
-        root = PcgtsToMonodiConverter([file.page.pcgts()]).root
+        root = PcgtsToMonodiConverter([file.page.pcgts_cached()]).root
         script_path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'monodi_svg_render', 'bin', 'one-shot')
         # proc = subprocess.run([script_path, "-", "-w", width], input=str(json.dumps(root.to_json())),
         #                      capture_output=True, text=True)
@@ -106,7 +106,7 @@ class PageMidiView(APIView):
         book = DatabaseBook(book)
         page = DatabasePage(book, page)
         file = DatabaseFile(page, 'pcgts', create_if_not_existing=True)
-        midi = SimpleMidiExporter([file.page.pcgts()])
+        midi = SimpleMidiExporter([file.page.pcgts_cached()])
         seq = midi.generate_note_sequence()
         return Response(seq)
 

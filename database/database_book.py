@@ -77,6 +77,10 @@ class DatabaseBook:
         pages = [DatabasePage(self, p) for p in sorted(os.listdir(self.local_path('pages')))]
 
         if load_pcgts:
+            # forked children must not inherit the SQLite connection or the
+            # shared pcgts cache; they load uncached and re-connect lazily
+            from django.db import connections
+            connections.close_all()
 
             with Pool() as p:
                 pages = list(p.map(load_pcgts_func, iterable=pages))
@@ -84,6 +88,13 @@ class DatabaseBook:
         return [p for p in pages if p.is_valid()]
 
     def pages_with_lock(self, locks: List['LockState']) -> List['DatabasePage']:
+        try:
+            from database.book_index import pages_with_lock
+            return pages_with_lock(self, locks)
+        except Exception as e:
+            logger.warning('Page index unavailable for {}, scanning page_progress files'.format(self.book))
+            logger.exception(e)
+
         from database.file_formats.performance.pageprogress import Locks
         out = []
         for p in self.pages():
@@ -145,6 +156,8 @@ class DatabaseBook:
     def delete(self):
         if os.path.exists(self.local_path()):
             shutil.rmtree(self.local_path())
+        from database.book_index import safe_remove_book
+        safe_remove_book(self.book)
 
     def get_meta(self):
         from database.database_book_meta import DatabaseBookMeta

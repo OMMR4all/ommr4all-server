@@ -449,8 +449,9 @@ class BookOverviewStatsTests(APITestCase):
         self.assertGreaterEqual(stats['pagesWithSymbols'], 0)
         self.assertGreaterEqual(stats['verified'], 0)
 
-        # cache file was created and a second (cached) request yields the same result
-        self.assertTrue(os.path.exists(self.cache_path))
+        # a second (index-cached) request yields the same result; the legacy cache
+        # file is not written anymore
+        self.assertFalse(os.path.exists(self.cache_path))
         self.assertEqual(stats, self._get_stats())
 
     def test_overview_stats_cache_invalidation(self):

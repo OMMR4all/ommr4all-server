@@ -32,13 +32,35 @@ class Callback(ABC):
 
 def compute_books_statistics(books: List[DatabaseBook], ignore_page: List[str] = None, callback: Callback = None) -> Counts:
     ignore_page = ignore_page if ignore_page else []
-    pages = sum([[page.pcgts() for page in book.pages() if not any([s in page.page for s in ignore_page])] for book in books], [])
+    pages = sum([[page.pcgts_cached() for page in book.pages() if not any([s in page.page for s in ignore_page])] for book in books], [])
     #pages = [p for p in pages if p.dataset_page().page_progress().verified_allowed()]
     return get_counts(pages, callback)
 
 
 def compute_book_statistics(book: DatabaseBook, ignore_page: List[str] = None, callback: Callback = None) -> Counts:
     return compute_books_statistics([book], ignore_page, callback)
+
+
+def count_page(pcgts: PcGts, counts: Counts = None) -> Counts:
+    counts = counts if counts is not None else Counts()
+    p = pcgts.page
+    counts.n_pages += 1
+    mls = p.all_music_lines()
+    counts.n_staves += len(mls)
+    for ml in mls:
+        counts.n_staff_lines += len(ml.staff_lines)
+        counts.n_symbols += len(ml.symbols)
+        counts.n_note_components += len([s for s in ml.symbols if s.symbol_type == SymbolType.NOTE])
+        counts.n_clefs += len([s for s in ml.symbols if s.symbol_type == SymbolType.CLEF])
+        counts.n_accids += len([s for s in ml.symbols if s.symbol_type == SymbolType.ACCID])
+    tls = p.all_text_lines()
+    for tl in tls:
+        counts.n_syllabels += len(tl.sentence.syllables)
+        counts.n_chars += len(tl.text())
+        counts.n_words += len(tl.text().split(" "))
+
+    counts.n_drop_capitals += len(p.blocks_of_type(BlockType.DROP_CAPITAL))
+    return counts
 
 
 def get_counts(pages: List[PcGts], callback: Callback = None) -> Counts:
@@ -49,28 +71,7 @@ def get_counts(pages: List[PcGts], callback: Callback = None) -> Counts:
         callback.updated(counts, 0, len(pages))
 
     for i, pcgts in enumerate(pages):
-        p = pcgts.page
-        counts.n_pages += 1
-        mls = p.all_music_lines()
-        counts.n_staves += len(mls)
-        for ml in mls:
-            counts.n_staff_lines += len(ml.staff_lines)
-            counts.n_symbols += len(ml.symbols)
-            counts.n_note_components += len([s for s in ml.symbols if s.symbol_type == SymbolType.NOTE])
-            counts.n_clefs += len([s for s in ml.symbols if s.symbol_type == SymbolType.CLEF])
-            counts.n_accids += len([s for s in ml.symbols if s.symbol_type == SymbolType.ACCID])
-            if  len([s for s in ml.symbols if s.symbol_type == SymbolType.ACCID]) > 0:
-                print(pcgts.page.location.local_path())
-                for s in ml.symbols:
-                    if s.symbol_type == SymbolType.ACCID:
-                        print(s.accid_type)
-        tls = p.all_text_lines()
-        for tl in tls:
-            counts.n_syllabels += len(tl.sentence.syllables)
-            counts.n_chars += len(tl.text())
-            counts.n_words += len(tl.text().split(" "))
-
-        counts.n_drop_capitals += len(p.blocks_of_type(BlockType.DROP_CAPITAL))
+        count_page(pcgts, counts)
 
         if callback:
             callback.updated(counts, i + 1, len(pages))

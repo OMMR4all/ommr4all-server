@@ -61,7 +61,7 @@ class PageDocumentFragment:
 
     @staticmethod
     def extract(db_page: DatabasePage, mtime: float) -> 'PageDocumentFragment':
-        page = db_page.pcgts().page
+        page = db_page.pcgts_cached().page
         all_text_lines = page.all_text_lines()
         return PageDocumentFragment(
             page_name=db_page.page,
@@ -145,6 +145,8 @@ class DatabaseBookDocuments:
         with open(book.local_path('book_documents.json'), 'w') as f:
             js = json.dumps(s, indent=2)
             f.write(js)
+        from database.book_index import safe_index_documents
+        safe_index_documents(book)
 
     @staticmethod
     def from_json(json: dict):
