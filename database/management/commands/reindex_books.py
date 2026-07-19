@@ -22,6 +22,9 @@ class Command(BaseCommand):
                             help='Keep index rows of books/pages whose folders no longer exist')
         parser.add_argument('--import-locks', action='store_true',
                             help='Convert legacy .lock files of pages into DB edit locks and delete them')
+        parser.add_argument('--warm-counts', action='store_true',
+                            help='Also precompute the per-page symbol/line counts so the first '
+                                 'stats request of a freshly indexed book is served warm')
         parser.add_argument('--dry-run', action='store_true',
                             help='Only print what would be done')
 
@@ -68,6 +71,10 @@ class Command(BaseCommand):
         if options['import_locks']:
             self._import_locks(book, book_row)
 
+        if options['warm_counts']:
+            from database.book_index import book_counts
+            book_counts(book)  # computes and stores counts of every changed page
+
         self.stdout.write('{}: {} page(s) indexed'.format(book.book, n_pages))
 
     @staticmethod
@@ -84,16 +91,25 @@ class Command(BaseCommand):
         return {}
 
     @staticmethod
-    def _seed_page_row(book_row: BookIndex, page, seed: dict):
+    def _legacy_mtime(path: str) -> float:
+        # legacy book_overview_stats_cache.json stored float-second mtimes
+        try:
+            return os.path.getmtime(path)
+        except OSError:
+            return 0.0
+
+    @classmethod
+    def _seed_page_row(cls, book_row: BookIndex, page, seed: dict):
         """Pre-create the page row from a matching legacy cache entry so index_page's
         mtime check succeeds without opening pcgts.json."""
         entry = seed.get(page.page)
         if not entry:
             return
+        if entry.get('pcgts_mtime') != cls._legacy_mtime(page.local_file_path('pcgts.json')) \
+                or entry.get('progress_mtime') != cls._legacy_mtime(page.local_file_path('page_progress.json')):
+            return
         pcgts_mtime = _mtime(page.local_file_path('pcgts.json'))
         progress_mtime = _mtime(page.local_file_path('page_progress.json'))
-        if entry.get('pcgts_mtime') != pcgts_mtime or entry.get('progress_mtime') != progress_mtime:
-            return
         if PageIndex.objects.filter(book=book_row, name=page.page).exists():
             return
         PageIndex.objects.create(

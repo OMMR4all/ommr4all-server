@@ -119,6 +119,10 @@ DATABASES = {
     }
 }
 
+# Page edit locks older than this many hours count as abandoned and are released
+# lazily on access (and in bulk by `manage.py release_stale_locks`). 0 disables expiry.
+PAGE_EDIT_LOCK_TTL_HOURS = 12
+
 
 # Password validation
 # https://docs.djangoproject.com/en/2.1/ref/settings/#auth-password-validators

@@ -10,6 +10,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def edit_lock_is_stale(lock) -> bool:
+    """A PageEditLock older than settings.PAGE_EDIT_LOCK_TTL_HOURS (0 disables)."""
+    from datetime import timedelta
+    from django.conf import settings
+    from django.utils import timezone
+    ttl_hours = getattr(settings, 'PAGE_EDIT_LOCK_TTL_HOURS', 12)
+    if not ttl_hours:
+        return False
+    return lock.acquired_at < timezone.now() - timedelta(hours=ttl_hours)
+
 if TYPE_CHECKING:
     from django.contrib.auth.models import User
     from database.file_formats.pcgts import PcGts
@@ -45,6 +56,8 @@ class DatabasePage:
         return os.path.isdir(self.local_path())
 
     def delete(self):
+        from database import pcgts_cache
+        pcgts_cache.invalidate(self.local_file_path('pcgts.json'))
         if os.path.exists(self.local_path()):
             shutil.rmtree(self.local_path())
         from database.book_index import safe_remove_page
@@ -62,6 +75,9 @@ class DatabasePage:
         if os.path.exists(new_path):
             self.page = old_name
             raise FileExistsException(new_name, new_path)
+
+        from database import pcgts_cache
+        pcgts_cache.invalidate(os.path.join(old_path, 'pcgts.json'))
 
         shutil.move(old_path, new_path)
 
@@ -198,9 +214,14 @@ class DatabasePage:
 
     def _edit_lock(self):
         from database.models.book_index import PageEditLock
-        return PageEditLock.objects \
+        lock = PageEditLock.objects \
             .filter(page__book__name=self.book.book, page__name=self.page) \
             .select_related('user').first()
+        if lock is not None and edit_lock_is_stale(lock):
+            # abandoned session (browser crash, closed tab): auto-expire
+            lock.delete()
+            return None
+        return lock
 
     def is_locked(self):
         lock = self._edit_lock()

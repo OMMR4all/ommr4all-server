@@ -480,6 +480,34 @@ class BookOverviewStatsTests(APITestCase):
         response = client.get('/api/book/demo/overview_stats')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
 
+    def test_overview_stats_etag_304(self):
+        response = self.client.get('/api/book/demo/overview_stats', format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        etag = response['ETag']
+        self.assertTrue(etag)
+        response = self.client.get('/api/book/demo/overview_stats', format='json', HTTP_IF_NONE_MATCH=etag)
+        self.assertEqual(response.status_code, status.HTTP_304_NOT_MODIFIED)
+        self.assertEqual(response['ETag'], etag)
+
+    def test_books_overview_stats_batch(self):
+        single = self._get_stats()
+        response = self.client.get('/api/books/overview_stats', format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        data = json.loads(response.content)
+        self.assertIn('demo', data)
+        self.assertEqual(data['demo'], single)
+
+        # conditional re-request is served as 304 without a body
+        etag = response['ETag']
+        response = self.client.get('/api/books/overview_stats', format='json', HTTP_IF_NONE_MATCH=etag)
+        self.assertEqual(response.status_code, status.HTTP_304_NOT_MODIFIED)
+
+    def test_books_overview_stats_batch_anonymous_excludes_unreadable(self):
+        client = Client()
+        response = client.get('/api/books/overview_stats')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        self.assertNotIn('demo', json.loads(response.content))
+
     def test_updated_in_book_list_and_bumped(self):
         original_meta = self._read_file_or_none(self.meta_path)
         try:

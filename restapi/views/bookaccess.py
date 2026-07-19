@@ -58,13 +58,42 @@ class BookStatsView(APIView):
         return Response(DatasetStatisticsResult(0, 0, book_counts(book)).to_dict())
 
 
+def etag_response(request, payload) -> Response:
+    """Response with a content-derived ETag; 304 without a body when the client's
+    If-None-Match still matches. The stats are recomputed either way (they are
+    cheap after the index sync), but polling clients skip transfer and re-render."""
+    import hashlib
+    etag = '"{}"'.format(hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()[:32])
+    if_none_match = [t.strip() for t in request.headers.get('If-None-Match', '').split(',') if t.strip()]
+    if etag in if_none_match:
+        return Response(status=status.HTTP_304_NOT_MODIFIED, headers={'ETag': etag})
+    return Response(payload, headers={'ETag': etag})
+
+
 class BookOverviewStatsView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book):
         from database.tools.book_overview_stats import compute_overview_stats
-        return Response(compute_overview_stats(DatabaseBook(book)))
+        return etag_response(request, compute_overview_stats(DatabaseBook(book)))
+
+
+class BooksOverviewStatsView(APIView):
+    """Aggregated overview stats of every readable book in a single request
+    (the client's books table needs one call instead of one per book)."""
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get(self, request):
+        from database.book_index import list_books_synced
+        from database.tools.book_overview_stats import compute_overview_stats
+        stats = {}
+        for row in list_books_synced():
+            db_book = DatabaseBook(row.name)
+            if db_book.resolve_user_permissions(request.user).has(DatabaseBookPermissionFlag.READ):
+                stats[row.name] = compute_overview_stats(db_book)
+        return etag_response(request, stats)
 
 
 class BookMetaView(APIView):
@@ -250,10 +279,10 @@ class BooksView(APIView):
         # TODO: sort by in request
         from database.book_index import list_books_for_user
         books = list_books_for_user(request.user, DatabaseBookPermissionFlag.READ)
-        pageIndex = request.query_params.get("pageIndex", 0)
-        pageSize = request.query_params.get("pageSize", len(books))  # by default all books
+        pageIndex = int(request.query_params.get("pageIndex", 0))
+        pageSize = int(request.query_params.get("pageSize", len(books)))  # by default all books
 
-        paginatedBooks = books[pageIndex:pageIndex + pageSize]
+        paginatedBooks = books[pageIndex * pageSize:pageIndex * pageSize + pageSize] if pageSize else books
         return Response({
             'totalPages': len(books),
             'books': sorted([{

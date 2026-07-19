@@ -170,3 +170,67 @@ class BookIndexTestCase(APITestCase):
         pcgts_cache.invalidate(path)
         fourth = pcgts_cache.get(self.book.page('page00000001'))
         self.assertIsNot(third, fourth)
+
+    def test_rename_invalidates_pcgts_cache(self):
+        page = self.book.page('page00000001')
+        old_path = page.local_file_path('pcgts.json')
+        pcgts_cache.clear()
+        pcgts_cache.get(page)
+        self.assertIn(old_path, pcgts_cache._cache)
+        page.rename('page_cache_rename_tmp')
+        try:
+            self.assertNotIn(old_path, pcgts_cache._cache)
+        finally:
+            page.rename('page00000001')
+
+    def test_delete_invalidates_pcgts_cache(self):
+        import shutil
+        page = self.book.page('page_cache_delete_tmp')
+        shutil.copytree(self.book.page('page00000001').local_path(), page.local_path())
+        try:
+            pcgts_cache.clear()
+            pcgts_cache.get(page)
+            path = page.local_file_path('pcgts.json')
+            self.assertIn(path, pcgts_cache._cache)
+        finally:
+            page.delete()
+        self.assertNotIn(page.local_file_path('pcgts.json'), pcgts_cache._cache)
+
+    def test_book_meta_write_is_atomic_and_clean(self):
+        meta = self.book.get_meta()
+        meta.to_file(self.book)
+        leftovers = [f for f in os.listdir(self.book.local_path()) if f.endswith('.tmp')]
+        self.assertEqual(leftovers, [])
+        with open(self.book.local_path('book_meta.json')) as f:
+            json.load(f)  # complete, valid JSON
+
+    def test_stale_lock_auto_expires_on_access(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        page = self.book.page('page_test_lock')
+        user = User.objects.get(username='user')
+        page.lock(user)
+        self.assertTrue(page.is_locked())
+        PageEditLock.objects.filter(page__book__name='demo', page__name='page_test_lock') \
+            .update(acquired_at=timezone.now() - timedelta(hours=13))
+        self.assertFalse(page.is_locked())
+        self.assertFalse(PageEditLock.objects.filter(page__book__name='demo', page__name='page_test_lock').exists())
+
+    def test_release_stale_locks_command(self):
+        from datetime import timedelta
+        from django.core.management import call_command
+        from django.utils import timezone
+        user = User.objects.get(username='user')
+        stale_page = self.book.page('page_test_lock')
+        fresh_page = self.book.page('page00000001')
+        stale_page.lock(user)
+        fresh_page.lock(user)
+        PageEditLock.objects.filter(page__name='page_test_lock') \
+            .update(acquired_at=timezone.now() - timedelta(hours=13))
+        try:
+            call_command('release_stale_locks')
+            self.assertFalse(PageEditLock.objects.filter(page__name='page_test_lock').exists())
+            self.assertTrue(PageEditLock.objects.filter(page__name='page00000001').exists())
+        finally:
+            stale_page.release_lock()
+            fresh_page.release_lock()

@@ -23,11 +23,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _mtime(path: str) -> float:
+# sentinel for "caller already looked the row up" (None means "no row exists")
+_UNSET = object()
+
+
+def _mtime(path: str) -> int:
+    """File mtime in integer nanoseconds (0 = file absent).
+
+    Nanosecond resolution matches pcgts_cache: two writes within the same second
+    must not leave the index stale (float seconds would miss the second one)."""
     try:
-        return os.path.getmtime(path)
+        return os.stat(path).st_mtime_ns
     except OSError:
-        return 0.0
+        return 0
 
 
 def _pcgts_has_symbols(path: str) -> bool:
@@ -95,15 +103,19 @@ def index_book_meta(db_book: 'DatabaseBook') -> BookIndex:
     return row
 
 
-def index_page(db_page: 'DatabasePage', book_row: Optional[BookIndex] = None, force=False) -> PageIndex:
-    """Upsert the PageIndex row; content is only rescanned when an mtime changed."""
+def index_page(db_page: 'DatabasePage', book_row: Optional[BookIndex] = None, force=False, row=_UNSET) -> PageIndex:
+    """Upsert the PageIndex row; content is only rescanned when an mtime changed.
+
+    Pass `row` (a PageIndex or None) when the caller already fetched the book's
+    rows in bulk — this skips the per-page SELECT entirely."""
     if book_row is None:
         book_row = index_book_meta(db_page.book)
 
     pcgts_mtime = _mtime(db_page.local_file_path('pcgts.json'))
     progress_mtime = _mtime(db_page.local_file_path('page_progress.json'))
 
-    row = PageIndex.objects.filter(book=book_row, name=db_page.page).first()
+    if row is _UNSET:
+        row = PageIndex.objects.filter(book=book_row, name=db_page.page).first()
     if row is not None and not force \
             and row.pcgts_mtime == pcgts_mtime and row.progress_mtime == progress_mtime:
         return row
@@ -115,7 +127,7 @@ def index_page(db_page: 'DatabasePage', book_row: Optional[BookIndex] = None, fo
     if row is None or force or row.pcgts_mtime != pcgts_mtime:
         defaults['has_symbols'] = pcgts_mtime > 0 and _pcgts_has_symbols(db_page.local_file_path('pcgts.json'))
         defaults['counts'] = None
-        defaults['counts_mtime'] = 0.0
+        defaults['counts_mtime'] = 0
 
     if row is None or force or row.progress_mtime != progress_mtime:
         locked = {l.value: False for l in Locks}
@@ -134,12 +146,15 @@ def index_page(db_page: 'DatabasePage', book_row: Optional[BookIndex] = None, fo
 def index_book(db_book: 'DatabaseBook', prune=True, force=False) -> BookIndex:
     """Upsert the book row and all of its page rows; prune rows of vanished pages."""
     book_row = index_book_meta(db_book)
+    existing = {row.name: row for row in book_row.pages.all()}
     page_names = []
     for db_page in db_book.pages():
         page_names.append(db_page.page)
-        index_page(db_page, book_row=book_row, force=force)
+        index_page(db_page, book_row=book_row, force=force, row=existing.get(db_page.page))
     if prune:
-        book_row.pages.exclude(name__in=page_names).delete()
+        stale = set(existing) - set(page_names)
+        if stale:
+            book_row.pages.filter(name__in=stale).delete()
     return book_row
 
 
@@ -217,14 +232,20 @@ def list_books_for_user(user, flag) -> list:
 
 
 def sync_book_pages(db_book: 'DatabaseBook') -> list:
-    """Stat-validated PageIndex rows of the book, in page order (pruned)."""
+    """Stat-validated PageIndex rows of the book, in page order (pruned).
+
+    All existing rows are fetched in one query; unchanged pages (the common case)
+    cause no further DB access, so a synced book costs 1 query + 2 stats/page."""
     book_row = index_book_meta(db_book)
+    existing = {row.name: row for row in book_row.pages.all()}
     rows = []
     page_names = []
     for db_page in db_book.pages():
         page_names.append(db_page.page)
-        rows.append(index_page(db_page, book_row=book_row))
-    book_row.pages.exclude(name__in=page_names).delete()
+        rows.append(index_page(db_page, book_row=book_row, row=existing.get(db_page.page)))
+    stale = set(existing) - set(page_names)
+    if stale:
+        book_row.pages.filter(name__in=stale).delete()
     return rows
 
 
@@ -281,7 +302,12 @@ def get_documents_json(db_book: 'DatabaseBook') -> Optional[dict]:
     page_names = []
     for db_page in db_book.pages():
         page_names.append(db_page.page)
-        mtime = _mtime(db_page.local_file_path('pcgts.json'))
+        # fragment mtimes are part of the book_documents.json file format and are
+        # written as float seconds (os.path.getmtime) — compare in the same unit
+        try:
+            mtime = os.path.getmtime(db_page.local_file_path('pcgts.json'))
+        except OSError:
+            mtime = 0
         if mtime == 0 or fragment_mtimes.get(db_page.page) != mtime:
             return None
     if len(page_names) != len(fragment_mtimes):

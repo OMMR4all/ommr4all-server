@@ -92,10 +92,23 @@ class DatabaseBookMeta(DataClassJSONMixin):
         return meta
 
     def to_file(self, book: DatabaseBook):
+        import tempfile
         self.id = book.book
         s = self.to_json()
-        with open(book.local_path('book_meta.json'), 'w') as f:
-            f.write(s)
+        path = book.local_path('book_meta.json')
+        # atomic replace: concurrent page saves of the same book both bump the meta,
+        # a reader must never observe a partially written file
+        fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path), prefix='.book_meta.', suffix='.tmp')
+        try:
+            with os.fdopen(fd, 'w') as f:
+                f.write(s)
+            os.replace(tmp_path, path)
+        except BaseException:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            raise
         from database.book_index import safe_index_book_meta
         safe_index_book_meta(book)
 

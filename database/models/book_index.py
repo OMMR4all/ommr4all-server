@@ -11,7 +11,7 @@ class BookIndex(models.Model):
     """
     name = models.CharField(max_length=255, primary_key=True)
     meta = models.JSONField(default=dict)
-    meta_mtime = models.FloatField(default=0.0)
+    meta_mtime = models.BigIntegerField(default=0)  # st_mtime_ns
 
     # denormalized from `meta` for listing/sorting without JSON access
     display_name = models.CharField(max_length=255, blank=True, default='')
@@ -29,8 +29,8 @@ class PageIndex(models.Model):
     book = models.ForeignKey(BookIndex, on_delete=models.CASCADE, related_name='pages')
     name = models.CharField(max_length=255)
 
-    pcgts_mtime = models.FloatField(default=0.0)      # 0.0 = file absent
-    progress_mtime = models.FloatField(default=0.0)
+    pcgts_mtime = models.BigIntegerField(default=0)   # st_mtime_ns; 0 = file absent
+    progress_mtime = models.BigIntegerField(default=0)
 
     has_symbols = models.BooleanField(default=False)
     verified = models.BooleanField(default=False)
@@ -39,7 +39,7 @@ class PageIndex(models.Model):
 
     # lazily computed symbol/line counts for BookStatsView; null = not yet computed
     counts = models.JSONField(null=True, blank=True)
-    counts_mtime = models.FloatField(default=0.0)
+    counts_mtime = models.BigIntegerField(default=0)
 
     class Meta:
         unique_together = [('book', 'name')]
@@ -50,7 +50,7 @@ class BookDocumentsIndex(models.Model):
     """Parse-avoiding mirror of book_documents.json (which stays the file of record)."""
     book = models.OneToOneField(BookIndex, on_delete=models.CASCADE, related_name='documents_index')
     documents = models.JSONField(null=True)
-    file_mtime = models.FloatField(default=0.0)
+    file_mtime = models.BigIntegerField(default=0)    # st_mtime_ns
 
 
 class PageEditLock(models.Model):

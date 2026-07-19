@@ -1,6 +1,6 @@
 from django.urls import path, re_path
 
-from restapi.views.bookaccess import BooksImportView, BookStatsView, BookOverviewStatsView
+from restapi.views.bookaccess import BooksImportView, BookStatsView, BookOverviewStatsView, BooksOverviewStatsView
 from django.http import HttpResponse
 
 from restapi.views.operation import OperationStatusView, OperationView, OperationTaskView
@@ -133,5 +133,6 @@ urlpatterns = \
 
         # all books
         path('books/import', BooksImportView.as_view()),
+        path('books/overview_stats', BooksOverviewStatsView.as_view(), name='books_overview_stats'),
         path('books', BooksView.as_view(), name='books'),
     ]
