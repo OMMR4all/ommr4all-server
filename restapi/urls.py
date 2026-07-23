@@ -22,7 +22,7 @@ from restapi.views.pageaccess import PageRenameView, PageProgressVerifyView, Pag
 from restapi.views.user import UserBookPermissionsView
 from restapi.views.bookstyles import BookStyleView, BookStylesView
 from restapi.views.administrativedefaultmodels import AdministrativeDefaultModelsView
-from restapi.views.tasks import TasksView, TaskView
+from restapi.views.tasks import TasksView, TaskView, BookTasksView
 from restapi.views.llmproviders import LLMProvidersView
 from restapi.views.workerresources import OperationWorkerResourcesView
 from rest_framework_simplejwt.views import (
@@ -100,6 +100,7 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/meta$', BookMetaView.as_view()),
         re_path(r'^book/(?P<book>\w+)/stats$', BookStatsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/overview_stats$', BookOverviewStatsView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/tasks$', BookTasksView.as_view()),
         re_path(r'^book/(?P<book>\w+)/upload/$', BookUploadView.as_view()),
         re_path(r'^book/(?P<book>\w+)/virtual_keyboard/$', BookVirtualKeyboardView.as_view()),
         re_path(r'^book/(?P<book>\w+)/rename_pages/$', BookRenamePagesView.as_view()),
