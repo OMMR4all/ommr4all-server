@@ -32,6 +32,30 @@ class SleepyTaskRunner(TaskRunner):
 
 
 class TestSkeduler(unittest.TestCase):
+    def _status_is(self, worker, task_id, code) -> bool:
+        try:
+            return worker.status(task_id).code == code
+        except TaskNotFoundException:
+            return False
+
+    def _wait_until(self, predicate, timeout=30.0, interval=0.05):
+        """Poll until predicate() is true, or fail after timeout seconds.
+
+        Task workers are spawned (a fresh interpreter that runs django.setup()
+        before executing the task body), so the wall-clock delay between queuing
+        a task and it actually running/finishing is dominated by process startup
+        and varies widely between machines. Waiting for the expected state keeps
+        this test fast on quick machines and robust on slow CI runners, instead
+        of relying on fixed sleeps that assume a particular startup speed.
+        """
+        end = time.time() + timeout
+        while time.time() < end:
+            if predicate():
+                return
+            time.sleep(interval)
+        # final evaluation so the caller's assertion reports the real state
+        self.assertTrue(predicate())
+
     def test_skeduler(self):
         user = None
         default_resources: Resources = Resources([
@@ -46,14 +70,13 @@ class TestSkeduler(unittest.TestCase):
         full_gpu_tasks = [SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU], 8) for i in range(3)]
         full_gpu_task_ids = [worker.put(task, user) for task in full_gpu_tasks]
 
-        time.sleep(0.5)
-        self.assertEqual(3, worker.resources.n_used())
-        
-        # all gpu tasks must run
+        # all gpu tasks must run (resources are marked used synchronously by the
+        # task creator when it schedules a task, independent of worker startup)
         for task in full_gpu_task_ids:
-            self.assertEqual(worker.status(task).code, TaskStatusCodes.RUNNING)
+            self._wait_until(lambda t=task: self._status_is(worker, t, TaskStatusCodes.RUNNING))
+        self.assertEqual(3, worker.resources.n_used())
 
-        # add two other ones, which must be queued
+        # add another one, which must be queued (no free gpu resource)
         queued_task = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU], 2), user)
         time.sleep(0.5)
         self.assertEqual(3, worker.resources.n_used())
@@ -61,33 +84,31 @@ class TestSkeduler(unittest.TestCase):
 
         # cancel one job, then the queued task must run
         worker.stop(full_gpu_task_ids[0])
-        time.sleep(0.5)
+        self._wait_until(lambda: self._status_is(worker, queued_task, TaskStatusCodes.RUNNING))
         self.assertEqual(3, worker.resources.n_used())
-        self.assertEqual(worker.status(queued_task).code, TaskStatusCodes.RUNNING)
         with self.assertRaises(TaskNotFoundException):
             worker.status(full_gpu_task_ids[0])
 
         # add a job that can also run on CPU, this must be skeduled aswell
-        job_id = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU, TaskWorkerGroup.LONG_TASKS_CPU], 8), user)
-        time.sleep(0.5)
+        cpu_job_id = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU, TaskWorkerGroup.LONG_TASKS_CPU], 8), user)
+        self._wait_until(lambda: self._status_is(worker, cpu_job_id, TaskStatusCodes.RUNNING))
         self.assertEqual(4, worker.resources.n_used())
-        self.assertEqual(worker.status(job_id).code, TaskStatusCodes.RUNNING)
 
-        # add a new queued job to GPU, this must be queued until old queued job stops
-        job_id = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU], 8), user)
+        # add a new queued job to GPU, this must be queued until the 2s job stops
+        gpu_job_id = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU], 8), user)
         time.sleep(0.5)
         self.assertEqual(4, worker.resources.n_used())
-        self.assertEqual(worker.status(job_id).code, TaskStatusCodes.QUEUED)
-        # wait 2 secs for the first job to stop, then the job must run
-        time.sleep(2)
+        self.assertEqual(worker.status(gpu_job_id).code, TaskStatusCodes.QUEUED)
+
+        # once the 2s job finishes it frees a gpu, then the queued job must run
+        self._wait_until(lambda: self._status_is(worker, gpu_job_id, TaskStatusCodes.RUNNING))
         self.assertEqual(4, worker.resources.n_used())
-        self.assertEqual(worker.status(job_id).code, TaskStatusCodes.RUNNING)
-        # and the other job must be marked as finished
+        # and the other job must be marked as finished (finished strictly before
+        # the gpu it freed was handed to gpu_job_id above)
         self.assertEqual(worker.status(queued_task).code, TaskStatusCodes.FINISHED)
-        
-        # wait for all jobs to stop
-        time.sleep(10)
-        self.assertEqual(0, worker.resources.n_used())
+
+        # wait for all remaining jobs to stop
+        self._wait_until(lambda: worker.resources.n_used() == 0)
 
 
 if __name__ == '__main__':
