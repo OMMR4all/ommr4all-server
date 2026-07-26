@@ -102,6 +102,10 @@ class DatabaseBookMeta(DataClassJSONMixin):
         try:
             with os.fdopen(fd, 'w') as f:
                 f.write(s)
+            # mkstemp creates the file 0600 and os.replace preserves that, so without
+            # this a saved book_meta.json becomes unreadable to every other user —
+            # e.g. the Apache worker (www-data), which then 500s on the book list.
+            os.chmod(tmp_path, 0o644)
             os.replace(tmp_path, path)
         except BaseException:
             try:

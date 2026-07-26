@@ -110,7 +110,10 @@ else:
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        # overridable via environment (like PRIVATE_MEDIA_ROOT below) so the
+        # deployment can place the SQLite file outside the checkout, e.g. on a
+        # mounted volume in Docker
+        'NAME': os.environ.get('OMMR4ALL_DB_PATH', os.path.join(BASE_DIR, 'db.sqlite3')),
         # web workers and spawned task processes write the book index concurrently;
         # wait out short write locks instead of failing immediately
         'OPTIONS': {
