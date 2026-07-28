@@ -46,7 +46,9 @@ dependencies = [
     "six>=1.17.0",
     "symspellpy>=6.9.0",
     "tensorboard>=2.20.0",
-    "torch>=2.11.0",
+    "torch>=2.7.1",
+    # imported by the drop_capitals / drop_capitals_yolo layout steps
+    "torchvision>=0.22.1",
     "tqdm>=4.67.3",
     # llm based text transcription (text_llm step): local Chandra 2 inference
     "transformers>=4.57.0",
