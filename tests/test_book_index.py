@@ -80,6 +80,21 @@ class BookIndexTestCase(APITestCase):
             self.assertEqual(row.counts_mtime, row.pcgts_mtime)
         self.assertEqual(first, book_index.book_counts(self.book))
 
+    def test_pages_lists_only_page_folders_in_order(self):
+        names = [p.page for p in self.book.pages()]
+        self.assertGreater(len(names), 0)
+        self.assertEqual(names, sorted(names))
+        self.assertIn('page00000001', names)
+        # scandir must exclude non-directory entries just like the old is_valid() filter
+        stray = os.path.join(self.book.local_path('pages'), 'not_a_page.txt')
+        with open(stray, 'w') as f:
+            f.write('x')
+        try:
+            self.assertEqual([p.page for p in self.book.pages()], names)
+            self.assertEqual(self.book.page_names_on_disk(), names)
+        finally:
+            os.remove(stray)
+
     def _comments_in_file(self, page_name):
         with open(self.book.page(page_name).local_file_path('pcgts.json')) as f:
             return ((json.load(f).get('page', {}) or {}).get('comments', {}) or {}).get('comments', [])

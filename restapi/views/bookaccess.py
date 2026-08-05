@@ -92,7 +92,8 @@ class BooksOverviewStatsView(APIView):
         for row in list_books_synced():
             db_book = DatabaseBook(row.name)
             if db_book.resolve_user_permissions(request.user).has(DatabaseBookPermissionFlag.READ):
-                stats[row.name] = compute_overview_stats(db_book)
+                # row is already meta-synced -- don't make compute re-resolve it per book
+                stats[row.name] = compute_overview_stats(db_book, book_row=row)
         return etag_response(request, stats)
 
 
@@ -130,10 +131,11 @@ class BookView(APIView):
         pageSize = int(request.query_params.get("pageSize", len(pages)))
         offset = pageIndex * pageSize
 
+        # book.pages() already filters to page folders and returns them sorted
         paginated_pages = pages[offset:offset + pageSize]
         return Response({
             'totalPages': len(pages),
-            'pages': sorted([{'label': page.page} for page in paginated_pages if page.is_valid()], key=lambda v: v['label'])})
+            'pages': [{'label': page.page} for page in paginated_pages]})
 
     @require_permissions([DatabaseBookPermissionFlag.DELETE_BOOK])
     def delete(self, request, book, format=None):

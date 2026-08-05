@@ -24,10 +24,10 @@ def derive_state(n_pages: int, n_pages_with_symbols: int, n_total_locks: int) ->
     return STATE_PARTIALLY_CORRECTED
 
 
-def compute_overview_stats(book: 'DatabaseBook') -> dict:
+def compute_overview_stats(book: 'DatabaseBook', book_row=None) -> dict:
     # the page index revalidates each page by mtime and reparses only changed ones
     from database.book_index import sync_book_pages
-    rows = sync_book_pages(book)
+    rows = sync_book_pages(book, book_row=book_row)
 
     n_pages = len(rows)
     lock_counts = {l.value: 0 for l in Locks}

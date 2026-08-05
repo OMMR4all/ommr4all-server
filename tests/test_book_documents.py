@@ -88,6 +88,18 @@ class TestBookDocuments(TemporaryDemoBookTestCase):
         full = DatabaseBookDocuments.update_book_documents(self.book)
         self.assertEqual(cached.database_documents.to_json(), full.database_documents.to_json())
 
+    def test_index_serves_current_documents_and_invalidates_on_change(self):
+        from database.book_index import get_documents_json
+        written = DatabaseBookDocuments.update_book_documents_cached(self.book)
+
+        data = get_documents_json(self.book)
+        self.assertIsNotNone(data, 'a freshly written book_documents.json must be served from the index')
+        self.assertEqual(data['database_documents'], written.to_json()['database_documents'])
+
+        # any page whose pcgts moved on invalidates the fast path again
+        self._touch(self.book.page(PAGE_B))
+        self.assertIsNone(get_documents_json(self.book))
+
     def test_only_changed_page_is_reparsed(self):
         DatabaseBookDocuments.update_book_documents_cached(self.book)
         self._touch(self.book.page(PAGE_B))

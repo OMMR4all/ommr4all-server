@@ -10,7 +10,8 @@ import functools
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Optional
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, List, Optional
 
 from django.utils import timezone
 
@@ -228,8 +229,10 @@ def list_books_synced() -> list:
     """BookIndex rows of all valid book folders, meta-refreshed and pruned."""
     import ommr4all.settings as settings
     from database.database_book import DatabaseBook
-    names = [name for name in os.listdir(settings.PRIVATE_MEDIA_ROOT)
-             if DatabaseBook(name, skip_validation=True).is_valid()]
+    # e.is_dir() already covers the exists/isdir half of DatabaseBook.is_valid()
+    with os.scandir(settings.PRIVATE_MEDIA_ROOT) as it:
+        names = [e.name for e in it
+                 if e.is_dir() and DatabaseBook(e.name, skip_validation=True).is_valid_name()]
     if names:
         # hygiene only — rows absent from `names` are never returned anyway, and an
         # empty listing (e.g. storage mount hiccup) must not wipe the whole index
@@ -249,22 +252,71 @@ def list_books_for_user(user, flag) -> list:
     return out
 
 
-def sync_book_pages(db_book: 'DatabaseBook') -> list:
-    """Stat-validated PageIndex rows of the book, in page order (pruned).
+PAGE_ROW_FIELDS = ('name', 'pcgts_mtime', 'progress_mtime', 'has_symbols', 'verified',
+                   'progress_locks', 'counts', 'counts_mtime', 'comments', 'comments_count')
 
-    All existing rows are fetched in one query; unchanged pages (the common case)
-    cause no further DB access, so a synced book costs 1 query + 2 stats/page."""
-    book_row = index_book_meta(db_book)
-    existing = {row.name: row for row in book_row.pages.all()}
+
+@dataclass(frozen=True)
+class PageRow:
+    """Read-only view of a PageIndex row, as handed out by sync_book_pages.
+
+    Materialising real PageIndex models for a whole book cost 136 ms for 2657 pages
+    where the same rows via .values() cost 16 ms — and the common all-fresh case only
+    ever reads. Writers (book_counts, book_comments) persist with a queryset .update()
+    instead of row.save()."""
+    name: str
+    pcgts_mtime: int
+    progress_mtime: int
+    has_symbols: bool
+    verified: bool
+    progress_locks: dict
+    counts: Optional[dict]
+    counts_mtime: int
+    comments: Optional[dict]
+    comments_count: int
+
+    @staticmethod
+    def from_model(row: PageIndex) -> 'PageRow':
+        return PageRow(**{f: getattr(row, f) for f in PAGE_ROW_FIELDS})
+
+
+def sync_book_pages(db_book: 'DatabaseBook', book_row: Optional[BookIndex] = None) -> List[PageRow]:
+    """Stat-validated page rows of the book, in page order (pruned).
+
+    All existing rows are fetched in one query; unchanged pages (the common case) cause
+    no further DB access, so a synced book costs 1 query + 2 stats/page. Pass `book_row`
+    when the caller already resolved it (the books listing does, for every book)."""
+    if book_row is None:
+        book_row = index_book_meta(db_book)
+    existing = {d['name']: d for d in
+                PageIndex.objects.filter(book=book_row).values(*PAGE_ROW_FIELDS)}
     rows = []
     page_names = []
-    for db_page in db_book.pages():
-        page_names.append(db_page.page)
-        rows.append(index_page(db_page, book_row=book_row, row=existing.get(db_page.page)))
+    for name in db_book.page_names_on_disk():
+        page_names.append(name)
+        db_page = db_book.page(name)
+        cached = existing.get(name)
+        if cached is not None \
+                and cached['pcgts_mtime'] == _mtime(db_page.local_file_path('pcgts.json')) \
+                and cached['progress_mtime'] == _mtime(db_page.local_file_path('page_progress.json')):
+            rows.append(PageRow(**cached))
+        else:
+            # new or changed: index_page rescans the changed files and writes the row
+            rows.append(PageRow.from_model(index_page(db_page, book_row=book_row)))
     stale = set(existing) - set(page_names)
     if stale:
         book_row.pages.filter(name__in=stale).delete()
     return rows
+
+
+def _store_page_fields(db_book: 'DatabaseBook', name: str, **fields):
+    """Best-effort write-back of a lazily computed field (see PageRow)."""
+    try:
+        PageIndex.objects.filter(book__name=db_book.book, name=name).update(**fields)
+    except Exception as e:
+        logger.warning('Could not store {} of {}/{}'.format(
+            ', '.join(fields), db_book.book, name))
+        logger.exception(e)
 
 
 def pages_with_lock(db_book: 'DatabaseBook', locks) -> list:
@@ -309,13 +361,8 @@ def book_counts(db_book: 'DatabaseBook'):
     for row in sync_book_pages(db_book):
         if row.counts is None or row.counts_mtime != row.pcgts_mtime:
             counts = count_page(db_book.page(row.name).pcgts_cached())
-            row.counts = counts.to_dict()
-            row.counts_mtime = row.pcgts_mtime
-            try:
-                row.save(update_fields=['counts', 'counts_mtime'])
-            except Exception as e:
-                logger.warning('Could not store page counts of {}/{}'.format(db_book.book, row.name))
-                logger.exception(e)
+            _store_page_fields(db_book, row.name,
+                               counts=counts.to_dict(), counts_mtime=row.pcgts_mtime)
         else:
             counts = Counts.from_dict(row.counts)
         for f in dataclasses.fields(Counts):
@@ -331,17 +378,14 @@ def book_comments(db_book: 'DatabaseBook') -> list:
     `comments is None` and are backfilled here (once) instead of requiring a reindex."""
     out = []
     for row in sync_book_pages(db_book):
-        if row.comments is None:
-            row.comments = _pcgts_comments(db_book.page(row.name).local_file_path('pcgts.json')) \
+        comments, count = row.comments, row.comments_count
+        if comments is None:
+            comments = _pcgts_comments(db_book.page(row.name).local_file_path('pcgts.json')) \
                 if row.pcgts_mtime > 0 else {}
-            row.comments_count = len(row.comments.get('comments', []))
-            try:
-                row.save(update_fields=['comments', 'comments_count'])
-            except Exception as e:
-                logger.warning('Could not store page comments of {}/{}'.format(db_book.book, row.name))
-                logger.exception(e)
-        if row.comments_count > 0:
-            out.append((row.name, row.comments))
+            count = len(comments.get('comments', []))
+            _store_page_fields(db_book, row.name, comments=comments, comments_count=count)
+        if count > 0:
+            out.append((row.name, comments))
     return out
 
 
@@ -352,29 +396,36 @@ def book_comments_count(db_book: 'DatabaseBook') -> int:
 def get_documents_json(db_book: 'DatabaseBook') -> Optional[dict]:
     """The book_documents.json payload from the index, or None if it cannot be
     proven fresh (caller then falls back to update_book_documents_cached)."""
-    row = BookDocumentsIndex.objects.filter(book__name=db_book.book).first()
-    if row is None or row.documents is None:
+    # `documents` is the whole book_documents.json (megabytes on a large book), so prove
+    # the row current from file_mtime alone before pulling that column out of the DB
+    file_mtime = _mtime(db_book.local_path('book_documents.json'))
+    if file_mtime == 0:
         return None
-    if row.file_mtime != _mtime(db_book.local_path('book_documents.json')):
+    if not BookDocumentsIndex.objects.filter(book__name=db_book.book, file_mtime=file_mtime)\
+            .exclude(documents=None).exists():
         return None
 
-    documents = row.documents
-    if documents.get('database_documents') is None or documents.get('page_fragments') is None:
+    pages_dir = db_book.local_path('pages')
+    page_names = db_book.page_names_on_disk()
+    # fragment mtimes are part of the book_documents.json file format and are written as
+    # float seconds (os.path.getmtime) — compare in the same unit
+    page_mtimes = {}
+    for name in page_names:
+        try:
+            page_mtimes[name] = os.stat(os.path.join(pages_dir, name, 'pcgts.json')).st_mtime
+        except OSError:
+            return None  # a page without pcgts cannot match a fragment
+
+    documents = BookDocumentsIndex.objects.filter(book__name=db_book.book)\
+        .values_list('documents', flat=True).first()
+    if documents is None \
+            or documents.get('database_documents') is None or documents.get('page_fragments') is None:
         return None
 
     fragment_mtimes = {f.get('page_name'): f.get('mtime') for f in documents['page_fragments']}
-    page_names = []
-    for db_page in db_book.pages():
-        page_names.append(db_page.page)
-        # fragment mtimes are part of the book_documents.json file format and are
-        # written as float seconds (os.path.getmtime) — compare in the same unit
-        try:
-            mtime = os.path.getmtime(db_page.local_file_path('pcgts.json'))
-        except OSError:
-            mtime = 0
-        if mtime == 0 or fragment_mtimes.get(db_page.page) != mtime:
-            return None
     if len(page_names) != len(fragment_mtimes):
+        return None
+    if any(fragment_mtimes.get(name) != mtime for name, mtime in page_mtimes.items()):
         return None
 
     return documents
