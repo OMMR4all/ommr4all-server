@@ -23,6 +23,7 @@ from restapi.views.user import UserBookPermissionsView
 from restapi.views.bookstyles import BookStyleView, BookStylesView
 from restapi.views.administrativedefaultmodels import AdministrativeDefaultModelsView
 from restapi.views.tasks import TasksView, TaskView, BookTasksView
+from restapi.views.systemresources import SystemResourcesView
 from restapi.views.llmproviders import LLMProvidersView
 from restapi.views.workerresources import OperationWorkerResourcesView
 from rest_framework_simplejwt.views import (
@@ -64,6 +65,9 @@ urlpatterns = \
         # tasks
         path('tasks', TasksView.as_view()),
         re_path(r'^tasks/(?P<task_id>.+)$', TaskView.as_view()),
+
+        # server resources
+        path('system_resources', SystemResourcesView.as_view()),
 
         # single book
         re_path(r'^book/(?P<book>\w+)/permissions/user/(?P<username>.+)$', BookUserPermissionsView.as_view()),

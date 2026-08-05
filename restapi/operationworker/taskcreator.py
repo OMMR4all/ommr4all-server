@@ -65,12 +65,16 @@ class TaskCreator:
                     raise ValueError()
 
                 task.resource.used = False
+                task.task.resource = None
                 self.tasks.remove(task)
                 logger.debug("Removed task with id {} of type {}".format(task.task.task_id, type(task.task.task_runner)))
 
             def append(self, task: TaskWorkerThread):
                 assert(not task.resource.used)
                 task.resource.used = True
+                # record the assignment on the queued task itself so that the
+                # REST API can report which worker/GPU a running task occupies
+                task.task.resource = task.resource
                 self.tasks.append(task)
                 logger.debug("Appended new task with id {} of type {}".format(task.task.task_id, type(task.task.task_runner)))
 

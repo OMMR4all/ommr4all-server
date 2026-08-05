@@ -1,10 +1,11 @@
 from enum import IntEnum
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Optional, Union
 from mashumaro import DataClassDictMixin
 
 if TYPE_CHECKING:
     from .taskrunners.taskrunner import TaskRunner
+    from .taskresources import TaskResource
     from django.contrib.auth.models import User
 
 
@@ -60,3 +61,7 @@ class Task:
     task_status: TaskStatus
     task_result: Union[dict, Exception]
     creator: 'User'
+    # the worker slot the task currently occupies; assigned by the TaskCreator
+    # when the task starts running and cleared when it finishes. Only set for
+    # RUNNING tasks, and only meaningful in the process that owns the scheduler.
+    resource: Optional['TaskResource'] = None

@@ -38,6 +38,8 @@ dependencies = [
     "pixel-classifier-torch",
     "prettytable>=3.17.0",
     "protobuf>=7.34.1",
+    # host CPU/RAM metrics of the administrative system resources view
+    "psutil>=5.9",
     "python-bidi>=0.6.7",
     "requests>=2.33.0",
     "scikit-image>=0.26.0",
