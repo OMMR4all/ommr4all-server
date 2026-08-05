@@ -41,6 +41,11 @@ class PageIndex(models.Model):
     counts = models.JSONField(null=True, blank=True)
     counts_mtime = models.BigIntegerField(default=0)
 
+    # raw page.comments payload of pcgts.json ({'comments': [...]}); null = page has none.
+    # Kept here so the comments views never have to parse a whole book of pcgts files.
+    comments = models.JSONField(null=True, blank=True)
+    comments_count = models.IntegerField(default=0)
+
     class Meta:
         unique_together = [('book', 'name')]
         ordering = ['name']

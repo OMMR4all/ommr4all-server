@@ -53,6 +53,20 @@ def _pcgts_has_symbols(path: str) -> bool:
     return False
 
 
+def _pcgts_comments(path: str) -> dict:
+    """The raw `page.comments` payload of a pcgts file ({} if it carries none).
+
+    Same trick as _pcgts_has_symbols: plain json, no geometry parsing."""
+    try:
+        with open(path) as f:
+            d = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    comments = (d.get('page', {}) or {}).get('comments', {}) or {}
+    return comments if comments.get('comments') else {}
+
+
 def _make_aware(dt) -> Optional['timezone.datetime']:
     if dt is None:
         return None
@@ -125,7 +139,11 @@ def index_page(db_page: 'DatabasePage', book_row: Optional[BookIndex] = None, fo
     defaults = {'pcgts_mtime': pcgts_mtime, 'progress_mtime': progress_mtime}
 
     if row is None or force or row.pcgts_mtime != pcgts_mtime:
-        defaults['has_symbols'] = pcgts_mtime > 0 and _pcgts_has_symbols(db_page.local_file_path('pcgts.json'))
+        pcgts_path = db_page.local_file_path('pcgts.json')
+        defaults['has_symbols'] = pcgts_mtime > 0 and _pcgts_has_symbols(pcgts_path)
+        comments = _pcgts_comments(pcgts_path) if pcgts_mtime > 0 else {}
+        defaults['comments'] = comments
+        defaults['comments_count'] = len(comments.get('comments', []))
         defaults['counts'] = None
         defaults['counts_mtime'] = 0
 
@@ -261,6 +279,26 @@ def pages_with_lock(db_book: 'DatabaseBook', locks) -> list:
             if all(bool((row.progress_locks or {}).get(label, False)) == lock for label, lock in wanted)]
 
 
+def prefill_page_progress(db_book: 'DatabaseBook') -> list:
+    """DatabasePages of the book with their page_progress preloaded from the index.
+
+    Callers can then run the progress-based predicates (`verified`, `unlocked`) over a
+    whole book without opening — or, via create_if_not_existing, writing — a single
+    page_progress.json. The index rows are stat-validated, so the values are the same
+    ones PageProgress.from_json_file would return."""
+    from database.file_formats.performance.pageprogress import Locks, PageProgress
+    pages = []
+    for row in sync_book_pages(db_book):
+        page = db_book.page(row.name)
+        locks = row.progress_locks or {}
+        page.set_page_progress(PageProgress(
+            locked={l: bool(locks.get(l.value, False)) for l in Locks},
+            verified=row.verified,
+        ))
+        pages.append(page)
+    return pages
+
+
 def book_counts(db_book: 'DatabaseBook'):
     """Symbol/line/text counts of the whole book, computed per page and cached in
     the index: only pages whose pcgts changed since the last call are reparsed."""
@@ -283,6 +321,32 @@ def book_counts(db_book: 'DatabaseBook'):
         for f in dataclasses.fields(Counts):
             setattr(total, f.name, getattr(total, f.name) + getattr(counts, f.name))
     return total
+
+
+def book_comments(db_book: 'DatabaseBook') -> list:
+    """(page_name, comments dict) of every page of the book that carries comments.
+
+    Index-backed replacement of the full-book PcGts parse: a synced book costs
+    1 query + 2 stats/page. Rows predating the comments columns have
+    `comments is None` and are backfilled here (once) instead of requiring a reindex."""
+    out = []
+    for row in sync_book_pages(db_book):
+        if row.comments is None:
+            row.comments = _pcgts_comments(db_book.page(row.name).local_file_path('pcgts.json')) \
+                if row.pcgts_mtime > 0 else {}
+            row.comments_count = len(row.comments.get('comments', []))
+            try:
+                row.save(update_fields=['comments', 'comments_count'])
+            except Exception as e:
+                logger.warning('Could not store page comments of {}/{}'.format(db_book.book, row.name))
+                logger.exception(e)
+        if row.comments_count > 0:
+            out.append((row.name, row.comments))
+    return out
+
+
+def book_comments_count(db_book: 'DatabaseBook') -> int:
+    return sum(len(comments.get('comments', [])) for _, comments in book_comments(db_book))
 
 
 def get_documents_json(db_book: 'DatabaseBook') -> Optional[dict]:

@@ -80,6 +80,57 @@ class BookIndexTestCase(APITestCase):
             self.assertEqual(row.counts_mtime, row.pcgts_mtime)
         self.assertEqual(first, book_index.book_counts(self.book))
 
+    def _comments_in_file(self, page_name):
+        with open(self.book.page(page_name).local_file_path('pcgts.json')) as f:
+            return ((json.load(f).get('page', {}) or {}).get('comments', {}) or {}).get('comments', [])
+
+    def test_comments_endpoints_match_the_files(self):
+        expected = {p.page: len(self._comments_in_file(p.page)) for p in self.book.pages()}
+        expected = {name: n for name, n in expected.items() if n > 0}
+        self.assertTrue(expected, 'test storage must contain at least one commented page')
+
+        response = self.client.get('/api/book/demo/comments/count', format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        self.assertEqual(json.loads(response.content)['count'], sum(expected.values()))
+
+        response = self.client.get('/api/book/demo/comments', format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        data = json.loads(response.content)['data']
+        # only commented pages are listed, and with their full payload
+        self.assertEqual({d['page']: len(d['comments']['comments']) for d in data}, expected)
+
+    def test_comments_index_self_heals_on_pcgts_change(self):
+        page = self.book.page('page00000001')
+        path = page.local_file_path('pcgts.json')
+        with open(path) as f:
+            original = f.read()
+        before = json.loads(self.client.get('/api/book/demo/comments/count').content)['count']
+        try:
+            d = json.loads(original)
+            d['page']['comments'] = {'comments': [{'id': 'c1', 'text': 'added', 'aabb': None}]}
+            with open(path, 'w') as f:
+                json.dump(d, f)
+
+            count = json.loads(self.client.get('/api/book/demo/comments/count').content)['count']
+            self.assertEqual(count, before + 1)
+            data = json.loads(self.client.get('/api/book/demo/comments').content)['data']
+            added = [c for c in data if c['page'] == 'page00000001']
+            self.assertEqual(len(added), 1)
+            self.assertEqual(added[0]['comments']['comments'][0]['text'], 'added')
+        finally:
+            with open(path, 'w') as f:
+                f.write(original)
+            pcgts_cache.invalidate(path)
+        self.assertEqual(json.loads(self.client.get('/api/book/demo/comments/count').content)['count'], before)
+
+    def test_comments_backfilled_for_rows_predating_the_columns(self):
+        book_index.index_book(self.book)
+        expected = json.loads(self.client.get('/api/book/demo/comments/count').content)['count']
+        # rows written before the comments columns existed carry null/0 at unchanged mtimes
+        PageIndex.objects.filter(book__name='demo').update(comments=None, comments_count=0)
+        self.assertEqual(book_index.book_comments_count(self.book), expected)
+        self.assertFalse(PageIndex.objects.filter(book__name='demo', comments__isnull=True).exists())
+
     def test_books_list_backed_by_index(self):
         response = self.client.get('/api/books', format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)

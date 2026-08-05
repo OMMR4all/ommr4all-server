@@ -43,6 +43,7 @@ class PageSelection:
         self.pcgts = pcgts
         self.single_page = single_page
         self.selected_pages_range_as_regex = selected_pages_range_as_regex
+        self.total_pages = 0  # number of pages of the book, set by get_pages()
 
         if pcgts:
             self.pages = [p.page.location for p in pcgts]
@@ -95,24 +96,36 @@ class PageSelection:
     def get_pages(self, unprocessed: Optional[Callable[[DatabasePage], bool]] = None,
                   unlocked: Optional[Callable[[DatabasePage], bool]] = None) -> List[DatabasePage]:
         if self.pcgts:
+            self.total_pages = len(self.pcgts)
             return [DatabasePage(self.book, 'in_memory', skip_validation=True, pcgts=pcgts) for pcgts in self.pcgts]
+
+        # One index-backed pass over the book instead of a page_progress.json parse per
+        # page: both the `unlocked` predicate and the verified filter below read the
+        # progress, and this endpoint runs on every render of the workflow tab.
+        from database.book_index import prefill_page_progress
+        book_pages = prefill_page_progress(self.book)
+        self.total_pages = len(book_pages)
+        by_name = {p.page: p for p in book_pages}
+
+        def with_progress(pages: List[DatabasePage]) -> List[DatabasePage]:
+            return [by_name.get(p.page, p) for p in pages]
 
         def page_count_pages() -> List[DatabasePage]:
             if self.page_count == PageCount.ALL:
-                return self.book.pages()
+                return book_pages
             elif self.page_count == PageCount.UNPROCESSED:
                 if unprocessed:
-                    return [p for p in self.book.pages() if unprocessed(p)]
+                    return [p for p in book_pages if unprocessed(p)]
                 else:
-                    return self.book.pages()
+                    return book_pages
             elif self.page_count == PageCount.UNLOCKED:
                 if unlocked:
-                    return [p for p in self.book.pages() if unlocked(p)]
+                    return [p for p in book_pages if unlocked(p)]
                 else:
-                    return self.book.pages()
+                    return book_pages
             elif self.page_count == PageCount.CUSTOM:
                 if check_if_page_range_regex_selector_valid(self.selected_pages_range_as_regex):
-                    pages = self.book.pages()
+                    pages = book_pages
                     selected_pages = []
                     selected = self.selected_pages_range_as_regex.replace(" ", "")
                     page_ranges = selected.split(",")
@@ -131,10 +144,10 @@ class PageSelection:
                                 selected_pages += [pages[r0]]
                     return list(set(selected_pages))
                 else:
-                    return self.pages
+                    return with_progress(self.pages)
 
             else:
-                return self.pages
+                return with_progress(self.pages)
 
         return [page for page in page_count_pages() if not page.page_progress().verified]
 

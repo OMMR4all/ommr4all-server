@@ -36,7 +36,7 @@ class BookPageSelectionView(APIView):
             'pageCount': page_selection.page_count.value,
             'singlePage': page_selection.single_page,
             'book': book.book,
-            'totalPages': len(book.pages()),
+            'totalPages': page_selection.total_pages,  # counted by get_pages; avoids a second directory walk
         })
 
 
