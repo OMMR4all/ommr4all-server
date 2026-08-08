@@ -9,7 +9,7 @@ from restapi.models.error import *
 from restapi.views.bookaccess import require_permissions, DatabaseBookPermissionFlag
 from restapi.views.pageaccess import require_lock
 from restapi.operationworker.taskrunners.taskrunner import TaskRunner
-from restapi.operationworker.taskrunners.pageselection import PageSelection, PageSelectionParams
+from restapi.operationworker.taskrunners.pageselection import PageCount, PageSelection, PageSelectionParams
 from omr.dataset.datafiles import EmptyDataSetException
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from omr.steps.step import Step, AlgorithmTypes
@@ -29,11 +29,53 @@ class BookPageSelectionView(APIView):
     def post(self, request, book, operation):
         body = json.loads(request.body)
         book = DatabaseBook(book)
-        algorithm = Step.predictor(AlgorithmTypes(operation))
+
+        # The workflow evaluates a single selection against all of its *enabled* steps, so
+        # the body may carry a list of operations; the one in the URL is the fallback for
+        # single-step callers.
+        operations = body['operations'] if 'operations' in body else [operation]
+        try:
+            predictors = [(op, Step.predictor(AlgorithmTypes(op))) for op in operations]
+        except ValueError as e:
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            str(e),
+                            "Unknown algorithm in the page selection request.",
+                            ErrorCodes.OPERATION_INVALID_GET,
+                            ).response()
+
         page_selection = PageSelection.from_params(PageSelectionParams.from_dict(body), book)
-        pages = page_selection.get_pages(algorithm.unprocessed, algorithm.unlocked)
+
+        def any_unprocessed(page) -> bool:
+            return any(p.unprocessed(page) for _, p in predictors)
+
+        def any_unlocked(page) -> bool:
+            return any(p.unlocked(page) for _, p in predictors)
+
+        # A single get_pages pass applies the count mode and drops verified pages. Going
+        # through it once (instead of once per operation) also means every predictor sees
+        # the same DatabasePage objects and shares their parsed pcgts.
+        if predictors:
+            candidates = page_selection.get_pages(any_unprocessed, any_unlocked)
+        else:
+            # With no step enabled nothing is selected, but the call still has to report
+            # the book size for the "n/total" display, which get_pages() computes.
+            page_selection.get_pages()
+            candidates = []
+
+        def runs_on(predictor, page) -> bool:
+            """Whether `predictor` would really touch `page` — mirrors TaskRunnerPrediction."""
+            if not predictor.unlocked(page):
+                return False  # locked pages are never overwritten, whatever the count mode
+            if page_selection.page_count == PageCount.UNPROCESSED:
+                return predictor.unprocessed(page)
+            return True  # ALL / CUSTOM, and UNLOCKED which the lock check above covers
+
+        pages = [p for p in candidates if any(runs_on(pred, p) for _, pred in predictors)]
         return Response({
             'pages': [p.page for p in pages],
+            'perOperation': [{'operation': op,
+                              'pages': sum(1 for p in candidates if runs_on(pred, p))}
+                             for op, pred in predictors],
             'pageCount': page_selection.page_count.value,
             'singlePage': page_selection.single_page,
             'book': book.book,

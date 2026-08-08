@@ -45,6 +45,15 @@ class TestBookOperations(TestCase):
         pages = book.pages_with_lock([LockState(Locks.STAFF_LINES, False), LockState(Locks.SYMBOLS, True)])
         self.assertListEqual([p.local_path() for p in pages], [])
 
+    def test_every_algorithm_type_resolves_a_group_and_lock(self):
+        """AlgorithmPredictor.unlocked goes through group()/group_2_lock_mapping(), so an
+        unmapped type would break the page selection of any workflow containing it."""
+        from omr.steps.algorithmtypes import AlgorithmTypes, AlgorithmGroups
+        mapped = [t for types in AlgorithmGroups.group_types_mapping().values() for t in types]
+        for t in AlgorithmTypes:
+            self.assertEqual(mapped.count(t), 1, "{} must be in exactly one group".format(t))
+            t.group().group_2_lock_mapping()  # must not raise
+
 
 class TestTrainingEpochs(DjangoTestCase):
     """The epoch limit must be applied where the training request is turned into a task runner,

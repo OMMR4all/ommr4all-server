@@ -213,7 +213,12 @@ class AlgorithmPredictor(ABC):
         pass
     @classmethod
     def unlocked(cls, page: DatabasePage) -> bool:
-        return not page.page_progress().locked.get(cls.meta().group().group_2_lock_mapping())
+        lock = cls.meta().group().group_2_lock_mapping()
+        if lock is None:
+            # Groups without a lock (preprocessing, tools, postprocessing) do not overwrite
+            # anything a user can lock, so every page stays available to them.
+            return True
+        return not page.page_progress().locked.get(lock)
 
 
 class AlgorithmMeta(ABC):

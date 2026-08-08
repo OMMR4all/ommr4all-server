@@ -1,5 +1,5 @@
 from enum import Enum, Enum
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from database.file_formats.performance.pageprogress import Locks
 from loguru import logger
@@ -58,7 +58,14 @@ class AlgorithmTypes(Enum):
     POSTPROCESSING = "postprocessing"
 
     def group(self) -> 'AlgorithmGroups':
-        return [k for k, v in AlgorithmGroups.group_types_mapping().items() if self in v][0]
+        groups = [k for k, v in AlgorithmGroups.group_types_mapping().items() if self in v]
+        if not groups:
+            # Every type should be mapped; falling back to TOOLS (which carries no lock and
+            # no default model) keeps callers such as AlgorithmPredictor.unlocked working
+            # instead of raising for a type someone forgot to register.
+            logger.warning("AlgorithmType {} is not assigned to a group".format(self))
+            return AlgorithmGroups.TOOLS
+        return groups[0]
 
     def model_type(self):
         return {
@@ -84,24 +91,41 @@ class AlgorithmGroups(Enum):
 
     @staticmethod
     def group_types_mapping() -> Dict['AlgorithmGroups', List[AlgorithmTypes]]:
+        # Every AlgorithmTypes member must appear exactly once: group() derives the page
+        # lock (see group_2_lock_mapping) from this mapping, so a missing type would make
+        # the page selection blind to that step's locks. Deactivated/legacy types are
+        # appended at the end of their group because AlgorithmGroups.types()[0] is used as
+        # the group's default model type (restapi/views/administrativedefaultmodels.py).
         return {
             AlgorithmGroups.PREPROCESSING: [AlgorithmTypes.PREPROCESSING, ],
-            AlgorithmGroups.STAFF_LINES: [AlgorithmTypes.STAFF_LINES_PC_Torch],
+            AlgorithmGroups.STAFF_LINES: [AlgorithmTypes.STAFF_LINES_PC_Torch,
+                                          AlgorithmTypes.STAFF_LINES_PC],
             AlgorithmGroups.LAYOUT: [AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES,
-                                     AlgorithmTypes.LAYOUT_COMPLEX_STANDARD, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO],
-            AlgorithmGroups.SYMBOLS: [AlgorithmTypes.SYMBOLS_PC_TORCH, AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE_GUPPY],
-            AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_GUPPY, AlgorithmTypes.OCR_LLM, AlgorithmTypes.TEXT_DOCUMENT],
+                                     AlgorithmTypes.LAYOUT_COMPLEX_STANDARD, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO,
+                                     AlgorithmTypes.LAYOUT_SIMPLE_LYRICS],
+            AlgorithmGroups.SYMBOLS: [AlgorithmTypes.SYMBOLS_PC_TORCH, AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE_GUPPY,
+                                      AlgorithmTypes.SYMBOLS_PC, AlgorithmTypes.SYMBOLS_YOLO,
+                                      AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE,
+                                      AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE_NAUTILUS],
+            AlgorithmGroups.TEXT: [AlgorithmTypes.OCR_GUPPY, AlgorithmTypes.OCR_LLM, AlgorithmTypes.TEXT_DOCUMENT,
+                                   AlgorithmTypes.OCR_CALAMARI, AlgorithmTypes.OCR_NAUTILUS,
+                                   AlgorithmTypes.TEXT_DOCUMENT_CORRECTOR, AlgorithmTypes.TEXT_DICTIONARY_CORRECTOR],
             AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_IN_ORDER,
-                                        AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH],
+                                        AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH,
+                                        AlgorithmTypes.SYLLABLES_FROM_TEXT],
             AlgorithmGroups.END2END: [AlgorithmTypes.END2END_SWIN],
             AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION,
-                                    AlgorithmTypes.DOCUMENT_ALIGNMENT, AlgorithmTypes.TEXT_LOCALISATION, AlgorithmTypes.SYMBOLS_PATTERN_MATCHER],
+                                    AlgorithmTypes.DOCUMENT_ALIGNMENT, AlgorithmTypes.TEXT_LOCALISATION, AlgorithmTypes.SYMBOLS_PATTERN_MATCHER,
+                                    AlgorithmTypes.SYMBOLS_SEQUENCE_CONFIDENCE_CALCULATOR],
+            AlgorithmGroups.POSTPROCESSING: [AlgorithmTypes.POSTPROCESSING],
         }
 
     def types(self) -> List[AlgorithmTypes]:
         return AlgorithmGroups.group_types_mapping()[self]
 
-    def group_2_lock_mapping(self) -> Locks:
+    def group_2_lock_mapping(self) -> Optional[Locks]:
+        # None means "this group has no page lock", i.e. it never overwrites annotations a
+        # user could have locked. Unmapped groups degrade to None rather than raising.
         return {
             AlgorithmGroups.PREPROCESSING: None,
             AlgorithmGroups.STAFF_LINES: Locks.STAFF_LINES,
@@ -111,4 +135,5 @@ class AlgorithmGroups(Enum):
             AlgorithmGroups.SYLLABLES: Locks.TEXT,
             AlgorithmGroups.END2END: Locks.SYMBOLS,
             AlgorithmGroups.TOOLS: None,
-        }[self]
+            AlgorithmGroups.POSTPROCESSING: None,
+        }.get(self)

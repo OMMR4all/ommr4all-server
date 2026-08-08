@@ -114,6 +114,64 @@ class OperationTests(APITestCase):
                 with open(meta_path, 'w') as f:
                     f.write(original)
 
+    # Page selection
+    # ========================================
+    # The workflow evaluates one selection against all of its enabled steps, so this endpoint
+    # takes a list of operations. 'page_test_lock' is locked for StaffLines/Layout/Symbols
+    # (but not Text) in the demo fixture.
+
+    def _page_selection(self, operation, body):
+        response = self.client.post('/api/book/demo/operation/{}/page_selection'.format(operation),
+                                    body, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        return json.loads(response.content)
+
+    def test_page_selection_defaults_to_the_url_operation(self):
+        r = self._page_selection('preprocessing', {'count': 'all', 'pages': [],
+                                                   'selected_pages_range_as_regex': ''})
+        self.assertEqual([p['operation'] for p in r['perOperation']], ['preprocessing'])
+        self.assertEqual(r['totalPages'], len(DatabaseBook('demo').pages()))
+        # preprocessing has no lock, so every page stays selectable
+        self.assertEqual(len(r['pages']), r['totalPages'])
+
+    def test_page_selection_skips_pages_locked_for_the_operation(self):
+        body = {'count': 'all', 'pages': [], 'selected_pages_range_as_regex': '',
+                'operations': ['staff_lines_pc_torch']}
+        r = self._page_selection('staff_lines_pc_torch', body)
+        self.assertNotIn('page_test_lock', r['pages'])
+        self.assertEqual(r['perOperation'][0]['pages'], len(r['pages']))
+
+        # the same page is not locked for text, so a text step may still use it
+        body['operations'] = ['text_guppy']
+        r = self._page_selection('text_guppy', body)
+        self.assertIn('page_test_lock', r['pages'])
+
+    def test_page_selection_unions_the_enabled_operations(self):
+        r = self._page_selection('preprocessing',
+                                 {'count': 'all', 'pages': [], 'selected_pages_range_as_regex': '',
+                                  'operations': ['preprocessing', 'staff_lines_pc_torch']})
+        per_op = {p['operation']: p['pages'] for p in r['perOperation']}
+        self.assertEqual(set(per_op), {'preprocessing', 'staff_lines_pc_torch'})
+        # staff lines skips the locked page, preprocessing does not -> the union keeps it
+        self.assertEqual(per_op['staff_lines_pc_torch'], per_op['preprocessing'] - 1)
+        self.assertEqual(len(r['pages']), per_op['preprocessing'])
+        self.assertIn('page_test_lock', r['pages'])
+
+    def test_page_selection_without_any_operation_selects_nothing(self):
+        r = self._page_selection('preprocessing', {'count': 'all', 'pages': [],
+                                                   'selected_pages_range_as_regex': '',
+                                                   'operations': []})
+        self.assertListEqual(r['pages'], [])
+        self.assertListEqual(r['perOperation'], [])
+        # the book size is still reported so the client can show "0/n"
+        self.assertEqual(r['totalPages'], len(DatabaseBook('demo').pages()))
+
+    def test_page_selection_rejects_an_unknown_operation(self):
+        response = self.client.post('/api/book/demo/operation/preprocessing/page_selection',
+                                    {'count': 'all', 'pages': [], 'selected_pages_range_as_regex': '',
+                                     'operations': ['not_an_algorithm']}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.content)
+
     def test_pcgts_content(self):
         response = self.client.get('/api/book/demo/page/page00000001/content/pcgts', format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
