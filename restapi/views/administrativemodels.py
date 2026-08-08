@@ -19,7 +19,7 @@ from rest_framework.views import APIView
 
 import ommr4all.settings as settings
 from database.database_book import DatabaseBook
-from database.model import Model, Storage
+from database.model import Model, ModelTrainingInfo, Storage
 from database.model.definitions import StorageType
 from omr.steps.algorithmtypes import AlgorithmTypes
 from .auth import DatabasePermissionFlag, require_admin
@@ -29,9 +29,6 @@ logger = logging.getLogger(__name__)
 # model directory (an AlgorithmTypes value or a legacy name) and model name (an ISO timestamp
 # for trained models, the model dir for the internal defaults)
 _NAME_RE = re.compile(r'^[\w\-.:+]+$')
-
-# what a model directory holds besides its weights; a model with nothing else never finished training
-_NON_WEIGHT_FILES = {Model.META_FILE, Model.USAGE_FILE, 'dataset_params.json'}
 
 PROTECTION_NEWEST = 'newest'
 PROTECTION_SELECTED = 'selected'
@@ -44,7 +41,17 @@ def _default_models_root() -> str:
 
 
 def _algorithm_types_of(model_dir: str) -> List[str]:
-    """The algorithm types served by a model directory (several types may share one)."""
+    """The algorithm types served by a model directory (several types may share one).
+
+    Registered steps are matched by the directory their meta names, which is not always the
+    model type (the syllable step keeps an own default directory); unregistered and legacy
+    directories still resolve through model_type().
+    """
+    from omr.steps.step import Step
+    Step._lazy_load_registry()
+    types = [t.value for t, meta in Step.METAS.items() if meta.model_dir() == model_dir]
+    if types:
+        return types
     return [t.value for t in AlgorithmTypes if t.model_type().value == model_dir]
 
 
@@ -54,14 +61,6 @@ def _list_dirs(path: str) -> List[str]:
             return sorted([e.name for e in it if e.is_dir()])
     except OSError:
         return []
-
-
-def _has_weights(path: str) -> bool:
-    for root, _, files in os.walk(path):
-        for name in files:
-            if root != path or name not in _NON_WEIGHT_FILES:
-                return True
-    return False
 
 
 class ModelAtPath(Model):
@@ -83,6 +82,21 @@ class ModelAtPath(Model):
         return self._id
 
 
+def _training_summary(info: Optional[ModelTrainingInfo]) -> Optional[dict]:
+    """The training record in one line; the full one is served by AdministrativeModelTrainingView."""
+    if info is None:
+        return None
+    return {
+        'books': len(info.books),
+        'trainPages': info.n_train_pages,
+        'validationPages': info.n_validation_pages,
+        'nEpoch': info.n_epoch,
+        'pretrained': info.pretrained_model,
+        'startedBy': info.started_by,
+        'finished': info.finished,
+    }
+
+
 def _entry(storage: str, owner: str, model_dir: str, name: str) -> dict:
     path = _model_path(storage, owner, model_dir, name)
     model = ModelAtPath(path, '/'.join([storage, owner, model_dir, name]))
@@ -101,10 +115,11 @@ def _entry(storage: str, owner: str, model_dir: str, name: str) -> dict:
         'iters': meta.iters,
         'sourceId': meta.source_id,
         'hasMeta': model.exists(),
-        'hasWeights': _has_weights(path),
+        'hasWeights': model.has_weights(),
         'size': model.size(),
         'lastUsed': usage.last_used,
         'nUsed': usage.n_used,
+        'training': _training_summary(model.training_info()),
         'protection': [],
     }
 
@@ -241,6 +256,27 @@ class AdministrativeModelsView(APIView):
                 'size': sum(m['size'] for m in models),
             },
         })
+
+
+class AdministrativeModelTrainingView(APIView):
+    """The full training record of one model (its books, pages and hyper parameters).
+
+    Not part of the listing: the page lists of a few hundred models add up.
+    """
+
+    @require_admin(DatabasePermissionFlag.MANAGE_MODELS)
+    def get(self, request):
+        parts = parse_model_id(request.GET.get('id', ''))
+        if parts is None:
+            return Response({'error': 'Unknown model'}, status=status.HTTP_400_BAD_REQUEST)
+
+        storage, owner, model_dir, name = parts
+        model = ModelAtPath(_model_path(storage, owner, model_dir, name), request.GET.get('id'))
+        info = model.training_info()
+        if info is None:
+            # trained before the record existed, or never trained at all
+            return Response({'id': model.id(), 'training': None})
+        return Response({'id': model.id(), 'training': info.to_dict()})
 
 
 class AdministrativeModelsPruneView(APIView):

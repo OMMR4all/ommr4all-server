@@ -1,4 +1,4 @@
-from .meta import ModelMeta, ModelUsage
+from .meta import ModelMeta, ModelTrainingInfo, ModelUsage
 from .definitions import MetaId
 from typing import Optional
 import os
@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 class Model:
     META_FILE = 'meta.json'
     USAGE_FILE = 'usage.json'
+    TRAINING_FILE = 'training.json'
+
+    # bookkeeping a model directory holds besides its weights; a directory with nothing else
+    # never produced a model (a training run that failed, or a placeholder directory)
+    NON_WEIGHT_FILES = {META_FILE, USAGE_FILE, TRAINING_FILE, 'dataset_params.json'}
 
     @staticmethod
     def from_id_str(id: str, meta: Optional[ModelMeta] = None) -> Optional['Model']:
@@ -80,6 +85,38 @@ class Model:
         except Exception as e:
             logger.warning('Could not record the usage of model {}'.format(self.path))
             logger.exception(e)
+
+    def training_info(self) -> Optional[ModelTrainingInfo]:
+        """What this model was trained on, or None for models trained before this was recorded."""
+        try:
+            with open(self.local_file(Model.TRAINING_FILE), 'r') as f:
+                return ModelTrainingInfo.from_json(f.read())
+        except (FileNotFoundError, ValueError):
+            return None
+
+    def save_training_info(self, info: ModelTrainingInfo):
+        """Record the training run. Never raises: provenance is not worth a failed training."""
+        try:
+            os.makedirs(self.path, exist_ok=True)
+            tmp = self.local_file(Model.TRAINING_FILE + '.tmp')
+            with open(tmp, 'w') as f:
+                f.write(info.to_json())
+            os.replace(tmp, self.local_file(Model.TRAINING_FILE))
+        except Exception as e:
+            logger.warning('Could not store the training info of model {}'.format(self.path))
+            logger.exception(e)
+
+    def has_weights(self) -> bool:
+        """Whether the directory holds anything a predictor could load.
+
+        ``exists()`` only tells that a meta file is there, which is also true for the placeholder
+        directories of steps that never shipped a default model.
+        """
+        for root, _, files in os.walk(self.path):
+            for name in files:
+                if root != self.path or name not in Model.NON_WEIGHT_FILES:
+                    return True
+        return False
 
     def size(self) -> int:
         """Bytes occupied by the model directory."""

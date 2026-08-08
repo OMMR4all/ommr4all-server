@@ -9,7 +9,6 @@ from database import DatabasePage, DatabaseBook
 from database.file_formats import PcGts
 from database.file_formats.pcgts import Line, Point
 from database.file_formats.pcgts.page import Syllable
-from database.model import Model, MetaId
 from omr.steps.step import Step, AlgorithmTypes
 from omr.steps.algorithm import AlgorithmPredictor, AlgorithmPredictionResultGenerator, PredictionCallback
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorSettings, AlgorithmPredictorParams
@@ -139,13 +138,12 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
         super().__init__(settings)
 
         meta = Step.meta(AlgorithmTypes.OCR_GUPPY)
-        from ommr4all.settings import BASE_DIR
         model = settings.model
-        if settings.model is None or AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH.value in settings.model.local_file(""):
-            m_path= '/internal_storage/default_models/french14/text_guppy/'
-            #m_path = '/storage/Geesebook2gt/models/text_guppy/2025-06-21T13:07:33/'
-            model = Model(
-                MetaId.from_custom_path(BASE_DIR + m_path, meta.type()))
+        if model is None or not model.has_weights():
+            # No model was resolved for the book (or it vanished): fall back to the default of the
+            # fallback style, which is the syllable default when an administrator set one and the
+            # text model of that style otherwise.
+            model = Meta.default_model_for_style('french14')
         logger.info("Using model {}".format(model.path))
         settings = AlgorithmPredictorSettings(
             model=model,

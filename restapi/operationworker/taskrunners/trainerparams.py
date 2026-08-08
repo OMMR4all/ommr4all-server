@@ -19,6 +19,9 @@ class TaskTrainerParams(DataClassJSONMixin):
     # names of the additional books to train on; only honoured together with includeAllTrainingData
     # and only after workerresources.validate_training_books checked the user may read them
     books: List[str] = field(default_factory=list)
+    # who started the run, for the model's training.json. Set server side (see
+    # restapi/views/bookoperations.py); anything the request body carries here is overwritten.
+    started_by: Optional[str] = None
 
     def to_trainer_params(self, trainer_class) -> Optional['AlgorithmTrainerParams']:
         """The hyper parameters requested by the client, or None to keep the algorithm defaults.

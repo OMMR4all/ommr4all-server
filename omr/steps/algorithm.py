@@ -1,5 +1,6 @@
+import datetime
 from abc import ABC, abstractmethod
-from collections import Counter
+from collections import Counter, OrderedDict
 from database import DatabaseBook, DatabasePage
 from database.file_formats import PcGts
 from database.file_formats.performance import LockState
@@ -9,7 +10,7 @@ from omr.experimenter.experimenter import Experimenter
 
 from .algorithmtrainerparams import AlgorithmTrainerSettings, AlgorithmTrainerParams, DatasetParams
 from .algorithmpreditorparams import AlgorithmPredictorSettings, AlgorithmPredictorParams
-from database.model import Models, Model, ModelMeta, MetaId, ModelsId, Storage
+from database.model import Models, Model, ModelMeta, ModelTrainingBook, ModelTrainingInfo, MetaId, ModelsId, Storage
 from database.database_available_models import DatabaseAvailableModels
 import os
 import uuid
@@ -249,11 +250,52 @@ class AlgorithmTrainer(ABC):
 
         self.settings.model.save_meta()
 
+        # written before the run so that an aborted training still says what it was fed
+        training_info = self._training_info(target_book)
+        self.settings.model.save_training_info(training_info)
+
         self._pre_train()
         self._train(target_book, CallbackInterception(self))
         self._post_train(target_book)
 
         self.settings.model.save_meta()
+        training_info.finished = datetime.datetime.now()
+        self.settings.model.save_training_info(training_info)
+
+    def _training_info(self, target_book: Optional[DatabaseBook] = None) -> ModelTrainingInfo:
+        """The configuration and the ground truth of this run, for the model's training.json."""
+        books: 'OrderedDict[str, ModelTrainingBook]' = OrderedDict()
+
+        def add(data: List[PcGts], validation: bool):
+            for pcgts in data:
+                page = pcgts.page.location
+                entry = books.get(page.book.book)
+                if entry is None:
+                    entry = ModelTrainingBook(book=page.book.book,
+                                              book_name=page.book.get_meta().name)
+                    books[page.book.book] = entry
+                (entry.validation_pages if validation else entry.train_pages).append(page.page)
+
+        add(self.settings.train_data, False)
+        add(self.settings.validation_data, True)
+        for entry in books.values():
+            entry.train_pages.sort()
+            entry.validation_pages.sort()
+
+        return ModelTrainingInfo(
+            algorithm_type=self.meta().type().value,
+            target_book=target_book.book if target_book else None,
+            started=datetime.datetime.now(),
+            started_by=self.settings.started_by,
+            pretrained_model=self.params.load if self.params else None,
+            n_train=self.settings.n_train,
+            n_epoch=self.params.n_epoch if self.params else None,
+            params=self.params.to_dict() if self.params else None,
+            dataset_params=self.settings.dataset_params.to_dict() if self.settings.dataset_params else None,
+            books=list(books.values()),
+            n_train_pages=len(self.settings.train_data),
+            n_validation_pages=len(self.settings.validation_data),
+        )
 
     @abstractmethod
     def _train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):

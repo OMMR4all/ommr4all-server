@@ -212,6 +212,8 @@ class BookOperationView(APIView):
             worker_resource = resolve_worker_resource(Step.create_meta(trained_type), body.get('worker_resource'), training=True)
             train_params = TaskTrainerParams.from_dict(body.get('trainParams', {}))
             train_params.n_epoch = resolve_n_epoch(user, trained_type, train_params.n_epoch)
+            # never taken from the request body, see TaskTrainerParams.started_by
+            train_params.started_by = getattr(user, 'username', None) if user is not None else None
             if user is not None:
                 # only the callers that actually start a training pass a user; the ones that
                 # merely rebuild the runner to look up a task (status/models) must not raise

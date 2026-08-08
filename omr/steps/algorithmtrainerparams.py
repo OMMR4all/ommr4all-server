@@ -51,3 +51,8 @@ class AlgorithmTrainerSettings:
     page_segmentation_torch_params: PageSegmentationTrainerTorchParams = field(default_factory=PageSegmentationTrainerTorchParams)
     calamari_params: CalamariParams = field(default_factory=CalamariParams)
 
+    # only recorded in the model's training.json (see AlgorithmTrainer.train), never used to train:
+    # the share of the ground truth that went into train_data, and who started the run
+    n_train: Optional[float] = None
+    started_by: Optional[str] = None
+

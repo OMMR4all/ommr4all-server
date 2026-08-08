@@ -128,6 +128,9 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
             ),
             # None unless the request asked for a value, so the algorithm defaults apply unchanged
             params=self.params.to_trainer_params(meta.trainer()),
+            # only recorded in the model's training.json
+            n_train=self.params.nTrain,
+            started_by=self.params.started_by,
         )
 
         trainer = meta.create_trainer(settings)

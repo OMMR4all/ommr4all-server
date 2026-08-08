@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 import sys
 
 import ommr4all.settings as settings
@@ -40,7 +41,8 @@ class TestDefaultModelSlots(DjangoTestCase):
             self.assertTrue(t.uses_model(), t)
             self.assertIn(t, Step.METAS, "{} is not registered in omr/steps/step.py".format(t))
             for alias in aliases:
-                self.assertEqual(alias.model_type(), t.model_type())
+                # an alias is configured by this slot because it reads the same directory
+                self.assertEqual(Step.meta(alias).model_dir(), Step.meta(t).model_dir())
 
     def test_no_two_slots_share_a_model_directory(self):
         # two slots writing the same directory would silently overwrite each other
@@ -49,8 +51,47 @@ class TestDefaultModelSlots(DjangoTestCase):
 
     def test_aliased_types_collapse_into_one_slot(self):
         slots = {t: aliases for t, aliases in default_model_slots()}
-        self.assertNotIn(AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH, slots)
-        self.assertIn(AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH, slots[AlgorithmTypes.OCR_GUPPY])
+        self.assertNotIn(AlgorithmTypes.LAYOUT_SIMPLE_LYRICS, slots)
+        self.assertIn(AlgorithmTypes.LAYOUT_SIMPLE_LYRICS,
+                      slots[AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO])
+
+    def test_syllables_are_configured_separately_from_text(self):
+        # the step runs a text model but must be able to use a different one than the text step
+        slots = {t: aliases for t, aliases in default_model_slots()}
+        self.assertIn(AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH, slots)
+        self.assertEqual(slots[AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH], [])
+        self.assertNotIn(AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH, slots[AlgorithmTypes.OCR_GUPPY])
+        self.assertEqual(AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH.group(), AlgorithmGroups.SYLLABLES)
+
+    def test_the_syllable_step_falls_back_to_the_text_default(self):
+        # no default is shipped for the syllable step; without an own one it uses the text model
+        model = Step.meta(AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH).default_model_for_style('french14')
+        self.assertTrue(model.path.endswith(os.path.join('french14', 'text_guppy')), model.path)
+
+    def test_the_syllable_step_never_predicts_with_an_empty_default_directory(self):
+        # internal_storage ships a bare meta.json for every algorithm; handing that to the
+        # predictor fails the prediction, so a directory without weights must not be used
+        from database import DatabaseBook
+        model = Step.meta(AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH).selected_model_for_book(
+            DatabaseBook('demo'))
+        self.assertTrue(model.has_weights(), model.path)
+
+    def test_the_syllable_default_is_stored_next_to_the_text_default(self):
+        from database.database_available_models import DatabaseAvailableModels
+        source = 'i/french14/text_guppy/text_guppy'
+        style_dir = DatabaseAvailableModels.local_default_model_path_for_style('teststyle')
+        target = os.path.join(style_dir, AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH.value)
+        text_target = os.path.join(style_dir, 'text_guppy')
+        self.assertFalse(os.path.exists(target))
+        try:
+            response = self._client(self.admin).put(
+                '/api/administrative/default_models/type/syllables_from_text_torch/style/teststyle',
+                {'id': source}, format='json')
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertTrue(os.path.exists(os.path.join(target, 'meta.json')))
+            self.assertFalse(os.path.exists(text_target), 'the text default must stay untouched')
+        finally:
+            shutil.rmtree(target, ignore_errors=True)
 
     def test_slots_endpoint(self):
         body = self._client(self.user).get('/api/administrative/default_models/slots').json()

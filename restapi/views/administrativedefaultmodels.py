@@ -16,24 +16,27 @@ def default_model_slots() -> List[Tuple[AlgorithmTypes, List[AlgorithmTypes]]]:
     """The (algorithm type, aliases) pairs a default model may be configured for, in group order.
 
     Only model based steps that are registered in omr/steps/step.py are offered: an unregistered
-    type has no meta and could not be predicted with anyway. Types that share a model directory
-    (see AlgorithmTypes.model_type(), e.g. the torch syllable step reuses the Guppy OCR model)
-    collapse into a single slot, otherwise two rows of the table would write the same directory;
-    the collapsed types are reported as its aliases.
+    type has no meta and could not be predicted with anyway. Types that write the same default
+    model directory collapse into a single slot, otherwise two rows of the table would overwrite
+    each other; the collapsed types are reported as its aliases. The directory comes from the
+    step's meta, not from AlgorithmTypes.model_type(): a step may share the trained models of
+    another one and still keep an own default (see the torch syllable step, which runs a Guppy
+    OCR model but has an own default model directory).
     """
     Step._lazy_load_registry()
     slots = []
-    by_model_type = {}
+    by_model_dir = {}
     for group, types in AlgorithmGroups.group_types_mapping().items():
         for t in types:
             if not t.uses_model() or t not in Step.METAS:
                 continue
-            slot = by_model_type.get(t.model_type())
+            model_dir = Step.meta(t).model_dir()
+            slot = by_model_dir.get(model_dir)
             if slot is not None:
                 slot[1].append(t)
                 continue
-            by_model_type[t.model_type()] = (t, [])
-            slots.append((t, by_model_type[t.model_type()][1]))
+            by_model_dir[model_dir] = (t, [])
+            slots.append((t, by_model_dir[model_dir][1]))
     return slots
 
 
@@ -104,8 +107,10 @@ class AdministrativeDefaultModelsTypeView(APIView):
         # imply that this style has one of its own -- the client shows that difference
         own = Model(MetaId(DatabaseAvailableModels.local_default_models(style, algorithm_type),
                            step.model_dir()))
+        # has_weights, not exists: internal_storage ships a bare meta.json for every algorithm,
+        # which is not a default model anybody could predict with
         return Response({**step.list_available_models_for_style(style).to_dict(),
-                         'has_own_default': own.exists()})
+                         'has_own_default': own.exists() and own.has_weights()})
 
 
 class AdministrativeDefaultModelsView(APIView):
