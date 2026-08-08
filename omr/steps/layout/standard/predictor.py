@@ -4,16 +4,24 @@ from typing import List, Optional
 from database.file_formats.pcgts import PcGts, Coords, BlockType
 import numpy as np
 from layoutanalysis.segmentation.callback import SegmentationCallback
+from omr.steps.algorithm import PredictionProgress
 from omr.steps.layout.standard.meta import Meta
 
 
 class SPredictionCallback(SegmentationCallback):
-    def __init__(self, callback: PredictionCallback):
-        self.callback = callback
+    """Feeds the layout-analysis library's per-page step counter into PredictionProgress.
+
+    get_current_page_progress() restarts at 0 for every page, so reporting it as
+    the overall percentage made the bar run 0 -> 1 -> 0 -> 1 once per page. It is
+    a *within-page* fraction; PredictionProgress owns the page-level accounting.
+    """
+
+    def __init__(self, progress: PredictionProgress):
         super().__init__()
+        self.progress = progress
 
     def changed(self):
-        self.callback.progress_updated(self.get_current_page_progress())
+        self.progress.sub_progress(self.get_current_page_progress())
 
 
 class Predictor(LayoutAnalysisPredictor):
@@ -38,14 +46,19 @@ class Predictor(LayoutAnalysisPredictor):
 
         def p_to_np(polys, page):
             return [page.image_to_page_scale(Coords(np.array(p.exterior.coords)), self.dataset_params.page_scale_reference) for p in polys]
-        if callback:
-            # TODO: Layout analyse callback of layout-analyse not as class member variable
-            self.segmentator.callback = SPredictionCallback(callback)
+        progress = PredictionProgress(callback, len(pcgts_files))
+        progress.start()
+        # Always overwrite: the predictor is cached across tasks and Segmentator
+        # keeps the callback as a member, so a stale one would keep reporting into
+        # a finished task. With callback=None the whole chain is a silent no-op.
+        # TODO: Layout analyse callback of layout-analyse not as class member variable
+        self.segmentator.callback = SPredictionCallback(progress)
 
         for p, pcgts in zip(self.segmentator.segment(
                 map(extract_staffs, pcgts_files),
                 [p.page.location.file(self.dataset_params.page_scale_reference.file('gray'), True).local_path() for p in pcgts_files], ), pcgts_files):
             page = pcgts.page
+            progress.page_finished()
 
             yield PredictionResult(
                 blocks={

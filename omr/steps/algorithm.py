@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections import Counter
 from database import DatabaseBook, DatabasePage
 from database.file_formats import PcGts
 from database.file_formats.performance import LockState
@@ -52,6 +53,107 @@ class PredictionCallback(ABC):
                          n_pages: int = 0,
                          n_processed_pages: int = 0):
         pass
+
+
+class PredictionProgress:
+    """Page-normalised, monotonic progress reporting for algorithm predictors.
+
+    Every predictor reports through this class instead of calling
+    ``PredictionCallback.progress_updated`` directly, so the invariants live in
+    one place:
+
+    * ``percentage`` is ``(pages_done + fraction_within_current_page) / n_pages``,
+      clamped to ``[0, 1]`` and never decreasing,
+    * ``n_processed_pages`` counts *finished pages only* -- it is never fed a
+      sub-page counter, so the "Progress n/N" label in the client cannot jump
+      back to 0 mid-run.
+
+    Predictors that iterate lines rather than pages pass ``item_pages``, a list
+    mapping item index -> page index. ``item_finished`` then advances the smooth
+    line-granular percentage while still reporting true page counts.
+
+    Constructing with ``callback=None`` yields a fully functional no-op, so
+    predictors do not need ``if callback:`` guards around every call site.
+    """
+
+    def __init__(self,
+                 callback: Optional[PredictionCallback],
+                 n_pages: int,
+                 item_pages: Optional[List[int]] = None):
+        self.callback = callback
+        self.n_pages = max(1, n_pages)
+        self.item_pages = item_pages
+        self._page_totals = Counter(item_pages) if item_pages is not None else Counter()
+        self._page_remaining = Counter(self._page_totals)
+        # Pages that contribute no items (e.g. a page without any text line) are
+        # never reported by item_finished, so credit them up front -- otherwise
+        # the label could never reach n/n.
+        self._pages_done = (self.n_pages - len(self._page_totals)
+                            if item_pages is not None else 0)
+        self._fraction = 0.0
+        self._last_percentage = 0.0
+
+    @classmethod
+    def for_lines(cls,
+                  callback: Optional[PredictionCallback],
+                  pcgts_files: list,
+                  lines: list) -> 'PredictionProgress':
+        """Reporter for predictors that iterate lines instead of pages.
+
+        ``lines`` are the loaded ``RegionLineMaskData`` items; each carries the
+        PcGts of the page it came from, which is what maps a line back to a page.
+        """
+        page_of = {id(f): i for i, f in enumerate(pcgts_files)}
+        item_pages = [page_of.get(id(line.operation.pcgts), 0) for line in lines]
+        return cls(callback, len(pcgts_files), item_pages)
+
+    def start(self):
+        """Publish an initial 0 / n_pages so the bar starts determinate."""
+        self._emit()
+
+    def sub_progress(self, fraction: float):
+        """Report progress *within* the page currently being processed."""
+        self._fraction = min(max(fraction, 0.0), 1.0)
+        self._emit()
+
+    def page_finished(self):
+        """Advance to the next page. The only thing that moves n_processed_pages."""
+        self._pages_done = min(self._pages_done + 1, self.n_pages)
+        self._fraction = 0.0
+        self._emit()
+
+    def item_finished(self, index: int):
+        """Report completion of item ``index`` for line-based predictors.
+
+        Advances the percentage smoothly per line and rolls the page counter
+        over once the last line of a page has been processed.
+        """
+        if self.item_pages is None or index >= len(self.item_pages):
+            # No item -> page map available: fall back to treating items as pages.
+            self.page_finished()
+            return
+
+        page = self.item_pages[index]
+        self._page_remaining[page] -= 1
+        if self._page_remaining[page] <= 0:
+            self.page_finished()
+            return
+
+        total = self._page_totals[page]
+        self._fraction = (total - self._page_remaining[page]) / total
+        self._emit()
+
+    def _emit(self):
+        if not self.callback:
+            return
+        percentage = (self._pages_done + self._fraction) / self.n_pages
+        percentage = min(max(percentage, 0.0), 1.0)
+        # Monotonic: a slower sub-page estimate must never drag the bar back.
+        percentage = max(percentage, self._last_percentage)
+        self._last_percentage = percentage
+        self.callback.progress_updated(percentage,
+                                       n_pages=self.n_pages,
+                                       n_processed_pages=self._pages_done)
 
 
 class AlgorithmTrainer(ABC):

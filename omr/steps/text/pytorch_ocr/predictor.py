@@ -18,7 +18,7 @@ if __name__ == '__main__':
 from typing import List, Tuple, Type, Optional, Generator
 from omr.dataset.datastructs import RegionLineMaskData
 from database import DatabaseBook
-from omr.steps.algorithm import AlgorithmMeta, PredictionCallback
+from omr.steps.algorithm import AlgorithmMeta, PredictionCallback, PredictionProgress
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorSettings
 from omr.steps.text.dataset import TextDataset
 from omr.steps.text.predictor import \
@@ -81,6 +81,8 @@ class PytorchPredictor(TextPredictor):
             self.dict_corrector.load_dict(book=book)
 
         loaded_dataset = dataset.load()
+        progress = PredictionProgress.for_lines(callback, dataset.files, loaded_dataset)
+        progress.start()
         for i, y in enumerate(loaded_dataset):  # dataset_cal[0]:
             image = Image.fromarray(255 - y.line_image).convert('L')
 
@@ -95,9 +97,7 @@ class PytorchPredictor(TextPredictor):
                     hyphenated = sentence.decoded_string
             else:
                 hyphenated = hyphen.apply_to_sentence(sentence.decoded_string)
-            percentage = (i + 1) / len(loaded_dataset)
-            if callback:
-                callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len(loaded_dataset))
+            progress.item_finished(i)
             text, chars = self.extract_symbols(dataset, sentence, y, width / hidden_size)
             yield SingleLinePredictionResult(text=text,
                                              line=y, hyphenated=hyphenated, chars=chars)

@@ -17,10 +17,15 @@ from omr.steps.stafflines.detection.dataset import PCDataset
 from omr.steps.stafflines.detection.pixelclassifier.meta import Meta, AlgorithmMeta
 from linesegmentation.detection.callback import LineDetectionCallback
 from linesegmentation.detection.settings import PostProcess
-from omr.steps.algorithm import AlgorithmPredictor, AlgorithmPredictorSettings
+from omr.steps.algorithm import AlgorithmPredictor, AlgorithmPredictorSettings, PredictionProgress
 
 
 logger = logging.getLogger(__name__)
+
+
+# LineDetectionCallback's own default, which is calibrated for detect_fcn() --
+# the code path this (legacy, non-torch) predictor actually takes via detect().
+STEPS_PER_PAGE = 8
 
 
 class StaffLinePredictorParameters(NamedTuple):
@@ -29,16 +34,28 @@ class StaffLinePredictorParameters(NamedTuple):
 
 
 class PCPredictionCallback(LineDetectionCallback):
-    def __init__(self, callback: LineDetectionPredictorCallback):
-        self.callback = callback
-        super().__init__()
+    """Bridges the line-detection library's counters onto PredictionProgress.
+
+    detect() -> detect_fcn() drives both update_total_state() and
+    update_page_counter(), so the library's page counter is authoritative here
+    and we only translate its step counter into a within-page fraction.
+    """
+
+    def __init__(self, progress: PredictionProgress):
+        super().__init__(steps_per_page=STEPS_PER_PAGE)
+        self.progress = progress
+        self._pages_done = 0
+        self._steps_in_page = 0
 
     def changed(self):
-        self.callback.progress_updated(
-            self.get_progress(),
-            self.get_total_pages(),
-            self.get_processed_pages(),
-        )
+        processed = self.get_processed_pages()
+        if processed > self._pages_done:
+            self._pages_done = processed
+            self._steps_in_page = 0
+            self.progress.page_finished()
+            return
+        self._steps_in_page = min(self._steps_in_page + 1, STEPS_PER_PAGE)
+        self.progress.sub_progress(self._steps_in_page / STEPS_PER_PAGE)
 
 
 class BasicStaffLinePredictor(StaffLinePredictor):
@@ -72,9 +89,13 @@ class BasicStaffLinePredictor(StaffLinePredictor):
         pc_dataset = PCDataset(pcgts_files, self.dataset_params)
         dataset = pc_dataset.to_line_detection_dataset()
         gray_images = [(255 - data.line_image).astype(np.uint8) for data in dataset]
-        if callback:
-            # TODO: Line detection callback of line-detection not as class member variable
-            self.line_detection.callback = PCPredictionCallback(callback)
+        progress = PredictionProgress(callback, len(pages))
+        progress.start()
+        # Always overwrite: the predictor is cached across tasks and LineDetection
+        # keeps the callback as a member, so a stale one would keep reporting into
+        # a finished task. With callback=None the whole chain is a silent no-op.
+        # TODO: Line detection callback of line-detection not as class member variable
+        self.line_detection.callback = PCPredictionCallback(progress)
         predictions = self.line_detection.detect(gray_images)
         for i, (data, r) in enumerate(zip(dataset, predictions)):
             rlmd: RegionLineMaskData = data

@@ -28,7 +28,7 @@ from copy import deepcopy
 from database.model import Model
 from omr.dataset.datastructs import RegionLineMaskData
 from database import DatabaseBook
-from omr.steps.algorithm import AlgorithmMeta, PredictionCallback
+from omr.steps.algorithm import AlgorithmMeta, PredictionCallback, PredictionProgress
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorSettings
 from omr.steps.text.dataset import TextDataset
 from omr.steps.text.predictor import \
@@ -116,7 +116,9 @@ class CalamariPredictor(TextPredictor):
         reader = pipeline.reader()
         avg_sentence_confidence = 0
         n_predictions = 0
-        for m, s in zip(dataset.load(), predictor):
+        progress = PredictionProgress.for_lines(callback, dataset.files, dataset.load())
+        progress.start()
+        for i, (m, s) in enumerate(zip(dataset.load(), predictor)):
             inputs, (result, prediction), meta = s.inputs, s.outputs, s.meta
             sample = reader.sample_by_id(meta['id'])
             n_predictions += 1
@@ -130,6 +132,7 @@ class CalamariPredictor(TextPredictor):
             else:
                 hyphenated = hyphen.apply_to_sentence(sentence)
             avg_sentence_confidence += prediction.avg_char_probability
+            progress.item_finished(i)
             yield SingleLinePredictionResult(self.extract_symbols(dataset, prediction, m), m, hyphenated=hyphenated)
 
     def extract_symbols(self, dataset: TextDataset, p, m: RegionLineMaskData) -> List[Tuple[str, Point]]:

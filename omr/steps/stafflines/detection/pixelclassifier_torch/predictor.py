@@ -18,10 +18,19 @@ from omr.steps.stafflines.detection.dataset import PCDataset, PCDatasetTorch
 from omr.steps.stafflines.detection.pixelclassifier_torch.meta import Meta, AlgorithmMeta
 from linesegmentation.detection.callback import LineDetectionCallback
 from linesegmentation.detection.settings import PostProcess
-from omr.steps.algorithm import AlgorithmPredictor, AlgorithmPredictorSettings
+from omr.steps.algorithm import AlgorithmPredictor, AlgorithmPredictorSettings, PredictionProgress
 
 
 logger = logging.getLogger(__name__)
+
+
+# Number of LineDetectionCallback.update_total_state() calls this predictor's code
+# path spends per page. It calls LineDetection.detect_prob_map(), which reaches
+# detect_staff_lines() and fires 3 unconditional states plus 2 in the BESTFIT
+# post-processing branch (see linesegmentation/detection/detection.py). The
+# library's own default of 8 is calibrated for detect_fcn(), which we do not use,
+# so relying on it would cap our progress at 5/8.
+STEPS_PER_PAGE = 5
 
 
 class StaffLinePredictorParameters(NamedTuple):
@@ -30,16 +39,27 @@ class StaffLinePredictorParameters(NamedTuple):
 
 
 class PCPredictionCallback(LineDetectionCallback):
-    def __init__(self, callback: LineDetectionPredictorCallback):
-        self.callback = callback
-        super().__init__()
+    """Feeds the line-detection library's step counter into PredictionProgress.
+
+    The library counts steps globally across the whole batch; we only care about
+    the fraction *within the current page*, because PredictionProgress owns the
+    page-level accounting. Reporting the library's global percentage here as well
+    is what made the bar oscillate: two emitters on different scales, last write
+    wins.
+    """
+
+    def __init__(self, progress: PredictionProgress):
+        super().__init__(steps_per_page=STEPS_PER_PAGE)
+        self.progress = progress
+        self._steps_in_page = 0
 
     def changed(self):
-        self.callback.progress_updated(
-            self.get_progress(),
-            self.get_total_pages(),
-            self.get_processed_pages(),
-        )
+        self._steps_in_page = min(self._steps_in_page + 1, STEPS_PER_PAGE)
+        self.progress.sub_progress(self._steps_in_page / STEPS_PER_PAGE)
+
+    def page_finished(self):
+        self._steps_in_page = 0
+        self.progress.page_finished()
 
 
 class BasicStaffLinePredictorTorch(StaffLinePredictor):
@@ -88,11 +108,17 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
         pc_dataset = PCDatasetTorch(pcgts_files, self.dataset_params)
         dataset = pc_dataset.to_line_detection_dataset()
 
-        if callback:
-            # TODO: Line detection callback of line-detection not as class member variable
-            ld_callback = PCPredictionCallback(callback)
-            ld_callback.set_total_pages(len(pages))
-            self.line_detection.callback = ld_callback
+        progress = PredictionProgress(callback, len(pages))
+        progress.start()
+
+        # The predictor instance is cached across tasks (see predictorcache), and
+        # LineDetection keeps the callback as a member. Always overwrite it, or a
+        # finished task's callback keeps firing into its dead communication queue.
+        # With callback=None the whole chain is a silent no-op.
+        # TODO: Line detection callback of line-detection not as class member variable
+        ld_callback = PCPredictionCallback(progress)
+        ld_callback.set_total_pages(len(pages))
+        self.line_detection.callback = ld_callback
 
         for ind, i in enumerate(tqdm(dataset, total=len(pages))):
             output = self.nmaskpredictor.predict_image(SourceImage.from_numpy(i.line_image))
@@ -108,10 +134,7 @@ class BasicStaffLinePredictorTorch(StaffLinePredictor):
 
             rlmd: RegionLineMaskData = i
             page: Page = rlmd.operation.page
-            if callback:
-                percentage = (ind + 1) / len(pages)
-
-                callback.progress_updated(percentage, n_processed_pages=ind + 1, n_pages=len(pages))
+            ld_callback.page_finished()
             if len(r) == 0:
                 logger.warning('No staff lines detected.')
                 yield PredictionResult([], [], rlmd)

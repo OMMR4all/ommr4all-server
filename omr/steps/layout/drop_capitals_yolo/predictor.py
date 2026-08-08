@@ -12,6 +12,7 @@ from omr.steps.layout.predictor import LayoutAnalysisPredictor, PredictionType, 
 from typing import List, Optional
 from database.file_formats.pcgts import PcGts, BlockType, Coords, Line, Rect, Point, Size, Page, PageScaleReference
 import numpy as np
+from omr.steps.algorithm import PredictionProgress
 from omr.steps.layout.drop_capitals_yolo.meta import Meta
 from loguru import logger
 
@@ -67,7 +68,8 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         index = 0
 
-
+        progress = PredictionProgress(callback, len(pcgts_files))
+        progress.start()
 
         for image, mask, add in zip(images, masks, adds):
             print(pcgts_files[index].page.location.page)
@@ -131,6 +133,7 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
                 coords.append(page.image_to_page_scale(transform_points(list(convex_hull_points)),
                                                        rlmd.operation.scale_reference))
             """
+            progress.page_finished()
             yield PredictionResult(
                 blocks={
                     BlockType.DROP_CAPITAL: coords,

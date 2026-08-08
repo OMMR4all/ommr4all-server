@@ -8,7 +8,7 @@ from omr.confidence.symbol_sequence_confidence import SymbolSequenceConfidenceLo
 from database.file_formats.pcgts import *
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset, SymbolDetectionDatasetTorch
 from omr.dataset import RegionLineMaskData, DatasetParams
-from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorSettings
+from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorSettings, PredictionProgress
 
 from omr.steps.symboldetection.yolo_detector.meta import Meta
 from omr.imageoperations.music_line_operations import SymbolLabel
@@ -62,7 +62,11 @@ class PCTorchPredictor(SymbolsPredictor):
         clefs = []
         from ultralytics import YOLO
 
-        for index, row in df.iterrows():
+        progress = PredictionProgress.for_lines(callback, pcgts_files, list(df['original']))
+        progress.start()
+        # Enumerate positionally: df's index label need not match the position in
+        # the item -> page map built above.
+        for pos, (index, row) in enumerate(df.iterrows()):
             mask, image, data = row['masks'], row['images'], row['original']
             image2 = image[:, :, [2, 1, 0]]
 
@@ -159,6 +163,7 @@ class PCTorchPredictor(SymbolsPredictor):
             line = Line(symbols=symbols)
             line.update_note_names(initial_clef=initial_clef)
             symbols = line.symbols
+            progress.item_finished(pos)
             yield SingleLinePredictionResult(symbols, data)
 
 if __name__ == '__main__':

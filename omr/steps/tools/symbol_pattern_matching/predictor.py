@@ -3,7 +3,7 @@ from database import DatabasePage, DatabaseBook
 from database.file_formats.pcgts import Page, SymbolType, PageScaleReference, NoteName, GraphicalConnectionType
 from database.file_formats.performance.pageprogress import Locks
 from omr.steps.algorithm import AlgorithmPredictionResult, AlgorithmPredictor, AlgorithmPredictionResultGenerator, \
-    PredictionCallback, AlgorithmMeta
+    PredictionCallback, AlgorithmMeta, PredictionProgress
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmPredictorSettings
 from omr.steps.tools.symbol_pattern_matching.meta import Meta
 import numpy as np
@@ -86,6 +86,9 @@ class MelodicPatternPredictor(AlgorithmPredictor):
 
         patterns_to_search: List[List[Any]] = getattr(self.params, 'patterns', [])
         syllable_only: bool = getattr(self.params, 'syllable_only', True)
+
+        progress = PredictionProgress(callback, len(pages))
+        progress.start()
 
         for i, db_page in enumerate(pages):
             # cached is safe here: update_note_names() recomputes the same derived
@@ -205,6 +208,7 @@ class MelodicPatternPredictor(AlgorithmPredictor):
                             ))
                             page_total += match_count
 
+            progress.page_finished()
             if page_total > 0:
                 yield MelodicPatternResult(
                     page_id=db_page.page,

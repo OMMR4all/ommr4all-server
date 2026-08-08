@@ -86,11 +86,32 @@ class TaskQueue:
 
             raise TaskNotFoundException()
 
+    @staticmethod
+    def _monotonic(previous: TaskStatus, status: TaskStatus) -> TaskStatus:
+        """Stop a running task's progress from moving backwards.
+
+        Predictors report from more than one place (a per-page loop plus an ML
+        library's own step callback, say). If those disagree on scale the bar
+        visibly bounces, so hold the high-water mark instead of trusting the last
+        writer. Only applies while the task keeps running in the same phase: a
+        progress_code change (LOADING_DATA -> WORKING) legitimately restarts the
+        scale, and a terminal status must always be published verbatim.
+        """
+        if status.code != TaskStatusCodes.RUNNING or previous.code != TaskStatusCodes.RUNNING:
+            return status
+        if status.progress_code != previous.progress_code:
+            return status
+        if status.progress >= previous.progress and status.n_processed >= previous.n_processed:
+            return status
+        return replace(status,
+                       progress=max(status.progress, previous.progress),
+                       n_processed=max(status.n_processed, previous.n_processed))
+
     def update_status(self, task_id: str, status: TaskStatus, result: dict = None):
         with self.mutex:
             for task in self.tasks:
                 if task.task_id == task_id:
-                    task.task_status = status
+                    task.task_status = self._monotonic(task.task_status, status)
                     if result:
                         task.task_result = result
                     return

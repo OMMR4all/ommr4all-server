@@ -20,7 +20,7 @@ if __name__ == '__main__':
 from typing import List, Tuple, Type, Optional, Generator
 from omr.dataset.datastructs import RegionLineMaskData
 from database import DatabaseBook
-from omr.steps.algorithm import AlgorithmMeta, PredictionCallback
+from omr.steps.algorithm import AlgorithmMeta, PredictionCallback, PredictionProgress
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorSettings
 from omr.steps.text.dataset import TextDataset
 from omr.steps.text.predictor import \
@@ -204,12 +204,15 @@ class GuppyPredictor(TextPredictor):
             self.dict_corrector.load_dict(book=book)
 
         loaded_dataset = dataset.load()
-        len_dataset = len(loaded_dataset)
+        progress = PredictionProgress.for_lines(callback, dataset.files, loaded_dataset)
+        progress.start()
         import torch
         for i, y in enumerate(loaded_dataset):  # dataset_cal[0]:
 
             image = 255 - y.line_image
             if not len(image.shape) == 3:
+                # Still count the skipped line, otherwise its page never completes.
+                progress.item_finished(i)
                 continue
                 #raise InvalidInputImage("Len of image cutout shape must be 3")
             #print(self.network.mc.mconfig.Width)
@@ -242,19 +245,12 @@ class GuppyPredictor(TextPredictor):
                     hyphenated = sentence.decoded_string
             else:
                 hyphenated = hyphen.apply_to_sentence(sentence.decoded_string)
-            percentage = (i + 1) / len(loaded_dataset)
-            if callback:
-                callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len(loaded_dataset))
-
             delta = 1 - (sizes[1] / self.network.mc.mconfig.Width)
             #print(sentence)
             text, chars = self.extract_symbols(dataset, sentence, y, (self.network.mc.mconfig.Width) * (
                         image.shape[1] / self.network.mc.mconfig.Width) / (net_out.shape[0] * delta), pad=sizes[1])
             width = image.shape[1]
-            if callback:
-                percentage = (i + 1) / len_dataset
-
-                callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len_dataset)
+            progress.item_finished(i)
             yield SingleLinePredictionResult(text=text,
                                              line=y, hyphenated=hyphenated, chars=chars)
 

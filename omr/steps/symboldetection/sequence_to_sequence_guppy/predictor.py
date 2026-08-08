@@ -18,6 +18,7 @@ import numpy as np
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset, SymbolDetectionDatasetTorch
 from omr.steps.symboldetection.predictor import SymbolsPredictor, AlgorithmPredictorSettings, PredictionCallback, \
     SingleLinePredictionResult, PredictionResult
+from omr.steps.algorithm import PredictionProgress
 from omr.steps.symboldetection.sequence_to_sequence_guppy.meta import Meta
 
 from loguru import logger
@@ -56,10 +57,13 @@ class OMRPredictor(SymbolsPredictor):
 
         dataset = SymbolDetectionDatasetTorch(pcgts_files, self.dataset_params)
         loaded_dataset = dataset.load()
-        len_dataset = len(loaded_dataset)
+        progress = PredictionProgress.for_lines(callback, pcgts_files, loaded_dataset)
+        progress.start()
         for i, y in enumerate(loaded_dataset):  # dataset_cal[0]:
             image = y.region
             if not len(image.shape) == 3:
+                # Still count the skipped line, otherwise its page never completes.
+                progress.item_finished(i)
                 continue
                 # raise InvalidInputImage("Len of image cutout shape must be 3")
             # print(self.network.mc.mconfig.Width)
@@ -87,19 +91,12 @@ class OMRPredictor(SymbolsPredictor):
                 #print(sentence.decoded_string)
             # print(self.dict_corrector)
 
-            percentage = (i + 1) / len(loaded_dataset)
-            if callback:
-                callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len(loaded_dataset))
-
             delta = 1 - (sizes[1] / self.network.mc.mconfig.Width)
             # print(sentence)
             symbols = self.extract_symbols(dataset, sentence, y, (self.network.mc.mconfig.Width) * (
                     image.shape[1] / self.network.mc.mconfig.Width) / (net_out.shape[0] * delta), pad=sizes[1])
             width = image.shape[1]
-            if callback:
-                percentage = (i + 1) / len_dataset
-
-                callback.progress_updated(percentage, n_processed_pages=i + 1, n_pages=len_dataset)
+            progress.item_finished(i)
             initial_clef = None
             if len(symbols) > 0:
                 if symbols[0].symbol_type == symbols[0].symbol_type.CLEF:

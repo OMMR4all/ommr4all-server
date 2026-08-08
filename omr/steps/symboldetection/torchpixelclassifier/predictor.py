@@ -10,7 +10,7 @@ from omr.confidence.symbol_sequence_confidence import SymbolSequenceConfidenceLo
 from database.file_formats.pcgts import *
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset, SymbolDetectionDatasetTorch
 from omr.dataset import RegionLineMaskData, DatasetParams
-from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorSettings
+from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorSettings, PredictionProgress
 import cv2
 import numpy as np
 from omr.steps.symboldetection.torchpixelclassifier.meta import Meta
@@ -71,8 +71,11 @@ class PCTorchPredictor(SymbolsPredictor):
         dataset = SymbolDetectionDatasetTorch(pcgts_files, self.dataset_params)
         df = dataset.to_memory_dataset(train=False)
         clefs = []
-        total_lines = len(list(df.iterrows()))
-        for index, row in df.iterrows():
+        progress = PredictionProgress.for_lines(callback, pcgts_files, list(df['original']))
+        progress.start()
+        # Enumerate positionally: df's index label need not match the position in
+        # the item -> page map built above.
+        for pos, (index, row) in enumerate(df.iterrows()):
             mask, image, data, mask2 = row['masks'], row['images'], row['original'], row.get('add_mask_0')
             source_image = SourceImage.from_numpy(image)
             output: MaskPredictionResult = self.nmaskpredictor.predict_image(source_image)
@@ -178,10 +181,7 @@ class PCTorchPredictor(SymbolsPredictor):
                 ax[5].imshow(render_prediction_labels(labels2, image))
                 plt.show()
 
-            if callback:
-                percentage = (index + 1) / total_lines
-
-                callback.progress_updated(percentage, n_processed_pages=index + 1, n_pages=total_lines)
+            progress.item_finished(pos)
             yield single_line_symbols, single_line_symbols_2
 
     def extract_symbols123(self, probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,

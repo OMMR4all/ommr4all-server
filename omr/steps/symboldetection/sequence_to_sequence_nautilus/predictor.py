@@ -16,6 +16,7 @@ import numpy as np
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset
 from omr.steps.symboldetection.predictor import SymbolsPredictor, AlgorithmPredictorSettings, PredictionCallback, \
     SingleLinePredictionResult, PredictionResult
+from omr.steps.algorithm import PredictionProgress
 from omr.steps.symboldetection.sequence_to_sequence_nautilus.meta import Meta
 
 
@@ -36,7 +37,10 @@ class OMRPredictor(SymbolsPredictor):
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[SingleLinePredictionResult, None, None]:
         dataset = SymbolDetectionDataset(pcgts_files, self.dataset_params)
-        for ind, y in enumerate(dataset.load()):  # dataset_cal[0]:
+        loaded_dataset = dataset.load()
+        progress = PredictionProgress.for_lines(callback, pcgts_files, loaded_dataset)
+        progress.start()
+        for ind, y in enumerate(loaded_dataset):  # dataset_cal[0]:
             image = Image.fromarray(y.region).convert('L')
             #from matplotlib import pyplot as plt
             #plt.imshow(image)
@@ -48,10 +52,7 @@ class OMRPredictor(SymbolsPredictor):
             hidden_size = sentence.char_mapping.probability_map.shape[0]
             width = image.size[0]
             #print(sentence.decoded_string)
-            if callback:
-                percentage = (ind + 1) / len(pcgts_files)
-
-                callback.progress_updated(percentage, n_processed_pages=ind + 1, n_pages=len(pcgts_files))
+            progress.item_finished(ind)
             yield SingleLinePredictionResult(self.extract_symbols(dataset, sentence, y, width / hidden_size), y)
         #for marked_symbols, (r, sample) in zip(dataset.load(callback), self.predictor.predict_dataset(dataset.to_calamari_dataset())):
         #    prediction = self.voter.vote_prediction_result(r)

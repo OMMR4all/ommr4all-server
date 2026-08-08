@@ -14,7 +14,7 @@ from database.file_formats.pcgts.page.annotations import Annotations, SyllableCo
 from database.file_formats.performance.pageprogress import Locks
 from omr.end2end.codec.parse import symbol_parse
 from omr.steps.algorithm import AlgorithmPredictor, AlgorithmPredictorSettings, AlgorithmPredictionResult, \
-    AlgorithmPredictionResultGenerator, PredictionCallback
+    AlgorithmPredictionResultGenerator, PredictionCallback, PredictionProgress
 
 from .sample_builder import find_text_region_for_music_block, crop_block_image
 
@@ -139,7 +139,9 @@ class End2EndPredictor(AlgorithmPredictor, ABC):
 
     def predict(self, pages: List[DatabasePage],
                 callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
-        for page_i, db_page in enumerate(pages):
+        progress = PredictionProgress(callback, len(pages))
+        progress.start()
+        for db_page in pages:
             pcgts = db_page.pcgts()
             page = pcgts.page
             annotations = Annotations(page)
@@ -149,6 +151,7 @@ class End2EndPredictor(AlgorithmPredictor, ABC):
                 full_image = Image.open(db_page.file("color_original").local_path())
             except Exception as e:
                 logger.warning(f"Skipping page {db_page.page}: could not open image ({e})")
+                progress.page_finished()
                 yield PredictionResult(pcgts=pcgts, dataset_page=db_page, blocks=[], annotations=annotations)
                 continue
 
@@ -175,8 +178,7 @@ class End2EndPredictor(AlgorithmPredictor, ABC):
 
                 block_results.append(SingleBlockResult(music_line=music_line, text_line=text_line,
                                                        symbols=symbols, sentence=sentence, chunks=chunks))
-                if callback:
-                    callback.progress_updated((page_i + (block_i + 1) / len(music_blocks)) / len(pages),
-                                              n_pages=len(pages), n_processed_pages=page_i)
+                progress.sub_progress((block_i + 1) / len(music_blocks))
 
+            progress.page_finished()
             yield PredictionResult(pcgts=pcgts, dataset_page=db_page, blocks=block_results, annotations=annotations)
