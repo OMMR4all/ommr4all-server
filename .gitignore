@@ -112,3 +112,7 @@ venv.bak/
 # mypy
 .mypy_cache/
 *.orig
+# per model usage counters, written on every prediction (database/model/model.py)
+usage.json
+# per model training record, written by AlgorithmTrainer.train (and copied with a default model)
+training.json
