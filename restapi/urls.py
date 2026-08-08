@@ -23,6 +23,7 @@ from restapi.views.user import UserBookPermissionsView
 from restapi.views.bookstyles import BookStyleView, BookStylesView
 from restapi.views.administrativedefaultmodels import AdministrativeDefaultModelsView, \
     AdministrativeDefaultModelsTypeView, AdministrativeDefaultModelSlotsView
+from restapi.views.administrativemodels import AdministrativeModelsView, AdministrativeModelsPruneView
 from restapi.views.tasks import TasksView, TaskView, BookTasksView
 from restapi.views.systemresources import SystemResourcesView
 from restapi.views.llmproviders import LLMProvidersView
@@ -63,6 +64,8 @@ urlpatterns = \
         re_path(r'^user/book/(?P<book>\w+)/permissions$', UserBookPermissionsView.as_view()),
 
         # administrative
+        path('administrative/models/prune', AdministrativeModelsPruneView.as_view()),
+        path('administrative/models', AdministrativeModelsView.as_view()),
         path('administrative/default_models/slots', AdministrativeDefaultModelSlotsView.as_view()),
         re_path(r'^administrative/default_models/type/(?P<type>\w+)/style/(?P<style>.+)$',
                 AdministrativeDefaultModelsTypeView.as_view()),

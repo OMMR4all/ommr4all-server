@@ -50,6 +50,9 @@ def get_or_create(meta: Type['AlgorithmMeta'], settings: 'AlgorithmPredictorSett
     if model is None:
         return meta.create_predictor(settings)
 
+    # before the cache lookup: a prediction served by a cached predictor still uses the model
+    model.mark_used()
+
     key = (meta.type(), model.path, _model_mtime(model), pickle.dumps(settings.params))
     predictor = _cache.get(key)
     if predictor is not None:

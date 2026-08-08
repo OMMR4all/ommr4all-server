@@ -16,6 +16,7 @@ class DatabasePermissionFlag(Enum):
     # which also accepts Django's is_staff/is_superuser
     SET_TRAINING_EPOCHS = 'set_training_epochs'
     VIEW_SYSTEM_RESOURCES = 'view_system_resources'
+    MANAGE_MODELS = 'manage_models'
 
 
 class GlobalPermissions(models.Model):
@@ -29,5 +30,6 @@ class GlobalPermissions(models.Model):
             (DatabasePermissionFlag.TASKS_CANCEL.value, 'Cancel a running task'),
             (DatabasePermissionFlag.SET_TRAINING_EPOCHS.value, 'Raise the number of training epochs above the default'),
             (DatabasePermissionFlag.VIEW_SYSTEM_RESOURCES.value, 'View the server resources'),
+            (DatabasePermissionFlag.MANAGE_MODELS.value, 'List and delete trained models'),
         ]
 

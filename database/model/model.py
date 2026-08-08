@@ -1,4 +1,4 @@
-from .meta import ModelMeta
+from .meta import ModelMeta, ModelUsage
 from .definitions import MetaId
 from typing import Optional
 import os
@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 class Model:
     META_FILE = 'meta.json'
+    USAGE_FILE = 'usage.json'
 
     @staticmethod
     def from_id_str(id: str, meta: Optional[ModelMeta] = None) -> Optional['Model']:
@@ -54,6 +55,43 @@ class Model:
             with open(self.meta_path, 'w') as f:
                 f.write(self._meta.to_json())
 
+    def usage(self) -> ModelUsage:
+        """When this model was last used for a prediction; all-zero when it never was."""
+        try:
+            with open(self.local_file(Model.USAGE_FILE), 'r') as f:
+                return ModelUsage.from_json(f.read())
+        except (FileNotFoundError, ValueError):
+            return ModelUsage()
+
+    def mark_used(self):
+        """Record a prediction with this model. Never raises: usage data is not worth a failed task.
+
+        Written to its own file rather than into meta.json, whose mtime is part of the predictor
+        cache key (see omr/steps/predictorcache.py).
+        """
+        try:
+            usage = self.usage()
+            usage.last_used = datetime.datetime.now()
+            usage.n_used += 1
+            tmp = self.local_file(Model.USAGE_FILE + '.tmp')
+            with open(tmp, 'w') as f:
+                f.write(usage.to_json())
+            os.replace(tmp, self.local_file(Model.USAGE_FILE))
+        except Exception as e:
+            logger.warning('Could not record the usage of model {}'.format(self.path))
+            logger.exception(e)
+
+    def size(self) -> int:
+        """Bytes occupied by the model directory."""
+        total = 0
+        for root, _, files in os.walk(self.path):
+            for name in files:
+                try:
+                    total += os.path.getsize(os.path.join(root, name))
+                except OSError:
+                    continue
+        return total
+
     def local_file(self, file: str) -> str:
         return os.path.join(self.path, file)
 
@@ -72,6 +110,9 @@ class Model:
             raise FileExistsError()
 
         copyied_model = Model(target_model.meta_id, meta=self.meta())
+        # save_meta rewrites the id to the target, so remember where the copy came from --
+        # that is what marks the source model as backing a default (see restapi/views/administrativemodels.py)
+        copyied_model._meta.source_id = self.id()
         self._meta = None
         shutil.rmtree(target_model.path, ignore_errors=True)
         shutil.copytree(self.path, target_model.path)
