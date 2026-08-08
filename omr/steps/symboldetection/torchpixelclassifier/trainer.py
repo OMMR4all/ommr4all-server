@@ -121,7 +121,8 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         # Requested head layout: the registry defines all available additional heads; the
         # additional_number_of_heads param only switches them on or off for this run.
         want_heads = self.settings.page_segmentation_torch_params.additional_number_of_heads > 0
-        logger.info()
+        logger.info("Training with {} additional symbol heads".format(
+            len(SYMBOL_DETECTION_HEADS) if want_heads else 0))
         requested_heads = len(SYMBOL_DETECTION_HEADS) if want_heads else 0
         requested_classes = head_classes() if want_heads else []
 
