@@ -21,11 +21,13 @@ from restapi.views.bookpermissions import BookPermissionsView, BookUserPermissio
 from restapi.views.pageaccess import PageRenameView, PageProgressVerifyView, PageContentView
 from restapi.views.user import UserBookPermissionsView
 from restapi.views.bookstyles import BookStyleView, BookStylesView
-from restapi.views.administrativedefaultmodels import AdministrativeDefaultModelsView
+from restapi.views.administrativedefaultmodels import AdministrativeDefaultModelsView, \
+    AdministrativeDefaultModelsTypeView, AdministrativeDefaultModelSlotsView
 from restapi.views.tasks import TasksView, TaskView, BookTasksView
 from restapi.views.systemresources import SystemResourcesView
 from restapi.views.llmproviders import LLMProvidersView
-from restapi.views.workerresources import OperationWorkerResourcesView, OperationTrainParamsView
+from restapi.views.workerresources import OperationWorkerResourcesView, OperationTrainParamsView, \
+    OperationTrainingBooksView
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -51,6 +53,9 @@ urlpatterns = \
         # trainer settings (and their per-user limits) offered for a training operation
         re_path(r'^operation/(?P<operation>\w+)/train_params$', OperationTrainParamsView.as_view()),
 
+        # books (and their usable page counts) that may contribute data to a training operation
+        re_path(r'^operation/(?P<operation>\w+)/training_books$', OperationTrainingBooksView.as_view()),
+
         # auth
         re_path(r'^auth/(?P<auth>\w+)$', AuthView.as_view(), name='AuthView'),
 
@@ -58,6 +63,10 @@ urlpatterns = \
         re_path(r'^user/book/(?P<book>\w+)/permissions$', UserBookPermissionsView.as_view()),
 
         # administrative
+        path('administrative/default_models/slots', AdministrativeDefaultModelSlotsView.as_view()),
+        re_path(r'^administrative/default_models/type/(?P<type>\w+)/style/(?P<style>.+)$',
+                AdministrativeDefaultModelsTypeView.as_view()),
+        # group scoped route of older clients, applies to the group's primary algorithm
         re_path(r'^administrative/default_models/group/(?P<group>\w+)/style/(?P<style>.+)$',
                 AdministrativeDefaultModelsView.as_view()),
 

@@ -74,3 +74,53 @@ class OperationTrainParamsView(APIView):
             'n_epoch_default': default,
             'n_epoch_max': None if may_increase else default,
         })
+
+
+class OperationTrainingBooksView(APIView):
+    """The books whose ground truth may be added to one training operation.
+
+    Lists every book the user may read together with the number of pages that are actually
+    usable for *this* step, i.e. whose progress locks match the trainer's required locks
+    (Symbols for symbol detection, Symbols *and* Text for end2end, ...). The client turns this
+    into the book picker of the training settings; the selection is validated again when the
+    training is started (see workerresources.validate_training_books)."""
+
+    def get(self, request, operation):
+        from database.book_index import list_books_synced, sync_book_pages
+        from database.database_book import DatabaseBook
+        from database.database_permissions import DatabaseBookPermissionFlag
+        from database.file_formats.performance.pageprogress import Locks
+        from restapi.operationworker.workerresources import TRAIN_OPERATIONS, required_locks
+        from restapi.views.bookaccess import etag_response
+
+        if operation not in TRAIN_OPERATIONS:
+            # 400, not 404: a 404 would be caught by APPEND_SLASH and redirected into the webapp
+            return Response({'error': "Unknown training operation '{}'".format(operation)},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        locks = required_locks(TRAIN_OPERATIONS[operation])
+        wanted = [(Locks(lock.label).value, lock.lock) for lock in locks]
+
+        books = []
+        for row in list_books_synced():
+            db_book = DatabaseBook(row.name)
+            if not db_book.resolve_user_permissions(request.user).has(DatabaseBookPermissionFlag.READ):
+                continue
+            # row is already meta-synced -- don't make the page sync re-resolve it per book
+            pages = sync_book_pages(db_book, book_row=row)
+            usable = len([p for p in pages
+                          if all(bool((p.progress_locks or {}).get(label, False)) == lock
+                                 for label, lock in wanted)])
+            books.append({
+                'book': row.name,
+                'name': row.display_name or row.name,
+                'style': row.notation_style,
+                'pages': len(pages),
+                'usablePages': usable,
+            })
+
+        return etag_response(request, {
+            'operation': operation,
+            'locks': [label for label, lock in wanted if lock],
+            'books': sorted(books, key=lambda b: b['name']),
+        })

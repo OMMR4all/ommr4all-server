@@ -67,6 +67,40 @@ class AlgorithmTypes(Enum):
             return AlgorithmGroups.TOOLS
         return groups[0]
 
+    def uses_model(self) -> bool:
+        """Whether this step loads a model from a model directory.
+
+        Only these types have a default model per book style (see
+        restapi/views/administrativedefaultmodels.py). Rule based steps (syllables in order),
+        pure tools, pre-/postprocessing and the remotely served LLM transcription do not.
+        Note that several types may share one model directory, see model_type().
+        """
+        return self in {
+            AlgorithmTypes.STAFF_LINES_PC,
+            AlgorithmTypes.STAFF_LINES_PC_Torch,
+
+            AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES,
+            AlgorithmTypes.LAYOUT_COMPLEX_STANDARD,
+            AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL,
+            AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO,
+            AlgorithmTypes.LAYOUT_SIMPLE_LYRICS,
+
+            AlgorithmTypes.SYMBOLS_PC,
+            AlgorithmTypes.SYMBOLS_PC_TORCH,
+            AlgorithmTypes.SYMBOLS_YOLO,
+            AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE,
+            AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE_NAUTILUS,
+            AlgorithmTypes.SYMBOLS_SEQUENCE_TO_SEQUENCE_GUPPY,
+
+            AlgorithmTypes.OCR_CALAMARI,
+            AlgorithmTypes.OCR_NAUTILUS,
+            AlgorithmTypes.OCR_GUPPY,
+
+            AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH,
+
+            AlgorithmTypes.END2END_SWIN,
+        }
+
     def model_type(self):
         return {
             AlgorithmTypes.LAYOUT_SIMPLE_LYRICS: AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO,

@@ -24,7 +24,8 @@ django.setup()
 from django.contrib.auth.models import User
 from django.test import TestCase as DjangoTestCase
 
-from restapi.operationworker.workerresources import TRAIN_OPERATIONS, default_n_epoch
+from restapi.operationworker.workerresources import TRAIN_OPERATIONS, default_n_epoch, \
+    InvalidTrainerParamsException, required_locks, validate_training_books
 from restapi.views.bookoperations import BookOperationView
 
 
@@ -92,6 +93,108 @@ class TestTrainingEpochs(DjangoTestCase):
         self.user.save()
         runner = self._runner({'trainParams': {'n_epoch': self.default + 1000}})
         self.assertEqual(runner.params.n_epoch, self.default + 1000)
+
+
+class TestTrainingBooks(DjangoTestCase):
+    """Selecting which books contribute ground truth to a training run."""
+
+    def setUp(self):
+        self.book = DatabaseBook('demo')
+        self.user = User.objects.create_user('training_books_user', password='pw')
+        self.admin = User.objects.create_superuser('training_books_admin', password='pw')
+
+    # -- the locks a page must carry to be usable for a step ------------------------------
+
+    def test_required_locks_of_the_training_operations(self):
+        self.assertEqual([(l.label, l.lock) for l in required_locks(TRAIN_OPERATIONS['train_symbols'])],
+                         [(Locks.SYMBOLS, True)])
+        # end2end needs both, so a usable page count must be an AND, not a sum per lock
+        self.assertEqual(sorted([l.label.value for l in required_locks(TRAIN_OPERATIONS['train_end2end'])]),
+                         ['Symbols', 'Text'])
+
+    # -- endpoint -------------------------------------------------------------------------
+
+    def _books(self, operation, user):
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=user)
+        response = client.get('/api/operation/{}/training_books'.format(operation))
+        self.assertEqual(response.status_code, 200, response.content)
+        return response.json()
+
+    def test_lists_readable_books_with_usable_page_counts(self):
+        body = self._books('train_symbols', self.admin)
+        self.assertEqual(body['locks'], ['Symbols'])
+        demo = [b for b in body['books'] if b['book'] == 'demo']
+        self.assertEqual(len(demo), 1, body['books'])
+        self.assertEqual(demo[0]['pages'], len(self.book.pages()))
+        # only page_test_lock is locked, and it has no locked text
+        self.assertEqual(demo[0]['usablePages'], 1)
+        self.assertEqual(demo[0]['style'], self.book.get_meta().notationStyle)
+
+    def test_usable_pages_are_and_ed_over_all_required_locks(self):
+        body = self._books('train_end2end', self.admin)
+        demo = [b for b in body['books'] if b['book'] == 'demo'][0]
+        self.assertEqual(demo['usablePages'], 0)
+
+    def test_only_books_the_user_may_read_are_listed(self):
+        self.assertEqual(self._books('train_symbols', self.user)['books'], [])
+
+    def test_unknown_operation(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+        self.assertEqual(client.get('/api/operation/symbols_pc/training_books').status_code, 400)
+
+    # -- validation of a submitted selection ------------------------------------------------
+
+    def test_validation_accepts_readable_books(self):
+        self.assertEqual(validate_training_books(self.admin, ['demo']), ['demo'])
+        self.assertEqual(validate_training_books(self.user, []), [])
+
+    def test_validation_rejects_unreadable_and_unknown_books(self):
+        with self.assertRaises(InvalidTrainerParamsException):
+            validate_training_books(self.user, ['demo'])
+        with self.assertRaises(InvalidTrainerParamsException):
+            validate_training_books(self.admin, ['does_not_exist'])
+
+    def test_the_task_runner_validates_the_selection(self):
+        body = {'trainParams': {'includeAllTrainingData': True, 'books': ['demo']}}
+        runner = BookOperationView.op_to_task_runner('train_symbols', self.book, body, self.admin)
+        self.assertEqual(runner.params.books, ['demo'])
+
+        with self.assertRaises(InvalidTrainerParamsException):
+            BookOperationView.op_to_task_runner('train_symbols', self.book, body, self.user)
+
+        # status/model lookups rebuild the runner without a user and must not raise
+        runner = BookOperationView.op_to_task_runner('train_symbols', self.book, body, None)
+        self.assertEqual(runner.params.books, ['demo'])
+
+    # -- resolution of the training data ----------------------------------------------------
+
+    def _books_used(self, params, books):
+        from unittest import mock
+        from restapi.operationworker.taskrunners.trainerparams import TaskTrainerParams
+        with mock.patch('restapi.operationworker.taskrunners.trainerparams.dataset_by_locked_pages',
+                        return_value=([], [])) as m:
+            TaskTrainerParams.from_dict(params).to_train_val(locks=[], books=books)
+        return [b.book for b in m.call_args[0][3]]
+
+    def test_the_trained_book_is_always_included(self):
+        used = self._books_used({'includeAllTrainingData': True, 'books': ['demo']}, [DatabaseBook('other')])
+        self.assertEqual(used, ['other', 'demo'])
+
+    def test_a_selected_book_is_not_added_twice(self):
+        used = self._books_used({'includeAllTrainingData': True, 'books': ['demo']}, [DatabaseBook('demo')])
+        self.assertEqual(used, ['demo'])
+
+    def test_without_the_flag_only_the_trained_book_is_used(self):
+        used = self._books_used({'books': ['demo']}, [DatabaseBook('other')])
+        self.assertEqual(used, ['other'])
+
+    def test_an_empty_selection_keeps_the_legacy_all_books_behaviour(self):
+        used = self._books_used({'includeAllTrainingData': True}, [DatabaseBook('other')])
+        self.assertEqual(used, [b.book for b in DatabaseBook.list_available()])
 
 
 

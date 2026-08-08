@@ -15,6 +15,7 @@ from .taskworkergroup import TaskWorkerGroup
 
 if TYPE_CHECKING:
     from omr.steps.algorithm import AlgorithmMeta
+    from database.file_formats.performance.pageprogress import LockState
 
 
 class InvalidWorkerResourceException(Exception):
@@ -39,6 +40,36 @@ def default_n_epoch(algorithm_type: AlgorithmTypes) -> int:
     """The number of epochs an algorithm trains for when the request does not ask for a value."""
     from omr.steps.step import Step
     return Step.create_meta(algorithm_type).trainer().default_params().n_epoch
+
+
+def required_locks(algorithm_type: AlgorithmTypes) -> List['LockState']:
+    """The page locks a page must carry to be usable as ground truth for this algorithm.
+
+    All of them are required at once (end2end needs Symbols *and* Text), so callers must AND
+    the states instead of summing per-lock counters.
+    """
+    from omr.steps.step import Step
+    return Step.create_meta(algorithm_type).trainer().required_locks()
+
+
+def validate_training_books(user, names: List[str]) -> List[str]:
+    """The requested extra training books, verified to exist and to be readable by ``user``.
+
+    ``includeAllTrainingData`` used to pull in every book on disk regardless of permissions;
+    a selection is only honoured for books the user may read.
+    """
+    if not names:
+        return []
+
+    from database.book_index import list_books_for_user
+    from database.database_permissions import DatabaseBookPermissionFlag
+
+    allowed = {meta['id'] for meta, _ in list_books_for_user(user, DatabaseBookPermissionFlag.READ)}
+    unknown = [n for n in names if n not in allowed]
+    if unknown:
+        raise InvalidTrainerParamsException(
+            'The books {} do not exist or may not be read by this user'.format(', '.join(unknown)))
+    return list(names)
 
 
 def resolve_n_epoch(user, algorithm_type: AlgorithmTypes, requested: Optional[int]) -> Optional[int]:

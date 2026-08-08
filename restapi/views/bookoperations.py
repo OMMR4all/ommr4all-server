@@ -15,7 +15,7 @@ from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from omr.steps.step import Step, AlgorithmTypes
 from restapi.operationworker.workerresources import \
     resolve_worker_resource, groups_for, n_workers, TRAIN_OPERATIONS, InvalidWorkerResourceException, \
-    InvalidTrainerParamsException, resolve_n_epoch
+    InvalidTrainerParamsException, resolve_n_epoch, validate_training_books
 from dataclasses import field, dataclass
 from typing import Optional
 
@@ -212,6 +212,10 @@ class BookOperationView(APIView):
             worker_resource = resolve_worker_resource(Step.create_meta(trained_type), body.get('worker_resource'), training=True)
             train_params = TaskTrainerParams.from_dict(body.get('trainParams', {}))
             train_params.n_epoch = resolve_n_epoch(user, trained_type, train_params.n_epoch)
+            if user is not None:
+                # only the callers that actually start a training pass a user; the ones that
+                # merely rebuild the runner to look up a task (status/models) must not raise
+                train_params.books = validate_training_books(user, train_params.books)
             if operation == 'train_symbols':
                 from restapi.operationworker.taskrunners.taskrunnersymboldetectiontrainer import TaskRunnerSymbolDetectionTrainer
                 return TaskRunnerSymbolDetectionTrainer(book, train_params, worker_resource=worker_resource)
