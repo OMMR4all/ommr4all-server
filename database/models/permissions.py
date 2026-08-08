@@ -12,6 +12,11 @@ class DatabasePermissionFlag(Enum):
     TASKS_LIST = 'tasks_list'
     TASKS_CANCEL = 'tasks_cancel'
 
+    # administrative flags: these are only ever checked through restapi.views.auth.is_admin,
+    # which also accepts Django's is_staff/is_superuser
+    SET_TRAINING_EPOCHS = 'set_training_epochs'
+    VIEW_SYSTEM_RESOURCES = 'view_system_resources'
+
 
 class GlobalPermissions(models.Model):
     class Meta:
@@ -22,5 +27,7 @@ class GlobalPermissions(models.Model):
             (DatabasePermissionFlag.CHANGE_DEFAULT_MODEL_FOR_BOOK_STYLE.value, 'Change default model for book style'),
             (DatabasePermissionFlag.TASKS_LIST.value, 'List tasks'),
             (DatabasePermissionFlag.TASKS_CANCEL.value, 'Cancel a running task'),
+            (DatabasePermissionFlag.SET_TRAINING_EPOCHS.value, 'Raise the number of training epochs above the default'),
+            (DatabasePermissionFlag.VIEW_SYSTEM_RESOURCES.value, 'View the server resources'),
         ]
 

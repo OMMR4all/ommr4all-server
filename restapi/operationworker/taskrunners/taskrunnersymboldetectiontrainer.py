@@ -126,6 +126,8 @@ class TaskRunnerSymbolDetectionTrainer(TaskRunner):
             page_segmentation_torch_params=PageSegmentationTrainerTorchParams(
                 additional_number_of_heads=1 if self.params.symbol_enable_additional_symbol_types else 0,
             ),
+            # None unless the request asked for a value, so the algorithm defaults apply unchanged
+            params=self.params.to_trainer_params(meta.trainer()),
         )
 
         trainer = meta.create_trainer(settings)

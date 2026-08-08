@@ -55,6 +55,7 @@ class ErrorCodes(IntEnum):
 
     # Task training related
     OPERATION_TASK_TRAIN_EMPTY_DATASET = 52001
+    OPERATION_TASK_INVALID_TRAINER_PARAMS = 52002
 
     # Model related
     MODEL_NOT_FOUND = 55000

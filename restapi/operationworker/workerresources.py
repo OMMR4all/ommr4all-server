@@ -21,6 +21,10 @@ class InvalidWorkerResourceException(Exception):
     pass
 
 
+class InvalidTrainerParamsException(Exception):
+    pass
+
+
 # training operation name (REST path segment) -> the algorithm that is trained
 TRAIN_OPERATIONS: Dict[str, AlgorithmTypes] = {
     'train_symbols': AlgorithmTypes.SYMBOLS_PC_TORCH,
@@ -29,6 +33,38 @@ TRAIN_OPERATIONS: Dict[str, AlgorithmTypes] = {
     'train_character_recognition': AlgorithmTypes.OCR_GUPPY,
     'train_end2end': AlgorithmTypes.END2END_SWIN,
 }
+
+
+def default_n_epoch(algorithm_type: AlgorithmTypes) -> int:
+    """The number of epochs an algorithm trains for when the request does not ask for a value."""
+    from omr.steps.step import Step
+    return Step.create_meta(algorithm_type).trainer().default_params().n_epoch
+
+
+def resolve_n_epoch(user, algorithm_type: AlgorithmTypes, requested: Optional[int]) -> Optional[int]:
+    """The epoch count to train with, or None to leave the algorithm default untouched.
+
+    Everyone may train for fewer epochs than the default; raising the value costs server time and
+    is therefore reserved for administrators. A value above the limit is capped rather than
+    rejected, so a stale client cannot block a training run.
+    """
+    from database.models.permissions import DatabasePermissionFlag
+    from restapi.views.auth import is_admin
+
+    if requested is None:
+        return None
+    try:
+        requested = int(requested)
+    except (TypeError, ValueError):
+        raise InvalidTrainerParamsException("The number of epochs must be a number, got '{}'".format(requested))
+    if requested < 1:
+        # AlgorithmTrainerParams.mix_default() only replaces None/negative values, so 0 would survive
+        raise InvalidTrainerParamsException('The number of epochs must be at least 1')
+
+    maximum = default_n_epoch(algorithm_type)
+    if requested > maximum and not is_admin(user, DatabasePermissionFlag.SET_TRAINING_EPOCHS):
+        return maximum
+    return requested
 
 
 def groups_for(resource: WorkerResource, training: bool) -> List[TaskWorkerGroup]:

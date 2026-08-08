@@ -33,6 +33,37 @@ class require_global_permissions(object):
         return wrapper_require_permissions
 
 
+def is_admin(user, flag: DatabasePermissionFlag) -> bool:
+    """Whether ``user`` may use an administrative feature.
+
+    Django's staff/superuser flags always qualify; in addition the feature's own global permission
+    can be granted to a user or a group, so administrative rights can be handed out selectively
+    without giving access to the Django admin.
+    """
+    if not user or not user.is_authenticated or not user.is_active:
+        return False
+    return bool(user.is_superuser or user.is_staff or user.has_perm('database.' + flag.value))
+
+
+class require_admin(object):
+    """Like require_global_permissions, but also accepts Django's is_staff/is_superuser."""
+    def __init__(self, flag: DatabasePermissionFlag):
+        self.flag = flag
+
+    def __call__(self, func):
+        def wrapper_require_admin(view, request, *args, **kwargs):
+            if is_admin(request.user, self.flag):
+                return func(view, request, *args, **kwargs)
+            return APIError(status=status.HTTP_401_UNAUTHORIZED,
+                            developerMessage='User {} has insufficient rights. Requires admin or {}.'.format(
+                                request.user.username, 'database.' + self.flag.value),
+                            userMessage='Insufficient permissions',
+                            errorCode=ErrorCodes.GLOBAL_INSUFFICIENT_RIGHTS,
+                            ).response()
+
+        return wrapper_require_admin
+
+
 class AuthView(APIView):
     def get(self, request, auth):
         if auth == 'users':

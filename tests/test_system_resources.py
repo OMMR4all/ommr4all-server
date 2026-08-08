@@ -25,9 +25,10 @@ from rest_framework.test import APITestCase
 
 from restapi import systeminfo
 
+# index, utilization.gpu, memory.used, memory.total -- see systeminfo.NVIDIA_SMI_QUERY
 NVIDIA_SMI_OUTPUT = (
-    "0, NVIDIA RTX A5000, 580.65.06, 74, 18200, 24564, 68, 180.50, 230.00\n"
-    "1, NVIDIA RTX A5000, 580.65.06, 0, 4, 24564, 31, [N/A], 230.00\n"
+    "0, 74, 18200, 24564\n"
+    "1, [N/A], 4, 24564\n"
 )
 
 
@@ -40,42 +41,46 @@ class SystemInfoTests(unittest.TestCase):
 
     def test_cpu_and_memory(self):
         info = systeminfo.cpu_and_memory()
-        self.assertGreater(info['memory']['total'], 0)
-        self.assertGreaterEqual(info['cpu']['count'], 1)
-        self.assertEqual(len(info['cpu']['per_cpu']), info['cpu']['count'])
+        self.assertGreaterEqual(info['memory']['percent'], 0)
+        # how much machine this is must not be reported, only how busy it is
+        self.assertEqual(set(info['cpu'].keys()), {'percent'})
+        self.assertEqual(set(info['memory'].keys()), {'percent'})
+        if info['swap'] is not None:
+            self.assertEqual(set(info['swap'].keys()), {'percent'})
 
     def test_disk_usage(self):
         disks = systeminfo.disk_usage()
         self.assertGreaterEqual(len(disks), 1)
         for disk in disks:
-            self.assertGreater(disk['total'], 0)
-            # server-side paths must not leak into the API
-            self.assertNotIn('path', disk)
+            self.assertGreaterEqual(disk['percent'], 0)
+            # neither server-side paths nor the size of the volume may leak into the API
+            self.assertEqual(set(disk.keys()), {'label', 'percent'})
 
     def test_gpu_stats_parses_nvidia_smi(self):
         completed = subprocess.CompletedProcess([], 0, stdout=NVIDIA_SMI_OUTPUT, stderr='')
         with mock.patch('subprocess.run', return_value=completed):
-            gpus, error = systeminfo.gpu_stats(use_cache=False)
-        self.assertIsNone(error)
+            gpus, available = systeminfo.gpu_stats(use_cache=False)
+        self.assertTrue(available)
         self.assertEqual(len(gpus), 2)
-        self.assertEqual(gpus[0], {'index': 0, 'name': 'NVIDIA RTX A5000', 'driver_version': '580.65.06',
-                                   'utilization': 74.0, 'memory_used': 18200.0, 'memory_total': 24564.0,
-                                   'temperature': 68.0, 'power_draw': 180.5, 'power_limit': 230.0})
+        # the card model, the driver version and the absolute figures stay on the server
+        self.assertEqual(gpus[0], {'index': 0, 'utilization': 74.0, 'memory_percent': 74.1})
         # unsupported fields must not break the whole row
-        self.assertIsNone(gpus[1]['power_draw'])
+        self.assertIsNone(gpus[1]['utilization'])
+        self.assertEqual(gpus[1]['memory_percent'], 0.0)
 
     def test_gpu_stats_without_nvidia_smi(self):
         with mock.patch('subprocess.run', side_effect=FileNotFoundError()):
-            gpus, error = systeminfo.gpu_stats(use_cache=False)
+            gpus, available = systeminfo.gpu_stats(use_cache=False)
         self.assertEqual(gpus, [])
-        self.assertIsNotNone(error)
+        self.assertFalse(available)
 
     def test_gpu_stats_on_error_exit(self):
         completed = subprocess.CompletedProcess([], 9, stdout='', stderr='Failed to initialize NVML\n')
         with mock.patch('subprocess.run', return_value=completed):
-            gpus, error = systeminfo.gpu_stats(use_cache=False)
+            gpus, available = systeminfo.gpu_stats(use_cache=False)
         self.assertEqual(gpus, [])
-        self.assertEqual(error, 'Failed to initialize NVML')
+        # the message of the failed subprocess is logged, not returned
+        self.assertFalse(available)
 
 
 class CudaStatusTests(unittest.TestCase):
@@ -111,6 +116,9 @@ class CudaStatusTests(unittest.TestCase):
             status = self._await_ready()
         self.assertTrue(status['available'])
         self.assertTrue(status['devices'][0]['compute_ok'])
+        # the software stack of the server must not be reported
+        self.assertEqual(set(status.keys()), {'state', 'available', 'devices'})
+        self.assertEqual(set(status['devices'][0].keys()), {'index', 'compute_ok'})
 
     def test_reports_a_build_without_kernels_for_the_card(self):
         # the Pascal case: torch sees the GPU but cannot launch a kernel on it
@@ -124,15 +132,19 @@ class CudaStatusTests(unittest.TestCase):
             systeminfo.cuda_status()
             status = self._await_ready()
         self.assertTrue(status['available'])
-        self.assertFalse(status['devices'][0]['supported'])
+        # why the device is unusable is logged; the view only learns that it is
         self.assertFalse(status['devices'][0]['compute_ok'])
+        self.assertNotIn('error', status['devices'][0])
 
     def test_unreadable_probe_output(self):
         completed = subprocess.CompletedProcess([], 0, stdout='segmentation fault', stderr='')
         with mock.patch('subprocess.run', return_value=completed):
             systeminfo.cuda_status()
             status = self._await_ready()
-        self.assertIn('error', status)
+        # the probe failed, so no device can compute -- but the reason is not disclosed
+        self.assertNotIn('error', status)
+        self.assertFalse(status['available'])
+        self.assertEqual(status['devices'], [])
 
     def test_result_is_cached_until_refreshed(self):
         completed = subprocess.CompletedProcess([], 0, stdout=json.dumps({'available': False}), stderr='')
@@ -164,28 +176,72 @@ class SystemResourcesViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + response.data['access'])
 
-    def test_requires_tasks_list_permission(self):
+    def test_requires_admin(self):
         self._login()
         response = self.client.get('/api/system_resources', format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
 
-    def test_reports_resources(self):
+    def test_tasks_list_permission_is_not_enough(self):
+        # the view used to be open to everyone who may list tasks
         self.user.user_permissions.add(Permission.objects.get(codename='tasks_list'))
+        self._login()
+        response = self.client.get('/api/system_resources', format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
+
+    def test_granted_permission_is_enough(self):
+        self.user.user_permissions.add(Permission.objects.get(codename='view_system_resources'))
+        self._login()
+        with mock.patch('subprocess.run', side_effect=FileNotFoundError()):
+            response = self.client.get('/api/system_resources', format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+
+    def _reports_resources(self):
         self._login()
         with mock.patch('subprocess.run', side_effect=FileNotFoundError()):
             response = self.client.get('/api/system_resources', format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
         body = response.json()
-        self.assertGreater(body['memory']['total'], 0)
-        # a host without nvidia-smi must still render: no gpus, but a reason
+        self.assertGreaterEqual(body['memory']['percent'], 0)
+        # a host without nvidia-smi must still render: no gpus, and no reason given
         self.assertEqual(body['gpus'], [])
-        self.assertIsNotNone(body['gpu_error'])
+        self.assertFalse(body['gpu_available'])
         self.assertEqual(body['cuda']['state'], 'ready')
         self.assertGreater(len(body['workers']), 0)
         for worker in body['workers']:
             self.assertIn('group', worker)
             self.assertIn('used', worker)
         self.assertEqual(body['queue']['n_running'], 0)
+        return body
+
+    def test_reports_resources_for_staff(self):
+        self.user.is_staff = True
+        self.user.save()
+        self._reports_resources()
+
+    def test_reports_no_host_details(self):
+        self.user.is_superuser = True
+        self.user.save()
+        body = self._reports_resources()
+        # nothing that describes the machine or the software running on it
+        forbidden = {'name', 'driver_version', 'torch_version', 'cuda_built', 'arch_list',
+                     'capability', 'sm', 'supported', 'error', 'gpu_error', 'total', 'used', 'free',
+                     'count', 'count_physical', 'per_cpu', 'load_avg', 'temperature',
+                     'power_draw', 'power_limit', 'path'}
+
+        def assert_clean(node):
+            if isinstance(node, dict):
+                for key, value in node.items():
+                    # the worker slots describe the queue, not the host: 'used' is an occupancy
+                    # flag there and the running task legitimately names the book and its creator
+                    if key == 'workers':
+                        continue
+                    self.assertNotIn(key, forbidden, 'unexpected key in the response: ' + key)
+                    assert_clean(value)
+            elif isinstance(node, list):
+                for value in node:
+                    assert_clean(value)
+
+        assert_clean(body)
 
 
 if __name__ == '__main__':

@@ -3,7 +3,12 @@ resources view.
 
 Deliberately dependency-light and failure-tolerant: the view must render on a
 CPU-only host and inside a Docker container started without GPU passthrough, so
-every GPU query failure is reported as a message instead of raising.
+every GPU query failure is reported as "unavailable" instead of raising.
+
+Only relative load is reported. Absolute sizes, hardware models, driver and
+library versions and the text of subprocess failures describe the host closely
+enough to be useful when planning an attack, so they are written to the log
+instead of to the API -- see _log_detail().
 """
 import json
 import logging
@@ -25,10 +30,11 @@ logger = logging.getLogger(__name__)
 GPU_CACHE_TTL = 2.0
 
 _gpu_cache_lock = threading.Lock()
-_gpu_cache: Optional[Tuple[float, List[dict], Optional[str]]] = None
+_gpu_cache: Optional[Tuple[float, List[dict], bool]] = None
 
-NVIDIA_SMI_QUERY = ('index,name,driver_version,utilization.gpu,memory.used,memory.total,'
-                    'temperature.gpu,power.draw,power.limit')
+# the card model, the driver version, the temperature and the power draw are not queried at all:
+# they say what this machine is rather than how busy it is, and the view must not disclose that
+NVIDIA_SMI_QUERY = 'index,utilization.gpu,memory.used,memory.total'
 
 # Probing torch has to happen in a separate process: the Django parent pins
 # CUDA_VISIBLE_DEVICES='' so that no web worker grabs a GPU, and importing torch
@@ -88,6 +94,17 @@ _cuda_result = None            # None => never run
 _cuda_running = False
 
 
+def _log_detail(what: str, detail) -> None:
+    """Keep a diagnostic detail out of the API but available to whoever runs the server."""
+    logger.warning('%s: %s', what, detail)
+
+
+def _percent(used, total):
+    if not used or not total:
+        return 0.0 if total else None
+    return round(used * 100 / total, 1)
+
+
 def _num(value: str, cast):
     """nvidia-smi prints '[N/A]' or '[Not Supported]' for unavailable fields."""
     value = value.strip()
@@ -107,53 +124,52 @@ def _nvidia_smi_env() -> dict:
     return env
 
 
-def _query_gpus() -> Tuple[List[dict], Optional[str]]:
+def _query_gpus() -> Tuple[List[dict], bool]:
     try:
         result = subprocess.run(
             ['nvidia-smi', '--query-gpu=' + NVIDIA_SMI_QUERY, '--format=csv,noheader,nounits'],
             capture_output=True, text=True, timeout=3, env=_nvidia_smi_env(),
         )
     except FileNotFoundError:
-        return [], 'nvidia-smi was not found on this host'
+        logger.debug('nvidia-smi was not found on this host')
+        return [], False
     except subprocess.TimeoutExpired:
-        return [], 'nvidia-smi did not respond within 3 s'
+        _log_detail('nvidia-smi did not respond within 3 s', '')
+        return [], False
     except OSError as e:
-        return [], 'nvidia-smi could not be started: {}'.format(e)
+        _log_detail('nvidia-smi could not be started', e)
+        return [], False
 
     if result.returncode != 0:
-        message = (result.stderr or result.stdout or '').strip().splitlines()
-        return [], message[0] if message else 'nvidia-smi exited with code {}'.format(result.returncode)
+        _log_detail('nvidia-smi exited with code {}'.format(result.returncode),
+                    (result.stderr or result.stdout or '').strip())
+        return [], False
 
     gpus = []
     for line in result.stdout.strip().splitlines():
         fields = line.split(',')
-        if len(fields) < 9:
+        if len(fields) < 4:
             logger.warning('Unexpected nvidia-smi output line: %s', line)
             continue
         gpus.append({
             'index': _num(fields[0], int),
-            'name': fields[1].strip(),
-            'driver_version': fields[2].strip(),
-            'utilization': _num(fields[3], float),
-            'memory_used': _num(fields[4], float),      # MiB
-            'memory_total': _num(fields[5], float),     # MiB
-            'temperature': _num(fields[6], float),
-            'power_draw': _num(fields[7], float),
-            'power_limit': _num(fields[8], float),
+            'utilization': _num(fields[1], float),
+            # the absolute amount of graphics memory is the model of the card by another name
+            'memory_percent': _percent(_num(fields[2], float), _num(fields[3], float)),
         })
-    return gpus, None
+    return gpus, True
 
 
-def gpu_stats(use_cache: bool = True) -> Tuple[List[dict], Optional[str]]:
-    """Per-GPU hardware metrics, or ([], reason) if they cannot be obtained."""
+def gpu_stats(use_cache: bool = True) -> Tuple[List[dict], bool]:
+    """Per-GPU load, and whether the GPU metrics could be obtained at all."""
     global _gpu_cache
     with _gpu_cache_lock:
         if use_cache and _gpu_cache is not None and time.time() - _gpu_cache[0] < GPU_CACHE_TTL:
             return _gpu_cache[1], _gpu_cache[2]
 
-        gpus, error = _query_gpus()
-        _gpu_cache = (time.time(), gpus, error)
-        return gpus, error
+        gpus, available = _query_gpus()
+        _gpu_cache = (time.time(), gpus, available)
+        return gpus, available
 
 
 def _run_cuda_probe() -> dict:
@@ -178,6 +194,31 @@ def _run_cuda_probe() -> dict:
         return {'error': 'the CUDA check returned unreadable output'}
 
 
+def _reduced_cuda(result: dict) -> dict:
+    """The probe result without the torch/CUDA versions, device models and error text.
+
+    Those name the exact software stack of the server; all the view needs to know is whether torch
+    can compute on each device. The full result is logged once by _log_cuda_result().
+    """
+    return {
+        'available': bool(result.get('available')),
+        'devices': [{'index': device.get('index'), 'compute_ok': bool(device.get('compute_ok'))}
+                    for device in result.get('devices', [])],
+    }
+
+
+def _log_cuda_result(result: dict) -> None:
+    """Log what the API no longer reports, once per probe run rather than once per request."""
+    if result.get('error'):
+        _log_detail('CUDA check failed', result['error'])
+    for device in result.get('devices', []):
+        if device.get('error'):
+            _log_detail('CUDA device {} is not usable'.format(device.get('index')), device['error'])
+    logger.info('CUDA check: torch %s built for CUDA %s, architectures %s, devices %s',
+                result.get('torch_version'), result.get('cuda_built'), result.get('arch_list'),
+                [{k: v for k, v in d.items() if k != 'error'} for d in result.get('devices', [])])
+
+
 def cuda_status(refresh: bool = False) -> dict:
     """Whether torch can actually compute on the GPUs of this host.
 
@@ -190,7 +231,7 @@ def cuda_status(refresh: bool = False) -> dict:
 
     with _cuda_lock:
         if _cuda_result is not None and not refresh:
-            return dict(_cuda_result, state='ready')
+            return dict(_reduced_cuda(_cuda_result), state='ready')
         if _cuda_running:
             return {'state': 'checking'}
         _cuda_running = True
@@ -198,6 +239,7 @@ def cuda_status(refresh: bool = False) -> dict:
     def probe():
         global _cuda_result, _cuda_running
         result = _run_cuda_probe()
+        _log_cuda_result(result)
         with _cuda_lock:
             _cuda_result = result
             _cuda_running = False
@@ -212,14 +254,11 @@ def _disk(label: str, path: str) -> Optional[dict]:
     except OSError as e:
         logger.debug('Could not stat %s: %s', path, e)
         return None
-    # the absolute path is deliberately not reported: it is server-side layout
-    # that the administrative view does not need
+    # neither the absolute path nor the size of the volume is reported: that is server-side
+    # layout which the administrative view does not need in order to show how full it is
     return {
         'label': label,
-        'used': usage.used,
-        'total': usage.total,
-        'free': usage.free,
-        'percent': round(usage.used * 100 / usage.total, 1) if usage.total else 0,
+        'percent': _percent(usage.used, usage.total),
     }
 
 
@@ -249,38 +288,29 @@ def disk_usage() -> List[dict]:
 
 
 def cpu_and_memory() -> dict:
-    """CPU load and memory usage of the host.
+    """CPU load and memory usage of the host, as a percentage of what it has.
 
     ``cpu_percent`` is sampled without blocking, i.e. it reports the average
     since the previous call. The first call after server start therefore
     returns 0 — acceptable for a view that polls continuously.
+
+    Core counts, the load average and the installed amount of memory are how much machine this is,
+    not how busy it currently is, and are therefore not reported.
     """
     memory = psutil.virtual_memory()
     try:
         swap = psutil.swap_memory()
     except (OSError, RuntimeError):       # e.g. containers without /proc/vmstat
         swap = None
-    try:
-        load_avg = [round(v, 2) for v in os.getloadavg()]
-    except (OSError, AttributeError):     # not available on all platforms
-        load_avg = None
 
     return {
         'cpu': {
             'percent': psutil.cpu_percent(interval=None),
-            'per_cpu': psutil.cpu_percent(interval=None, percpu=True),
-            'count': psutil.cpu_count(logical=True),
-            'count_physical': psutil.cpu_count(logical=False),
-            'load_avg': load_avg,
         },
         'memory': {
-            'used': memory.total - memory.available,
-            'total': memory.total,
             'percent': memory.percent,
         },
         'swap': {
-            'used': swap.used,
-            'total': swap.total,
             'percent': swap.percent,
-        } if swap else None,
+        } if swap and swap.total else None,
     }

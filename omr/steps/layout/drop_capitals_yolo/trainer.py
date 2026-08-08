@@ -122,7 +122,7 @@ class DropCapitalTrainer(LayoutTrainerBase):
                 project= dirpath,
                 #name='yolov8m.pt',
                 save=False,
-                epochs=100,
+                epochs=self.params.n_epoch,
                 imgsz=960,
                 fliplr=0.5,
                 scale=0.1,

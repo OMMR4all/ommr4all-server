@@ -14,7 +14,8 @@ from omr.dataset.datafiles import EmptyDataSetException
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
 from omr.steps.step import Step, AlgorithmTypes
 from restapi.operationworker.workerresources import \
-    resolve_worker_resource, groups_for, n_workers, TRAIN_OPERATIONS, InvalidWorkerResourceException
+    resolve_worker_resource, groups_for, n_workers, TRAIN_OPERATIONS, InvalidWorkerResourceException, \
+    InvalidTrainerParamsException, resolve_n_epoch
 from dataclasses import field, dataclass
 from typing import Optional
 
@@ -145,7 +146,10 @@ class BookOperationView(APIView):
     permission_classes = [permissions.AllowAny]
 
     @staticmethod
-    def op_to_task_runner(operation: str, book: DatabaseBook, body: dict) -> TaskRunner:
+    def op_to_task_runner(operation: str, book: DatabaseBook, body: dict, user=None) -> TaskRunner:
+        # ``user`` is only required to start a training run: it decides whether the requested number
+        # of epochs may exceed the algorithm default. The callers that merely inspect a task
+        # (status/models) pass nothing.
         from omr.steps.algorithmtypes import AlgorithmTypes
         for at in AlgorithmTypes:
             if at.value == operation:
@@ -165,6 +169,7 @@ class BookOperationView(APIView):
             from restapi.operationworker.taskrunners.taskrunnertrainer import TaskTrainerParams
             worker_resource = resolve_worker_resource(Step.create_meta(trained_type), body.get('worker_resource'), training=True)
             train_params = TaskTrainerParams.from_dict(body.get('trainParams', {}))
+            train_params.n_epoch = resolve_n_epoch(user, trained_type, train_params.n_epoch)
             if operation == 'train_symbols':
                 from restapi.operationworker.taskrunners.taskrunnersymboldetectiontrainer import TaskRunnerSymbolDetectionTrainer
                 return TaskRunnerSymbolDetectionTrainer(book, train_params, worker_resource=worker_resource)
@@ -182,12 +187,18 @@ class BookOperationView(APIView):
         body = json.loads(request.body)
         book = DatabaseBook(book)
         try:
-            task_runner = BookOperationView.op_to_task_runner(operation, book, body)
+            task_runner = BookOperationView.op_to_task_runner(operation, book, body, request.user)
         except InvalidWorkerResourceException as e:
             return APIError(status.HTTP_400_BAD_REQUEST,
                             str(e),
                             "The requested worker resource (CPU/GPU) is not supported by this algorithm.",
                             ErrorCodes.OPERATION_TASK_INVALID_WORKER_RESOURCE,
+                            ).response()
+        except InvalidTrainerParamsException as e:
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            str(e),
+                            "The training settings are invalid.",
+                            ErrorCodes.OPERATION_TASK_INVALID_TRAINER_PARAMS,
                             ).response()
         if task_runner:
             if body.get('worker_resource') and n_workers(task_runner.task_group) == 0:

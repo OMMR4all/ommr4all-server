@@ -25,7 +25,7 @@ from restapi.views.administrativedefaultmodels import AdministrativeDefaultModel
 from restapi.views.tasks import TasksView, TaskView, BookTasksView
 from restapi.views.systemresources import SystemResourcesView
 from restapi.views.llmproviders import LLMProvidersView
-from restapi.views.workerresources import OperationWorkerResourcesView
+from restapi.views.workerresources import OperationWorkerResourcesView, OperationTrainParamsView
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -47,6 +47,9 @@ urlpatterns = \
 
         # worker resources (cpu/gpu) usable for an operation + queue occupancy
         re_path(r'^operation/(?P<operation>\w+)/worker_resources$', OperationWorkerResourcesView.as_view()),
+
+        # trainer settings (and their per-user limits) offered for a training operation
+        re_path(r'^operation/(?P<operation>\w+)/train_params$', OperationTrainParamsView.as_view()),
 
         # auth
         re_path(r'^auth/(?P<auth>\w+)$', AuthView.as_view(), name='AuthView'),

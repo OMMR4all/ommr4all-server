@@ -14,6 +14,21 @@ class TaskTrainerParams(DataClassJSONMixin):
     pretrainedModel: Optional[ModelMeta] = None
     symbol_enable_neume_training: bool = False
     symbol_enable_additional_symbol_types: bool = False
+    # None keeps the algorithm default; the value is clamped per user in workerresources.resolve_n_epoch
+    n_epoch: Optional[int] = None
+
+    def to_trainer_params(self, trainer_class) -> Optional['AlgorithmTrainerParams']:
+        """The hyper parameters requested by the client, or None to keep the algorithm defaults.
+
+        Built from the algorithm's own default_params() rather than from a bare
+        AlgorithmTrainerParams: mix_default() only fills in fields that are None or negative, so a
+        fresh instance would silently override defaults such as ``display`` that are positive.
+        """
+        if self.n_epoch is None:
+            return None
+        params = trainer_class.default_params()
+        params.n_epoch = self.n_epoch
+        return params
 
     def to_train_val(self, locks: List[LockState], shuffle: bool = True, books: List[DatabaseBook] = None) -> Tuple[List[PcGts], List[PcGts]]:
         if self.includeAllTrainingData:

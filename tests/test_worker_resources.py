@@ -16,7 +16,12 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ['OMMR4ALL_STORAGE_ROOT'] = os.path.join(BASE_DIR, 'tests', 'storage')
 settings.PRIVATE_MEDIA_ROOT = os.path.join(BASE_DIR, 'tests', 'storage')
 
-from django.test import Client
+import django
+django.setup()
+
+from django.contrib.auth.models import Permission, User
+from django.test import TestCase
+from rest_framework.test import APIClient
 
 from omr.steps.algorithmtypes import AlgorithmTypes, WorkerResource
 from omr.steps.step import Step
@@ -26,7 +31,8 @@ from restapi.operationworker.taskresources import TaskResource
 from restapi.operationworker.taskrunners.taskrunner import TaskRunner
 from restapi.operationworker.taskworkergroup import TaskWorkerGroup
 from restapi.operationworker.workerresources import \
-    groups_for, resolve_worker_resource, n_workers, InvalidWorkerResourceException
+    groups_for, resolve_worker_resource, n_workers, InvalidWorkerResourceException, \
+    InvalidTrainerParamsException, TRAIN_OPERATIONS, default_n_epoch, resolve_n_epoch
 
 
 class SleepyTaskRunner(TaskRunner):
@@ -153,9 +159,22 @@ class TestQueuePosition(unittest.TestCase):
         time.sleep(3)
 
 
-class TestWorkerResourcesEndpoint(unittest.TestCase):
+class TestWorkerResourcesEndpoint(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('worker_resources_user', password='pw')
+        self.client = APIClient()
+
+    def _login(self, user=None):
+        self.client.force_authenticate(user=user if user is not None else self.user)
+
+    def test_requires_authentication(self):
+        # the worker layout and queue occupancy of the server are not public information
+        response = self.client.get('/api/operation/text_llm/worker_resources')
+        self.assertEqual(response.status_code, 401)
+
     def test_text_llm(self):
-        response = Client().get('/api/operation/text_llm/worker_resources')
+        self._login()
+        response = self.client.get('/api/operation/text_llm/worker_resources')
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data['operation'], 'text_llm')
@@ -166,15 +185,89 @@ class TestWorkerResourcesEndpoint(unittest.TestCase):
                 self.assertIn(key, info)
 
     def test_training_operation(self):
-        response = Client().get('/api/operation/train_symbols/worker_resources')
+        self._login()
+        response = self.client.get('/api/operation/train_symbols/worker_resources')
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data['resources']['gpu']['allowed'])
         self.assertTrue(data['resources']['cpu']['allowed'])
 
     def test_unknown_operation(self):
-        response = Client().get('/api/operation/does_not_exist/worker_resources')
+        self._login()
+        response = self.client.get('/api/operation/does_not_exist/worker_resources')
         self.assertEqual(response.status_code, 400)
+
+
+class TestTrainParamsEndpoint(TestCase):
+    """The epoch limit offered to the client; the same limit is applied again when training starts."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('train_params_user', password='pw')
+        self.client = APIClient()
+
+    def test_requires_authentication(self):
+        response = self.client.get('/api/operation/train_symbols/train_params')
+        self.assertEqual(response.status_code, 401)
+
+    def test_default_user_is_capped_at_the_default(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get('/api/operation/train_symbols/train_params')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertGreater(data['n_epoch_default'], 0)
+        self.assertEqual(data['n_epoch_max'], data['n_epoch_default'])
+
+    def test_admin_has_no_limit(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get('/api/operation/train_symbols/train_params')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()['n_epoch_max'])
+
+    def test_granted_permission_lifts_the_limit(self):
+        self.user.user_permissions.add(Permission.objects.get(codename='set_training_epochs'))
+        self.client.force_authenticate(user=User.objects.get(pk=self.user.pk))
+        response = self.client.get('/api/operation/train_symbols/train_params')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()['n_epoch_max'])
+
+    def test_unknown_operation(self):
+        self.client.force_authenticate(user=self.user)
+        # a prediction operation has no trainer settings
+        response = self.client.get('/api/operation/text_llm/train_params')
+        self.assertEqual(response.status_code, 400)
+
+
+class TestResolveNEpoch(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('n_epoch_user', password='pw')
+        self.algorithm = TRAIN_OPERATIONS['train_symbols']
+        self.default = default_n_epoch(self.algorithm)
+
+    def test_unset_keeps_the_algorithm_default(self):
+        self.assertIsNone(resolve_n_epoch(self.user, self.algorithm, None))
+
+    def test_lowering_is_allowed_for_everyone(self):
+        self.assertEqual(resolve_n_epoch(self.user, self.algorithm, 1), 1)
+        self.assertEqual(resolve_n_epoch(self.user, self.algorithm, self.default), self.default)
+
+    def test_raising_is_capped_for_a_regular_user(self):
+        self.assertEqual(resolve_n_epoch(self.user, self.algorithm, self.default + 500), self.default)
+
+    def test_raising_is_allowed_for_an_admin(self):
+        self.user.is_superuser = True
+        self.assertEqual(resolve_n_epoch(self.user, self.algorithm, self.default + 500), self.default + 500)
+
+    def test_rejects_values_below_one(self):
+        # mix_default() only replaces None/negative values, so 0 would survive into the trainer
+        for value in (0, -1):
+            with self.assertRaises(InvalidTrainerParamsException):
+                resolve_n_epoch(self.user, self.algorithm, value)
+
+    def test_rejects_garbage(self):
+        with self.assertRaises(InvalidTrainerParamsException):
+            resolve_n_epoch(self.user, self.algorithm, 'many')
 
 
 if __name__ == '__main__':

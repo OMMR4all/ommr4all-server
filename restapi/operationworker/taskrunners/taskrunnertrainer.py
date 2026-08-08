@@ -95,6 +95,8 @@ class TaskRunnerTrainer(TaskRunner):
             dataset_params=DatasetParams(
                 gt_required=True,
             ),
+            # None unless the request asked for a value, so the algorithm defaults apply unchanged
+            params=self.params.to_trainer_params(trainer_class),
         )
 
         trainer = trainer_class(settings)

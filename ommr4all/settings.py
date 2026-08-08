@@ -202,6 +202,7 @@ def jwt_response_payload_handler(token, user=None, request=None):
     return {
         'token': token,
         'permissions': user.get_all_permissions(),
+        'is_admin': user.is_superuser or user.is_staff,
     }
 
 SIMPLE_JWT = {
