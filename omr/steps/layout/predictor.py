@@ -1,9 +1,9 @@
 from abc import abstractmethod, ABC
 from dataclasses import dataclass
-from typing import List, Generator, NamedTuple, Dict, Optional
+from typing import List, Generator, NamedTuple, Dict, Optional, Tuple
 from database.file_formats.pcgts import *
 from database import DatabasePage
-from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorSettings, AlgorithmPredictionResult, AlgorithmPredictionResultGenerator
+from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorSettings, AlgorithmPredictionResult, AlgorithmPredictionResultGenerator, FailedPageResult, PredictionProgress
 import logging
 
 logger = logging.getLogger(__name__)
@@ -60,6 +60,16 @@ class FinalPredictionResult(AlgorithmPredictionResult):
         pcgts.to_file(page.file('pcgts').local_path())
 
 
+def page_names_of(pcgts: PcGts) -> Tuple[str, str]:
+    """(book, page) of a PcGts for logging. Tolerates a page without a database
+    location (synthetic pcgts in tests/tools) so a log line can never be the
+    thing that raises."""
+    location = getattr(pcgts.page, 'location', None)
+    if location is None:
+        return '<unknown book>', '<unknown page>'
+    return getattr(location.book, 'book', '<unknown book>'), location.page
+
+
 class LayoutAnalysisPredictor(AlgorithmPredictor):
     def __init__(self, settings: AlgorithmPredictorSettings):
         super().__init__(settings)
@@ -69,10 +79,32 @@ class LayoutAnalysisPredictor(AlgorithmPredictor):
     def unprocessed(cls, page: DatabasePage) -> bool:
         return len(page.pcgts().page.text_blocks()) == 0
 
+    def _predict_each_page(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) \
+            -> Generator[AlgorithmPredictionResult, None, None]:
+        """Run ``_predict_single`` per page, isolating per-page failures.
+
+        A page that raises is logged with its name and reported as a
+        ``FailedPageResult`` instead of killing the whole batch -- a single
+        malformed page must not abort a book run or a workflow chain. One result
+        is yielded per input page, so positional pairing further up stays valid.
+        """
+        progress = PredictionProgress(callback, len(pcgts_files))
+        progress.start()
+        for pcgts in pcgts_files:
+            book_name, page_name = page_names_of(pcgts)
+            try:
+                yield self._predict_single(pcgts)
+            except Exception as e:
+                logger.exception('{}: failed on page {}/{}: {}'.format(
+                    type(self).__module__, book_name, page_name, e))
+                yield FailedPageResult(page_name, book_name, '{}: {}'.format(type(e).__name__, e))
+            finally:
+                progress.page_finished()
+
     def predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
         pcgts_files = [p.pcgts() for p in pages]
         for r, pcgts in zip(self._predict(pcgts_files, callback=callback), pcgts_files):
-            if isinstance(r, FinalPredictionResult):
+            if isinstance(r, (FinalPredictionResult, FailedPageResult)):
                 yield r
                 continue
 

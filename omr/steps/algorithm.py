@@ -1,6 +1,7 @@
 import datetime
 from abc import ABC, abstractmethod
 from collections import Counter, OrderedDict
+from dataclasses import dataclass
 from database import DatabaseBook, DatabasePage
 from database.file_formats import PcGts
 from database.file_formats.performance import LockState
@@ -316,6 +317,32 @@ class AlgorithmPredictionResult(ABC):
         pass
 
     @abstractmethod
+    def store_to_page(self):
+        pass
+
+
+@dataclass(frozen=True)
+class FailedPageResult(AlgorithmPredictionResult):
+    """Stand-in for a page whose prediction raised.
+
+    A predictor that guards its per-page loop yields this instead of dropping the
+    page, so the result stream stays 1:1 with the input pages (callers such as
+    ``LayoutAnalysisPredictor.predict`` pair results with pages by position, and a
+    dropped page would silently shift every following result onto the wrong page).
+    ``store_to_page`` is deliberately inert: a page that could not be predicted
+    keeps whatever it had before.
+    """
+    page_name: str
+    book_name: str
+    error: str
+
+    def to_dict(self):
+        return {
+            'page': self.page_name,
+            'book': self.book_name,
+            'error': self.error,
+        }
+
     def store_to_page(self):
         pass
 

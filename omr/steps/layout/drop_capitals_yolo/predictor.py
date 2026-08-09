@@ -72,7 +72,7 @@ class DropCapitalPredictor(LayoutAnalysisPredictor):
         progress.start()
 
         for image, mask, add in zip(images, masks, adds):
-            print(pcgts_files[index].page.location.page)
+            logger.debug('Drop capital detection on page {}'.format(pcgts_files[index].page.location.page))
             index += 1
             image2 = image[:, :, [2, 1, 0]]
 

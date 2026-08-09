@@ -4,13 +4,19 @@ from database.model import Model, MetaId
 from omr.steps.algorithmtypes import AlgorithmTypes
 from omr.steps.layout.drop_capitals.predictor import DropCapitalPredictor, LAYOUT_DROP_CAPITAL_MODEL_DEFAULT_NAME
 from omr.steps.layout.predictor import LayoutAnalysisPredictor, PredictionType, PredictionResult, \
-    PredictionCallback, AlgorithmPredictorSettings, FinalPredictionResult, IdCoordsPair
+    PredictionCallback, AlgorithmPredictorSettings, FinalPredictionResult, IdCoordsPair, page_names_of
 from typing import List, Optional
-from database.file_formats.pcgts import PcGts, BlockType, Coords, Line, Rect, Point, Size
+from database.file_formats.pcgts import PcGts, BlockType, Coords, Line, Rect, Point, Size, StaffLine
 import numpy as np
 from omr.steps.layout.lyricsbbs.meta import Meta
 from omr.steps.step import Step
 from loguru import logger
+
+
+def usable_staff_lines(ml: Line) -> List[StaffLine]:
+    """Staff lines that carry an actual path. Degenerate ones (no or a single
+    point) cannot contribute to a polygon and would raise on ``points[0]``."""
+    return [sl for sl in ml.staff_lines if len(sl.coords.points) >= 2]
 
 
 class Predictor(LayoutAnalysisPredictor):
@@ -48,12 +54,42 @@ class Predictor(LayoutAnalysisPredictor):
         )
         self.drop_capital: DropCapitalPredictor = meta.create_predictor(settings)
 
+    @staticmethod
+    def _staff_polygon(ml: Line, pad_tup) -> Optional[Coords]:
+        """Outline of a stave: top staff line padded up, the right ends of the
+        inner lines, the bottom line padded down (reversed), the left starts of
+        the inner lines.
+
+        Staves with fewer than three staff lines have an empty inner slice; the
+        reshape keeps that an empty *(0, 2)* array, since a bare ``[]`` is 1-D and
+        cannot be concatenated with the 2-D point arrays. Returns None if the
+        stave has no usable staff line at all.
+        """
+        lines = usable_staff_lines(ml)
+        if len(lines) == 0:
+            return None
+
+        inner = lines[1:-1]
+        right = np.array([sl.coords.points[-1] for sl in inner], dtype=float).reshape((-1, 2))
+        left = np.array([sl.coords.points[0] for sl in reversed(inner)], dtype=float).reshape((-1, 2))
+        return Coords(np.concatenate(
+            [
+                lines[0].coords.points - pad_tup,
+                right,
+                lines[-1].coords.points[::-1] + pad_tup,
+                left,
+            ]
+        ))
+
     def _predict_single(self, pcgts_file: PcGts) -> FinalPredictionResult:
         mls_in_cols = pcgts_file.page.all_music_lines_in_columns()
+        page_name = page_names_of(pcgts_file)[1]
         music_coords: List[IdCoordsPair] = []
         lyric_coords: List[IdCoordsPair] = []
         for mls in mls_in_cols:
             mls = [ml for ml in mls if len(ml.staff_lines) > 0]
+            if len(mls) == 0:
+                continue
             mls.sort(key=lambda ml: ml.center_y())
             pad = pcgts_file.page.avg_staff_line_distance() / 2
             pad_tup = (0, pad)
@@ -61,27 +97,34 @@ class Predictor(LayoutAnalysisPredictor):
                 ml.staff_lines.sort()
 
             for m in mls:
-                music_coords.append(IdCoordsPair(Coords(np.concatenate(
-                    [
-                        m.staff_lines[0].coords.points - pad_tup,
-                        [
-                            c.coords.points[-1] for c in m.staff_lines[1:-1]
-                        ],
-                        m.staff_lines[-1].coords.points[::-1] + pad_tup,
-                        [
-                            c.coords.points[0] for c in reversed(m.staff_lines[1:-1])
-                        ],
-                    ]
-                )), m.id))
+                coords = self._staff_polygon(m, pad_tup)
+                if coords is None:
+                    logger.warning('Page {}: music line {} has no usable staff line, skipping it'.format(
+                        page_name, m.id))
+                    continue
+                music_coords.append(IdCoordsPair(coords, m.id))
 
-            avg_staff_distance = np.mean(
-                [m2.staff_lines[0].center_y() - m1.staff_lines[-1].center_y() for m1, m2 in zip(mls[:-1], mls[1:])])
+            # sorted and free of degenerate lines; drives the gap and the lyric geometry
+            staff_lines_of = [usable_staff_lines(m) for m in mls]
+
+            gaps = [bot[0].center_y() - top[-1].center_y()
+                    for top, bot in zip(staff_lines_of[:-1], staff_lines_of[1:])
+                    if len(top) > 0 and len(bot) > 0]
+            if len(gaps) > 0:
+                avg_staff_distance = np.mean(gaps)
+            else:
+                # A single stave in the column gives no gap to measure. A stave spans
+                # four inter-line distances, which is about the vertical space a lyric
+                # line takes below it.
+                avg_staff_distance = 4 * pcgts_file.page.avg_staff_line_distance()
             #avg_staff_height = np.mean(
             #    [m.staff_lines.aabb().height() for m in mls])
 
-            for m1, m2 in zip(mls[:-1], mls[1:]):
-                top_l = m1.staff_lines[-1]
-                bot_l = m2.staff_lines[0]
+            for top_lines, bot_lines in zip(staff_lines_of[:-1], staff_lines_of[1:]):
+                if len(top_lines) == 0 or len(bot_lines) == 0:
+                    continue
+                top_l = top_lines[-1]
+                bot_l = bot_lines[0]
                 bot_points = bot_l.coords.points[np.where((top_l.coords.points[0][0] < bot_l.coords.points[:, 0]) & (
                         bot_l.coords.points[:, 0] < top_l.coords.points[-1][0]))]
                 bot_points = np.concatenate([
@@ -103,39 +146,49 @@ class Predictor(LayoutAnalysisPredictor):
                         top_l.coords.points + pad_tup,
                         top_l.coords.points[::-1] + (0, avg_staff_distance),
                     ], axis=0))))
-            top_l = mls[-1].staff_lines[-1]
-            lyric_coords.append(IdCoordsPair(Coords(np.concatenate((
-                top_l.coords.points + pad_tup,
-                top_l.coords.points[::-1] + (0, avg_staff_distance),
-            ), axis=0))))
+            last_lines = staff_lines_of[-1]
+            if len(last_lines) > 0:
+                top_l = last_lines[-1]
+                lyric_coords.append(IdCoordsPair(Coords(np.concatenate((
+                    top_l.coords.points + pad_tup,
+                    top_l.coords.points[::-1] + (0, avg_staff_distance),
+                ), axis=0))))
         drop_capital_blocks = []
         # Todo filter drop capitals
         if self.settings.params.dropCapitals and self.drop_capital is not None:
-            res = list(self.drop_capital._predict([pcgts_file]))[0]
-            for x in res.blocks.get(BlockType.DROP_CAPITAL):
-                drop_capital_blocks.append(IdCoordsPair(x))
-            loop = True
-            while loop:
-                loop = False
-                for x in range(len(drop_capital_blocks)):
+            # Music and lyrics of this page are already usable, so a failing drop
+            # capital detection degrades to "no drop capitals" instead of losing
+            # the whole page.
+            try:
+                res = list(self.drop_capital._predict([pcgts_file]))
+                for x in (res[0].blocks.get(BlockType.DROP_CAPITAL, []) if len(res) > 0 else []):
+                    drop_capital_blocks.append(IdCoordsPair(x))
+                loop = True
+                while loop:
+                    loop = False
+                    for x in range(len(drop_capital_blocks)):
 
-                    for y in range(x + 1, len(drop_capital_blocks)):
-                        rec1 = drop_capital_blocks[x].coords.aabb()
-                        rec2 = drop_capital_blocks[y].coords.aabb()
+                        for y in range(x + 1, len(drop_capital_blocks)):
+                            rec1 = drop_capital_blocks[x].coords.aabb()
+                            rec2 = drop_capital_blocks[y].coords.aabb()
 
-                        if rec1.intersetcsWithRect(rec2):
-                            smaller = x if rec1.area() < rec2.area() else y
-                            del drop_capital_blocks[smaller]
-                            loop = True
-                            break
-        if self.settings.params.dropCapitals and self.drop_capital is not None:
-            print("hallo")
-            size = self.settings.params.documentStartsDropCapitalMinHeight
+                            if rec1.intersetcsWithRect(rec2):
+                                smaller = x if rec1.area() < rec2.area() else y
+                                del drop_capital_blocks[smaller]
+                                loop = True
+                                break
 
-            for d in drop_capital_blocks:
-                print(f"heigth: {d.coords.aabb().height()}, sf: {pcgts_file.page.avg_stave_height()}, size {size}")
-            drop_capital_blocks = [d for d in drop_capital_blocks if
-                                   d.coords.aabb().height() >= size * pcgts_file.page.avg_stave_height()]
+                size = self.settings.params.documentStartsDropCapitalMinHeight
+                for d in drop_capital_blocks:
+                    logger.debug('Page {}: drop capital height {}, avg stave height {}, min factor {}'.format(
+                        page_name, d.coords.aabb().height(), pcgts_file.page.avg_stave_height(), size))
+                drop_capital_blocks = [d for d in drop_capital_blocks if
+                                       d.coords.aabb().height() >= size * pcgts_file.page.avg_stave_height()]
+            except Exception as e:
+                logger.opt(exception=True).warning(
+                    'Page {}: drop capital detection failed ({}: {}), '
+                    'continuing without drop capitals'.format(page_name, type(e).__name__, e))
+                drop_capital_blocks = []
         # Todo improve drop capital-lyric matching
         if self.settings.params.documentStarts:
             w_dc = []
@@ -198,9 +251,4 @@ class Predictor(LayoutAnalysisPredictor):
         )
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> PredictionType:
-        for i, r in enumerate(map(self._predict_single, pcgts_files)):
-            if callback:
-                callback.progress_updated((i + 1) / len(pcgts_files),
-                                          n_pages=len(pcgts_files),
-                                          n_processed_pages=i + 1)
-            yield r
+        yield from self._predict_each_page(pcgts_files, callback)

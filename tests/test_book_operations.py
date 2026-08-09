@@ -199,3 +199,61 @@ class TestTrainingBooks(DjangoTestCase):
 
 
 
+
+
+class TestSkippedPagesReport(TestCase):
+    """A batch prediction must survive a page that could not be predicted: the page
+    is reported in `skipped_pages` instead of taking the whole task (and with it the
+    rest of the workflow chain) down."""
+
+    def _run(self, predictor_results):
+        from unittest import mock
+        from omr.steps.algorithmtypes import AlgorithmTypes
+        from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
+        from restapi.operationworker.taskrunners.taskrunnerprediction import TaskRunnerPrediction, Settings
+
+        book = DatabaseBook('demo')
+        pages = book.pages()[:2]
+        runner = TaskRunnerPrediction(
+            AlgorithmTypes.LAYOUT_SIMPLE_LYRICS,
+            PageSelection(book, PageCount.CUSTOM, pages),
+            Settings(params=AlgorithmPredictorParams(), store_to_pcgts=False),
+        )
+
+        class PredictorCls:
+            @staticmethod
+            def unprocessed(page): return True
+
+            @staticmethod
+            def unlocked(page): return True
+
+        meta = mock.Mock()
+        meta.predictor.return_value = PredictorCls
+        predictor = mock.Mock()
+        predictor.predict.return_value = iter(predictor_results)
+
+        with mock.patch.object(runner, 'algorithm_meta', return_value=meta), \
+                mock.patch('omr.steps.predictorcache.get_or_create', return_value=predictor):
+            return runner.run(mock.Mock(), mock.Mock())
+
+    def test_a_failed_page_is_reported_and_the_others_are_kept(self):
+        from omr.steps.algorithm import FailedPageResult
+        from unittest import mock
+
+        ok = mock.Mock()
+        ok.to_dict.return_value = {'blocks': {}}
+        result = self._run([ok, FailedPageResult('page00000002', 'demo', 'ValueError: broken')])
+
+        self.assertEqual(result['results'], [{'blocks': {}}])
+        self.assertEqual(result['skipped_pages'],
+                         [{'page': 'page00000002', 'book': 'demo', 'error': 'ValueError: broken'}])
+
+    def test_without_failures_the_report_is_empty(self):
+        from unittest import mock
+
+        ok = mock.Mock()
+        ok.to_dict.return_value = {'blocks': {}}
+        result = self._run([ok, ok])
+
+        self.assertEqual(len(result['results']), 2)
+        self.assertEqual(result['skipped_pages'], [])

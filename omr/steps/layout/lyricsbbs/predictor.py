@@ -44,10 +44,5 @@ class Predictor(LayoutAnalysisPredictor):
         )
 
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> PredictionType:
-        for i, r in enumerate(map(self._predict_single, pcgts_files)):
-            if callback:
-                callback.progress_updated((i + 1) / len(pcgts_files),
-                                          n_pages=len(pcgts_files),
-                                          n_processed_pages=i + 1)
-            yield r
+        yield from self._predict_each_page(pcgts_files, callback)
 

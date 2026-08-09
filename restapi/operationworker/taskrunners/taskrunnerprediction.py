@@ -33,7 +33,8 @@ class TaskRunnerPrediction(TaskRunner):
         return self.selection.identifier(), self.algorithm_type
 
     def run(self, task: Task, com_queue: Queue) -> dict:
-        from omr.steps.algorithm import PredictionCallback, AlgorithmPredictor, AlgorithmPredictorSettings
+        from omr.steps.algorithm import PredictionCallback, AlgorithmPredictor, AlgorithmPredictorSettings, \
+            FailedPageResult
         from omr.steps import predictorcache
         meta = self.algorithm_meta()
 
@@ -71,22 +72,41 @@ class TaskRunnerPrediction(TaskRunner):
             pages = [p for p in pages if predictor_cls.unlocked(p)]
         logger.debug("Algorithm {} processing {} pages".format(self.algorithm_type.name, len(pages)))
 
-        staves = list(abc_detector.predict(pages, Callback()))
+        all_results = list(abc_detector.predict(pages, Callback()))
+        # A predictor that guards its per-page loop reports a failed page instead of
+        # aborting the run. Those pages are kept out of the results and never stored,
+        # but are reported back so the client can warn about them.
+        failed = [r for r in all_results if isinstance(r, FailedPageResult)]
+        staves = [r for r in all_results if not isinstance(r, FailedPageResult)]
         results = [
             page_staves.to_dict() for page_staves in staves
         ]
 
+        if failed:
+            logger.warning("Algorithm {} skipped {} of {} pages: {}".format(
+                self.algorithm_type.name, len(failed), len(pages),
+                ", ".join("{} ({})".format(f.page_name, f.error) for f in failed)))
+
         if self.settings.store_to_pcgts:
+            failed_pages = {f.page_name for f in failed}
             for page_staves in staves:
                 page_staves.store_to_page()
             if len(staves) > 0:
                 for page in pages:
+                    if page.page in failed_pages:
+                        continue
                     page.mark_updated(task.creator, propagate=False)
                 self.selection.book.mark_updated(task.creator)
 
         if self.selection.single_page:
+            if len(results) == 0:
+                raise Exception("Prediction of {} produced no result for page {}{}".format(
+                    self.algorithm_type.name,
+                    pages[0].page if pages else '<none>',
+                    ": " + failed[0].error if failed else ''))
             return results[0]
         else:
             return {
-                'results': results
+                'results': results,
+                'skipped_pages': [f.to_dict() for f in failed],
             }
