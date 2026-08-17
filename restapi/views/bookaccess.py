@@ -151,6 +151,9 @@ class BookUploadView(APIView):
         book = DatabaseBook(book)
         if not os.path.exists(book.local_path()):
             os.mkdir(book.local_path())
+        # names of the pages actually created, reported back so the client can show a
+        # page count instead of a file count (a single PDF becomes many pages)
+        created_pages = []
         for type, file in request.FILES.items():
             logger.debug('Received new image of content type {}'.format(file.content_type))
             name = os.path.splitext(os.path.basename(file.name))[0]
@@ -166,6 +169,7 @@ class BookUploadView(APIView):
                 img.save(original.local_path())
                 logger.debug('Created page at {}'.format(page.local_path()))
                 page.mark_updated(request.user, propagate=False)
+                created_pages.append(page.page)
 
             try:
                 if type.startswith('image/'):
@@ -185,7 +189,7 @@ class BookUploadView(APIView):
                 return Response(status=status.HTTP_400_BAD_REQUEST)
 
         book.mark_updated(request.user)
-        return Response()
+        return Response({'pages': created_pages})
 
 
 class BooksImportView(APIView):

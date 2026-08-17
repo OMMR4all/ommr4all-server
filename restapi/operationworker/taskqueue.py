@@ -1,3 +1,4 @@
+import time
 from dataclasses import replace
 from typing import List, Optional, NamedTuple, Dict, TYPE_CHECKING
 from .task import Task, \
@@ -54,6 +55,7 @@ class TaskQueue:
             self.tasks.append(Task(task_id, task_runner, TaskStatus(code=TaskStatusCodes.QUEUED),
                                    task_result={},
                                    creator=creator,
+                                   created_at=time.time(),
                                    ))
 
     def pop_result(self, task_id: str) -> dict:
@@ -81,8 +83,8 @@ class TaskQueue:
                             if other.task_status.code == TaskStatusCodes.QUEUED \
                                     and groups & set(other.task_runner.task_group):
                                 n_ahead += 1
-                        return replace(task.task_status, queue_position=n_ahead)
-                    return task.task_status
+                        return task.public_status(queue_position=n_ahead)
+                    return task.public_status()
 
             raise TaskNotFoundException()
 
@@ -112,6 +114,10 @@ class TaskQueue:
             for task in self.tasks:
                 if task.task_id == task_id:
                     task.task_status = self._monotonic(task.task_status, status)
+                    task.updated_at = time.time()
+                    if task.finished_at is None and task.task_status.code in \
+                            (TaskStatusCodes.FINISHED, TaskStatusCodes.ERROR):
+                        task.finished_at = time.time()
                     if result:
                         task.task_result = result
                     return

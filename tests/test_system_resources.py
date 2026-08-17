@@ -210,7 +210,11 @@ class SystemResourcesViewTests(APITestCase):
         for worker in body['workers']:
             self.assertIn('group', worker)
             self.assertIn('used', worker)
+            self.assertFalse(worker['quarantined'])
         self.assertEqual(body['queue']['n_running'], 0)
+        # the slot flags alone cannot tell an admin whether tasks can still be started
+        self.assertTrue(body['scheduler']['healthy'])
+        self.assertTrue(body['scheduler']['scheduler']['alive'])
         return body
 
     def test_reports_resources_for_staff(self):
@@ -242,6 +246,65 @@ class SystemResourcesViewTests(APITestCase):
                     assert_clean(value)
 
         assert_clean(body)
+
+
+class SystemResourcesRepairViewTests(APITestCase):
+    """The recovery endpoint that replaces 'restart Apache' as the cure for a wedged
+    scheduler."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('repair_user', password='pw')
+
+    def _login(self):
+        response = self.client.post(reverse('token_obtain_pair'),
+                                    {'username': 'repair_user', 'password': 'pw'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + response.data['access'])
+
+    def test_requires_admin(self):
+        self._login()
+        response = self.client.post('/api/system_resources/repair', {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
+
+    def test_viewing_resources_does_not_allow_repairing_them(self):
+        self.user.user_permissions.add(Permission.objects.get(codename='view_system_resources'))
+        self._login()
+        response = self.client.post('/api/system_resources/repair', {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
+
+    def test_repair_reports_health(self):
+        self.user.user_permissions.add(Permission.objects.get(codename='manage_task_workers'))
+        self._login()
+        response = self.client.post('/api/system_resources/repair', {'action': 'repair'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        self.assertTrue(response.json()['healthy'])
+
+    def test_release_frees_a_leaked_slot(self):
+        from restapi.operationworker.operationworker import operation_worker
+        self.user.is_superuser = True
+        self.user.save()
+        self._login()
+
+        resource = operation_worker.resources.resources[0]
+        resource.used = True                       # what a crashed scheduler leaves behind
+        try:
+            response = self.client.post('/api/system_resources/repair',
+                                        {'action': 'release', 'worker': 0}, format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+            self.assertFalse(resource.used)
+            self.assertFalse(resource.quarantined)
+        finally:
+            resource.used = False
+
+    def test_unknown_slot_and_action_are_rejected(self):
+        self.user.is_superuser = True
+        self.user.save()
+        self._login()
+        for payload in ({'action': 'release', 'worker': 9999},
+                        {'action': 'release'},
+                        {'action': 'explode'}):
+            response = self.client.post('/api/system_resources/repair', payload, format='json')
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.content)
 
 
 if __name__ == '__main__':

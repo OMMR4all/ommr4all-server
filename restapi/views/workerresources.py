@@ -15,8 +15,10 @@ class OperationWorkerResourcesView(APIView):
     def get(self, request, operation):
         from omr.steps.algorithmtypes import AlgorithmTypes, WorkerResource
         from omr.steps.step import Step
+        from restapi.operationworker.operationworker import operation_worker
         from restapi.operationworker.workerresources import \
-            TRAIN_OPERATIONS, groups_for, resolve_worker_resource, n_workers, n_free, n_queued
+            TRAIN_OPERATIONS, groups_for, resolve_worker_resource, n_workers, n_free, n_queued, \
+            n_quarantined, scheduler_healthy
 
         training = operation in TRAIN_OPERATIONS
         if training:
@@ -41,12 +43,19 @@ class OperationWorkerResourcesView(APIView):
                 'default': resource == default,
                 'n_workers': n_workers(groups),
                 'n_free': n_free(groups),
+                'n_quarantined': n_quarantined(groups),
                 'n_tasks_queued': n_queued(groups),
             }
 
         return Response({
             'operation': operation,
             'resources': {resource.value: info(resource) for resource in WorkerResource},
+            # so the client can say 'the server cannot start tasks right now' instead of
+            # showing free workers that will never be handed out
+            'scheduler': {
+                'alive': scheduler_healthy(),
+                'n_quarantined': operation_worker.resources.n_quarantined(),
+            },
         })
 
 

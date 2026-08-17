@@ -317,6 +317,8 @@ class OperationTests(APITestCase):
         self.assertEqual(models.default_book_style_model.id, str(MetaId(models_id, models_id.algorithm_type.value)))
         self.assertListEqual(models.book_models, [])
         self.assertListEqual(models.models_of_same_book_style, [])
+        # no test book carries a trained model, of any style
+        self.assertListEqual(models.models_of_other_book_styles, [])
 
     def test_list_models(self):
         self._test_list_models(AlgorithmTypes.STAFF_LINES_PC_Torch)

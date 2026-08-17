@@ -37,6 +37,19 @@ class TaskRunner(ABC):
     def list_available_models_for_book(self, book: DatabaseBook) -> DatabaseAvailableModels:
         from database.models.bookstyles import BookStyle
         meta = self.algorithm_meta()
+        style = book.get_meta().notationStyle
+        # one pass over the books instead of one per style, and one newest_model lookup per
+        # book instead of the three the previous expression did
+        same_style, other_styles = [], []
+        for b in DatabaseBook.list_available():
+            if b.book == book.book:
+                continue
+            newest = meta.newest_model_for_book(b)
+            if not newest:
+                continue
+            b_meta = b.get_meta()
+            (same_style if b_meta.notationStyle == style else other_styles).append((b_meta, newest.meta()))
+
         return DatabaseAvailableModels(
             book=book.book,
             book_meta=book.get_meta(),
@@ -44,6 +57,7 @@ class TaskRunner(ABC):
             selected_model=meta.selected_model_for_book(book).meta() if meta.selected_model_for_book(book) else None,
             book_models=[m.meta() for m in meta.models_for_book(book).list_models()],
             default_book_style_model=meta.model_of_book_style(book).meta() if meta.model_of_book_style(book) else None,
-            models_of_same_book_style=[(b.get_meta(), meta.newest_model_for_book(b).meta()) for b in DatabaseBook.list_available_of_style(book.get_meta().notationStyle) if b.book != book.book and meta.newest_model_for_book(b)],
+            models_of_same_book_style=same_style,
+            models_of_other_book_styles=other_styles,
             default_models=[DefaultModel(o.id, meta.default_model_for_style(o.id).meta()) for o in BookStyle.objects.all() if meta.default_model_for_style(o.id)],
         )

@@ -114,11 +114,31 @@ def _worker(worker=None):
 
 
 def n_workers(groups: List[TaskWorkerGroup], worker=None) -> int:
+    # quarantined slots stay counted: the hardware exists, it is just unusable right now
     return len([r for r in _worker(worker).resources.resources if r.group in groups])
 
 
+def scheduler_healthy(worker=None) -> bool:
+    w = _worker(worker)
+    creator = w._task_creator
+    communicator = w._task_communicator
+    return (creator is None or creator.healthy()) and (communicator is None or communicator.healthy())
+
+
 def n_free(groups: List[TaskWorkerGroup], worker=None) -> int:
-    return len([r for r in _worker(worker).resources.resources if r.group in groups and not r.used])
+    """Slots a task queued right now would actually start on.
+
+    Zero while the scheduler is unhealthy: a slot nobody can hand out is not free. The
+    old count was pure bookkeeping and cheerfully advertised 8 idle CPU workers while a
+    wedged scheduler started none of them.
+    """
+    if not scheduler_healthy(worker):
+        return 0
+    return len([r for r in _worker(worker).resources.resources if r.group in groups and r.schedulable()])
+
+
+def n_quarantined(groups: List[TaskWorkerGroup], worker=None) -> int:
+    return len([r for r in _worker(worker).resources.resources if r.group in groups and r.quarantined])
 
 
 def n_queued(groups: List[TaskWorkerGroup], worker=None) -> int:

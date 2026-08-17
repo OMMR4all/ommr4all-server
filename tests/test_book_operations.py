@@ -38,6 +38,36 @@ class TestBookOperations(TestCase):
         sel = PageSelection.from_params(p, book)
         self.assertListEqual([p.local_path() for p in sel.get_pages()], [p.local_path() for p in book.pages()])
 
+    def test_single_page_selection_keeps_the_posted_pcgts(self):
+        """The editor posts its unsaved pcgts with every single-page operation
+        (OperationView.op_to_task_runner). get_pages() must hand that very object to the
+        predictor -- replacing it with an index-built page made every predictor re-read
+        pcgts.json, so chaining layout -> symbols ran on the last saved state."""
+        book = DatabaseBook('demo')
+        page = book.pages()[0]
+        posted = page.pcgts_from_dict(page.pcgts().to_json())
+
+        pages = PageSelection.from_page(page).get_pages()
+        self.assertEqual(len(pages), 1)
+        self.assertIs(pages[0].pcgts(), posted)
+        # the progress is still filled in from the index (that is what the pass is for)
+        self.assertIsNotNone(pages[0].page_progress())
+
+    def test_single_page_selection_keeps_verified_pages(self):
+        """A verified page re-run from the editor is deliberate; filtering it out here
+        surfaces as 'produced no result for page ...'."""
+        book = DatabaseBook('demo')
+        page = book.pages()[0]
+        progress = page.page_progress()
+        was_verified = progress.verified
+        progress.verified = True
+        page.set_page_progress(progress)
+        try:
+            self.assertEqual([p.page for p in PageSelection.from_page(page).get_pages()], [page.page])
+        finally:
+            progress.verified = was_verified
+            page.set_page_progress(progress)
+
     def test_pages_with_lock(self):
         book = DatabaseBook('demo')
         pages = book.pages_with_lock([LockState(Locks.STAFF_LINES, True)])

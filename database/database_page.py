@@ -133,6 +133,10 @@ class DatabasePage:
     def set_page_progress(self, page_progress: 'PageProgress'):
         self._page_progress = page_progress
 
+    def has_page_progress(self) -> bool:
+        """True if the progress is already loaded, i.e. page_progress() will not hit disk."""
+        return self._page_progress is not None
+
     def save_page_progress(self, user=None):
         if not self._page_progress:
             return

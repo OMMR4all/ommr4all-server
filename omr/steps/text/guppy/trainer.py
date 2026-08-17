@@ -83,6 +83,21 @@ class PytorchGuppyyTrainer(TextTrainerBase):
                         gt_txt.write(gt)
                     csv_writer.writerow([os.path.join(str(ind)+ str(uuid_)+ ".png"), gt])
 
+        from omr.steps.text.guppy.progress import report_training_progress
+
+        n_epoch = max(int(self.settings.params.n_epoch or 0), 1)
+        # guppyocr breaks once epochs_without_improvement >= early_stopping, so a
+        # non-positive value would end the run after the very first epoch
+        early_stopping = int(self.settings.params.early_stopping_max_keep or 0)
+        if early_stopping <= 0:
+            early_stopping = self.default_params().early_stopping_max_keep
+        if callback:
+            callback.resolving_files()
+            # guppyocr's loop counts epochs, not iterations, so rescale the progress
+            # (AlgorithmTrainer.train initialises it with n_iter). Must be > 0: the task
+            # runner divides by total_iters without a guard.
+            callback.init(n_epoch, early_stopping)
+
         train_dataset = self.train_dataset.to_text_line_nautilus_dataset(train=True, callback=callback, only_with_gt=True)
         val_dataset = self.validation_dataset.to_text_line_nautilus_dataset(train=True, callback=callback, only_with_gt=True)
         #print("Lneghtd")
@@ -94,7 +109,6 @@ class PytorchGuppyyTrainer(TextTrainerBase):
             create_tempfiles(dirpath, train_dataset, type="", subfolder="train")
             create_tempfiles(dirpath, val_dataset, type="", subfolder="test")
             from guppyocr.train_calamares import TrainingOpts
-            print( self.params.model_to_load().local_file('model_best.pth'))
             training_opts = TrainingOpts(
                 output=self.settings.model.path,
                 dataset=os.path.join(dirpath),
@@ -105,11 +119,15 @@ class PytorchGuppyyTrainer(TextTrainerBase):
                 arch="crnn",
                 gpu=True,
                 worker=2,
-                epoch=self.settings.params.n_epoch,
+                epoch=n_epoch,
+                # without this guppyocr's default of 1000000 applies and training never
+                # stops early, however long the validation CER stays flat
+                early_stopping=early_stopping,
                 grad_clip=False,
                 augment=True,
             )
-            train_model(training_opts)
+            with report_training_progress(callback, n_epoch):
+                train_model(training_opts)
 
 
 

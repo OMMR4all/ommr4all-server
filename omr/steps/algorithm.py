@@ -534,9 +534,19 @@ class AlgorithmMeta(ABC):
     @classmethod
     def list_available_models_for_style(cls, style: str) -> DatabaseAvailableModels:
         default_style_model = cls.default_model_for_style(style).meta() if cls.default_model_for_style(style) else None
+        # books of other styles are offered too: picking the default model for a style that
+        # has no trained book of its own otherwise leaves nothing to choose from
+        same_style, other_styles = [], []
+        for b in DatabaseBook.list_available():
+            newest = cls.newest_model_for_book(b)
+            if not newest:
+                continue
+            b_meta = b.get_meta()
+            (same_style if b_meta.notationStyle == style else other_styles).append((b_meta, newest.meta()))
+
         return DatabaseAvailableModels(
             selected_model=default_style_model,
             default_book_style_model=default_style_model,
-            models_of_same_book_style=[(b.get_meta(), cls.newest_model_for_book(b).meta()) for b in
-                                       DatabaseBook.list_available_of_style(style) if cls.newest_model_for_book(b)]
+            models_of_same_book_style=same_style,
+            models_of_other_book_styles=other_styles,
         )

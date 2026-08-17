@@ -24,6 +24,10 @@ class DatabaseAvailableModels(DataClassDictMixin):
     default_book_style_model: Optional[ModelMeta] = None
     default_models: List[DefaultModel] = field(default_factory=lambda: [])
     models_of_same_book_style: List[Tuple[DatabaseBookMeta, ModelMeta]] = field(default_factory=lambda: [])
+    # books of a *different* notation style that have a model. Offered as well, because a
+    # model of a related style is often a better starting point than no model at all --
+    # the client groups them separately so the mismatch stays obvious.
+    models_of_other_book_styles: List[Tuple[DatabaseBookMeta, ModelMeta]] = field(default_factory=lambda: [])
 
     @staticmethod
     def local_default_model_path_for_style(style: str, sub=''):

@@ -1,6 +1,6 @@
 import os
 import datetime
-from typing import NamedTuple, List
+from typing import NamedTuple, List, Optional
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -330,18 +330,39 @@ LOGGING = {
 # RESOURCES
 
 class GPUSettings(NamedTuple):
-    available_gpus: List[int]
+    # None = detect the cards at startup (see taskresources.resolve_available_gpus);
+    # an explicit list (possibly empty) disables the detection
+    available_gpus: Optional[List[int]]
 
 
-GPU_SETTINGS = GPUSettings([0])
+def _gpus_from_env() -> Optional[List[int]]:
+    """OMMR4ALL_GPUS as a list of device indices.
+
+    Unset or empty means "detect the cards" -- docker compose always defines the
+    variable, so a blank value has to keep the default behaviour rather than
+    disabling the GPU workers. 'none' turns them off explicitly; otherwise a comma
+    separated list such as '0,1'.
+    """
+    raw = (os.environ.get('OMMR4ALL_GPUS') or '').strip()
+    if not raw:
+        return None
+    if raw.lower() in ('none', 'off'):
+        return []
+    return [int(i) for i in raw.replace(' ', '').split(',') if i]
+
+
+GPU_SETTINGS = GPUSettings(_gpus_from_env())
 
 
 class TaskOperationWatcherSettings(NamedTuple):
     interval: int
 
 
+# The watcher is the supervisor of the task scheduler (restapi/operationworker/taskwatcher.py):
+# it restarts the scheduler and the communicator when they die or stall. It must run, a value
+# <= 0 only exists so that tests can construct an unsupervised OperationWorker.
 TASK_OPERATION_WATCHER_SETTINGS = TaskOperationWatcherSettings(
-    -1,  # Default off, set to time > 0 to enable
+    int(os.environ.get('TASK_OPERATION_WATCHER_INTERVAL', '30')),
 )
 
 # Task worker processes (restapi/operationworker) are spawned once per
@@ -349,3 +370,27 @@ TASK_OPERATION_WATCHER_SETTINGS = TaskOperationWatcherSettings(
 # After this many seconds without a task a worker exits to free its
 # memory/VRAM; 0 disables the idle shutdown (workers live forever).
 TASK_WORKER_IDLE_TIMEOUT = int(os.environ.get('TASK_WORKER_IDLE_TIMEOUT', '600'))
+
+# How long to wait for a worker process to react to each of SIGTERM and SIGKILL before
+# giving up on it. A process stuck in uninterruptible sleep (D state, e.g. a wedged GPU
+# driver) accepts neither signal, so waiting is capped and the process is then abandoned
+# rather than blocking the reaper.
+TASK_WORKER_TERMINATE_TIMEOUT = float(os.environ.get('TASK_WORKER_TERMINATE_TIMEOUT', '5'))
+
+# The scheduler loop ticks every 100ms. If its heartbeat is older than this it is
+# considered wedged (blocked in a syscall that cannot be interrupted) and restarted.
+# Generous compared to the tick rate: a restart is disruptive, a slow loop is not.
+TASK_SCHEDULER_STALL_TIMEOUT = float(os.environ.get('TASK_SCHEDULER_STALL_TIMEOUT', '60'))
+
+# Wall-clock limit for a single task, 0 = no limit (the default). Trainings legitimately
+# run for hours, so this is opt-in for operators who want a backstop against hung tasks.
+TASK_MAX_RUNTIME = float(os.environ.get('TASK_MAX_RUNTIME', '0'))
+
+# Upper bound on the page image handed to a vision language model (text_llm).
+# The vision towers of the usual VLMs attend globally over the image patches, so the
+# attention matrix grows with the square of the pixel count:
+#   bytes ~ n_heads * (pixels / patch^2)^2 * sizeof(dtype)
+# A full 2500 px page is enough to ask for tens of GiB. The step normally works on
+# color_norm_x2 (20 px per staff line distance, ~2 MP), which fits next to a ~8 GiB
+# model on an 11 GiB card; this budget only catches pages whose normalisation blew up.
+LLM_MAX_IMAGE_PIXELS = int((os.environ.get('OMMR4ALL_LLM_MAX_PIXELS') or '').strip() or 2_000_000)

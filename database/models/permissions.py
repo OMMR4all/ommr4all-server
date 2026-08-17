@@ -17,6 +17,7 @@ class DatabasePermissionFlag(Enum):
     SET_TRAINING_EPOCHS = 'set_training_epochs'
     VIEW_SYSTEM_RESOURCES = 'view_system_resources'
     MANAGE_MODELS = 'manage_models'
+    MANAGE_TASK_WORKERS = 'manage_task_workers'
 
 
 class GlobalPermissions(models.Model):
@@ -31,5 +32,6 @@ class GlobalPermissions(models.Model):
             (DatabasePermissionFlag.SET_TRAINING_EPOCHS.value, 'Raise the number of training epochs above the default'),
             (DatabasePermissionFlag.VIEW_SYSTEM_RESOURCES.value, 'View the server resources'),
             (DatabasePermissionFlag.MANAGE_MODELS.value, 'List and delete trained models'),
+            (DatabasePermissionFlag.MANAGE_TASK_WORKERS.value, 'Repair the task scheduler and release worker slots'),
         ]
 

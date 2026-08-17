@@ -78,6 +78,56 @@ def _worker_with(groups: List[TaskWorkerGroup]) -> OperationWorker:
     return OperationWorker(resources=Resources([TaskResource(g) for g in groups]), watcher_interval=-1)
 
 
+class TestAvailableGpus(unittest.TestCase):
+    """One worker slot per GPU: a host with two cards must be able to run two GPU
+    tasks at once instead of queueing everything behind the first one."""
+
+    def _resolve(self, configured, detected=None, available=True):
+        from unittest import mock
+        from restapi.operationworker import taskresources
+        gpus = [{'index': i} for i in (detected or [])]
+        with mock.patch('restapi.systeminfo.gpu_stats', return_value=(gpus, available)):
+            return taskresources.resolve_available_gpus(configured)
+
+    def test_explicit_configuration_wins(self):
+        # no detection must happen when the list was configured explicitly
+        self.assertEqual(self._resolve([0, 1], detected=[0]), [0, 1])
+
+    def test_explicit_empty_disables_gpu_workers(self):
+        self.assertEqual(self._resolve([], detected=[0, 1]), [])
+
+    def test_detects_every_card(self):
+        self.assertEqual(self._resolve(None, detected=[0, 1]), [0, 1])
+
+    def test_falls_back_when_detection_is_unavailable(self):
+        # no nvidia-smi: keep the historical single slot rather than dropping GPU support
+        self.assertEqual(self._resolve(None, detected=[], available=False), [0])
+
+    def test_detection_reporting_no_card(self):
+        self.assertEqual(self._resolve(None, detected=[], available=True), [])
+
+    def test_gpus_from_env(self):
+        from ommr4all.settings import _gpus_from_env
+        from unittest import mock
+        for raw, expected in [(None, None), ('', None), ('  ', None),
+                              ('none', []), ('NONE', []), ('off', []),
+                              ('0', [0]), ('0,1', [0, 1]), ('0, 1 ,2', [0, 1, 2])]:
+            env = {} if raw is None else {'OMMR4ALL_GPUS': raw}
+            with mock.patch.dict(os.environ, env, clear=(raw is None)):
+                self.assertEqual(_gpus_from_env(), expected, 'OMMR4ALL_GPUS={!r}'.format(raw))
+
+    def test_default_resources_creates_one_slot_per_gpu(self):
+        from unittest import mock
+        from restapi.operationworker import taskresources
+        with mock.patch.object(taskresources, 'resolve_available_gpus', return_value=[0, 1]):
+            resources = taskresources.default_resources()
+        gpu_slots = [r for r in resources.resources if r.group == TaskWorkerGroup.LONG_TASKS_GPU]
+        self.assertEqual([r.gpu_id for r in gpu_slots], [0, 1])
+        # the CPU slots are unchanged and carry no device
+        self.assertTrue(all(r.gpu_id == -1 for r in resources.resources
+                            if r.group != TaskWorkerGroup.LONG_TASKS_GPU))
+
+
 class TestResolveWorkerResource(unittest.TestCase):
     ALL_GROUPS = [TaskWorkerGroup.LONG_TASKS_GPU, TaskWorkerGroup.LONG_TASKS_CPU, TaskWorkerGroup.NORMAL_TASKS_CPU]
 
@@ -135,6 +185,7 @@ class TestQueuePosition(unittest.TestCase):
             TaskResource(TaskWorkerGroup.LONG_TASKS_GPU),
             TaskResource(TaskWorkerGroup.NORMAL_TASKS_CPU),
         ]), watcher_interval=1)
+        self.addCleanup(worker.shutdown)
 
         running_id = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU], 8), user)
         time.sleep(0.5)
@@ -156,6 +207,51 @@ class TestQueuePosition(unittest.TestCase):
 
         worker.stop(running_id)
         worker.stop(cpu_id)
+        time.sleep(3)
+
+
+class TestTaskTimings(unittest.TestCase):
+    def test_queued_and_run_time(self):
+        user = None
+        worker = OperationWorker(resources=Resources([
+            TaskResource(TaskWorkerGroup.LONG_TASKS_GPU),
+        ]), watcher_interval=1)
+        self.addCleanup(worker.shutdown)
+
+        running_id = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU], 3), user)
+        queued_id = worker.put(SleepyTaskRunner([TaskWorkerGroup.LONG_TASKS_GPU], 1), user)
+        time.sleep(1)
+
+        running = worker.status(running_id)
+        self.assertEqual(running.code, TaskStatusCodes.RUNNING)
+        self.assertGreater(running.run_time, 0)
+        self.assertGreaterEqual(running.queued_time, 0)
+
+        # the queued task waits: its wait grows, its run time is not started yet
+        queued = worker.status(queued_id)
+        self.assertEqual(queued.code, TaskStatusCodes.QUEUED)
+        self.assertGreater(queued.queued_time, 0)
+        self.assertEqual(queued.run_time, -1)
+        time.sleep(1)
+        self.assertGreater(worker.status(queued_id).queued_time, queued.queued_time)
+
+        # the run time grows while running ...
+        later = worker.status(running_id)
+        self.assertGreater(later.run_time, running.run_time)
+
+        # ... and freezes at the total duration once the task finished
+        for _ in range(30):
+            if worker.status(running_id).code == TaskStatusCodes.FINISHED:
+                break
+            time.sleep(0.5)
+        finished = worker.status(running_id)
+        self.assertEqual(finished.code, TaskStatusCodes.FINISHED)
+        self.assertGreaterEqual(finished.run_time, 3)
+        time.sleep(1)
+        self.assertEqual(worker.status(running_id).run_time, finished.run_time)
+
+        worker.stop(running_id)
+        worker.stop(queued_id)
         time.sleep(3)
 
 

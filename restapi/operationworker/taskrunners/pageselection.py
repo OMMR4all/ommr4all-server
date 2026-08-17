@@ -108,7 +108,18 @@ class PageSelection:
         by_name = {p.page: p for p in book_pages}
 
         def with_progress(pages: List[DatabasePage]) -> List[DatabasePage]:
-            return [by_name.get(p.page, p) for p in pages]
+            # Keep the caller's page object and only fill in the progress. The caller may
+            # carry state the index cannot rebuild -- above all an in-memory pcgts posted
+            # by the editor for a single-page operation (OperationView.op_to_task_runner).
+            # Replacing the object here made every predictor re-read pcgts.json from disk,
+            # so chaining layout -> symbols in the editor ran on the last saved state.
+            for p in pages:
+                if p.has_page_progress():
+                    continue
+                indexed = by_name.get(p.page)
+                if indexed is not None:
+                    p.set_page_progress(indexed.page_progress())
+            return list(pages)
 
         def page_count_pages() -> List[DatabasePage]:
             if self.page_count == PageCount.ALL:
@@ -148,6 +159,12 @@ class PageSelection:
 
             else:
                 return with_progress(self.pages)
+
+        if self.single_page:
+            # An explicit single-page run comes from the editor, where re-running on an
+            # already verified page is deliberate. Filtering it out here would surface as
+            # "produced no result for page ..." (see TaskRunnerPrediction.run).
+            return page_count_pages()
 
         return [page for page in page_count_pages() if not page.page_progress().verified]
 

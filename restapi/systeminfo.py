@@ -287,6 +287,22 @@ def disk_usage() -> List[dict]:
     return disks
 
 
+def process_state(pid: Optional[int]) -> Optional[str]:
+    """The process state as psutil reports it ('running', 'sleeping', 'disk-sleep', ...), or None.
+
+    'disk-sleep' is uninterruptible sleep (D): the process is blocked in the kernel and
+    accepts neither SIGTERM nor SIGKILL. That is the state a worker ends up in when its
+    GPU driver or a mount wedges, and it is worth showing to an administrator, because
+    it is the one case where a slot cannot be cleaned up by signalling alone.
+    """
+    if pid is None:
+        return None
+    try:
+        return psutil.Process(pid).status()
+    except Exception:
+        return None
+
+
 def cpu_and_memory() -> dict:
     """CPU load and memory usage of the host, as a percentage of what it has.
 

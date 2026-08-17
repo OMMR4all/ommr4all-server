@@ -26,7 +26,7 @@ from restapi.views.administrativedefaultmodels import AdministrativeDefaultModel
 from restapi.views.administrativemodels import AdministrativeModelsView, AdministrativeModelsPruneView, \
     AdministrativeModelTrainingView
 from restapi.views.tasks import TasksView, TaskView, BookTasksView
-from restapi.views.systemresources import SystemResourcesView
+from restapi.views.systemresources import SystemResourcesView, SystemResourcesRepairView
 from restapi.views.llmproviders import LLMProvidersView
 from restapi.views.workerresources import OperationWorkerResourcesView, OperationTrainParamsView, \
     OperationTrainingBooksView
@@ -85,6 +85,7 @@ urlpatterns = \
 
         # server resources
         path('system_resources', SystemResourcesView.as_view()),
+        path('system_resources/repair', SystemResourcesRepairView.as_view()),
 
         # single book
         re_path(r'^book/(?P<book>\w+)/permissions/user/(?P<username>.+)$', BookUserPermissionsView.as_view()),

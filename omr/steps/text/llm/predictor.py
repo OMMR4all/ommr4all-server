@@ -9,6 +9,7 @@ returned text lines to the existing PCGTS text line regions:
 * otherwise the LLM lines are matched to the regions in reading order.
 """
 import logging
+import math
 import os
 
 if __name__ == '__main__':
@@ -29,11 +30,11 @@ from database.file_formats.pcgts.page.block import BlockType
 from database.file_formats.pcgts.page.line import Line
 from database.file_formats.pcgts.page.page import Page
 from omr.steps.algorithm import AlgorithmMeta, AlgorithmPredictionResult, AlgorithmPredictionResultGenerator, \
-    AlgorithmPredictor, PredictionCallback
+    AlgorithmPredictor, FailedPageResult, PredictionCallback
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorSettings
 from omr.steps.text.correction_tools.dictionary_corrector.predictor import DictionaryCorrector
 from omr.steps.text.hyphenation.hyphenator import CombinedHyphenator, HyphenDicts
-from omr.steps.text.llm.adapters import LLMTextLine, create_adapter
+from omr.steps.text.llm.adapters import LLMPageTranscription, LLMTextLine, create_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -258,6 +259,53 @@ def _assign_by_order(target_lines: List[Line], llm_lines: List[LLMTextLine]) -> 
     return {line.id: text for line, text in zip(target_lines, llm_texts)}
 
 
+def limit_pixels(image: Image.Image, max_pixels: int) -> Tuple[Image.Image, float]:
+    """Downscale ``image`` to at most ``max_pixels``, preserving the aspect ratio.
+
+    Returns the image and the factor it was scaled by, so coordinates reported
+    against the returned image can be divided back into the original space.
+    """
+    w, h = image.size
+    pixels = w * h
+    if max_pixels <= 0 or pixels <= max_pixels:
+        return image, 1.0
+
+    scale = math.sqrt(max_pixels / pixels)
+    size = (max(int(w * scale), 1), max(int(h * scale), 1))
+    logger.info('Scaling the page image down from %dx%d to %dx%d to stay within %d pixels',
+                w, h, size[0], size[1], max_pixels)
+    resized = image.resize(size, Image.BILINEAR)
+    # the achieved factor, not the requested one: int() truncates
+    return resized, resized.size[0] / w
+
+
+def rescale_line(line: LLMTextLine, factor: float) -> LLMTextLine:
+    """The same line with its bbox scaled, e.g. back from a downscaled image."""
+    if line.bbox is None or factor == 1.0:
+        return line
+    return LLMTextLine(text=line.text, bbox=tuple(v * factor for v in line.bbox))
+
+
+def is_out_of_memory(e: BaseException) -> bool:
+    """Whether an exception is a GPU/host out-of-memory condition.
+
+    Matched by name and message so that the module does not have to import torch,
+    which the API based adapters do not need at all.
+    """
+    return type(e).__name__ in ('OutOfMemoryError', 'CudaOutOfMemoryError') \
+        or 'out of memory' in str(e).lower()
+
+
+def free_gpu_memory() -> None:
+    """Best effort release of cached GPU blocks between attempts."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
 class LLMTextPredictor(AlgorithmPredictor):
     @staticmethod
     def meta() -> Type['AlgorithmMeta']:
@@ -274,7 +322,11 @@ class LLMTextPredictor(AlgorithmPredictor):
             model=self.params.llmModel,
             prompt=self.params.llmCustomPrompt,
         )
-        self.scale_reference = PageScaleReference.HIGHRES
+        # The normalised image, not the raw high resolution scan: it is scaled to a fixed
+        # number of pixels per staff line distance, so the text has the same pixel height
+        # in every book, and a page stays small enough for a vision tower that attends
+        # globally over its patches (a full 2500 px page needs tens of GiB for that).
+        self.scale_reference = PageScaleReference.NORMALIZED_X2
         self.dict_corrector = None
 
     @classmethod
@@ -287,46 +339,85 @@ class LLMTextPredictor(AlgorithmPredictor):
         hyphen = CombinedHyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1, right=1)
 
         for i, db_page in enumerate(pages):
-            pcgts = db_page.pcgts()
-            page = pcgts.page
-
-            if self.settings.params.useDictionaryCorrection and self.dict_corrector is None:
-                self.dict_corrector = DictionaryCorrector(hyphenator=hyphen)
-                self.dict_corrector.load_dict(book=db_page.book)
-
-            target_lines = page.all_lines_by_type(LLM_TEXT_BLOCK_TYPES)
-            text_lines: List[SingleLineLLMResult] = []
-
-            if len(target_lines) > 0:
-                image_path = db_page.file(self.scale_reference.file('color'), create_if_not_existing=True).local_path()
-                image = Image.open(image_path).convert('RGB')
-
-                transcription = self.adapter.transcribe(image)
-                logger.info("LLM raw response for page %s (image %dx%d px):\n%s",
-                            db_page.page, image.width, image.height, transcription.raw_response)
-                logger.info("LLM transcription of page %s parsed into %d lines:",
-                            db_page.page, len(transcription.lines))
-                for i, llm_line in enumerate(transcription.lines):
-                    logger.info("  llm[%d] bbox=%s text=%r", i, llm_line.bbox, llm_line.text)
-
-                assignment = assign_llm_lines_to_regions(page, target_lines, transcription.lines,
-                                                         self.scale_reference)
-
-                for line in target_lines:
-                    text = assignment.get(line.id, '')
-                    if not text:
-                        continue
-                    text = join_spaced_syllables(text, hyphen.dictionary)
-                    if self.dict_corrector:
-                        hyphenated = self.dict_corrector.segmentate_correct_and_hyphenate_text(text)
-                    else:
-                        hyphenated = hyphen.apply_to_sentence(text)
-                    text_lines.append(SingleLineLLMResult(line=line, hyphenated=hyphenated, raw_text=text))
+            try:
+                yield self._predict_page(db_page, hyphen)
+            except Exception as e:
+                # one unreadable page must not abort the run: report it and carry on.
+                # TaskRunnerPrediction filters these out and passes them to the client
+                # as skipped pages.
+                logger.exception(e)
+                yield FailedPageResult(db_page.page, db_page.book.book,
+                                       '{}: {}'.format(type(e).__name__, e))
 
             if callback:
                 callback.progress_updated((i + 1) / len(pages), n_pages=len(pages), n_processed_pages=i + 1)
 
-            yield PredictionResult(pcgts=pcgts, dataset_page=db_page, text_lines=text_lines)
+    def _predict_page(self, db_page: DatabasePage, hyphen: CombinedHyphenator) -> 'PredictionResult':
+        pcgts = db_page.pcgts()
+        page = pcgts.page
+
+        if self.settings.params.useDictionaryCorrection and self.dict_corrector is None:
+            self.dict_corrector = DictionaryCorrector(hyphenator=hyphen)
+            self.dict_corrector.load_dict(book=db_page.book)
+
+        target_lines = page.all_lines_by_type(LLM_TEXT_BLOCK_TYPES)
+        text_lines: List[SingleLineLLMResult] = []
+
+        if len(target_lines) > 0:
+            image_path = db_page.file(self.scale_reference.file('color'), create_if_not_existing=True).local_path()
+            image = Image.open(image_path).convert('RGB')
+
+            transcription, scale = self._transcribe(image, db_page)
+            logger.info("LLM raw response for page %s (image %dx%d px):\n%s",
+                        db_page.page, image.width, image.height, transcription.raw_response)
+            logger.info("LLM transcription of page %s parsed into %d lines:",
+                        db_page.page, len(transcription.lines))
+            lines = transcription.lines
+            if scale != 1.0:
+                # the adapter reported boxes against the downscaled image it was given
+                lines = [rescale_line(l, 1.0 / scale) for l in lines]
+            for n, llm_line in enumerate(lines):
+                logger.info("  llm[%d] bbox=%s text=%r", n, llm_line.bbox, llm_line.text)
+
+            assignment = assign_llm_lines_to_regions(page, target_lines, lines,
+                                                     self.scale_reference)
+
+            for line in target_lines:
+                text = assignment.get(line.id, '')
+                if not text:
+                    continue
+                text = join_spaced_syllables(text, hyphen.dictionary)
+                if self.dict_corrector:
+                    hyphenated = self.dict_corrector.segmentate_correct_and_hyphenate_text(text)
+                else:
+                    hyphenated = hyphen.apply_to_sentence(text)
+                text_lines.append(SingleLineLLMResult(line=line, hyphenated=hyphenated, raw_text=text))
+
+        return PredictionResult(pcgts=pcgts, dataset_page=db_page, text_lines=text_lines)
+
+    def _transcribe(self, image: Image.Image, db_page: DatabasePage) -> Tuple[LLMPageTranscription, float]:
+        """Transcribe the page, halving the pixel budget once if the model runs out of memory.
+
+        color_norm_x2 has no size cap of its own -- it is the high resolution page divided
+        by the measured staff line distance -- so a page whose normalisation went wrong can
+        still be far too large for the vision model.
+        """
+        from ommr4all.settings import LLM_MAX_IMAGE_PIXELS
+
+        budget = LLM_MAX_IMAGE_PIXELS
+        for attempt in range(2):
+            scaled, scale = limit_pixels(image, budget)
+            try:
+                return self.adapter.transcribe(scaled), scale
+            except Exception as e:
+                if attempt == 0 and is_out_of_memory(e):
+                    budget = max(scaled.size[0] * scaled.size[1] // 2, 1)
+                    logger.warning('Out of memory transcribing page %s at %dx%d; retrying with at '
+                                   'most %d pixels. Lower OMMR4ALL_LLM_MAX_PIXELS to avoid this.',
+                                   db_page.page, scaled.size[0], scaled.size[1], budget)
+                    free_gpu_memory()
+                    continue
+                raise
 
 
 if __name__ == '__main__':

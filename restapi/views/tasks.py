@@ -12,7 +12,7 @@ class TasksView(APIView):
     @require_global_permissions(DatabasePermissionFlag.TASKS_LIST)
     def get(self, request):
         return Response([{'id': t.task_id,
-                          'status': t.task_status.to_dict(),
+                          'status': t.public_status().to_dict(),
                           'creator': RestAPIUser.from_user(t.creator).to_dict(),
                           'algorithmType': t.task_runner.algorithm_type.value,
                           'book': t.task_runner.selection.book.get_meta().to_dict(),
@@ -26,7 +26,7 @@ class BookTasksView(APIView):
         # READ), so a regular editor — not just users with the global TASKS_LIST
         # permission — can recover a running workflow's progress after a reload.
         return Response([{'id': t.task_id,
-                          'status': t.task_status.to_dict(),
+                          'status': t.public_status().to_dict(),
                           'algorithmType': t.task_runner.algorithm_type.value,
                           } for t in operation_worker.queue.tasks
                          if t.task_runner.selection.book.book == book])
