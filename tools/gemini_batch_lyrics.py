@@ -3,7 +3,9 @@
 The tool is split into commands so that a run survives a crash, a lost network
 connection or simply a closed terminal: the batch job names and the page they
 belong to are stored in a state file (``batch_state.json`` inside the output
-directory) and every command reads/updates it.
+directory) and every command reads/updates it. The output directory is self
+contained and may be moved or copied to another machine, where the run can be
+continued with the same API key (batch jobs belong to the key's project).
 
     # 1. collect pages 400..end of the book and submit them as one batch job
     python -m tools.gemini_batch_lyrics submit Moosburger_Graduale --from 400 --key-dir ~/secrets/gemini --out-dir /data/moosburger_lyrics
@@ -21,12 +23,11 @@ directory) and every command reads/updates it.
     python -m tools.gemini_batch_lyrics apply --out-dir /data/moosburger_lyrics --write
 
 Only the sung lyric lines are requested, no music and no paratext (rubrics,
-headings, folio numbers, ...). The model must answer with one JSON entry per
-*physically written line*, because the whole point of the export is to align
-the answer back onto the text lines of the PcGts files. Where the PcGts of a
-page already contains lyric line regions, their ids and bounding boxes are
-sent along with the image and the model is asked to fill exactly those lines,
-which makes the alignment exact instead of geometric.
+headings, folio numbers, ...). The complete page image is sent, so the model
+can use the context of the whole page while reading a difficult line, and it
+must answer with one entry per *physically written line* in reading order.
+No bounding boxes are requested or used: the answer is aligned back onto the
+lyric line regions of the PcGts file by that reading order.
 
 Requires the ``google-genai`` package (``uv pip install google-genai``), which
 is an optional dependency of the server, just like for the interactive Gemini
@@ -45,6 +46,12 @@ from typing import Dict, List, Optional, Tuple
 if __name__ == '__main__':
     import django
 
+    # 'python tools/gemini_batch_lyrics.py' puts tools/ on the path instead of
+    # the server root, so ommr4all.settings/database would not be importable
+    server_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if server_root not in sys.path:
+        sys.path.insert(0, server_root)
+
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ommr4all.settings')
     django.setup()
 
@@ -54,9 +61,12 @@ from database import DatabaseBook, DatabasePage
 
 logger = logging.getLogger(__name__)
 
-# gemini-3.1-pro-preview is the strongest model for heavily abbreviated medieval
-# hands; --model switches to a cheaper one (e.g. gemini-3.1-flash-lite).
+# gemini-3.1-pro-preview with a high thinking level is the strongest setup for
+# heavily abbreviated medieval hands; --model switches to a cheaper one (e.g.
+# gemini-3.1-flash-lite), --thinking-level to a cheaper reasoning budget.
 DEFAULT_MODEL = 'gemini-3.1-pro-preview'
+DEFAULT_THINKING_LEVEL = 'high'
+# the high resolution colour scan (2500 px wide), the same image the editor shows
 DEFAULT_IMAGE = 'color_highres_preproc'
 STATE_FILE_NAME = 'batch_state.json'
 STATE_VERSION = 1
@@ -74,19 +84,9 @@ JOB_STATES_DONE = {'JOB_STATE_SUCCEEDED', 'JOB_STATE_FAILED',
 
 MIME_TYPES = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png'}
 
-# --image value -> the page scale the coordinates of that image belong to,
-# needed to map bounding boxes back onto the PcGts page coordinates
-IMAGE_TO_SCALE_REFERENCE = {
-    'color_original': 'ORIGINAL',
-    'color_highres_preproc': 'HIGHRES',
-    'color_lowres_preproc': 'LOWRES',
-    'color_norm': 'NORMALIZED',
-    'color_norm_x2': 'NORMALIZED_X2',
-}
-
 PROMPT_HEAD = """\
 You are an expert palaeographer transcribing a page of a medieval liturgical chant manuscript.
-The image shows a single page: staves of music notation with the sung text (the lyrics) written underneath the notes.
+The image shows one complete page: staves of music notation with the sung text (the lyrics) written underneath the notes.
 
 Transcribe ONLY THE SUNG LYRIC LINES, that is the text belonging to a stave.
 Ignore everything else on the page: the music notation itself, rubrics and performance instructions (often written in red), headings and titles, folio or page numbers, running heads, marginalia, catchwords, later annotations and stand-alone decorated initials that carry no text line.
@@ -98,24 +98,19 @@ Rules:
 4. If the syllables of a word are spread apart under the notes, write them separated by single spaces, exactly as they stand in the image.
 5. A decorated or enlarged initial belongs to the line it starts: give it as the first letter of that line's text.
 6. Transcribe what you can read; leave illegible parts out instead of guessing.
+7. You see the whole page, so use its context - the neighbouring lines, the recurring formulas of the chant and the habits of this scribe - to read damaged or heavily abbreviated passages.
 """
 
-PROMPT_TAIL_FREE = """\
-The image is {width}x{height} pixels.
+PROMPT_TAIL = """\
+Answer with a JSON array of strings only, no markdown and no explanation: one string per lyric line, in reading order.
 
-Answer with a JSON array only, no markdown and no explanation. One object per lyric line:
-{"text": "<transcription of the line>", "bbox": [x1, y1, x2, y2]}
-where bbox is the bounding box of that written line in pixel coordinates of the given image (x1,y1 = top left, x2,y2 = bottom right). Use null if you cannot determine a box.
+["<text of the first lyric line>", "<text of the second lyric line>", ...]
+
+The entries are matched to the lines of the page by their order, so the number of entries must equal the number of written lyric lines: use an empty string for a lyric line you cannot read at all instead of dropping it.
 """
 
-PROMPT_TAIL_HINTS = """\
-The image is {width}x{height} pixels. The lyric lines of this page have already been located. Here they are in reading order, each with its id and its bounding box [x1, y1, x2, y2] in pixel coordinates of the given image:
-
-{lines}
-
-Answer with a JSON array only, no markdown and no explanation: exactly one object per given id, in the given order:
-{"line_id": "<the given id>", "text": "<transcription of that line>"}
-Transcribe the text inside the given box only. Use an empty string as text if the box contains no readable lyrics. Do not invent additional entries and do not drop any id.
+PROMPT_LINE_COUNT = """\
+The layout analysis of this page found {count} lyric line(s). Treat that as a strong hint for the expected number of entries, but follow the image if it clearly shows a different number of written lyric lines.
 """
 
 
@@ -296,51 +291,35 @@ def lines_in_reading_order(lines: List) -> List:
     return result
 
 
-def lyric_line_hints(db_page: DatabasePage, image_size: Tuple[int, int]) -> List[Dict]:
-    """The lyric line regions of the page in reading order, with their bounding
-    box in pixel coordinates of an image of ``image_size``.
-
-    Page coordinates are normalised by the image *height* (see CLAUDE.md), and
-    every rendering of a page keeps its aspect ratio, so multiplying by the
-    height of the image that is actually sent yields its pixels.
-    """
-    page = db_page.pcgts().page
-    height = image_size[1]
-    hints = []
-    for line in lines_in_reading_order(page.all_text_lines(only_lyric=True)):
-        aabb = line.aabb
-        hints.append({'line_id': line.id,
-                      'bbox': [round(aabb.left() * height), round(aabb.top() * height),
-                               round(aabb.right() * height), round(aabb.bottom() * height)]})
-    return hints
+def lyric_line_count(db_page: DatabasePage) -> int:
+    """The number of lyric line regions the layout analysis found on the page,
+    0 if it did not run yet."""
+    try:
+        return len(db_page.pcgts().page.all_text_lines(only_lyric=True))
+    except Exception as e:
+        logger.debug("Page %s: cannot count lyric lines: %s: %s", db_page.page, type(e).__name__, e)
+        return 0
 
 
-def build_prompt(image_size: Tuple[int, int], hints: Optional[List[Dict]]) -> str:
-    width, height = image_size
-    if hints:
-        lines = '\n'.join(json.dumps(h) for h in hints)
-        tail = PROMPT_TAIL_HINTS.replace('{lines}', lines)
-    else:
-        tail = PROMPT_TAIL_FREE
-    return PROMPT_HEAD + '\n' + tail.replace('{width}', str(width)).replace('{height}', str(height))
+def build_prompt(n_lines: int) -> str:
+    parts = [PROMPT_HEAD]
+    if n_lines > 0:
+        parts.append(PROMPT_LINE_COUNT.replace('{count}', str(n_lines)))
+    parts.append(PROMPT_TAIL)
+    return '\n'.join(parts)
 
 
 def build_request(db_page: DatabasePage, args) -> Tuple[Dict, Dict]:
     """The batch request for one page and the metadata needed to interpret its
-    answer later on (page name, sent image size, requested line ids)."""
+    answer later on (page name, sent image size, expected number of lines)."""
     image_path = db_page.file(args.image, create_if_not_existing=True).local_path()
     data, mime, size = encode_image(image_path, args.max_width, args.jpeg_quality)
-
-    hints = None
-    if args.line_hints:
-        hints = lyric_line_hints(db_page, size)
-        if not hints:
-            logger.info("Page %s has no lyric line regions yet, asking for bounding boxes instead",
-                        db_page.page)
+    n_lines = lyric_line_count(db_page)
 
     generation_config = {'temperature': 0, 'response_mime_type': 'application/json'}
     if args.thinking_level:
-        generation_config['thinking_config'] = {'thinking_level': args.thinking_level}
+        # the REST enum is upper case, the flag is not
+        generation_config['thinking_config'] = {'thinking_level': args.thinking_level.upper()}
 
     request = {
         'key': 'page-' + db_page.page,
@@ -348,7 +327,7 @@ def build_request(db_page: DatabasePage, args) -> Tuple[Dict, Dict]:
             'contents': [{
                 'role': 'user',
                 'parts': [
-                    {'text': build_prompt(size, hints)},
+                    {'text': build_prompt(n_lines)},
                     {'inline_data': {'mime_type': mime, 'data': data}},
                 ],
             }],
@@ -358,7 +337,7 @@ def build_request(db_page: DatabasePage, args) -> Tuple[Dict, Dict]:
     meta = {'page': db_page.page,
             'image_width': size[0],
             'image_height': size[1],
-            'line_ids': [h['line_id'] for h in hints] if hints else [],
+            'n_expected_lines': n_lines,
             }
     return request, meta
 
@@ -392,16 +371,17 @@ class BatchState:
             'created': utc_now(),
             'book': book,
             'model': args.model,
+            'thinking_level': args.thinking_level,
             'image': args.image,
             'max_width': args.max_width,
             'jpeg_quality': args.jpeg_quality,
-            'line_hints': bool(args.line_hints),
             'out_dir': os.path.abspath(out_dir),
             'jobs': [],
         })
 
     @classmethod
     def load(cls, out_dir: str) -> 'BatchState':
+        out_dir = os.path.abspath(os.path.expanduser(out_dir))
         path = cls.state_path(out_dir)
         if not os.path.isfile(path):
             raise ValueError("No state file at '{}'. Run 'submit' first.".format(path))
@@ -409,6 +389,12 @@ class BatchState:
             data = json.load(f)
         if data.get('version') != STATE_VERSION:
             raise ValueError("State file '{}' has unsupported version {}".format(path, data.get('version')))
+        # the export directory may have been moved or copied to another machine:
+        # where the state file actually lies wins over the path recorded at
+        # submit time, so the whole export stays self contained
+        if data.get('out_dir') != out_dir:
+            logger.info("Export directory moved from %s to %s", data.get('out_dir'), out_dir)
+            data['out_dir'] = out_dir
         return cls(path, data)
 
     def save(self) -> None:
@@ -423,10 +409,25 @@ class BatchState:
     def jobs(self) -> List[Dict]:
         return self.data['jobs']
 
+    @property
+    def out_dir(self) -> str:
+        return self.data['out_dir']
+
+    def input_path(self, job: Dict) -> str:
+        """The request file of ``job``, resolved inside the current export
+        directory. Older state files hold an absolute path here."""
+        name = job['input_jsonl']
+        if os.path.isabs(name):
+            if os.path.isfile(name):
+                return name
+            name = os.path.basename(name)
+        return os.path.join(self.out_dir, name)
+
     def add_job(self, pages: List[Dict], jsonl_path: str) -> Dict:
         job = {'index': len(self.jobs),
                'created': utc_now(),
-               'input_jsonl': os.path.abspath(jsonl_path),
+               # relative to out_dir, so the export survives being moved
+               'input_jsonl': os.path.basename(jsonl_path),
                'uploaded_file': None,
                'job_name': None,
                'state': None,
@@ -469,10 +470,11 @@ def upload_and_create_job(client, job: Dict, state: BatchState, display_name: st
     from google.genai import types
 
     if not job['uploaded_file']:
-        logger.info("Uploading %s (%.1f MiB)", job['input_jsonl'],
-                    os.path.getsize(job['input_jsonl']) / 1024 / 1024)
+        input_path = state.input_path(job)
+        logger.info("Uploading %s (%.1f MiB)", input_path,
+                    os.path.getsize(input_path) / 1024 / 1024)
         uploaded = client.files.upload(
-            file=job['input_jsonl'],
+            file=input_path,
             config=types.UploadFileConfig(display_name=display_name, mime_type='jsonl'))
         job['uploaded_file'] = uploaded.name
         state.save()
@@ -524,12 +526,14 @@ def response_text(response: Dict) -> str:
     return ''.join(parts)
 
 
-def parse_entries(raw: str, image_size: Tuple[int, int], line_ids: List[str]) -> List[Dict]:
-    """The transcribed lines of one page as ``{line_id, text, bbox_px}`` dicts.
+def parse_entries(raw: str, image_size: Tuple[int, int]) -> List[Dict]:
+    """The transcribed lines of one page, in the order the model returned them,
+    as ``{'text': ...}`` dicts.
 
-    Primary format is the requested JSON array; anything else is handed to the
-    tolerant parser of the interactive LLM predictor, which also copes with
-    markdown fences, plain text answers and normalised boxes.
+    Primary format is the requested JSON array of strings; an array of objects
+    with a ``text`` field is accepted as well, and anything else is handed to
+    the tolerant parser of the interactive LLM predictor, which also copes with
+    markdown fences and plain text answers.
     """
     text = raw.strip()
     fence = re.search(r'```(?:json)?\s*(.*?)```', text, re.DOTALL)
@@ -544,47 +548,35 @@ def parse_entries(raw: str, image_size: Tuple[int, int], line_ids: List[str]) ->
         except json.JSONDecodeError:
             data = None
 
-    if isinstance(data, list) and any(isinstance(e, dict) for e in data):
-        from omr.steps.text.llm.adapters import _scale_bbox
-
+    if isinstance(data, list) and any(isinstance(e, (str, dict)) for e in data):
         entries = []
-        for i, entry in enumerate(data):
-            if not isinstance(entry, dict):
-                continue
-            line_id = entry.get('line_id') or entry.get('id')
-            # a model that answered in order but dropped the ids can still be
-            # matched to the requested lines by position
-            if not line_id and line_ids and len(data) == len(line_ids):
-                line_id = line_ids[i]
-            bbox = _scale_bbox(entry.get('bbox'), image_size)
-            entries.append({'line_id': line_id if isinstance(line_id, str) else None,
-                            'text': str(entry.get('text', '') or '').strip(),
-                            'bbox_px': list(bbox) if bbox else None})
+        for entry in data:
+            if isinstance(entry, str):
+                entries.append({'text': entry.strip()})
+            elif isinstance(entry, dict):
+                entries.append({'text': str(entry.get('text', '') or '').strip()})
         return entries
 
     from omr.steps.text.llm.adapters import parse_llm_response
 
-    fallback = parse_llm_response(raw, image_size)
-    return [{'line_id': line_ids[i] if i < len(line_ids) and len(fallback) == len(line_ids) else None,
-             'text': line.text,
-             'bbox_px': list(line.bbox) if line.bbox else None}
-            for i, line in enumerate(fallback)]
+    return [{'text': line.text} for line in parse_llm_response(raw, image_size)]
 
 
 def write_page_result(out_dir: str, state: BatchState, meta: Dict, raw: str) -> Dict:
-    """Store raw answer, parsed JSON and plain text of one page. The JSON also
-    carries the boxes in page coordinates (pixel / image height), which is what
-    the PcGts files use."""
+    """Store raw answer, parsed JSON and plain text of one page. The lines are
+    kept in the order the model returned them, which is the order they are
+    aligned onto the lyric line regions by."""
     pages_dir = os.path.join(out_dir, 'pages')
     raw_dir = os.path.join(out_dir, 'raw')
     os.makedirs(pages_dir, exist_ok=True)
     os.makedirs(raw_dir, exist_ok=True)
 
     size = (meta['image_width'], meta['image_height'])
-    entries = parse_entries(raw, size, meta.get('line_ids') or [])
-    height = meta['image_height']
-    for entry in entries:
-        entry['bbox'] = [v / height for v in entry['bbox_px']] if entry['bbox_px'] else None
+    entries = parse_entries(raw, size)
+    expected = meta.get('n_expected_lines') or 0
+    if expected and len(entries) != expected:
+        logger.warning("Page %s: %d transcribed line(s) but %d lyric line region(s) on the page",
+                       meta['page'], len(entries), expected)
 
     with open(os.path.join(raw_dir, meta['page'] + '.txt'), 'w') as f:
         f.write(raw)
@@ -595,7 +587,7 @@ def write_page_result(out_dir: str, state: BatchState, meta: Dict, raw: str) -> 
                 'image': state.data['image'],
                 'image_width': size[0],
                 'image_height': size[1],
-                'requested_line_ids': meta.get('line_ids') or [],
+                'n_expected_lines': expected,
                 'lines': entries,
                 }
     with open(os.path.join(pages_dir, meta['page'] + '.json'), 'w') as f:
@@ -703,20 +695,22 @@ def cmd_resubmit(args) -> None:
     args.image = state.data['image']
     args.max_width = state.data['max_width']
     args.jpeg_quality = state.data['jpeg_quality']
-    args.line_hints = state.data['line_hints']
+    if args.thinking_level is None:
+        args.thinking_level = state.data.get('thinking_level')
     logger.info("Resubmitting %d page(s) without result", len(missing))
     requests, metas = collect_requests([DatabasePage(book, name) for name in missing], args)
     if not requests:
         raise ValueError("No page could be prepared, nothing to submit")
-    submit_requests(state, requests, metas, state.data['out_dir'], args)
+    submit_requests(state, requests, metas, state.out_dir, args)
 
 
 def print_status(state: BatchState) -> None:
     metas = state.page_metas()
     done = [name for name, meta in metas.items() if meta.get('result')]
-    print("Export of book '{}' in {}".format(state.data['book'], state.data['out_dir']))
-    print("  model {}, image {}, {} page(s), {} with result".format(
-        state.data['model'], state.data['image'], len(metas), len(done)))
+    print("Export of book '{}' in {}".format(state.data['book'], state.out_dir))
+    print("  model {} (thinking {}), image {}, {} page(s), {} with result".format(
+        state.data['model'], state.data.get('thinking_level') or 'default',
+        state.data['image'], len(metas), len(done)))
     for job in state.jobs:
         print("  job {:03d}: {} pages, state {}, name {}{}".format(
             job['index'], len(job['pages']), job['state'] or 'not submitted',
@@ -734,7 +728,7 @@ def cmd_status(args) -> None:
 
 def cmd_fetch(args) -> None:
     state = BatchState.load(args.out_dir)
-    out_dir = state.data['out_dir']
+    out_dir = state.out_dir
     client = genai_client(resolve_api_key(args.key_dir))
 
     for job in state.jobs:
@@ -818,19 +812,21 @@ def cmd_cancel(args) -> None:
 
 
 def cmd_apply(args) -> None:
-    """Insert the fetched transcriptions into the PcGts files of the book."""
+    """Insert the fetched transcriptions into the PcGts files of the book.
+
+    The model answered with one entry per written lyric line in reading order,
+    so the entries are zipped onto the lyric line regions of the page in the
+    same order.
+    """
     from database.file_formats.pcgts.page import Sentence
-    from database.file_formats.pcgts.page.page import PageScaleReference
-    from omr.steps.text.llm.adapters import LLMTextLine
-    from omr.steps.text.llm.predictor import assign_llm_lines_to_regions, join_spaced_syllables
+    from omr.steps.text.llm.predictor import join_spaced_syllables
     from omr.steps.text.hyphenation.hyphenator import CombinedHyphenator, HyphenDicts
 
     state = BatchState.load(args.out_dir)
     book = DatabaseBook(state.data['book'])
-    scale_reference = PageScaleReference[IMAGE_TO_SCALE_REFERENCE.get(state.data['image'], 'HIGHRES')]
     hyphen = CombinedHyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1, right=1)
 
-    pages_dir = os.path.join(state.data['out_dir'], 'pages')
+    pages_dir = os.path.join(state.out_dir, 'pages')
     for name in sorted(state.page_metas()):
         result_path = os.path.join(pages_dir, name + '.json')
         if not os.path.isfile(result_path):
@@ -841,24 +837,17 @@ def cmd_apply(args) -> None:
         db_page = DatabasePage(book, name)
         pcgts = db_page.pcgts()
         page = pcgts.page
-        target_lines = page.all_text_lines(only_lyric=True)
+        target_lines = lines_in_reading_order(page.all_text_lines(only_lyric=True))
         if not target_lines:
             logger.warning("Page %s has no lyric line regions, skipping", name)
             continue
 
-        by_id = {line.id: line for line in target_lines}
-        entries = [e for e in document['lines'] if e['text']]
-        if entries and all(e['line_id'] in by_id for e in entries):
-            assignment = {e['line_id']: e['text'] for e in entries}
-        else:
-            # no (usable) line ids: fall back to the geometric/reading order
-            # alignment of the interactive LLM predictor. Its boxes are pixels
-            # of the reference image, ours are page coordinates.
-            llm_lines = [LLMTextLine(
-                text=e['text'],
-                bbox=tuple(page.page_to_image_scale(v, scale_reference) for v in e['bbox'])
-                if e['bbox'] else None) for e in entries]
-            assignment = assign_llm_lines_to_regions(page, target_lines, llm_lines, scale_reference)
+        texts = [str(e.get('text') or '').strip() for e in document['lines']]
+        if len(texts) != len(target_lines):
+            logger.warning("Page %s: %d transcribed line(s) for %d lyric line region(s). Aligning "
+                           "in reading order, the surplus is dropped.",
+                           name, len(texts), len(target_lines))
+        assignment = {line.id: text for line, text in zip(target_lines, texts)}
 
         changed = 0
         for line in target_lines:
@@ -918,16 +907,14 @@ def parse_args(argv: Optional[List[str]] = None):
     submit.add_argument('--model', type=str, default=os.environ.get('GEMINI_MODEL') or DEFAULT_MODEL,
                         help='Gemini model id (default: %(default)s)')
     submit.add_argument('--image', type=str, default=DEFAULT_IMAGE,
-                        help='page image to send (default: %(default)s)')
+                        help='page image to send, the complete page (default: %(default)s)')
     submit.add_argument('--max-width', type=int, default=0,
                         help='downscale the image to this width before sending (0: send it unchanged)')
     submit.add_argument('--jpeg-quality', type=int, default=0,
                         help='re-encode the image with this JPEG quality (0: send the stored file as is)')
-    submit.add_argument('--no-line-hints', dest='line_hints', action='store_false',
-                        help='do not send the lyric line regions of the PcGts; ask the model for '
-                             'bounding boxes instead (use this before the layout analysis ran)')
-    submit.add_argument('--thinking-level', type=str, default=None, choices=['low', 'high'],
-                        help='thinking level for Gemini 3 models (default: the model default)')
+    submit.add_argument('--thinking-level', type=str, default=DEFAULT_THINKING_LEVEL,
+                        choices=['low', 'high'],
+                        help='reasoning level for Gemini 3 models (default: %(default)s)')
     submit.add_argument('--max-pages-per-job', type=int, default=0,
                         help='split the export into several batch jobs of at most this many pages')
     submit.add_argument('--dry-run', action='store_true',
@@ -948,7 +935,8 @@ def parse_args(argv: Optional[List[str]] = None):
     add_key_dir_argument(resubmit)
     resubmit.add_argument('--max-pages-per-job', type=int, default=0,
                           help='split into several batch jobs of at most this many pages')
-    resubmit.add_argument('--thinking-level', type=str, default=None, choices=['low', 'high'])
+    resubmit.add_argument('--thinking-level', type=str, default=None, choices=['low', 'high'],
+                          help='reasoning level (default: the one of the original submit)')
     resubmit.add_argument('--dry-run', action='store_true',
                           help='only build the request file, do not upload anything')
 
