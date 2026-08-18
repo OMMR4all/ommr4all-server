@@ -62,6 +62,8 @@ class DatabasePage:
             shutil.rmtree(self.local_path())
         from database.book_index import safe_remove_page
         safe_remove_page(self.book.book, self.page)
+        from database.database_book_assignments import safe_remove_page_from_assignments
+        safe_remove_page_from_assignments(self.book, self.page)
 
     def rename(self, new_name):
         if not file_name_validator.fullmatch(new_name):
@@ -84,6 +86,8 @@ class DatabasePage:
         from database.book_index import safe_remove_page, safe_index_page
         safe_remove_page(self.book.book, old_name)
         safe_index_page(self)
+        from database.database_book_assignments import safe_rename_page_in_assignments
+        safe_rename_page_in_assignments(self.book, old_name, new_name)
 
     def file(self, fileId, create_if_not_existing=False):
         from database.database_file import DatabaseFile
@@ -217,6 +221,13 @@ class DatabasePage:
         return copy_page
 
     def _edit_lock(self):
+        # the editor polls this every few seconds: a transient SQLite failure (a broken
+        # WAL mapping, a momentary fd shortage) must not take the lock -- and with it the
+        # whole tool bar -- away, so reconnect and try once more before giving up
+        from database.db_errors import retry_on_db_error
+        return retry_on_db_error(self._edit_lock_once)
+
+    def _edit_lock_once(self):
         from database.models.book_index import PageEditLock
         lock = PageEditLock.objects \
             .filter(page__book__name=self.book.book, page__name=self.page) \
@@ -258,6 +269,11 @@ class DatabasePage:
         return lock.user_id == user.id
 
     def lock(self, user: 'User'):
+        from database.db_errors import retry_on_db_error
+        # retry around the whole atomic block, never around a partial transaction
+        retry_on_db_error(lambda: self._lock_once(user))
+
+    def _lock_once(self, user: 'User'):
         from django.db import transaction
         from database.book_index import index_page
         from database.models.book_index import PageEditLock
@@ -266,6 +282,10 @@ class DatabasePage:
             PageEditLock.objects.update_or_create(page=row, defaults={'user': user})
 
     def release_lock(self):
+        from database.db_errors import retry_on_db_error
+        retry_on_db_error(self._release_lock_once)
+
+    def _release_lock_once(self):
         from database.models.book_index import PageEditLock
         PageEditLock.objects.filter(page__book__name=self.book.book, page__name=self.page).delete()
         # transition: also remove a leftover pre-DB lock file

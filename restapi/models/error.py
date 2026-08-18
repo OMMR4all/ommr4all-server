@@ -10,6 +10,7 @@ class ErrorCodes(IntEnum):
     INVALID_CREDENTIALS = 1001
 
     CONNECTION_TO_SERVER_TIMED_OUT = 10001
+    SERVER_DATABASE_UNAVAILABLE = 10002
 
     # Global permissions
     GLOBAL_INSUFFICIENT_RIGHTS = 21003
@@ -31,6 +32,10 @@ class ErrorCodes(IntEnum):
     BOOK_PAGES_RENAME_REQUIRE_UNIQUE_SOURCES = 41030
     BOOK_PAGES_RENAME_REQUIRE_UNIQUE_TARGETS = 41031
     BOOK_PAGES_RENAME_TARGET_EXISTS = 41032
+
+    BOOK_ASSIGNMENT_UNKNOWN_USER = 41040
+    BOOK_ASSIGNMENT_UNKNOWN_PAGE = 41041
+    BOOK_ASSIGNMENT_NOT_FOUND = 41042
 
 
     # Page related
@@ -76,6 +81,21 @@ class APIError(DataClassDictMixin):
 
     def response(self):
         return Response(self.to_dict(), status=self.status)
+
+
+class DatabaseUnavailableAPIError(APIError):
+    """The database could not be read or written, even after reconnecting.
+
+    Distinct from 'no lock' on purpose: an unavailable database must never be reported as
+    'nobody holds the lock', and the client must not silently drop out of edit mode."""
+    def __init__(self, detail: str):
+        from rest_framework import status
+        super().__init__(status.HTTP_503_SERVICE_UNAVAILABLE,
+                         'Database error: {}'.format(detail),
+                         'The server database is temporarily unavailable. '
+                         'Your work is not lost, please retry in a moment.',
+                         ErrorCodes.SERVER_DATABASE_UNAVAILABLE,
+                         )
 
 
 class PageNotLockedAPIError(APIError):

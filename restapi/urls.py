@@ -18,8 +18,9 @@ from restapi.views.auth import AuthView
 from restapi.views.bookcomments import BookCommentsView, BookCommentsCountView
 from restapi.views.bookpermissions import BookPermissionsView, BookUserPermissionsView, BookGroupPermissionsView, \
     BookDefaultPermissionsView
+from restapi.views.bookassignments import BookAssignmentsView, BookAssignmentView
 from restapi.views.pageaccess import PageRenameView, PageProgressVerifyView, PageContentView
-from restapi.views.user import UserBookPermissionsView
+from restapi.views.user import UserBookPermissionsView, UserSelfView
 from restapi.views.bookstyles import BookStyleView, BookStylesView
 from restapi.views.administrativedefaultmodels import AdministrativeDefaultModelsView, \
     AdministrativeDefaultModelsTypeView, AdministrativeDefaultModelSlotsView
@@ -62,6 +63,7 @@ urlpatterns = \
         re_path(r'^auth/(?P<auth>\w+)$', AuthView.as_view(), name='AuthView'),
 
         # user
+        path('user/me', UserSelfView.as_view()),
         re_path(r'^user/book/(?P<book>\w+)/permissions$', UserBookPermissionsView.as_view()),
 
         # administrative
@@ -92,6 +94,10 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/permissions/group/(?P<name>.+)$', BookGroupPermissionsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/permissions/default$', BookDefaultPermissionsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/permissions$', BookPermissionsView.as_view()),
+
+        # page assignments (who is responsible for which pages of the book)
+        re_path(r'^book/(?P<book>\w+)/assignment/(?P<id>[0-9a-f\-]+)$', BookAssignmentView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/assignments$', BookAssignmentsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/comments/count', BookCommentsCountView.as_view()),
         re_path(r'^book/(?P<book>\w+)/comments', BookCommentsView.as_view()),
 

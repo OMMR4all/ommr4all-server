@@ -77,15 +77,28 @@ def _make_aware(dt) -> Optional['timezone.datetime']:
 
 
 def safe(func):
-    """An index update is a cache write: log and swallow every failure
-    (including 'database is locked' from concurrent SQLite writers) —
-    the mtime validation on read repairs any dropped update."""
+    """An index update is a cache write: retry once, then log and swallow the failure —
+    the mtime validation on read repairs any dropped update.
+
+    Losing a write race ('database is locked') is expected under concurrent savers and
+    the retry almost always settles it, so it is reported as a single warning line;
+    anything else keeps its traceback."""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        from django.db import DatabaseError
+        from database.db_errors import retry_on_db_error
         try:
-            return func(*args, **kwargs)
+            return retry_on_db_error(lambda: func(*args, **kwargs))
+        except DatabaseError as e:
+            # expected under concurrency and self-healing, so one line, no traceback:
+            # describe_db_error already names the extended code and the database state
+            from database.db_errors import log_db_failure
+            log_db_failure(logger, 'Book index update {} (will self-heal on read)'.format(
+                func.__name__), e)
+            return None
         except Exception as e:
-            logger.warning('Book index update {} failed (will self-heal on read)'.format(func.__name__))
+            logger.warning('Book index update {} failed (will self-heal on read): {}'.format(
+                func.__name__, e))
             logger.exception(e)
             return None
     return wrapper
@@ -307,6 +320,17 @@ def sync_book_pages(db_book: 'DatabaseBook', book_row: Optional[BookIndex] = Non
     if stale:
         book_row.pages.filter(name__in=stale).delete()
     return rows
+
+
+def stored_book_pages(db_book: 'DatabaseBook') -> List[PageRow]:
+    """Page rows exactly as stored, without stat-validating or writing anything.
+
+    For read paths that only *display* progress: sync_book_pages stats every page and
+    upserts the changed ones, which turns a plain page view into a writer -- multiplied by
+    every open browser tab. The stored values are refreshed by the next real sync (a page
+    save indexes its own page), so displaying them costs one query and no writes."""
+    return [PageRow(**d) for d in PageIndex.objects
+            .filter(book__name=db_book.book).order_by('name').values(*PAGE_ROW_FIELDS)]
 
 
 def _store_page_fields(db_book: 'DatabaseBook', name: str, **fields):

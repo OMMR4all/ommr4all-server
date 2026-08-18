@@ -32,8 +32,21 @@ def set_sqlite_pragmas(sender, connection, **kwargs):
         return
     try:
         with connection.cursor() as cursor:
+            # the pragma returns the mode actually in effect: converting a database that
+            # other connections are using fails with SQLITE_BUSY and silently leaves it in
+            # rollback-journal mode, which must not be paired with synchronous=NORMAL --
+            # that combination lets a reader observe a torn write
             cursor.execute('PRAGMA journal_mode=WAL;')
-            cursor.execute('PRAGMA synchronous=NORMAL;')
+            row = cursor.fetchone()
+            mode = (row[0] if row else '').lower()
+            if mode == 'wal':
+                cursor.execute('PRAGMA synchronous=NORMAL;')
+            else:
+                logger.warning(
+                    'SQLite is in "{}" mode, not WAL (another connection likely held the '
+                    'database while it was opened). Keeping synchronous=FULL. Run '
+                    '"manage.py db_health --set-wal" with the server stopped to convert '
+                    'it.'.format(mode or 'unknown'))
     except Exception as e:
         logger.warning('Could not apply the SQLite pragmas: {}'.format(e))
 

@@ -52,6 +52,16 @@ class PreprocessingPredictor(AlgorithmPredictor):
         if callback:
             callback.progress_updated(0, len(pages), 0)
 
+        # Pool() forks, and a child that inherits a live SQLite connection can checkpoint
+        # and unlink the -wal/-shm files out from under the parent when it exits, which the
+        # parent then reports as "disk I/O error" (the database runs in WAL mode, see
+        # database/apps.py). Closing first means the children inherit nothing and the task
+        # worker reconnects lazily on its next query. Note close_all() only reaches this
+        # thread's connections -- the page selection and the result writer run here, so
+        # that covers the worker; a thread pool would need each thread to do the same.
+        from django.db import connections
+        connections.close_all()
+
         with multiprocessing.Pool(processes=4) as pool:
             for i, _ in enumerate(pool.imap_unordered(_process_single, [(p, self.params) for p in pages])):
                 percentage = (i + 1) / len(pages)

@@ -118,7 +118,27 @@ DATABASES = {
         # wait out short write locks instead of failing immediately
         'OPTIONS': {
             'timeout': 20,
+            # BEGIN IMMEDIATE instead of the default DEFERRED. A deferred transaction
+            # starts as a reader and has to upgrade to a writer on its first write; if
+            # anyone committed in between, SQLite refuses that upgrade *immediately* with
+            # "database is locked" and the busy timeout above cannot help, because the
+            # snapshot the transaction read is stale. Taking the write lock up front turns
+            # the same contention into a short wait. This matters for every
+            # update_or_create (it selects, then updates, inside one transaction) --
+            # which is exactly what the book index does on each save.
+            'transaction_mode': 'IMMEDIATE',
         },
+        # Keep connections alive between requests. With the default of 0 Django closes the
+        # connection at the end of *every* request, and the ASGI server answers requests on
+        # a rotating thread pool -- so under a few concurrent browsers the database is
+        # constantly opened and closed. In WAL mode the last connection to close
+        # checkpoints, truncates the -wal to 0 and unlinks the -shm; a connection opening
+        # into that teardown reads a half-dismantled index and fails with
+        # SQLITE_IOERR_SHORT_READ ("disk I/O error"). Holding the connections open keeps
+        # the WAL alive and removes the race entirely.
+        'CONN_MAX_AGE': 300,
+        # ... and never hand out a connection that died in the meantime
+        'CONN_HEALTH_CHECKS': True,
     }
 }
 
@@ -158,6 +178,12 @@ USE_I18N = True
 USE_L10N = True
 
 USE_TZ = True
+
+# Django's own default, stated explicitly: it silences models.W042 without rewriting the
+# primary key of every existing table. The tables that trigger the warning (PageIndex,
+# BookDocumentsIndex, PageEditLock) are a mirror of the storage folder and nowhere near
+# 2^31 rows.
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 
 
 LANGUAGES = [

@@ -22,12 +22,28 @@ import zipfile
 import datetime
 from loguru import logger
 
+from django.db import OperationalError
+
+from database.db_errors import describe_db_error
+from restapi.models.error import DatabaseUnavailableAPIError
+
+
+def database_unavailable_response(exc: OperationalError):
+    detail = describe_db_error(exc)
+    logger.error('Lock request failed: {}'.format(detail))
+    return DatabaseUnavailableAPIError(detail).response()
 
 
 def require_lock(func):
     def wrapper(view, request, book, page, *args, **kwargs):
         page = DatabaseBook(book).page(page)
-        if not page.is_locked_by_user(request.user):
+        # this decorator fronts every page save: a database failure must say so instead of
+        # 500ing, so the client can retry rather than lose the edit
+        try:
+            locked_by_user = page.is_locked_by_user(request.user)
+        except OperationalError as e:
+            return database_unavailable_response(e)
+        if not locked_by_user:
             return PageNotLockedAPIError(status.HTTP_423_LOCKED).response()
         else:
             return func(view, request, book, page.page, *args, **kwargs)
@@ -114,11 +130,20 @@ class PageMidiView(APIView):
 class PageLockView(APIView):
     def get(self, request, book, page):
         page = DatabasePage(DatabaseBook(book), page)
-        return Response({'locked': page.is_locked_by_user(request.user)})
+        try:
+            return Response({'locked': page.is_locked_by_user(request.user)})
+        except OperationalError as e:
+            return database_unavailable_response(e)
 
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     @require_page_verification(False)
     def put(self, request, book, page):
+        try:
+            return self._put(request, book, page)
+        except OperationalError as e:
+            return database_unavailable_response(e)
+
+    def _put(self, request, book, page):
         body: dict = json.loads(request.body)
         page = DatabasePage(DatabaseBook(book), page)
         if page.is_locked() and not body.get('force', False):
@@ -138,7 +163,10 @@ class PageLockView(APIView):
     @require_lock
     def delete(self, request, book, page):
         page = DatabasePage(DatabaseBook(book), page)
-        page.release_lock()
+        try:
+            page.release_lock()
+        except OperationalError as e:
+            return database_unavailable_response(e)
         return Response()
 
 
