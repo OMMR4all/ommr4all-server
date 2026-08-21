@@ -56,22 +56,19 @@ class PageDocumentFragment:
     p_id: str
     mtime: float
     lines: List[FragmentLine] = field(default_factory=list)
-    text_line_count: int = 0
-    last_text_line_id: Optional[str] = None
 
     @staticmethod
     def extract(db_page: DatabasePage, mtime: float) -> 'PageDocumentFragment':
         page = db_page.pcgts_cached().page
-        all_text_lines = page.all_text_lines()
         return PageDocumentFragment(
             page_name=db_page.page,
             p_id=page.p_id,
             mtime=mtime,
+            # the reading order (lyric lines only) is the one ordering documents are indexed in;
+            # page.all_text_lines() is a different, block-ordered list and must not be mixed in
             lines=[FragmentLine(id=t_line.id, start=t_line.document_start,
                                 text=t_line.sentence.text(True) if t_line.document_start else '')
                    for t_line in page.reading_order.reading_order],
-            text_line_count=len(all_text_lines),
-            last_text_line_id=all_text_lines[-1].id if len(all_text_lines) > 0 else None,
         )
 
     @staticmethod
@@ -81,8 +78,6 @@ class PageDocumentFragment:
             p_id=d.get('p_id'),
             mtime=d.get('mtime', 0.0),
             lines=[FragmentLine.from_json(line) for line in d.get('lines', [])],
-            text_line_count=d.get('text_line_count', 0),
-            last_text_line_id=d.get('last_text_line_id', None),
         )
 
     def to_json(self) -> dict:
@@ -91,15 +86,17 @@ class PageDocumentFragment:
             'p_id': self.p_id,
             'mtime': self.mtime,
             'lines': [line.to_json() for line in self.lines],
-            'text_line_count': self.text_line_count,
-            'last_text_line_id': self.last_text_line_id,
         }
 
 
 class DatabaseBookDocuments:
+    # Bump whenever _assemble_documents changes what it produces for unchanged pages: stored
+    # documents carrying an older version are reassembled once instead of being served as is.
+    DOCUMENTS_FORMAT_VERSION = 1
+
     def __init__(self, b_id: str = None, monodi_id: int = None, name: str = '', created: datetime = datetime.now(),
                  creator: Optional[RestAPIUser] = None, database_documents: Documents = None,
-                 page_fragments: Optional[List[PageDocumentFragment]] = None):
+                 page_fragments: Optional[List[PageDocumentFragment]] = None, version: int = 0):
         self.b_id = b_id
         self.name: str = name
         self.created: datetime = created
@@ -107,6 +104,7 @@ class DatabaseBookDocuments:
         # Per-page snapshots (keyed by pcgts mtime) from which the documents were assembled.
         # Only pages whose pcgts file changed since then need to be reparsed.
         self.page_fragments: Optional[List[PageDocumentFragment]] = page_fragments
+        self.version: int = version
 
     @staticmethod
     def lock(book: DatabaseBook) -> FileLock:
@@ -159,12 +157,15 @@ class DatabaseBookDocuments:
             # which forces a full re-extraction on the next update.
             page_fragments=[PageDocumentFragment.from_json(f) for f in page_fragments]
             if page_fragments is not None else None,
+            # absent in files written before the version field existed
+            version=json.get('version', 0),
         )
 
     def to_json(self):
         return {
             "name": self.name,
             "created": self.created.isoformat(),
+            "version": self.version,
             "database_documents": self.database_documents.to_json() if self.database_documents else [],
             "page_fragments": [f.to_json() for f in self.page_fragments]
             if self.page_fragments is not None else None,
@@ -212,52 +213,54 @@ class DatabaseBookDocuments:
         """Assemble the documents (chants) of the whole book from the per-page fragments.
 
         A line flagged as document start opens a chant and closes the previous one.
-        """
-        document_page_ids = []
-        document_page_names = []
-        textinitium = ''
-        documents: List[Document] = []
-        start = None
-        line_count = 0
-        for page_ind, fragment in enumerate(fragments):
-            if start is not None:
-                document_page_ids.append(fragment.p_id)
-                document_page_names.append(fragment.page_name)
 
+        Everything is derived from the lines actually taken: a page enters pages_names only
+        once one of its lines belongs to the document, and end.page_name/end.row describe the
+        last line taken. See DocumentConnection for the exclusive-cursor convention of end.
+        """
+        documents: List[Document] = []
+        document_page_ids: List[str] = []
+        document_page_names: List[str] = []
+        textinitium = ''
+        start: Optional[DocumentConnection] = None
+        line_count = 0
+        # last line actually taken by the open document
+        last_row = 0
+        last_fragment: Optional[PageDocumentFragment] = None
+
+        for fragment in fragments:
             for ind, line in enumerate(fragment.lines, start=1):
                 if line.start:
-                    if start is None:
-                        start = DocumentConnection(line_id=line.id, page_id=fragment.p_id, row=ind,
-                                                   page_name=fragment.page_name)
-                        textinitium = line.text
-                        document_page_ids.append(fragment.p_id)
-                        document_page_names.append(fragment.page_name)
-                    else:
-                        prev_fragment = fragments[page_ind - 1]
-                        end_row = ind - 1 if ind - 1 != 0 else prev_fragment.text_line_count
-                        end_page = fragment.page_name if ind - 1 != 0 else prev_fragment.page_name
+                    if start is not None:
                         documents.append(Document(document_page_ids, document_page_names,
                                                   start=start,
                                                   end=DocumentConnection(line_id=line.id, page_id=fragment.p_id,
-                                                                         row=end_row, page_name=end_page),
+                                                                         row=last_row,
+                                                                         page_name=last_fragment.page_name),
                                                   textinitium=textinitium, textline_count=line_count))
-                        document_page_ids = [fragment.p_id]
-                        document_page_names = [fragment.page_name]
-
-                        start = DocumentConnection(line_id=line.id, page_id=fragment.p_id, row=ind,
-                                                   page_name=fragment.page_name)
-                        textinitium = line.text
+                        document_page_ids = []
+                        document_page_names = []
                         line_count = 0
+                    start = DocumentConnection(line_id=line.id, page_id=fragment.p_id, row=ind,
+                                               page_name=fragment.page_name)
+                    textinitium = line.text
                 if start is not None:
+                    # compare page names, not p_ids: a page that was never saved mints a new
+                    # p_id on every load, so two pages can transiently share one
+                    if not document_page_names or document_page_names[-1] != fragment.page_name:
+                        document_page_ids.append(fragment.p_id)
+                        document_page_names.append(fragment.page_name)
                     line_count += 1
+                    last_row, last_fragment = ind, fragment
 
         if start is not None:
-            fragment = fragments[-1]
             documents.append(Document(document_page_ids, document_page_names,
                                       start=start,
-                                      end=DocumentConnection(line_id=fragment.last_text_line_id,
-                                                             page_id=fragment.p_id, row=fragment.text_line_count,
-                                                             page_name=fragment.page_name),
+                                      # '' never equals a real line id: the last document of the
+                                      # book has no successor to stop at and runs to the end
+                                      end=DocumentConnection(line_id='', page_id=last_fragment.p_id,
+                                                             row=last_row,
+                                                             page_name=last_fragment.page_name),
                                       textinitium=textinitium, textline_count=line_count))
         return documents
 
@@ -292,11 +295,13 @@ class DatabaseBookDocuments:
         with DatabaseBookDocuments.lock(book):
             d = DatabaseBookDocuments.load(book)
             fragments, changed = DatabaseBookDocuments._update_page_fragments(book, d.page_fragments)
-            if not changed and d.database_documents is not None:
+            if not changed and d.database_documents is not None \
+                    and d.version == DatabaseBookDocuments.DOCUMENTS_FORMAT_VERSION:
                 return d
             d.database_documents = Documents(documents=d._merge_into_existing(
                 DatabaseBookDocuments._assemble_documents(fragments)))
             d.page_fragments = fragments
+            d.version = DatabaseBookDocuments.DOCUMENTS_FORMAT_VERSION
             d.to_file(book)
             return d
 
@@ -308,6 +313,7 @@ class DatabaseBookDocuments:
         d.database_documents = Documents(documents=d._merge_into_existing(
             DatabaseBookDocuments._assemble_documents(fragments)))
         d.page_fragments = fragments
+        d.version = DatabaseBookDocuments.DOCUMENTS_FORMAT_VERSION
         return d
 
 

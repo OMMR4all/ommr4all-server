@@ -61,6 +61,14 @@ class AlgorithmPredictorParams(DataClassJSONMixin):
     minNumberOfStaffLines: Optional[int] = None
     maxNumberOfStaffLines: Optional[int] = None
 
+    # staff line correction (staff_lines_correction)
+    # maximum vertical correction of a stave, in multiples of its own staff line distance;
+    # a whole staff space would fit each line onto its neighbour, so this stays below 1
+    staffLineCorrectionMaxShift: float = 0.5
+    # move the symbols of a stave along with it (their position in the staff is preserved)
+    # instead of leaving them on the page and re-deriving their position in the staff
+    staffLineCorrectionMoveSymbols: bool = True
+
     # ocr
     #ctcDecoder: SerializableCTCDecoderParams = field(default_factory=lambda: SerializableCTCDecoderParams())
 

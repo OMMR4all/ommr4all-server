@@ -10,7 +10,8 @@ from restapi.views.pageaccess import PagePcGtsView, PageProgressView, PageStatis
     PageMidiView
 from restapi.views.bookdocuments import BookDocumentsView, DocumentsSVGView, DocumentsMidiView, DocumentView, \
     DocumentOdsView, BookDocumentsOdsView, MonodiConnectionView, MonodiLoginView, BookDictionaryView, \
-    DocumentImageLineTextView, DocumentImageLineImageView, DocumentPCGTSUpdatesView, BookPageDocumentsUpdateView
+    DocumentImageLineTextView, DocumentImageLineImageView, DocumentPCGTSUpdatesView, BookPageDocumentsUpdateView, \
+    DocumentDownloadView
 from restapi.views.virtualkeyboards import BookVirtualKeyboardView
 from restapi.views.bookoperations import BookOperationStatusView, BookOperationTaskView, BookOperationView, \
     BookPageSelectionView, BookOperationModelsView, BookOperationModelView
@@ -118,6 +119,8 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/document/(?P<document>[0-9a-f-]+)/midi$', DocumentsMidiView.as_view()),
         re_path(r'^book/(?P<book>\w+)/document/(?P<document>[0-9a-f-]+)/content$', DocumentView.as_view()),
         re_path(r'^book/(?P<book>\w+)/document/(?P<document>[0-9a-f-]+)/ods$', DocumentOdsView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/document/(?P<document>[0-9a-f-]+)/download/(?P<type>[\w\.]+)$',
+                DocumentDownloadView.as_view()),
         re_path(r'^book/(?P<book>\w+)/document/(?P<document>[0-9a-f-]+)/updatePCGTS$', DocumentPCGTSUpdatesView.as_view()),
 
         re_path(r'^book/(?P<book>\w+)/document/(?P<document>[0-9a-f-]+)/imageline/(?P<line>.+)$', DocumentImageLineImageView.as_view()),

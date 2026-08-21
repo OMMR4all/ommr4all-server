@@ -1,9 +1,11 @@
+from functools import lru_cache
 from io import StringIO
 
 import database.file_formats.pcgts as ns_pcgts
-from typing import List, NamedTuple, Union, Optional
+from typing import Iterable, List, NamedTuple, Union, Optional
 from lxml import etree
 import numpy as np
+from database.file_formats.book.document import symbols_of_document_staff
 from database.file_formats.exporter.mei.neume_dict import NeumeDict
 from enum import Enum
 import logging
@@ -11,8 +13,20 @@ import os
 from ommr4all.settings import BASE_DIR
 logger = logging.getLogger(__name__)
 
+
+@lru_cache(maxsize=1)
+def _relax_ng(schema_path: str) -> etree.RelaxNG:
+    """The MEI schema is >1 MB and parsing it dominates a per-document export."""
+    return etree.RelaxNG(file=schema_path)
+
+
 class PcgtsToMeiConverter:
-    def __init__(self, pcgts: ns_pcgts.PcGts):
+    def __init__(self, pcgts: ns_pcgts.PcGts, document_line_ids: Optional[Iterable[str]] = None):
+        # None: export the whole page (unchanged behaviour). A collection of text line ids:
+        # export only the staves and syllables of that document (see document_export.py).
+        self.document_line_ids: Optional[set] = set(document_line_ids) if document_line_ids is not None else None
+        self.document_lines_of_staff = {}
+        self.has_content = False
         self.neume_container = []
         self.previous_symbol_value = None
         self.neume_dict = NeumeDict()
@@ -31,7 +45,9 @@ class PcgtsToMeiConverter:
         self.init()
         self.convert(pcgts)
 
-        self.is_valid = self.validate(os.path.join(BASE_DIR, 'database', 'file_formats', 'exporter', 'mei', 'mei-all.rng'))
+        # an empty <mdiv> never validates; such a page is dropped by the caller anyway
+        self.is_valid = self.has_content and self.validate(
+            os.path.join(BASE_DIR, 'database', 'file_formats', 'exporter', 'mei', 'mei-all.rng'))
 
     def init(self):
         self.root = etree.Element("mei", meiversion="4.0.1", xmlns="http://www.music-encoding.org/ns/mei")
@@ -54,6 +70,8 @@ class PcgtsToMeiConverter:
 
         elements: List[ns_pcgts.Block] = pcgts.page.blocks_of_type(regions_to_export)
         elements.sort(key=lambda r: np.mean([line.coords.aabb().center.y for line in r.lines]))
+        elements, music_lines_of_block = self._filter_to_document(pcgts.page, elements)
+        self.has_content = len(elements) > 0
         staff_counter = 0
         if len(elements) > 0:
             self.scoreDef = etree.SubElement(self.score, 'scoreDef')
@@ -63,17 +81,19 @@ class PcgtsToMeiConverter:
         for element in elements:
             if element.block_type == ns_pcgts.BlockType.MUSIC:
                 staff_counter += 1
-                staffDef = etree.SubElement(staffGrp, 'staffDef', lines=str(len(element.lines[0].staff_lines)),
+                music_lines = music_lines_of_block[id(element)]
+                staffDef = etree.SubElement(staffGrp, 'staffDef', lines=str(len(music_lines[0].staff_lines)),
                                             n=str(staff_counter), notationtype="neume")
                 self.add_staff(staff_counter)
                 mr = element
                 symbols = []
-                for s in mr.lines:
-                    symbols += s.symbols
+                for s in music_lines:
+                    symbols += self._symbols_of_music_line(pcgts.page, s)
                 current_symbol_index = 0
                 connections = [c for c in pcgts.page.annotations.connections if c.music_region == mr]
                 if len(connections) != 0:
                     all_syllable_connections = sum([c.syllable_connections for c in connections], [])
+                    all_syllable_connections = self._filter_connections_to_document(all_syllable_connections)
                     all_syllable_connections.sort(key=lambda sc: sc.note.coord.x)
                     for sc in all_syllable_connections:
                         note = sc.note
@@ -94,6 +114,53 @@ class PcgtsToMeiConverter:
             else:
                 tr = element
                 self.add_accompanying_text(tr)
+
+    def _filter_to_document(self, page, elements: List['ns_pcgts.Block']):
+        """Reduce the page's blocks to what belongs to the document.
+
+        Returns the blocks to export and, per music block, the music lines to export.
+        Without a document this is a no-op that keeps every block and every line.
+        """
+        music_lines_of_block = {id(b): b.lines for b in elements}
+        if self.document_line_ids is None:
+            return elements, music_lines_of_block
+
+        # a lyric line of the document pins the staff above it
+        self.document_lines_of_staff = {}
+        for text_line in page.reading_order.reading_order:
+            if text_line.id not in self.document_line_ids:
+                continue
+            music_line = page.closest_music_line_to_text_line(text_line)
+            if music_line is not None:
+                self.document_lines_of_staff.setdefault(music_line.id, []).append(text_line)
+
+        kept = []
+        for block in elements:
+            # accompanying text (headings, folio numbers, paragraphs) is not part of the
+            # reading order, so it cannot be attributed to a chant; the Monodi+ document
+            # export drops it too and the two exports have to agree
+            if block.block_type != ns_pcgts.BlockType.MUSIC:
+                continue
+            lines = [line for line in block.lines if line.id in self.document_lines_of_staff]
+            if len(lines) == 0:
+                continue
+            music_lines_of_block[id(block)] = lines
+            kept.append(block)
+        return kept, music_lines_of_block
+
+    def _symbols_of_music_line(self, page, music_line):
+        if self.document_line_ids is None:
+            return music_line.symbols
+        return symbols_of_document_staff(page, music_line, self.document_line_ids)
+
+    def _filter_connections_to_document(self, syllable_connections):
+        if self.document_line_ids is None:
+            return syllable_connections
+        syllables = [syllable
+                     for text_lines in self.document_lines_of_staff.values()
+                     for text_line in text_lines
+                     for syllable in text_line.sentence.syllables]
+        return [sc for sc in syllable_connections if sc.syllable in syllables]
 
     def add_accompanying_text(self, text_block):
         div = etree.SubElement(self.section, 'div')
@@ -197,8 +264,7 @@ class PcgtsToMeiConverter:
         z = etree.tostring(self.doc, pretty_print=True)
         z = z.decode("utf-8")
         test = etree.parse(StringIO(z))
-        xmlschema_doc = schema_path
-        relaxNG = etree.RelaxNG(file=xmlschema_doc)
+        relaxNG = _relax_ng(schema_path)
 
         result = relaxNG.validate(test)
         if result:

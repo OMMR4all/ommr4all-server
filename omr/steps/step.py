@@ -31,6 +31,7 @@ class Step(ABC):
             import omr.steps.preprocessing.meta
             import omr.steps.stafflines.detection.pixelclassifier.meta
             import omr.steps.stafflines.detection.pixelclassifier_torch.meta
+            import omr.steps.stafflines.correction.meta
             import omr.steps.layout.lyricsbbs.meta
             import omr.steps.layout.simplelyrics.meta
             import omr.steps.layout.drop_capitals_yolo.meta

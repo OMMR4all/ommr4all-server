@@ -47,6 +47,13 @@ class DatabaseBookMeta(DataClassJSONMixin):
     algorithmPredictorParams: Dict[AlgorithmTypes, AlgorithmPredictorParams] = field(default_factory=lambda: {})
     dateOfOrigin: str = ''
     placeOfOrigin: str = ''
+    # Monodi+ export: how this book is addressed in the Corpus Monodicum editor and on a IIIF
+    # image server. Empty iiifImageApi/iiifSource means no image urls are exported at all,
+    # which is the honest default — a guessed url points at somebody else's manuscript.
+    monodiSourceId: str = ''
+    iiifImageApi: str = ''
+    iiifSource: str = ''
+    iiifSuffix: str = '.jpg'
     # configured one-click workflow of the client; the server only stores it
     oneClickWorkflow: List[Dict[str, Any]] = field(default_factory=list)
 

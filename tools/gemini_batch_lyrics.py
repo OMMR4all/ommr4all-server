@@ -22,12 +22,18 @@ continued with the same API key (batch jobs belong to the key's project).
     # 5. optional: insert the transcriptions into the PcGts files of the book
     python -m tools.gemini_batch_lyrics apply --out-dir /data/moosburger_lyrics --write
 
-Only the sung lyric lines are requested, no music and no paratext (rubrics,
-headings, folio numbers, ...). The complete page image is sent, so the model
-can use the context of the whole page while reading a difficult line, and it
-must answer with one entry per *physically written line* in reading order.
-No bounding boxes are requested or used: the answer is aligned back onto the
-lyric line regions of the PcGts file by that reading order.
+Only the lyric is requested, and the model answers in plain text with one
+physically written line per text line, in reading order, marking a drop capital
+/ initial with a ``$``. The complete page image is sent, so the model can use
+the context of the whole page while reading a difficult line. No bounding boxes
+are requested or used: the answer is aligned back onto the line regions of the
+PcGts file by that reading order.
+
+The ``$`` also carries the alignment: ommr4all splits a written row into two
+line regions where a new chant or verse begins in the middle of it, which is
+exactly where the transcription has an initial. ``apply`` therefore groups the
+line regions into the rows they are written in, gives each row one transcribed
+line and splits that line at its ``$`` markers onto the regions of the row.
 
 Requires the ``google-genai`` package (``uv pip install google-genai``), which
 is an optional dependency of the server, just like for the interactive Gemini
@@ -61,10 +67,10 @@ from database import DatabaseBook, DatabasePage
 
 logger = logging.getLogger(__name__)
 
-# gemini-3.1-pro-preview with a high thinking level is the strongest setup for
-# heavily abbreviated medieval hands; --model switches to a cheaper one (e.g.
-# gemini-3.1-flash-lite), --thinking-level to a cheaper reasoning budget.
-DEFAULT_MODEL = 'gemini-3.1-pro-preview'
+# gemini-3.7-flash is the default: fast and cheap enough for a whole book, and
+# strong enough for these hands. --model switches to another one (e.g.
+# gemini-3.1-pro-preview for a hard book), --thinking-level to another budget.
+DEFAULT_MODEL = 'gemini-3.7-flash'
 DEFAULT_THINKING_LEVEL = 'high'
 # the high resolution colour scan (2500 px wide), the same image the editor shows
 DEFAULT_IMAGE = 'color_highres_preproc'
@@ -84,33 +90,12 @@ JOB_STATES_DONE = {'JOB_STATE_SUCCEEDED', 'JOB_STATE_FAILED',
 
 MIME_TYPES = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png'}
 
-PROMPT_HEAD = """\
-You are an expert palaeographer transcribing a page of a medieval liturgical chant manuscript.
-The image shows one complete page: staves of music notation with the sung text (the lyrics) written underneath the notes.
+# marks an initial / drop capital in the transcription; inside a written row it
+# marks the new chant that made ommr4all split the row into two line regions
+INITIAL_MARKER = '$'
 
-Transcribe ONLY THE SUNG LYRIC LINES, that is the text belonging to a stave.
-Ignore everything else on the page: the music notation itself, rubrics and performance instructions (often written in red), headings and titles, folio or page numbers, running heads, marginalia, catchwords, later annotations and stand-alone decorated initials that carry no text line.
-
-Rules:
-1. One entry per physically written line. Never merge two written lines into one entry and never split one written line into two entries: a line break in the manuscript is an entry boundary.
-2. Reading order: top to bottom, and if the page has columns, the complete left column before the right one.
-3. Keep the spelling exactly as written. Do not modernise it, do not expand abbreviations, do not add punctuation that is not in the manuscript.
-4. If the syllables of a word are spread apart under the notes, write them separated by single spaces, exactly as they stand in the image.
-5. A decorated or enlarged initial belongs to the line it starts: give it as the first letter of that line's text.
-6. Transcribe what you can read; leave illegible parts out instead of guessing.
-7. You see the whole page, so use its context - the neighbouring lines, the recurring formulas of the chant and the habits of this scribe - to read damaged or heavily abbreviated passages.
-"""
-
-PROMPT_TAIL = """\
-Answer with a JSON array of strings only, no markdown and no explanation: one string per lyric line, in reading order.
-
-["<text of the first lyric line>", "<text of the second lyric line>", ...]
-
-The entries are matched to the lines of the page by their order, so the number of entries must equal the number of written lyric lines: use an empty string for a lyric line you cannot read at all instead of dropping it.
-"""
-
-PROMPT_LINE_COUNT = """\
-The layout analysis of this page found {count} lyric line(s). Treat that as a strong hint for the expected number of entries, but follow the image if it clearly shows a different number of written lyric lines.
+PROMPT = """\
+only transcribe the lyric. Also add a "$" marker when an initial/drop capital is used. Separate each line by a new line:
 """
 
 
@@ -262,25 +247,29 @@ def encode_image(path: str, max_width: int, jpeg_quality: int) -> Tuple[str, str
         return base64.b64encode(buffer.getvalue()).decode('ascii'), 'image/jpeg', image.size
 
 
-def lines_in_reading_order(lines: List) -> List:
-    """The lyric lines column by column, top to bottom, and left to right within
-    one written row.
+def rows_in_reading_order(lines: List) -> List[List]:
+    """The lyric lines grouped into the rows they are physically written in:
+    column by column and top to bottom, left to right inside a row.
+
+    One written row usually is one line region, but ommr4all splits a row into
+    two (or more) regions where a new chant or verse begins in the middle of it,
+    which is exactly where the transcription carries a '$' initial marker.
 
     ``sort_lines_in_reading_order`` orders a column by the top edge of a line
-    only. That flips the two halves of a written line that a drop capital split
-    in the middle whenever the right half sits a few pixels higher, so lines
-    that overlap vertically are regrouped into a row and sorted by their left
-    edge here.
+    only. That flips the two halves of such a split row whenever the right half
+    sits a few pixels higher, so lines that overlap vertically are regrouped
+    into a row and sorted by their left edge here.
     """
     from omr.steps.text.llm.predictor import sort_lines_in_reading_order
 
-    ordered, result, row = sort_lines_in_reading_order(lines), [], []
+    rows, row = [], []
 
     def flush():
-        result.extend(sorted(row, key=lambda l: l.aabb.left()))
+        if row:
+            rows.append(sorted(row, key=lambda l: l.aabb.left()))
         del row[:]
 
-    for line in ordered:
+    for line in sort_lines_in_reading_order(lines):
         if row:
             first, current = row[0].aabb, line.aabb
             overlap = min(first.bottom(), current.bottom()) - max(first.top(), current.top())
@@ -288,7 +277,164 @@ def lines_in_reading_order(lines: List) -> List:
                 flush()
         row.append(line)
     flush()
-    return result
+    return rows
+
+
+def lines_in_reading_order(lines: List) -> List:
+    """The lyric lines column by column, top to bottom, and left to right within
+    one written row."""
+    return [line for row in rows_in_reading_order(lines) for line in row]
+
+
+# ---------------------------------------------------------------------------
+# alignment of the transcription onto the line regions
+# ---------------------------------------------------------------------------
+def split_at_initials(text: str) -> List[str]:
+    """The parts of one transcribed row, split at the initials that start a new
+    chant inside the row.
+
+    A '$' in the middle of a row is such a boundary: ommr4all gives each side of
+    it its own line region. A '$' at the very start only marks the initial of
+    the row itself and is no boundary.
+    """
+    parts = [part.strip() for part in text.split(INITIAL_MARKER)]
+    return [part for part in parts if part] or ['']
+
+
+def group_segments(segments: List[str], weights: List[float]) -> List[str]:
+    """Merge ``segments`` into ``len(weights)`` consecutive groups whose lengths
+    follow ``weights`` (the widths of the line regions of the row).
+
+    Only needed when a row carries more initials than it has line regions: not
+    every initial splits a row, so the boundaries that match the widths of the
+    regions best are the ones that were meant.
+    """
+    k = len(weights)
+    if k <= 1 or len(segments) <= k:
+        return [' '.join(segments)] if k == 1 else list(segments)
+
+    lengths = [len(s) for s in segments]
+    total = sum(lengths) or len(segments)
+    if not sum(lengths):
+        lengths = [1] * len(segments)
+    # fraction of the row that is written before boundary i, i.e. between
+    # segment i and segment i + 1
+    cuts, position = [], 0.0
+    for length in lengths[:-1]:
+        position += length / total
+        cuts.append(position)
+
+    total_weight = sum(weights) or k
+    wanted, position = [], 0.0
+    for weight in weights[:-1]:
+        position += weight / total_weight
+        wanted.append(position)
+
+    # pick len(wanted) boundaries out of cuts, in order, closest to the widths
+    best: Dict[Tuple[int, int], Tuple[float, List[int]]] = {}
+
+    def solve(w: int, first: int) -> Tuple[float, List[int]]:
+        """cost and boundary indices for wanted[w:], choosing from cuts[first:]"""
+        if w >= len(wanted):
+            return 0.0, []
+        if (w, first) in best:
+            return best[(w, first)]
+        # enough boundaries must be left for the remaining groups
+        last = len(cuts) - (len(wanted) - w)
+        result = (float('inf'), [])
+        for i in range(first, last + 1):
+            cost, rest = solve(w + 1, i + 1)
+            cost += abs(cuts[i] - wanted[w])
+            if cost < result[0]:
+                result = (cost, [i] + rest)
+        best[(w, first)] = result
+        return result
+
+    _, boundaries = solve(0, 0)
+    grouped, start = [], 0
+    for boundary in boundaries + [len(segments) - 1]:
+        grouped.append(' '.join(segments[start:boundary + 1]))
+        start = boundary + 1
+    return grouped
+
+
+def plan_rows(rows: List[List], texts: List[str]) -> List[int]:
+    """How many transcribed lines each written row takes.
+
+    Normally that is one per row, but the transcription and the layout analysis
+    do not always agree: the model may have dropped a row, or it may have given
+    the two halves of a split row as two lines instead of one line with a '$'.
+    Rows may therefore take 0 .. (number of their line regions) transcriptions,
+    chosen so that as many rows as possible end up with as many parts as they
+    have line regions.
+    """
+    n_rows, n_texts = len(rows), len(texts)
+    dp: Dict[Tuple[int, int], Tuple[float, int]] = {}
+
+    def solve(i: int, j: int) -> Tuple[float, int]:
+        """cost of covering rows i.. with texts j.., and the k chosen for row i"""
+        if i >= n_rows:
+            # transcriptions the page has no row for. Dropping one is cheaper
+            # than forcing it into a row, so a stray line the model read at the
+            # end (a rubric, a folio number) does not corrupt the last row, but
+            # dropping the whole tail is expensive enough to keep the rows fed
+            return 2.0 * (n_texts - j), 0
+        if (i, j) in dp:
+            return dp[(i, j)]
+        result = (float('inf'), 0)
+        # k = 0 is tried last, so a row that can be fed at the same cost is fed
+        max_k = min(len(rows[i]), n_texts - j)
+        for k in list(range(1, max_k + 1)) + [0]:
+            if k == 0:
+                # the row stays empty: only worth it if the model skipped it
+                cost = 3.0
+            else:
+                n_parts = sum(len(split_at_initials(t)) for t in texts[j:j + k])
+                cost = 2.0 * abs(n_parts - len(rows[i])) + 0.5 * (k - 1)
+            cost += solve(i + 1, j + k)[0]
+            if cost < result[0]:
+                result = (cost, k)
+        dp[(i, j)] = result
+        return result
+
+    plan, position = [], 0
+    for i in range(n_rows):
+        k = solve(i, position)[1]
+        plan.append(k)
+        position += k
+    return plan
+
+
+def assign_texts_to_lines(rows: List[List], texts: List[str],
+                          page_name: str = '') -> Tuple[Dict[str, str], List[Dict]]:
+    """line.id -> transcribed text, and the rows that did not align cleanly.
+
+    The transcription has one entry per written row, so it is aligned row by
+    row, and the parts of a row that the initials mark are handed to the line
+    regions the row was split into.
+    """
+    assignment, issues, position = {}, [], 0
+    for i, (row, k) in enumerate(zip(rows, plan_rows(rows, texts))):
+        segments = [s for text in texts[position:position + k] for s in split_at_initials(text)]
+        position += k
+        if k != 1 or len(segments) != len(row):
+            # the ordinary case is one transcribed line per row, split into as
+            # many parts as the row has line regions; anything else is worth a
+            # look when a page comes out wrong
+            issues.append({'row': i, 'y': row[0].aabb.top(), 'n_regions': len(row),
+                           'n_texts': k, 'n_parts': len(segments)})
+            logger.info("Page %s: row %d at y=%.3f with %d line region(s) got %d transcribed "
+                        "line(s), %d part(s)", page_name, i, row[0].aabb.top(), len(row), k,
+                        len(segments))
+        if len(segments) > len(row):
+            # Rect has height() but no width()
+            segments = group_segments(segments, [line.aabb.right() - line.aabb.left()
+                                                 for line in row])
+        elif len(segments) < len(row):
+            segments = segments + [''] * (len(row) - len(segments))
+        for line, segment in zip(row, segments):
+            assignment[line.id] = segment
+    return assignment, issues
 
 
 def lyric_line_count(db_page: DatabasePage) -> int:
@@ -301,22 +447,16 @@ def lyric_line_count(db_page: DatabasePage) -> int:
         return 0
 
 
-def build_prompt(n_lines: int) -> str:
-    parts = [PROMPT_HEAD]
-    if n_lines > 0:
-        parts.append(PROMPT_LINE_COUNT.replace('{count}', str(n_lines)))
-    parts.append(PROMPT_TAIL)
-    return '\n'.join(parts)
-
-
 def build_request(db_page: DatabasePage, args) -> Tuple[Dict, Dict]:
     """The batch request for one page and the metadata needed to interpret its
     answer later on (page name, sent image size, expected number of lines)."""
     image_path = db_page.file(args.image, create_if_not_existing=True).local_path()
     data, mime, size = encode_image(image_path, args.max_width, args.jpeg_quality)
+    # only used to warn about a mismatch when the result is parsed, it is not
+    # part of the prompt
     n_lines = lyric_line_count(db_page)
 
-    generation_config = {'temperature': 0, 'response_mime_type': 'application/json'}
+    generation_config = {'temperature': 0}
     if args.thinking_level:
         # the REST enum is upper case, the flag is not
         generation_config['thinking_config'] = {'thinking_level': args.thinking_level.upper()}
@@ -327,7 +467,7 @@ def build_request(db_page: DatabasePage, args) -> Tuple[Dict, Dict]:
             'contents': [{
                 'role': 'user',
                 'parts': [
-                    {'text': build_prompt(n_lines)},
+                    {'text': PROMPT},
                     {'inline_data': {'mime_type': mime, 'data': data}},
                 ],
             }],
@@ -526,40 +666,20 @@ def response_text(response: Dict) -> str:
     return ''.join(parts)
 
 
-def parse_entries(raw: str, image_size: Tuple[int, int]) -> List[Dict]:
+def parse_entries(raw: str) -> List[Dict]:
     """The transcribed lines of one page, in the order the model returned them,
     as ``{'text': ...}`` dicts.
 
-    Primary format is the requested JSON array of strings; an array of objects
-    with a ``text`` field is accepted as well, and anything else is handed to
-    the tolerant parser of the interactive LLM predictor, which also copes with
-    markdown fences and plain text answers.
+    The answer is plain text with one written line per text line, so it is only
+    split at the line breaks; a markdown fence around it is stripped and blank
+    lines are dropped.
     """
     text = raw.strip()
-    fence = re.search(r'```(?:json)?\s*(.*?)```', text, re.DOTALL)
+    fence = re.search(r'```(?:\w+)?\s*(.*?)```', text, re.DOTALL)
     if fence:
         text = fence.group(1).strip()
 
-    data = None
-    start = text.find('[')
-    if start >= 0:
-        try:
-            data, _ = json.JSONDecoder().raw_decode(text[start:])
-        except json.JSONDecodeError:
-            data = None
-
-    if isinstance(data, list) and any(isinstance(e, (str, dict)) for e in data):
-        entries = []
-        for entry in data:
-            if isinstance(entry, str):
-                entries.append({'text': entry.strip()})
-            elif isinstance(entry, dict):
-                entries.append({'text': str(entry.get('text', '') or '').strip()})
-        return entries
-
-    from omr.steps.text.llm.adapters import parse_llm_response
-
-    return [{'text': line.text} for line in parse_llm_response(raw, image_size)]
+    return [{'text': row.strip()} for row in text.splitlines() if row.strip()]
 
 
 def write_page_result(out_dir: str, state: BatchState, meta: Dict, raw: str) -> Dict:
@@ -572,11 +692,16 @@ def write_page_result(out_dir: str, state: BatchState, meta: Dict, raw: str) -> 
     os.makedirs(raw_dir, exist_ok=True)
 
     size = (meta['image_width'], meta['image_height'])
-    entries = parse_entries(raw, size)
+    entries = parse_entries(raw)
     expected = meta.get('n_expected_lines') or 0
-    if expected and len(entries) != expected:
-        logger.warning("Page %s: %d transcribed line(s) but %d lyric line region(s) on the page",
-                       meta['page'], len(entries), expected)
+    # a written row that an initial splits into two line regions is one entry
+    # here, so the number of regions may be anything between the number of
+    # entries and the number of parts the initials mark
+    n_parts = sum(len(split_at_initials(entry['text'])) for entry in entries)
+    if expected and not len(entries) <= expected <= n_parts:
+        logger.warning("Page %s: %d transcribed line(s) (%d part(s) counting the initials) "
+                       "but %d lyric line region(s) on the page",
+                       meta['page'], len(entries), n_parts, expected)
 
     with open(os.path.join(raw_dir, meta['page'] + '.txt'), 'w') as f:
         f.write(raw)
@@ -811,12 +936,69 @@ def cmd_cancel(args) -> None:
     print_status(state)
 
 
+def page_report(page: str, n_rows: int = 0, n_texts: int = 0, n_regions: int = 0,
+                n_split_rows: int = 0, n_filled: int = 0, n_rows_off: int = 0,
+                note: str = '') -> Dict:
+    """How one page aligned: written rows and line regions of the layout against
+    transcribed lines, and how many regions ended up with a text."""
+    return {'page': page, 'n_rows': n_rows, 'n_texts': n_texts, 'n_regions': n_regions,
+            'n_split_rows': n_split_rows, 'n_filled': n_filled, 'n_rows_off': n_rows_off,
+            'note': note}
+
+
+def report_problem(entry: Dict) -> str:
+    """Why a page is listed as a mismatch, '' if it aligned cleanly."""
+    if entry['note']:
+        return entry['note']
+    problems = []
+    if entry['n_texts'] != entry['n_rows']:
+        problems.append('{:+d} transcribed line(s)'.format(entry['n_texts'] - entry['n_rows']))
+    if entry['n_rows_off']:
+        problems.append('{} row(s) misaligned'.format(entry['n_rows_off']))
+    empty = entry['n_regions'] - entry['n_filled']
+    if empty:
+        problems.append('{} region(s) empty'.format(empty))
+    return ', '.join(problems)
+
+
+def print_alignment_report(report: List[Dict], show_all: bool = False) -> None:
+    """A table of the pages whose transcription did not align cleanly onto the
+    line regions - the pages worth opening in the editor."""
+    for entry in report:
+        entry['problem'] = report_problem(entry)
+    shown = report if show_all else [e for e in report if e['problem']]
+    n_clean = sum(1 for e in report if not e['problem'])
+
+    print()
+    if not shown:
+        print("All {} page(s) aligned without a mismatch.".format(len(report)))
+        return
+
+    width = max([len('page')] + [len(e['page']) for e in shown])
+    header = '{:<{w}}  {:>4} {:>5} {:>7} {:>5} {:>6} {:>5}  {}'
+    print("{} of {} page(s) aligned without a mismatch, {} to check:"
+          .format(n_clean, len(report), len(report) - n_clean))
+    header_row = header.format('page', 'rows', 'lines', 'regions', 'split', 'filled', 'empty',
+                               'problem', w=width)
+    print(header_row)
+    print('-' * max(len(header_row), *(len(e['problem'] or 'ok') + width + 39 for e in shown)))
+    for e in shown:
+        print(header.format(e['page'], e['n_rows'], e['n_texts'], e['n_regions'],
+                            e['n_split_rows'], e['n_filled'], e['n_regions'] - e['n_filled'],
+                            e['problem'] or 'ok', w=width))
+    print()
+    print("rows: written rows found by the layout, lines: transcribed lines, regions: lyric "
+          "line regions,\nsplit: rows an initial split into several regions, filled/empty: "
+          "regions that did/did not get a text")
+
+
 def cmd_apply(args) -> None:
     """Insert the fetched transcriptions into the PcGts files of the book.
 
-    The model answered with one entry per written lyric line in reading order,
-    so the entries are zipped onto the lyric line regions of the page in the
-    same order.
+    The model answered with one entry per written row in reading order, so the
+    entries are aligned onto the rows of the page in that order; a row that
+    ommr4all split into several line regions because a new chant begins in the
+    middle of it is split at the '$' initial markers of its entry.
     """
     from database.file_formats.pcgts.page import Sentence
     from omr.steps.text.llm.predictor import join_spaced_syllables
@@ -827,9 +1009,11 @@ def cmd_apply(args) -> None:
     hyphen = CombinedHyphenator(lang=HyphenDicts.liturgical.get_internal_file_path(), left=1, right=1)
 
     pages_dir = os.path.join(state.out_dir, 'pages')
+    report = []
     for name in sorted(state.page_metas()):
         result_path = os.path.join(pages_dir, name + '.json')
         if not os.path.isfile(result_path):
+            report.append(page_report(name, note='no transcription'))
             continue
         with open(result_path) as f:
             document = json.load(f)
@@ -837,21 +1021,26 @@ def cmd_apply(args) -> None:
         db_page = DatabasePage(book, name)
         pcgts = db_page.pcgts()
         page = pcgts.page
-        target_lines = lines_in_reading_order(page.all_text_lines(only_lyric=True))
+        rows = rows_in_reading_order(page.all_text_lines(only_lyric=True))
+        target_lines = [line for row in rows for line in row]
+        texts = [str(e.get('text') or '').strip() for e in document['lines']]
         if not target_lines:
             logger.warning("Page %s has no lyric line regions, skipping", name)
+            report.append(page_report(name, n_texts=len(texts), note='no lyric line regions'))
             continue
 
-        texts = [str(e.get('text') or '').strip() for e in document['lines']]
-        if len(texts) != len(target_lines):
-            logger.warning("Page %s: %d transcribed line(s) for %d lyric line region(s). Aligning "
-                           "in reading order, the surplus is dropped.",
-                           name, len(texts), len(target_lines))
-        assignment = {line.id: text for line, text in zip(target_lines, texts)}
+        n_split_rows = sum(1 for row in rows if len(row) > 1)
+        if len(texts) != len(rows):
+            logger.warning("Page %s: %d transcribed line(s) for %d written row(s) "
+                           "(%d line region(s), %d row(s) split by an initial)",
+                           name, len(texts), len(rows), len(target_lines), n_split_rows)
+        assignment, issues = assign_texts_to_lines(rows, texts, name)
 
         changed = 0
         for line in target_lines:
-            text = assignment.get(line.id, '')
+            # a '$' left over from an initial at the start of a row: only the
+            # plain text belongs into the PcGts sentence
+            text = re.sub(r'\s+', ' ', assignment.get(line.id, '').replace(INITIAL_MARKER, '')).strip()
             if not text:
                 continue
             text = join_spaced_syllables(text, hyphen.dictionary)
@@ -867,7 +1056,11 @@ def cmd_apply(args) -> None:
             pcgts.to_file(db_page.file('pcgts').local_path())
         logger.info("Page %s: %d line(s) %s", name, changed,
                     'written' if args.write else 'would be written')
+        report.append(page_report(name, n_rows=len(rows), n_texts=len(texts),
+                                  n_regions=len(target_lines), n_split_rows=n_split_rows,
+                                  n_filled=changed, n_rows_off=len(issues)))
 
+    print_alignment_report(report, args.report_all)
     if not args.write:
         print("Preview only, nothing was written. Add --write to store the lyrics in the PcGts files.")
 
@@ -948,6 +1141,8 @@ def parse_args(argv: Optional[List[str]] = None):
     add_out_dir_argument(apply_, required=True)
     apply_.add_argument('--write', action='store_true',
                         help='actually store the lyrics (without it only a preview is printed)')
+    apply_.add_argument('--report-all', action='store_true',
+                        help='list every page in the alignment table, not only the mismatching ones')
 
     return parser.parse_args(argv)
 

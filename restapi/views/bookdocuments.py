@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import zipfile
 
 from PIL import Image
 from django.views.decorators.csrf import csrf_exempt
@@ -24,6 +25,9 @@ import logging
 import json
 
 from database.file_formats.book.document import Document
+from database.file_formats.exporter.document_export import (
+    document_file_name, mei_files_of_document, monodi_json_of_document, monodi_notes_of_document,
+)
 from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
 from database.file_formats.pcgts import PageScaleReference
 from ommr4all.settings import BASE_DIR
@@ -256,6 +260,58 @@ class DocumentOdsView(APIView):
         return HttpResponse(bytes, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
+class DocumentDownloadView(APIView):
+    """Export a single document (chant).
+
+    Unlike BookDownloaderView, which exports whole pages, this is scoped to the document's
+    line span — the pages of a chant usually carry neighbouring chants, too.
+    """
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    FORMAT_MONODI_PLUS_JSON = 'monodiplus.json'
+    # the same content without the metadata envelope, i.e. what the page-wide export returns
+    FORMAT_MONODI_PLUS_NOTES_JSON = 'monodiplus_notes.json'
+    FORMAT_MEI4_ZIP = 'mei4.zip'
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def get(self, request, book, document, type):
+        book = DatabaseBook(book)
+        # acquires the book_documents lock internally, so nothing may be held here
+        documents = DatabaseBookDocuments.update_book_documents_cached(book)
+        doc: Document = documents.database_documents.get_document_by_id(document)
+        if doc is None:
+            return APIError(status.HTTP_404_NOT_FOUND,
+                            "Document {} not found in book {}".format(document, book.book),
+                            "Document not found",
+                            ErrorCodes.DOCUMENT_NOT_FOUND,
+                            ).response()
+
+        editor = request.session.get('monodi_user', None) or request.user.username
+        filename = document_file_name(doc)
+
+        if type == DocumentDownloadView.FORMAT_MONODI_PLUS_JSON:
+            data = json.dumps(monodi_json_of_document(book, doc, str(editor)), indent=2).encode('utf-8')
+            return HttpResponse(data, content_type='application/json', headers={
+                'Content-Disposition': 'attachment; filename="{}.json"'.format(filename)})
+        elif type == DocumentDownloadView.FORMAT_MONODI_PLUS_NOTES_JSON:
+            data = json.dumps(monodi_notes_of_document(book, doc), indent=2).encode('utf-8')
+            return HttpResponse(data, content_type='application/json', headers={
+                'Content-Disposition': 'attachment; filename="{}.notes.json"'.format(filename)})
+        elif type == DocumentDownloadView.FORMAT_MEI4_ZIP:
+            s = io.BytesIO()
+            with zipfile.ZipFile(s, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for page_name, xml in mei_files_of_document(book, doc):
+                    zf.writestr(page_name + '.xml', xml)
+            return HttpResponse(s.getvalue(), content_type='application/zip', headers={
+                'Content-Disposition': 'attachment; filename="{}.mei.zip"'.format(filename)})
+
+        return APIError(status.HTTP_400_BAD_REQUEST,
+                        "Unknown document export format: {}".format(type),
+                        "Unknown export format",
+                        ErrorCodes.DOCUMENT_UNKNOWN_EXPORT_FORMAT,
+                        ).response()
+
+
 class DocumentImageView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
@@ -306,11 +362,7 @@ class MonodiConnectionView(APIView):
                 if json_response["kind"] == "UploadFinished":
                     header = {'Authorization': '{}'.format(request.session.get('monodi_token', None))}
                     for document in documents:
-                        pages = [DatabasePage(book, x) for x in document.pages_names]
-                        pcgts = [DatabaseFile(page, 'pcgts', create_if_not_existing=True).page.pcgts() for page in
-                                 pages]
-                        root = PcgtsToMonodiConverter(pcgts, document=document)
-                        json_data = root.get_Monodi_json(document=document, editor=str(editor))
+                        json_data = monodi_json_of_document(book, document, str(editor))
 
                         def pp_json(json_thing, sort=True, indents=4):
                             if type(json_thing) is str:

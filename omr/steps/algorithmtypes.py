@@ -17,6 +17,7 @@ class AlgorithmTypes(Enum):
 
     STAFF_LINES_PC = "staff_lines_pc"
     STAFF_LINES_PC_Torch = "staff_lines_pc_torch"
+    STAFF_LINES_CORRECTION = "staff_lines_correction"
 
     LAYOUT_SIMPLE_BOUNDING_BOXES = "layout_simple_bounding_boxes"
     LAYOUT_SIMPLE_LYRICS = "layout_simple_lyrics"
@@ -132,8 +133,12 @@ class AlgorithmGroups(Enum):
         # the group's default model type (restapi/views/administrativedefaultmodels.py).
         return {
             AlgorithmGroups.PREPROCESSING: [AlgorithmTypes.PREPROCESSING, ],
+            # STAFF_LINES_CORRECTION belongs here for the page lock (it edits staff lines and
+            # must not touch a page locked for them), not because it detects staff lines --
+            # it only refines the ones a detector already produced.
             AlgorithmGroups.STAFF_LINES: [AlgorithmTypes.STAFF_LINES_PC_Torch,
-                                          AlgorithmTypes.STAFF_LINES_PC],
+                                          AlgorithmTypes.STAFF_LINES_PC,
+                                          AlgorithmTypes.STAFF_LINES_CORRECTION],
             AlgorithmGroups.LAYOUT: [AlgorithmTypes.LAYOUT_SIMPLE_BOUNDING_BOXES,
                                      AlgorithmTypes.LAYOUT_COMPLEX_STANDARD, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL, AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO,
                                      AlgorithmTypes.LAYOUT_SIMPLE_LYRICS],

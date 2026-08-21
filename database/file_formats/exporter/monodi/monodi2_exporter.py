@@ -305,6 +305,31 @@ class FormatUrl:
     # url = "https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/mul_2%2Ffolio_0202v.jpg/full/max/0/default.jpg"
 
 
+@dataclass
+class MonodiExportSettings:
+    """Per-book identity of a Monodi+ export.
+
+    These used to be hard coded to the Mulhouse 2 manuscript, so every other book exported
+    image urls pointing at Mul 2's scans. They now come from the book meta, and a book that
+    has not configured a IIIF server exports no image urls at all rather than wrong ones.
+    """
+    source_id: str = ''
+    iiif_url: str = ''
+    iiif_source: str = ''
+    iiif_suffix: str = '.jpg'
+
+    @staticmethod
+    def from_book(book) -> 'MonodiExportSettings':
+        from database.database_book_meta import DatabaseBookMeta
+        meta = DatabaseBookMeta.load(book)
+        return MonodiExportSettings(
+            source_id=meta.monodiSourceId or meta.name or book.book,
+            iiif_url=meta.iiifImageApi,
+            iiif_source=meta.iiifSource,
+            iiif_suffix=meta.iiifSuffix or '.jpg',
+        )
+
+
 class PcgtsToMonodiConverter:
     def __init__(self, pcgts: List[ns_pcgts.PcGts], document: Document = None, replace_filename="folio_", remove_char=None):
         self.current_line_container: Optional[LineContainer] = None
@@ -315,51 +340,23 @@ class PcgtsToMonodiConverter:
         self.root = RootContainer([self.miscContainer])
         self.run2(pcgts, document=document, replace_fn=replace_filename)
 
-    def get_Monodi_json(self, document: Document, editor):
-        doc, notes = self.get_meta_and_notes(document, editor)
+    def get_Monodi_json(self, document: Document, editor, settings: MonodiExportSettings = None):
+        doc, notes = self.get_meta_and_notes(document, editor, settings=settings)
         return {"document": doc, "notes": notes}
 
     def get_meta_and_notes(self, document: Document, editor, replace="folio_",
-                           url="https://iiif-ls6.informatik.uni-wuerzburg.de/iiif/3/", sourceIIF="mul_2",
-                           doc_source="Mul 2", suffix=".jpg"):
-        #print(url)
+                           url=None, sourceIIF=None, doc_source=None, suffix=None,
+                           settings: MonodiExportSettings = None):
+        # the explicit kwargs are what the export scripts under tools/ pass; server side the
+        # values come from the book meta via MonodiExportSettings (see FormatUrl above)
+        settings = settings if settings is not None else MonodiExportSettings()
+        url = url if url is not None else settings.iiif_url
+        sourceIIF = sourceIIF if sourceIIF is not None else settings.iiif_source
+        doc_source = doc_source if doc_source is not None else settings.source_id
+        suffix = suffix if suffix is not None else settings.iiif_suffix
         formatstring = FormatUrl(url)
-        doc = {"id": document.monody_id,
-               "quelle_id": doc_source,
-               "dokumenten_id": document.monody_id,
-               "gattung1": document.document_meta_infos.genre if document.document_meta_infos else "",
-               "gattung2": "",
-               "festtag": document.document_meta_infos.festum if document.document_meta_infos else "",
-               "feier": document.document_meta_infos.dies if document.document_meta_infos else "",
-               "textinitium": document.document_meta_infos.initium.replace("-",
-                                                                           "") if document.document_meta_infos and document.document_meta_infos.initium and len(
-                   document.document_meta_infos.initium) > 0 else document.textinitium.replace("-", ""),
-               "bibliographischerverweis": "",
-               "druckausgabe": "",
-               "zeilenstart": str(document.start.row),
-               "foliostart": document.start.page_name.replace(replace, ""),
-               "kommentar": "",
-               "editionsstatus": "",
-               "additionalData": {
-                   "Melodiennummer_Katalog": "",
-                   "Editor": str(editor),
-                   "Bezugsgesang": "",
-                   "Melodie_Standard": "",
-                   "Endseite": document.end.page_name.replace(replace, ""),
-                   "Startposition": "",
-                   "Zusatz_zu_Textinitium": "",
-                   "Referenz_auf_Spiel": "",
-                   "Endzeile": str(document.end.row),
-                   "Nachtragsschicht": "",
-                   "\u00dcberlieferungszustand": "",
-                   "Melodie_Quelle": [formatstring.get_url(source=sourceIIF, page=i, suffix=suffix) for i in
-                                      document.pages_names] if url else [],
-                   "iiifs": [formatstring.get_url(source=sourceIIF, page=i, suffix=suffix) for i in
-                             document.pages_names] if url else [],
-                   "manuscript": document.document_meta_infos.manuscript if document.document_meta_infos else "",
-               },
-               "publish": None
-               }
+        iiifs = [formatstring.get_url(source=sourceIIF, page=i, suffix=suffix)
+                 for i in document.pages_names] if url and sourceIIF else []
         doc = {"id": document.monody_id,
                "source_id": doc_source,
                "document_id": document.monody_id,
@@ -375,10 +372,8 @@ class PcgtsToMonodiConverter:
                    "Editor": str(editor),
                    "Endseite": document.end.page_name.replace(replace, ""),
                    "Endzeile": str(document.end.row),
-                   "Melodie_Quelle": [formatstring.get_url(source=sourceIIF, page=i, suffix=suffix) for i in
-                                      document.pages_names] if url else [],
-                   "iiifs": [formatstring.get_url(source=sourceIIF, page=i, suffix=suffix) for i in
-                             document.pages_names] if url else [],
+                   "Melodie_Quelle": iiifs,
+                   "iiifs": iiifs,
                    "manuscript": document.document_meta_infos.manuscript if document.document_meta_infos else "",
                },
                "publish": None
@@ -545,6 +540,7 @@ class PcgtsToMonodiConverter:
 
                     line_id_start = document.start.line_id
                     line_id_end = document.end.line_id
+                    # end is exclusive: stop *before* the line it names (see DocumentConnection)
                     if page.p_id == document.end.page_id:
                         if line_id_end == i.id:
                             stop = True

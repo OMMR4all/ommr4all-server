@@ -1,9 +1,10 @@
+from collections import OrderedDict
 from typing import List
 import database.file_formats.pcgts as ns_pcgts
 
 from midiutil.MidiFile import MIDIFile
 
-from database.file_formats.book.document import Document
+from database.file_formats.book.document import Document, staves_of_document_lines, symbols_of_document_staff
 from database.file_formats.pcgts import NoteName
 
 
@@ -117,48 +118,38 @@ class SimpleMidiExporter:
     def generate_note_sequence(self, document: Document = None):
         notes = []
         total_duration = 0.0
-        document_started = False
 
-        def add_note(lines):
+        def add_symbols(symbols):
             nonlocal total_duration
-            nonlocal notes
-            for line in lines:
-                symbols = line.symbols
-                for symbol in symbols:
-                    if symbol.symbol_type == symbol.symbol_type.NOTE:
-                        duration = 0.5  # 1 1 beat long. Calculate duration based on position in image?
-                        notes.append(
-                            {"pitch": pitch_midi_table[Pitch(symbol.note_name.value, symbol.octave)],
-                             'startTime': total_duration,
-                             'endTime': total_duration + duration})
-                        total_duration += duration
+            for symbol in symbols:
+                if symbol.symbol_type == symbol.symbol_type.NOTE:
+                    duration = 0.5  # 1 1 beat long. Calculate duration based on position in image?
+                    notes.append(
+                        {"pitch": pitch_midi_table[Pitch(symbol.note_name.value, symbol.octave)],
+                         'startTime': total_duration,
+                         'endTime': total_duration + duration})
+                    total_duration += duration
 
-        for pcgts in self.pcgts:
-            page = pcgts.page
-            music_blocks = page.music_blocks()
-            for mb in music_blocks:
-                connections = [c for c in pcgts.page.annotations.connections if c.music_region == mb]
-                if len(connections) > 0:
-                    connection = connections[0]
-                    if document is not None:
-                        line_id_start = document.start.line_id
-                        line_id_end = document.end.line_id
+        if document is not None:
+            # line granular: the first and last staff of a chant are usually shared with the
+            # neighbouring chants, so whole music blocks would play past both ends
+            lines_of_page = OrderedDict()
+            for text_line, page in document.get_lines_of_pcgts(self.pcgts):
+                lines_of_page.setdefault(page.p_id, (page, []))[1].append(text_line)
+            for page, text_lines in lines_of_page.values():
+                line_ids = {line.id for line in text_lines}
+                for music_line in staves_of_document_lines(page, text_lines):
+                    add_symbols(symbols_of_document_staff(page, music_line, line_ids))
+        else:
+            for pcgts in self.pcgts:
+                for music_block in pcgts.page.music_blocks():
+                    # unchanged: the page preview has always skipped staves that carry no
+                    # syllable connection at all
+                    if not any(c.music_region == music_block for c in pcgts.page.annotations.connections):
+                        continue
+                    for line in music_block.lines:
+                        add_symbols(line.symbols)
 
-                        line_ids = [line.id for line in connection.text_region.lines]
-                        if page.p_id == document.end.page_id:
-                            if line_id_end in line_ids:
-                                break
-                        if page.p_id == document.start.page_id or document_started:
-                            if line_id_start in line_ids or document_started:
-                                add_note(mb.lines)
-                                document_started = True
-
-                    else:
-                        add_note(mb.lines)
-
-            else:
-                continue
-            break
         return {'notes': notes, 'totalTime': total_duration}
 
 

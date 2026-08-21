@@ -59,7 +59,7 @@ _trial_temp
 # Django stuff:
 *.log
 local_settings.py
-db.sqlite3
+db.sqlite3*
 db.sqlite3.backup
 
 # Flask stuff:

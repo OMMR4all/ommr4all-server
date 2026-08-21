@@ -46,7 +46,58 @@ class LineMetaInfos:
     page: str
 
 
+def staves_of_document_lines(page, text_lines: List[Line]) -> List[Line]:
+    """The staves the given lyric lines sit on, deduplicated, in the order the lines appear.
+
+    Several lyric lines can share one staff (two chants on a line, or two columns), which is
+    why callers must go through this instead of pairing lines and staves one to one.
+    """
+    staves, seen = [], set()
+    for text_line in text_lines:
+        music_line = page.closest_music_line_to_text_line(text_line)
+        if music_line is None or music_line.id in seen:
+            continue
+        seen.add(music_line.id)
+        staves.append(music_line)
+    return staves
+
+
+def symbols_of_document_staff(page, music_line: Line, document_line_ids) -> List[MusicSymbol]:
+    """The music symbols of one staff that belong to a document.
+
+    A staff carrying only lines of this document is taken whole, so the clef and the custos
+    left of the first syllable survive. A staff shared with a neighbouring chant is cut to the
+    x range of the document's lyric lines on it.
+    """
+    own, foreign = [], False
+    for candidate in page.all_text_lines(True):
+        closest = page.closest_music_line_to_text_line(candidate)
+        if closest is None or closest.id != music_line.id:
+            continue
+        if candidate.id in document_line_ids:
+            own.append(candidate)
+        else:
+            foreign = True
+    if not foreign:
+        return music_line.symbols
+    boxes = [line.coords.aabb() for line in own]
+    return [s for s in music_line.symbols
+            if any(box.left() <= s.coord.x <= box.right() for box in boxes)]
+
+
 class DocumentConnection:
+    """One end of a document (chant) span.
+
+    For Document.start all four fields describe the same line: the first line of the document.
+
+    For Document.end the pair (page_id, line_id) is an *exclusive cursor* — it names the first
+    line that does **not** belong to the document any more, i.e. the start line of the next
+    document, which is what every consumer breaks on. An empty line_id means the document runs
+    to the end of the book. page_name and row instead describe the last line that *does* belong
+    to the document, since that is what the UI and the Monodi metadata report. So for a document
+    ending at a page break, page_id and page_name legitimately name different pages.
+    """
+
     def __init__(self, page_id=None, page_name=None, line_id=None, row: int = None):
         self.page_id = page_id
         self.page_name = page_name
@@ -167,27 +218,37 @@ class Document:
         xlsx_data_bytes = output.getvalue()
         return xlsx_data_bytes
 
-    def get_page_line_of_document(self, book, cached=True) -> List[Tuple[Line, DatabasePage]]:
-        line_page_pair = []
+    def _walk_lines(self, pages):
+        """The text lines of this document, in reading order.
+
+        ``pages`` is an iterable of ``(Page, handle)`` in page order; the handle is passed
+        through to the caller so it can decide what it wants back (a DatabasePage to reach the
+        images, or the Page itself). This is the one place the span is resolved — every export
+        must go through it so they cannot disagree about where a chant starts and ends.
+        """
         started = False
+        for page, handle in pages:
+            for line in page.reading_order.reading_order:
+                # end is exclusive: stop *before* the line it names (see DocumentConnection)
+                if page.p_id == self.end.page_id:
+                    if line.id == self.end.line_id:
+                        return
+                if line.id == self.start.line_id or started:
+                    started = True
+                    yield line, handle
+
+    def get_page_line_of_document(self, book, cached=True) -> List[Tuple[Line, DatabasePage]]:
         pages = [DatabasePage(book, x) for x in self.pages_names]
         if cached:
             # read paths: prime each page with the shared cached PcGts; all later
             # pcgts() calls on these instances reuse it. Writers pass cached=False.
             for page in pages:
                 page.pcgts_cached()
-        for page in pages:
-            for line in page.pcgts().page.reading_order.reading_order:
-                if page.pcgts().page.p_id == self.end.page_id:
-                    if line.id == self.end.line_id:
-                        break
-                if line.id == self.start.line_id or started:
-                    started = True
-                    line_page_pair.append((line, page))
-            else:
-                continue
-            break
-        return line_page_pair
+        return list(self._walk_lines((page.pcgts().page, page) for page in pages))
+
+    def get_lines_of_pcgts(self, pcgts_list) -> List[Tuple[Line, 'Page']]:
+        """Like get_page_line_of_document, but for pages that are already loaded."""
+        return list(self._walk_lines((pcgts.page, pcgts.page) for pcgts in pcgts_list))
 
     def update_textline_count(self, book: DatabaseBook):
         self.textline_count = len(self.get_page_line_of_document(book))

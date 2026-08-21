@@ -446,6 +446,12 @@ def get_documents_json(db_book: 'DatabaseBook') -> Optional[dict]:
             or documents.get('database_documents') is None or documents.get('page_fragments') is None:
         return None
 
+    # function-local import: database_book_documents imports this module
+    from database.database_book_documents import DatabaseBookDocuments
+    if documents.get('version', 0) != DatabaseBookDocuments.DOCUMENTS_FORMAT_VERSION:
+        # assembled by an older version of the code — let the caller reassemble once
+        return None
+
     fragment_mtimes = {f.get('page_name'): f.get('mtime') for f in documents['page_fragments']}
     if len(page_names) != len(fragment_mtimes):
         return None

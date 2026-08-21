@@ -65,6 +65,10 @@ class ErrorCodes(IntEnum):
     # Model related
     MODEL_NOT_FOUND = 55000
 
+    # Document related
+    DOCUMENT_NOT_FOUND = 60000
+    DOCUMENT_UNKNOWN_EXPORT_FORMAT = 60001
+
     # Monodi related
     MONODI_LOGIN_REQUIRED = 65000
     NO_MATCHING_CREDENTIALS_FOUND = 66000

@@ -174,6 +174,242 @@ class TestBookDocuments(TemporaryDemoBookTestCase):
         self.assertEqual(on_disk['database_documents'], full.database_documents.to_json())
 
 
+class TestDocumentSpans(TestBookDocuments):
+    """The assembled span must match the lines the document actually covers."""
+
+    def _reading_order(self, page_name):
+        return [line.id for line in self.book.page(page_name).pcgts().page.reading_order.reading_order]
+
+    def test_span_matches_the_lines_of_the_document(self):
+        for doc in DatabaseBookDocuments.update_book_documents_cached(self.book).database_documents.documents:
+            lines = doc.get_page_line_of_document(self.book)
+            self.assertTrue(lines, 'document {} covers no line'.format(doc.doc_id))
+            first_line, first_page = lines[0]
+            last_line, last_page = lines[-1]
+            ro_last = self._reading_order(last_page.page)
+
+            self.assertEqual(doc.start.page_name, first_page.page)
+            self.assertEqual(doc.start.row, self._reading_order(first_page.page).index(first_line.id) + 1)
+            # end.page_name/row describe the last line taken, not the exclusive cursor
+            self.assertEqual(doc.end.page_name, last_page.page)
+            self.assertEqual(doc.end.row, ro_last.index(last_line.id) + 1)
+            self.assertLessEqual(doc.end.row, len(ro_last))
+            # no page the document does not reach
+            self.assertEqual(doc.pages_names, sorted(set(page.page for _, page in lines), key=doc.pages_names.index))
+            self.assertEqual(doc.pages_names[-1], last_page.page)
+
+    def test_last_document_runs_to_the_end_of_the_book(self):
+        docs = DatabaseBookDocuments.update_book_documents_cached(self.book).database_documents.documents
+        lines = docs[-1].get_page_line_of_document(self.book)
+        last_line, last_page = lines[-1]
+        self.assertEqual(last_line.id, self._reading_order(last_page.page)[-1])
+        self.assertEqual(docs[-1].end.line_id, '', 'the last document has no successor to stop at')
+
+    def test_document_ending_at_a_page_break_keeps_no_extra_page(self):
+        # a start on the very first line of PAGE_B ends the previous document on PAGE_A
+        self._set_document_starts(self.book.page(PAGE_B), [0])
+        docs = DatabaseBookDocuments.update_book_documents_cached(self.book).database_documents.documents
+        ending_at_break = [d for d in docs if d.start.page_name == PAGE_A and d.end.page_name == PAGE_A]
+        self.assertTrue(ending_at_break)
+        for doc in ending_at_break:
+            self.assertEqual(doc.pages_names, [PAGE_A])
+            self.assertLessEqual(doc.end.row, len(self._reading_order(PAGE_A)))
+
+    def test_stale_version_forces_one_reassembly(self):
+        from database.book_index import get_documents_json
+        DatabaseBookDocuments.update_book_documents_cached(self.book)
+        self.assertIsNotNone(get_documents_json(self.book))
+
+        path = self.book.local_path('book_documents.json')
+        with open(path) as f:
+            stored = json.load(f)
+        stored.pop('version')
+        mtime = os.path.getmtime(path)
+        with open(path, 'w') as f:
+            json.dump(stored, f)
+        os.utime(path, times=(mtime, mtime))  # only the version, not the file, changed
+        from database.book_index import safe_index_documents
+        safe_index_documents(self.book)
+
+        self.assertIsNone(get_documents_json(self.book), 'documents of an older format must not be served')
+        DatabaseBookDocuments.update_book_documents_cached(self.book)
+        self.assertIsNotNone(get_documents_json(self.book))
+        # and it settles: no further rewrite
+        with mock.patch.object(DatabaseBookDocuments, 'to_file') as to_file:
+            DatabaseBookDocuments.update_book_documents_cached(self.book)
+        to_file.assert_not_called()
+
+
+class TestDocumentExport(TestBookDocuments):
+    """The per-document exports must contain the document and nothing else."""
+
+    def _documents(self):
+        return DatabaseBookDocuments.update_book_documents_cached(self.book).database_documents.documents
+
+    @staticmethod
+    def _syllables(notes):
+        out = []
+
+        def rec(d):
+            if isinstance(d, dict):
+                if d.get('kind') == 'Syllable':
+                    out.append(d.get('text', ''))
+                for v in d.values():
+                    rec(v)
+            elif isinstance(d, list):
+                for v in d:
+                    rec(v)
+
+        rec(notes)
+        return out
+
+    @staticmethod
+    def _letters(text):
+        return ''.join(text.replace('-', '').split()).lower()
+
+    def test_monodi_json_covers_only_the_document(self):
+        from database.file_formats.exporter.document_export import monodi_json_of_document
+        for doc in self._documents():
+            payload = monodi_json_of_document(self.book, doc, 'editor')
+            self.assertEqual(set(payload.keys()), {'document', 'notes'})
+            self.assertEqual(payload['document']['rowstart'], str(doc.start.row))
+            self.assertEqual(payload['document']['additionalData']['Endzeile'], str(doc.end.row))
+
+            exported = self._letters(' '.join(self._syllables(payload['notes'])))
+            expected = self._letters(doc.get_text_of_document(self.book))
+            # every exported letter comes from the document, in order: nothing from the
+            # lines above the start or below the end may leak in
+            it = iter(expected)
+            self.assertTrue(all(c in it for c in exported),
+                            'export of {} contains text outside the document'.format(doc.doc_id))
+
+    def test_mei_is_trimmed_to_the_document(self):
+        from lxml import etree
+        from database.file_formats.exporter.document_export import (
+            document_line_ids_by_page, mei_files_of_document, pcgts_of_document,
+        )
+        from database.file_formats.exporter.mei.pcgts_to_mei4_exporter import PcgtsToMeiConverter
+        ns = '{http://www.music-encoding.org/ns/mei}'
+        trimmed_somewhere = False
+        for doc in self._documents():
+            line_ids = document_line_ids_by_page(self.book, doc)
+            files = mei_files_of_document(self.book, doc)
+            self.assertEqual([name for name, _ in files], doc.pages_names)
+            for (page_name, xml), pcgts in zip(files, pcgts_of_document(self.book, doc)):
+                staves = etree.fromstring(xml.encode()).findall('.//%sstaff' % ns)
+                expected = {line.id for line in
+                            (pcgts.page.closest_music_line_to_text_line(t)
+                             for t in pcgts.page.reading_order.reading_order
+                             if t.id in set(line_ids[page_name]))
+                            if line is not None}
+                self.assertEqual(len(staves), len(expected))
+                whole_page = etree.fromstring(PcgtsToMeiConverter(pcgts).to_string().encode())
+                trimmed_somewhere |= len(staves) < len(whole_page.findall('.//%sstaff' % ns))
+        self.assertTrue(trimmed_somewhere, 'no page was trimmed relative to the whole-page MEI')
+
+    def test_midi_plays_only_the_document(self):
+        from database.file_formats.book.document import staves_of_document_lines, symbols_of_document_staff
+        from database.file_formats.exporter.document_export import pcgts_of_document
+        from database.file_formats.exporter.midi.simple_midi import SimpleMidiExporter
+        smaller_somewhere = False
+        for doc in self._documents():
+            pcgts = pcgts_of_document(self.book, doc)
+            sequence = SimpleMidiExporter(pcgts).generate_note_sequence(document=doc)
+            whole_pages = SimpleMidiExporter(pcgts).generate_note_sequence()
+
+            # the notes of the staves the document's lyric lines sit on, and no others
+            expected = 0
+            by_page = {}
+            for line, page in doc.get_lines_of_pcgts(pcgts):
+                by_page.setdefault(page.p_id, (page, []))[1].append(line)
+            for page, lines in by_page.values():
+                ids = {line.id for line in lines}
+                for staff in staves_of_document_lines(page, lines):
+                    expected += sum(1 for s in symbols_of_document_staff(page, staff, ids)
+                                    if s.symbol_type == s.symbol_type.NOTE)
+
+            self.assertEqual(len(sequence['notes']), expected)
+            self.assertLessEqual(len(sequence['notes']), len(whole_pages['notes']))
+            self.assertEqual(sequence['totalTime'], len(sequence['notes']) * 0.5)
+            smaller_somewhere |= len(sequence['notes']) < len(whole_pages['notes'])
+        self.assertTrue(smaller_somewhere, 'no document played fewer notes than its whole pages')
+
+    def test_monodi_metadata_identifies_the_book_not_mulhouse(self):
+        from database.database_book_meta import DatabaseBookMeta
+        from database.file_formats.exporter.document_export import monodi_json_of_document
+        doc = self._documents()[0]
+
+        # a book without iiif settings must not claim another manuscript's images
+        meta = DatabaseBookMeta.load(self.book)
+        self.assertEqual(meta.iiifImageApi, '')
+        payload = monodi_json_of_document(self.book, doc, 'editor')['document']
+        self.assertEqual(payload['source_id'], meta.name)
+        self.assertEqual(payload['additionalData']['iiifs'], [])
+        self.assertEqual(payload['additionalData']['Melodie_Quelle'], [])
+
+        meta.monodiSourceId = 'Demo Source'
+        meta.iiifImageApi = 'https://example.org/iiif/3/'
+        meta.iiifSource = 'demo_ms'
+        meta.iiifSuffix = '.png'
+        meta.to_file(self.book)
+        payload = monodi_json_of_document(self.book, doc, 'editor')['document']
+        self.assertEqual(payload['source_id'], 'Demo Source')
+        self.assertEqual(payload['additionalData']['iiifs'],
+                         ['https://example.org/iiif/3/demo_ms%2F' + name + '.png'
+                          for name in doc.pages_names])
+
+    def test_download_endpoint(self):
+        import io
+        import zipfile
+        from django.test import Client
+        from database.database_permissions import DatabaseBookPermissionFlag
+        # the endpoint requires READ; grant it to anonymous like a publicly readable book
+        permissions = self.book.get_permissions()
+        permissions.permissions.default.set(DatabaseBookPermissionFlag.READ)
+        permissions.write()
+
+        doc = self._documents()[0]
+        client = Client()
+        base = '/api/book/demo/document/'
+
+        response = client.get(base + doc.doc_id + '/download/monodiplus.json')
+        self.assertEqual(response.status_code, 200)
+        with_meta = json.loads(response.content)
+        self.assertEqual(set(with_meta.keys()), {'document', 'notes'})
+
+        # same content without the metadata envelope, for workflows that want the notes alone
+        response = client.get(base + doc.doc_id + '/download/monodiplus_notes.json')
+        self.assertEqual(response.status_code, 200)
+        notes_only = json.loads(response.content)
+        self.assertNotIn('document', notes_only)
+
+        def without_uuids(node):
+            # every element is given a fresh uuid on serialisation, so two exports of the
+            # same chant are equal only once those are dropped
+            if isinstance(node, dict):
+                return {k: without_uuids(v) for k, v in node.items() if k != 'uuid'}
+            if isinstance(node, list):
+                return [without_uuids(v) for v in node]
+            return node
+
+        self.assertEqual(without_uuids(notes_only), without_uuids(with_meta['notes']))
+
+        response = client.get(base + doc.doc_id + '/download/mei4.zip')
+        self.assertEqual(response.status_code, 200)
+        with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+            self.assertEqual(zf.namelist(), [name + '.xml' for name in doc.pages_names])
+
+        self.assertEqual(client.get(base + doc.doc_id + '/download/nonsense.json').status_code, 400)
+
+        # LocaleMiddleware rewrites every 404 into a redirect to the language-prefixed SPA
+        # (the project mounts webapp under i18n_patterns), so drop it to see the view's status
+        from django.test import override_settings
+        without_locale = [m for m in settings.MIDDLEWARE if 'LocaleMiddleware' not in m]
+        with override_settings(MIDDLEWARE=without_locale):
+            response = Client().get(base + 'ffffffff-0000-0000-0000-000000000000/download/monodiplus.json')
+        self.assertEqual(response.status_code, 404)
+
+
 class TestBookDocumentsConsumer(TemporaryDemoBookTestCase):
     """Websocket consumer tests against a temp copy of the demo book whose default
     permissions grant READ (mirrors a publicly readable book)."""
