@@ -34,6 +34,30 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 
+def _csv_env(name: str) -> List[str]:
+    return [value.strip() for value in (os.environ.get(name) or '').split(',') if value.strip()]
+
+
+# Behind a TLS terminating reverse proxy -- the usual production setup: nginx/Apache on 443
+# forwarding to the container's port 8001 -- the request reaches Django as plain HTTP. Django
+# then builds its own origin as "http://<host>" and compares it against the browser's
+# "Origin: https://<host>" header on every unsafe request, sees a mismatch, and rejects it with
+# "CSRF verification failed". That breaks every form post, most visibly the /admin/ login.
+# Trusting the proxy's X-Forwarded-* headers makes request.is_secure() and request.get_host()
+# report what the browser actually used, so the two origins line up again.
+# Set OMMR4ALL_TRUST_PROXY_HEADERS=0 when the app is exposed directly and the headers could be
+# forged by clients.
+if (os.environ.get('OMMR4ALL_TRUST_PROXY_HEADERS', '1') or '').strip().lower() not in ('0', 'false', 'no', 'off'):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+
+# Extra origins accepted for unsafe requests, comma separated and *including* the scheme, e.g.
+# "https://ommr4all.example.org,http://localhost:8001". Only needed when the proxy forwards
+# neither X-Forwarded-Proto nor X-Forwarded-Host, or when the public name differs from the Host
+# header that arrives here.
+CSRF_TRUSTED_ORIGINS = _csv_env('OMMR4ALL_CSRF_TRUSTED_ORIGINS')
+
+
 # Application definition
 
 INSTALLED_APPS = [
