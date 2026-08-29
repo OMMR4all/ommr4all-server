@@ -1,5 +1,7 @@
 import os
 import tempfile
+import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from django.http import HttpResponse
@@ -32,6 +34,36 @@ def database_unavailable_response(exc: OperationalError):
     detail = describe_db_error(exc)
     logger.error('Lock request failed: {}'.format(detail))
     return DatabaseUnavailableAPIError(detail).response()
+
+
+class SavePhaseTimings:
+    """Times the phases of a save and reports them in a single line when it was slow.
+
+    A save that takes seconds is otherwise invisible: the request succeeds and only the user
+    in the editor notices the wait. Below the threshold nothing is logged at all, so this
+    costs a few perf_counter() calls per save.
+    """
+    SLOW_SECONDS = float(os.environ.get('OMMR4ALL_SLOW_SAVE_SECONDS', '') or 0.5)
+
+    def __init__(self):
+        self._started = time.perf_counter()
+        self._phases = []
+
+    @contextmanager
+    def __call__(self, phase: str):
+        start = time.perf_counter()
+        try:
+            yield
+        finally:
+            self._phases.append((phase, time.perf_counter() - start))
+
+    def log_if_slow(self, what: str, book: str, page: str):
+        total = time.perf_counter() - self._started
+        if total < self.SLOW_SECONDS:
+            return
+        logger.info('Slow {} save of {}/{}: {:.0f} ms ({})'.format(
+            what, book, page, total * 1000,
+            ', '.join('{} {:.0f} ms'.format(name, d * 1000) for name, d in self._phases)))
 
 
 def require_lock(func):
@@ -238,22 +270,37 @@ class PagePcGtsView(APIView):
     def put(self, request, book, page):
         book = DatabaseBook(book)
         page = DatabasePage(book, page)
-        obj = json.loads(request.body)
-        pcgts = PcGts.from_json(obj, page)
-        pcgts.to_file(page.file('pcgts').local_path())
-        # add to backup archive
-        with zipfile.ZipFile(page.file('pcgts_backup').local_path(), 'a', compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr('pcgts_{}.json'.format(datetime.datetime.now()), json.dumps(pcgts.to_json(), indent=2))
+        timings = SavePhaseTimings()
+
+        with timings('parse'):
+            obj = json.loads(request.body)
+            pcgts = PcGts.from_json(obj, page)
+
+        with timings('serialize'):
+            # serialized once and used for both the file and the backup entry below
+            payload = json.dumps(pcgts.to_json(), indent=2)
+
+        with timings('write'):
+            pcgts.to_file(page.file('pcgts').local_path(), serialized=payload)
+
+        with timings('backup'):
+            with zipfile.ZipFile(page.file('pcgts_backup').local_path(), 'a',
+                                 compression=zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr('pcgts_{}.json'.format(datetime.datetime.now()), payload)
 
         logger.debug('Successfully saved pcgts file to {}'.format(page.file('pcgts').local_path()))
 
-        page.mark_updated(request.user)
+        with timings('mark_updated'):
+            page.mark_updated(request.user)
 
-        # keep the book's chant/document list in sync (cheap: only this page is reparsed)
-        # and notify clients watching it; best effort, never fails the save
-        from restapi.consumers import update_book_documents_and_notify
-        update_book_documents_and_notify(book)
+        # Keep the book's chant/document list in sync and notify the clients watching it.
+        # Deferred to a background worker: it is book-wide work the saving client does not
+        # wait for, and every reader of the documents refreshes a stale state itself.
+        with timings('documents'):
+            from restapi.consumers import schedule_book_documents_update
+            schedule_book_documents_update(book)
 
+        timings.log_if_slow('pcgts', book.book, page.page)
         return Response()
 
     @require_permissions([DatabaseBookPermissionFlag.READ])

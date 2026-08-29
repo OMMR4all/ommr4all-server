@@ -37,8 +37,8 @@ class Statistics:
 
     def to_json_file(self, filename):
         s = json.dumps(self.to_json(), indent=2)
-        with open(filename, 'w') as f:
-            f.write(s)
+        from database.file_write import write_text_atomic
+        write_text_atomic(filename, s)
 
     def to_json(self):
         return {

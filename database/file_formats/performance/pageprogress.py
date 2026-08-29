@@ -46,8 +46,9 @@ class PageProgress(DataClassJSONMixin):
     def to_json_file(self, filename: str):
         self.consistency_check()
         s = json.dumps(self.to_dict(), indent=2)
-        with open(filename, 'w') as f:
-            f.write(s)
+        # atomic: the page index and the page selection read this file concurrently
+        from database.file_write import write_text_atomic
+        write_text_atomic(filename, s)
 
     def merge_local(self, p: 'PageProgress', locks=True, verified=True) -> 'PageProgress':
         if locks:

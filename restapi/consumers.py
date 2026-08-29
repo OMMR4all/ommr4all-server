@@ -1,4 +1,6 @@
 import logging
+import threading
+from typing import Optional, Set
 from urllib.parse import parse_qs
 
 from asgiref.sync import async_to_sync
@@ -38,14 +40,52 @@ def update_book_documents_and_notify(book: DatabaseBook):
     Best effort: a failure here must never fail the request that saved the page.
     """
     try:
-        before = DatabaseBookDocuments.load(book).database_documents
-        before_json = before.to_json() if before else None
-        d = DatabaseBookDocuments.update_book_documents_cached(book)
-        after_json = d.database_documents.to_json() if d.database_documents else None
-        if before_json != after_json:
+        _, changed = DatabaseBookDocuments.refresh(book)
+        if changed:
             notify_book_documents_changed(book.book)
     except Exception:
         logger.exception('Failed to update the documents of book {}'.format(book.book))
+
+
+# Books whose documents need a refresh, and the single worker draining them. The refresh is
+# book-wide work (it revalidates every page of the book against its cached fragment), so
+# doing it inside the request made saving a page slower the larger the book got -- while the
+# saving client has no use for the result. Deferring it is safe: readers refresh a stale
+# state themselves (BookDocumentsView.get falls back to the incremental update) and the
+# websocket notification is sent from here as before, just a moment later.
+_documents_update_lock = threading.Lock()
+_documents_update_pending: Set[str] = set()
+_documents_update_worker: Optional[threading.Thread] = None
+
+
+def schedule_book_documents_update(book: DatabaseBook):
+    """Queue a documents refresh of the book, de-duplicated, to run outside the request."""
+    global _documents_update_worker
+    with _documents_update_lock:
+        _documents_update_pending.add(book.book)
+        if _documents_update_worker is not None and _documents_update_worker.is_alive():
+            return
+        _documents_update_worker = threading.Thread(
+            target=_drain_documents_updates, name='book-documents-update', daemon=True)
+        _documents_update_worker.start()
+
+
+def _drain_documents_updates():
+    from django.db import close_old_connections, connections
+    global _documents_update_worker
+    try:
+        while True:
+            with _documents_update_lock:
+                if not _documents_update_pending:
+                    # under the lock, so a book queued from here on starts a new worker
+                    _documents_update_worker = None
+                    return
+                book_name = _documents_update_pending.pop()
+            # this thread has its own database connection; do not let it go stale or leak
+            close_old_connections()
+            update_book_documents_and_notify(DatabaseBook(book_name))
+    finally:
+        connections.close_all()
 
 
 class TokenAuthMiddleware:

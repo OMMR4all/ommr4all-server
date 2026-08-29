@@ -99,27 +99,11 @@ class DatabaseBookMeta(DataClassJSONMixin):
         return meta
 
     def to_file(self, book: DatabaseBook):
-        import tempfile
         self.id = book.book
-        s = self.to_json()
-        path = book.local_path('book_meta.json')
         # atomic replace: concurrent page saves of the same book both bump the meta,
         # a reader must never observe a partially written file
-        fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path), prefix='.book_meta.', suffix='.tmp')
-        try:
-            with os.fdopen(fd, 'w') as f:
-                f.write(s)
-            # mkstemp creates the file 0600 and os.replace preserves that, so without
-            # this a saved book_meta.json becomes unreadable to every other user —
-            # e.g. the Apache worker (www-data), which then 500s on the book list.
-            os.chmod(tmp_path, 0o644)
-            os.replace(tmp_path, path)
-        except BaseException:
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
-            raise
+        from database.file_write import write_text_atomic
+        write_text_atomic(book.local_path('book_meta.json'), self.to_json())
         from database.book_index import safe_index_book_meta
         safe_index_book_meta(book)
 

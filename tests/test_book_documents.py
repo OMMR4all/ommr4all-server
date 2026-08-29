@@ -173,6 +173,62 @@ class TestBookDocuments(TemporaryDemoBookTestCase):
         full = DatabaseBookDocuments.update_book_documents(self.book)
         self.assertEqual(on_disk['database_documents'], full.database_documents.to_json())
 
+    def test_refresh_reports_whether_the_documents_changed(self):
+        # the change notification is driven by this flag, so it must distinguish a page that
+        # was merely re-saved from one whose chant structure really differs
+        DatabaseBookDocuments.update_book_documents_cached(self.book)
+
+        _, changed = DatabaseBookDocuments.refresh(self.book)
+        self.assertFalse(changed, 'nothing touched, yet reported as changed')
+
+        self._touch(self.book.page(PAGE_A))
+        _, changed = DatabaseBookDocuments.refresh(self.book)
+        self.assertFalse(changed, 'a re-saved page without structural change is not a change')
+
+        self._set_document_starts(self.book.page(PAGE_A), [1])
+        d, changed = DatabaseBookDocuments.refresh(self.book)
+        self.assertTrue(changed)
+        self.assertEqual(len(d.database_documents.documents), 4)
+
+
+class TestDeferredDocumentsUpdate(TestBookDocuments):
+    """The documents refresh a page save triggers runs outside the request."""
+
+    def _drain(self):
+        """Wait for the background worker to finish (it exits when the queue is empty)."""
+        import restapi.consumers as consumers
+        for _ in range(100):
+            worker = consumers._documents_update_worker
+            if worker is None:
+                return
+            worker.join(timeout=5)
+        self.fail('the documents update worker did not finish')
+
+    def test_scheduled_update_refreshes_and_notifies_once(self):
+        import restapi.consumers as consumers
+        DatabaseBookDocuments.update_book_documents_cached(self.book)
+        self._set_document_starts(self.book.page(PAGE_A), [1])
+
+        with mock.patch.object(consumers, 'notify_book_documents_changed') as notify:
+            # the same book queued repeatedly is collapsed into the pending set
+            for _ in range(3):
+                consumers.schedule_book_documents_update(self.book)
+            self._drain()
+
+        self.assertEqual(len(DatabaseBookDocuments.load(self.book).database_documents.documents), 4)
+        self.assertGreaterEqual(notify.call_count, 1)
+        self.assertEqual(notify.call_args[0][0], self.book.book)
+
+    def test_no_notification_without_a_structural_change(self):
+        import restapi.consumers as consumers
+        DatabaseBookDocuments.update_book_documents_cached(self.book)
+        self._touch(self.book.page(PAGE_A))
+
+        with mock.patch.object(consumers, 'notify_book_documents_changed') as notify:
+            consumers.schedule_book_documents_update(self.book)
+            self._drain()
+        notify.assert_not_called()
+
 
 class TestDocumentSpans(TestBookDocuments):
     """The assembled span must match the lines the document actually covers."""

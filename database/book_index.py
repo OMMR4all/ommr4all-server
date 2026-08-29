@@ -39,14 +39,18 @@ def _mtime(path: str) -> int:
         return 0
 
 
-def _pcgts_has_symbols(path: str) -> bool:
+def _read_pcgts_json(path: str) -> Optional[dict]:
     # raw json access instead of PcGts.from_file: no geometry parsing required
     try:
         with open(path) as f:
-            d = json.load(f)
+            return json.load(f)
     except (OSError, json.JSONDecodeError):
-        return False
+        return None
 
+
+def _has_symbols(d: Optional[dict]) -> bool:
+    if not d:
+        return False
     for block in d.get('page', {}).get('blocks', []) or []:
         for line in block.get('lines', []) or []:
             if line.get('symbols'):
@@ -54,18 +58,16 @@ def _pcgts_has_symbols(path: str) -> bool:
     return False
 
 
-def _pcgts_comments(path: str) -> dict:
-    """The raw `page.comments` payload of a pcgts file ({} if it carries none).
-
-    Same trick as _pcgts_has_symbols: plain json, no geometry parsing."""
-    try:
-        with open(path) as f:
-            d = json.load(f)
-    except (OSError, json.JSONDecodeError):
+def _comments(d: Optional[dict]) -> dict:
+    """The raw `page.comments` payload of a pcgts file ({} if it carries none)."""
+    if not d:
         return {}
-
     comments = (d.get('page', {}) or {}).get('comments', {}) or {}
     return comments if comments.get('comments') else {}
+
+
+def _pcgts_comments(path: str) -> dict:
+    return _comments(_read_pcgts_json(path))
 
 
 def _make_aware(dt) -> Optional['timezone.datetime']:
@@ -154,8 +156,11 @@ def index_page(db_page: 'DatabasePage', book_row: Optional[BookIndex] = None, fo
 
     if row is None or force or row.pcgts_mtime != pcgts_mtime:
         pcgts_path = db_page.local_file_path('pcgts.json')
-        defaults['has_symbols'] = pcgts_mtime > 0 and _pcgts_has_symbols(pcgts_path)
-        comments = _pcgts_comments(pcgts_path) if pcgts_mtime > 0 else {}
+        # one read for both fields: this runs on every page save, and the file is the
+        # largest one in the page directory
+        pcgts_json = _read_pcgts_json(pcgts_path) if pcgts_mtime > 0 else None
+        defaults['has_symbols'] = _has_symbols(pcgts_json)
+        comments = _comments(pcgts_json)
         defaults['comments'] = comments
         defaults['comments_count'] = len(comments.get('comments', []))
         defaults['counts'] = None

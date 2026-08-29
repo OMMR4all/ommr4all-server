@@ -41,13 +41,22 @@ class PcGts:
             logger.error("Error parsing PcGts of file {}".format(filename))
             raise e
 
-    def to_file(self, filename):
+    def to_file(self, filename, serialized: str = None):
+        """Write the pcgts to `filename`.
+
+        `serialized` lets a caller that already produced the JSON string (the save endpoint
+        also puts it into the backup archive) pass it in, instead of serializing the whole
+        page a second time.
+        """
         if filename.endswith(".json"):
             import json
             # first dump to keep file if an error occurs
-            s = json.dumps(self.to_json(), indent=2)
-            with open(filename, 'w') as f:
-                f.write(s)
+            s = serialized if serialized is not None else json.dumps(self.to_json(), indent=2)
+            # atomically: the page is read while it is written (another user viewing it, the
+            # documents worker, a running task), and a truncated pcgts.json is answered with
+            # "corrupt, recreate" in PagePcGtsView.get -- which would drop the page
+            from database.file_write import write_text_atomic
+            write_text_atomic(filename, s)
             from database import pcgts_cache
             pcgts_cache.invalidate(filename)
         else:

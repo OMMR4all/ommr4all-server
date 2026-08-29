@@ -140,9 +140,10 @@ class DatabaseBookDocuments:
     def to_file(self, book: DatabaseBook):
         self.b_id = book.book
         s = self.to_json()
-        with open(book.local_path('book_documents.json'), 'w') as f:
-            js = json.dumps(s, indent=2)
-            f.write(js)
+        # atomic: readers (load(), index_documents) parse this file while the background
+        # worker rewrites it, and on a large book that write is megabytes long
+        from database.file_write import write_text_atomic
+        write_text_atomic(book.local_path('book_documents.json'), json.dumps(s, indent=2))
         from database.book_index import safe_index_documents
         safe_index_documents(book)
 
@@ -264,24 +265,37 @@ class DatabaseBookDocuments:
                                       textinitium=textinitium, textline_count=line_count))
         return documents
 
+    @staticmethod
+    def _start_key(connection: DocumentConnection):
+        """Hashable stand-in for DocumentConnection.__eq__, which compares exactly these
+        four attributes (see document.py) -- keep the two in sync."""
+        return connection.page_id, connection.page_name, connection.line_id, connection.row
+
     def _merge_into_existing(self, documents: List[Document]) -> List[Document]:
         """Adopt freshly assembled documents, keeping doc_id/monody_id/meta infos of
         existing documents whose start connection is unchanged."""
         if not self.database_documents:
             return documents
+        # Looked up by start connection rather than scanned: the nested scan this replaces
+        # was quadratic in the number of documents and took ~0.4 s per refresh on a book
+        # with 3000 chants. setdefault keeps the first of several documents sharing a start,
+        # which is the one the scan used to find.
+        by_start = {}
+        for orig_doc in self.database_documents.documents:
+            by_start.setdefault(self._start_key(orig_doc.start), orig_doc)
+
         updated_documents: List[Document] = []
         for doc in documents:
-            for orig_doc in self.database_documents.documents:
-                if doc.start == orig_doc.start:
-                    orig_doc.pages_names = doc.pages_names
-                    orig_doc.pages_ids = doc.pages_ids
-                    orig_doc.end = doc.end
-                    orig_doc.textinitium = doc.textinitium
-                    orig_doc.textline_count = doc.textline_count
-                    updated_documents.append(orig_doc)
-                    break
-            else:
+            orig_doc = by_start.get(self._start_key(doc.start))
+            if orig_doc is None:
                 updated_documents.append(doc)
+                continue
+            orig_doc.pages_names = doc.pages_names
+            orig_doc.pages_ids = doc.pages_ids
+            orig_doc.end = doc.end
+            orig_doc.textinitium = doc.textinitium
+            orig_doc.textline_count = doc.textline_count
+            updated_documents.append(orig_doc)
         return updated_documents
 
     @staticmethod
@@ -292,18 +306,32 @@ class DatabaseBookDocuments:
         Persists the result if anything changed. Guarded by the book_documents file lock,
         so concurrent requests cannot clobber each other.
         """
+        return DatabaseBookDocuments.refresh(book)[0]
+
+    @staticmethod
+    def refresh(book: DatabaseBook) -> Tuple['DatabaseBookDocuments', bool]:
+        """update_book_documents_cached, but also reporting whether the *documents* changed.
+
+        Callers that notify clients about a changed chant list used to answer that question
+        by loading and serializing the whole file once more before and after the update. The
+        comparison belongs here, where the previous state is at hand anyway: note that
+        _merge_into_existing mutates the documents it adopts, so the snapshot has to be taken
+        before it runs.
+        """
         with DatabaseBookDocuments.lock(book):
             d = DatabaseBookDocuments.load(book)
             fragments, changed = DatabaseBookDocuments._update_page_fragments(book, d.page_fragments)
             if not changed and d.database_documents is not None \
                     and d.version == DatabaseBookDocuments.DOCUMENTS_FORMAT_VERSION:
-                return d
+                return d, False
+            # only the documents, not the (much larger) page fragments
+            before = d.database_documents.to_json() if d.database_documents is not None else None
             d.database_documents = Documents(documents=d._merge_into_existing(
                 DatabaseBookDocuments._assemble_documents(fragments)))
             d.page_fragments = fragments
             d.version = DatabaseBookDocuments.DOCUMENTS_FORMAT_VERSION
             d.to_file(book)
-            return d
+            return d, d.database_documents.to_json() != before
 
     @staticmethod
     def update_book_documents(book: DatabaseBook) -> 'DatabaseBookDocuments':
