@@ -223,6 +223,9 @@ class BookOperationView(APIView):
                 return TaskRunnerSymbolDetectionTrainer(book, train_params, worker_resource=worker_resource)
             from restapi.operationworker.taskrunners.taskrunnertrainer import TaskRunnerTrainer
             return TaskRunnerTrainer(book, train_params, trained_type, worker_resource=worker_resource)
+        elif operation == 'reapply_position_in_staff':
+            from restapi.operationworker.taskrunners.taskrunnerpositioninstaff import TaskRunnerPositionInStaff
+            return TaskRunnerPositionInStaff(book)
         elif operation == 'documents_export':
             from restapi.operationworker.taskrunners.taskrunnerdocumentsexport import TaskRunnerDocumentsExport
             return TaskRunnerDocumentsExport(book, body.get('format', TaskRunnerDocumentsExport.FORMAT_MONODI_META_XLSX))

@@ -7,6 +7,7 @@ from mashumaro.types import SerializationStrategy
 from database.database_book import DatabaseBook
 import os
 from database.database_internal import DEFAULT_MODELS
+from database.file_formats.pcgts.page.pitchparams import PitchDetectionParams
 from datetime import datetime
 # from mashumaro import DataClassJSONMixin
 from mashumaro.mixins.json import DataClassJSONMixin
@@ -15,6 +16,9 @@ from typing import Any, Optional, Dict, List
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmTypes
 from restapi.models.auth import RestAPIUser
 from dateutil import parser
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_default_book_style():
@@ -44,6 +48,8 @@ class DatabaseBookMeta(DataClassJSONMixin):
     last_opened: str = ''
     notationStyle: str = field(default_factory=lambda: get_default_book_style())
     numberOfStaffLines: int = 4
+    # tolerances of the on-line/in-space decision of every symbol of this book, see PitchDetectionParams
+    pitchDetectionParams: PitchDetectionParams = field(default_factory=lambda: PitchDetectionParams())
     algorithmPredictorParams: Dict[AlgorithmTypes, AlgorithmPredictorParams] = field(default_factory=lambda: {})
     dateOfOrigin: str = ''
     placeOfOrigin: str = ''
@@ -106,6 +112,37 @@ class DatabaseBookMeta(DataClassJSONMixin):
         write_text_atomic(book.local_path('book_meta.json'), self.to_json())
         from database.book_index import safe_index_book_meta
         safe_index_book_meta(book)
+
+
+# Pages are constructed in tight loops (training, book wide operations) and every one of them
+# needs the pitch parameters of its book, while get_meta() re-reads book_meta.json on each call.
+# Cache by mtime so an edit in the settings takes effect without a restart.
+_pitch_params_cache = {}
+
+
+def pitch_params_of_book(book: Optional[DatabaseBook]) -> PitchDetectionParams:
+    if book is None:
+        return PitchDetectionParams()
+
+    path = book.local_path('book_meta.json')
+    try:
+        mtime = os.stat(path).st_mtime_ns
+    except OSError:
+        return PitchDetectionParams()
+
+    cached = _pitch_params_cache.get(book.book)
+    if cached and cached[0] == mtime:
+        return cached[1]
+
+    try:
+        params = DatabaseBookMeta.load(book).pitchDetectionParams.clamped()
+    except Exception:
+        # the parameters must never be the reason a page fails to load
+        logger.exception("Could not read the pitch detection parameters of book {}".format(book.book))
+        params = PitchDetectionParams()
+
+    _pitch_params_cache[book.book] = (mtime, params)
+    return params
 
 
 if __name__ == '__main__':

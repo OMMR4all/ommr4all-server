@@ -4,12 +4,22 @@ from database.file_formats.pcgts.page import Coords, Point, Block, BlockType, Li
 from database.file_formats.pcgts.page import annotations as annotations
 from database.file_formats.pcgts.page.usercomment import UserComments
 from database.file_formats.pcgts.page.readingorder import ReadingOrder
+from database.file_formats.pcgts.page.pitchparams import PitchDetectionParams, DEFAULT_PITCH_DETECTION_PARAMS
 from typing import List, TYPE_CHECKING, Union, Optional, Iterable
 import numpy as np
 from enum import IntEnum
 
 if TYPE_CHECKING:
     from database import DatabasePage
+
+
+def resolve_pitch_params(location: Optional['DatabasePage']) -> PitchDetectionParams:
+    if location is None:
+        return DEFAULT_PITCH_DETECTION_PARAMS
+
+    # imported here: the database package depends on the file formats, not the other way round
+    from database.database_book_meta import pitch_params_of_book
+    return pitch_params_of_book(getattr(location, 'book', None))
 
 
 class PageScaleReference(IntEnum):
@@ -47,7 +57,22 @@ class Page:
         self.location = location
         self.page_scale_ratios = {}
         self.p_id = p_id if p_id else str(uuid.uuid4())
+        # must happen before update_note_names(), which derives the pitches from the positions
+        self.pitch_params = resolve_pitch_params(location)
         self.update_note_names()
+
+    @property
+    def pitch_params(self) -> PitchDetectionParams:
+        return self._pitch_params
+
+    @pitch_params.setter
+    def pitch_params(self, params: Optional[PitchDetectionParams]):
+        self._pitch_params = params.clamped() if params is not None else DEFAULT_PITCH_DETECTION_PARAMS
+        self.apply_pitch_params()
+
+    def apply_pitch_params(self):
+        for line in self.all_music_lines():
+            line.staff_lines.pitch_params = self._pitch_params
 
     def syllable_by_id(self, syllable_id):
         for b in self.blocks:
@@ -324,6 +349,9 @@ class Page:
         self.blocks.sort(key=lambda block: block.aabb.top())
 
     def update_note_names(self):
+        # lines may have been added since the parameters were resolved (e.g. by staff line
+        # detection), so hand them down again before anything is derived from a position
+        self.apply_pitch_params()
         current_clef = None
         for b in sorted(self.music_blocks(), key=lambda b: b.aabb.top()):
             current_clef = b.update_note_names(current_clef)

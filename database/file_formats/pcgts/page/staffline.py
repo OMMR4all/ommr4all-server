@@ -2,6 +2,7 @@ from .coords import Coords, Rect, Point
 from typing import List, Tuple
 import numpy as np
 from .definitions import MusicSymbolPositionInStaff
+from .pitchparams import PitchDetectionParams, DEFAULT_PITCH_DETECTION_PARAMS
 from dataclasses import dataclass
 
 
@@ -93,6 +94,23 @@ class StaffLine:
 
 
 class StaffLines(List[StaffLine]):
+    def __init__(self, *args, pitch_params: PitchDetectionParams = None):
+        super().__init__(*args)
+        self.pitch_params = pitch_params
+
+    @property
+    def pitch_params(self) -> PitchDetectionParams:
+        """Book level tolerances of the on-line/in-space decision, see PitchDetectionParams.
+
+        Attached by Page.__init__ from the book meta; staff lines that are not part of a stored
+        page (freshly detected ones, tests) keep the defaults, which are the historic behaviour.
+        """
+        return self._pitch_params
+
+    @pitch_params.setter
+    def pitch_params(self, params: PitchDetectionParams):
+        self._pitch_params = params.clamped() if params is not None else DEFAULT_PITCH_DETECTION_PARAMS
+
     @staticmethod
     def from_json(json):
         return StaffLines([StaffLine.from_json(l) for l in json]).sorted()
@@ -118,7 +136,7 @@ class StaffLines(List[StaffLine]):
         super(StaffLines, self).sort(key=lambda s: s.center_y())
 
     def sorted(self):
-        return StaffLines(sorted(self, key=lambda s: s.center_y()))
+        return StaffLines(sorted(self, key=lambda s: s.center_y()), pitch_params=self.pitch_params)
 
     def max_x_start(self):
         staff_lines = self.sorted()
@@ -155,20 +173,25 @@ class StaffLines(List[StaffLine]):
 
     # Following code taken from ommr4all-client
     # ==================================================================
-    @staticmethod
-    def _round_to_staff_pos(x: float):
-        rounded = np.round(x)
-        even = (rounded + 2000) % 2 == 0
-        if not even:
-            if abs(x - rounded) < 0.4:
-                return rounded
-            else:
-                return rounded + 1 if x - rounded > 0 else rounded - 1
-        else:
-            return rounded
+    def _round_to_staff_pos(self, x: float):
+        """Snaps a position given in half staff spaces onto a line (even) or a space (odd).
 
-    @staticmethod
-    def _interp_staff_pos(y: float, top: float, bot: float, top_space: bool, bot_space: bool,
+        ``x`` is measured downwards from the upper line of the enclosing gap, so ``x / 2`` splits
+        into the index of the gap and the relative position inside it. The two tolerances decide
+        how much of the gap each of its two staff lines claims.
+        """
+        params = self.pitch_params
+        u = x / 2
+        base = np.floor(u)
+        frac = u - base
+        if frac <= params.toleranceTop:
+            return 2 * base            # on the upper line of the gap
+        elif frac >= 1 - params.toleranceBottom:
+            return 2 * base + 2        # on the lower line of the gap
+        else:
+            return 2 * base + 1        # in the space
+
+    def _interp_staff_pos(self, y: float, top: float, bot: float, top_space: bool, bot_space: bool,
                           top_pos: MusicSymbolPositionInStaff, bot_pos: MusicSymbolPositionInStaff,
                           offset: int, clef=False) -> Tuple[float, MusicSymbolPositionInStaff]:
         ld = bot - top
@@ -180,7 +203,9 @@ class StaffLines(List[StaffLine]):
             bot += ld
             bot_pos -= 1
         elif top_space and bot_space:
-            center = (top + bot) / 1
+            # (top + bot) / 2, as in the client; the former "/ 1" made the branch pick the wrong
+            # half of the gap for books whose staff lines are flagged as spaces
+            center = (top + bot) / 2
             if center > y:
                 top -= ld / 2
                 bot = center
@@ -190,12 +215,12 @@ class StaffLines(List[StaffLine]):
 
                 top = center
                 bot += ld / 2
-                top_pos -= 1
+                bot_pos -= 1
                 top_pos = bot_pos + 2
 
         d = y - top
         rel = d / (bot - top)
-        snapped = -offset + StaffLines._round_to_staff_pos(2 * rel)
+        snapped = -offset + self._round_to_staff_pos(2 * rel)
         a_lot = 1e6
         pis = top_pos - snapped
         #pis = int(max(min(pis, a_lot), a_lot))
@@ -203,7 +228,7 @@ class StaffLines(List[StaffLine]):
             pis =int(1e6)
         else:
             pis = int(pis)
-        if clef:
+        if clef and self.pitch_params.forceClefsOnLine:
             if pis % 2 != 1:
                 pis = pis + 1
 
@@ -250,8 +275,8 @@ class StaffLines(List[StaffLine]):
             last = y_on_staff[pre_line_idx]
             prev = y_on_staff[pre_line_idx - 1]
 
-        return StaffLines._interp_staff_pos(p.y, prev.y, last.y, prev.line.space, last.line.space, prev.pos, last.pos,
-                                            offset, clef)
+        return self._interp_staff_pos(p.y, prev.y, last.y, prev.line.space, last.line.space, prev.pos, last.pos,
+                                      offset, clef)
 
     def position_in_staff(self, p: Point, clef=False) -> MusicSymbolPositionInStaff:
         return self._staff_pos(p, clef=clef)[1]

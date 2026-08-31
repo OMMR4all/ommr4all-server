@@ -1,4 +1,5 @@
 from .coords import Coords, Point, Rect, Size
+from .pitchparams import PitchDetectionParams, DEFAULT_PITCH_DETECTION_PARAMS
 from .syllable import Syllable, SyllableConnection
 from .sentence import Sentence
 from .block import BlockType, Block

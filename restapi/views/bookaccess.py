@@ -127,6 +127,12 @@ class BookView(APIView):
         book = DatabaseBook(book)
         pages = book.pages()
 
+        # filtering before paginating keeps totalPages in sync with what the client can page
+        # through -- filtering the current window only would hide most of the matches
+        name_filter = request.query_params.get("filter", "").strip().lower()
+        if name_filter:
+            pages = [page for page in pages if name_filter in page.page.lower()]
+
         pageIndex = int(request.query_params.get("pageIndex", 0))
         pageSize = int(request.query_params.get("pageSize", len(pages)))
         offset = pageIndex * pageSize

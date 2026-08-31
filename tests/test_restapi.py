@@ -114,6 +114,53 @@ class OperationTests(APITestCase):
                 with open(meta_path, 'w') as f:
                     f.write(original)
 
+    def test_book_pages_are_filtered_by_name(self):
+        response = self.client.get('/api/book/demo', format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        all_pages = json.loads(response.content)
+        self.assertGreater(all_pages['totalPages'], 0)
+
+        response = self.client.get('/api/book/demo?filter=LAYOUT', format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        filtered = json.loads(response.content)
+        labels = [p['label'] for p in filtered['pages']]
+        self.assertGreater(len(labels), 0)
+        self.assertTrue(all('layout' in label.lower() for label in labels), labels)
+        # the filter is applied before paginating, so the total matches what can be paged through
+        self.assertEqual(len(labels), filtered['totalPages'])
+        self.assertLess(filtered['totalPages'], all_pages['totalPages'])
+
+        response = self.client.get('/api/book/demo?filter=does_not_exist', format='json')
+        self.assertEqual(0, json.loads(response.content)['totalPages'])
+
+    def test_book_meta_pitch_detection_params_roundtrip(self):
+        meta_path = os.path.join(BASE_DIR, 'tests', 'storage', 'demo', 'book_meta.json')
+        original = None
+        if os.path.exists(meta_path):
+            with open(meta_path) as f:
+                original = f.read()
+        try:
+            response = self.client.get('/api/book/demo/meta', format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+            meta = json.loads(response.content)
+            self.assertEqual({'toleranceTop': 0.3, 'toleranceBottom': 0.3, 'forceClefsOnLine': True},
+                             meta['pitchDetectionParams'], 'the defaults are the historic behaviour')
+
+            params = {'toleranceTop': 0.45, 'toleranceBottom': 0.15, 'forceClefsOnLine': False}
+            meta['pitchDetectionParams'] = params
+            response = self.client.put('/api/book/demo/meta', meta, format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+            response = self.client.get('/api/book/demo/meta', format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+            self.assertEqual(params, json.loads(response.content)['pitchDetectionParams'])
+        finally:
+            if original is None:
+                if os.path.exists(meta_path):
+                    os.remove(meta_path)
+            else:
+                with open(meta_path, 'w') as f:
+                    f.write(original)
+
     # Page selection
     # ========================================
     # The workflow evaluates one selection against all of its enabled steps, so this endpoint
