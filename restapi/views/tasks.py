@@ -14,7 +14,7 @@ class TasksView(APIView):
         return Response([{'id': t.task_id,
                           'status': t.public_status().to_dict(),
                           'creator': RestAPIUser.from_user(t.creator).to_dict(),
-                          'algorithmType': t.task_runner.algorithm_type.value,
+                          'algorithmType': t.task_runner.operation(),
                           'book': t.task_runner.selection.book.get_meta().to_dict(),
                           } for t in operation_worker.queue.tasks])
 
@@ -27,7 +27,7 @@ class BookTasksView(APIView):
         # permission — can recover a running workflow's progress after a reload.
         return Response([{'id': t.task_id,
                           'status': t.public_status().to_dict(),
-                          'algorithmType': t.task_runner.algorithm_type.value,
+                          'algorithmType': t.task_runner.operation(),
                           } for t in operation_worker.queue.tasks
                          if t.task_runner.selection.book.book == book])
 

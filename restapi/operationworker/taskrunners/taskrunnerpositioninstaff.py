@@ -20,6 +20,8 @@ class TaskRunnerPositionInStaff(TaskRunner):
     Pages a user has locked or verified keep what they contain.
     """
 
+    operation_name = 'reapply_position_in_staff'
+
     def __init__(self, book: DatabaseBook):
         super().__init__(None, PageSelection.from_book(book), [TaskWorkerGroup.SHORT_TASKS_CPU])
         self.book = book

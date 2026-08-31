@@ -12,6 +12,10 @@ import sys
 from loguru import logger
 
 class TaskRunner(ABC):
+    # REST name of a task that is not an algorithm and therefore has no AlgorithmTypes
+    # (the export and the position in staff runner). Set by those subclasses, see operation().
+    operation_name: str = ''
+
     def __init__(self,
                  algorithm_type: AlgorithmTypes,
                  selection: PageSelection,
@@ -19,6 +23,15 @@ class TaskRunner(ABC):
         self.algorithm_type = algorithm_type
         self.selection: PageSelection = selection
         self.task_group = task_group
+
+    def operation(self) -> str:
+        """The name this task is addressed by in the REST api.
+
+        The task list endpoints report this instead of algorithm_type.value, which is None
+        for the runners that are not an algorithm -- a single queued export used to make
+        /api/tasks answer 500 for everybody.
+        """
+        return self.algorithm_type.value if self.algorithm_type is not None else self.operation_name
 
     def algorithm_meta(self) -> Type[AlgorithmMeta]:
         return Step.create_meta(self.algorithm_type)

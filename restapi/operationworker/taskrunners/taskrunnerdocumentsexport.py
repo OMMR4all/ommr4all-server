@@ -22,6 +22,7 @@ class TaskRunnerDocumentsExport(TaskRunner):
     FORMAT_MONODI_PLUS_ZIP = 'monodiplus.zip'
     FORMAT_MEI4_ZIP = 'mei4.zip'
     FORMATS = [FORMAT_MONODI_META_XLSX, FORMAT_MONODI_PLUS_ZIP, FORMAT_MEI4_ZIP]
+    operation_name = 'documents_export'
 
     def __init__(self,
                  book: DatabaseBook,

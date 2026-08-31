@@ -26,7 +26,7 @@ def _task_of_resource(resource) -> dict:
                 book = None
             return {
                 'id': task.task_id,
-                'algorithmType': task.task_runner.algorithm_type.value,
+                'algorithmType': task.task_runner.operation(),
                 'book': book,
                 'creator': RestAPIUser.from_user(task.creator).to_dict() if task.creator else None,
             }

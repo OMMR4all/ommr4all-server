@@ -394,6 +394,21 @@ class TestBookOperationLocks(APITestCase):
         for operation in (self.OPERATION, self.TRAIN_OPERATION):
             self.assertFalse(book_operation_locked(self.book, self.maintainer, operation))
 
+    def test_reapplying_the_position_in_staff_follows_the_book_lock(self):
+        """It rewrites the pitch of every symbol of the book, so it belongs to the book
+        wide runs even though the settings tab that offers it is maintainer only -- the
+        endpoint itself only asks for READ_WRITE."""
+        self._set_locks(book_operations=True)
+        self.assertTrue(book_operation_locked(self.book, self.writer, 'reapply_position_in_staff'))
+        self.assertFalse(book_operation_locked(self.book, self.maintainer, 'reapply_position_in_staff'))
+
+        self._login('lock_writer')
+        response = self.client.put(
+            '/api/book/{}/operation/reapply_position_in_staff/'.format(self.BOOK), {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
+        self.assertEqual(json.loads(response.content)['errorCode'],
+                         ErrorCodes.BOOK_OPERATIONS_LOCKED.value)
+
     def test_an_export_is_never_locked(self):
         """Exports do not modify the book, and locking them would take away a writer's
         only way to get the book out."""
@@ -457,3 +472,54 @@ class TestBookOperationLocks(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
         self.assertEqual(json.loads(response.content)['errorCode'],
                          ErrorCodes.BOOK_INSUFFICIENT_RIGHTS.value)
+
+
+class TestTaskListsWithoutAnAlgorithm(DjangoTestCase):
+    """Not every task is an algorithm: the export and the position in staff runner have no
+    AlgorithmTypes. Reporting `algorithm_type.value` for them made every task list endpoint
+    answer 500 as long as such a task was queued, which also hid all the other tasks."""
+
+    def test_the_runners_report_their_rest_operation_name(self):
+        from restapi.operationworker.taskrunners.taskrunnerpositioninstaff import TaskRunnerPositionInStaff
+        from restapi.operationworker.taskrunners.taskrunnerdocumentsexport import TaskRunnerDocumentsExport
+
+        book = DatabaseBook('demo')
+        self.assertIsNone(TaskRunnerPositionInStaff(book).algorithm_type)
+        self.assertEqual(TaskRunnerPositionInStaff(book).operation(), 'reapply_position_in_staff')
+        self.assertEqual(TaskRunnerDocumentsExport(book, TaskRunnerDocumentsExport.FORMAT_MEI4_ZIP).operation(),
+                         'documents_export')
+
+    def test_an_algorithm_runner_still_reports_its_type(self):
+        from restapi.operationworker.taskrunners.taskrunnerprediction import TaskRunnerPrediction, Settings
+        from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams
+        from omr.steps.algorithmtypes import AlgorithmTypes
+
+        runner = TaskRunnerPrediction(AlgorithmTypes.STAFF_LINES_PC,
+                                      PageSelection.from_book(DatabaseBook('demo')),
+                                      Settings(params=AlgorithmPredictorParams(), store_to_pcgts=False))
+        self.assertEqual(runner.operation(), AlgorithmTypes.STAFF_LINES_PC.value)
+
+    def test_the_task_list_survives_a_queued_export(self):
+        from unittest import mock
+        from restapi.operationworker.taskrunners.taskrunnerdocumentsexport import TaskRunnerDocumentsExport
+        from restapi.operationworker.task import Task, TaskStatus
+        from rest_framework.test import APIClient
+
+        book = DatabaseBook('demo')
+        admin = User.objects.create_superuser('task_list_admin', password='pw')
+        task = Task(task_id='export-task',
+                    task_runner=TaskRunnerDocumentsExport(book, TaskRunnerDocumentsExport.FORMAT_MEI4_ZIP),
+                    task_status=TaskStatus(),
+                    task_result={},
+                    creator=admin)
+
+        client = APIClient()
+        client.force_authenticate(user=admin)
+        with mock.patch('restapi.operationworker.operationworker.operation_worker.queue.tasks', [task]):
+            response = client.get('/api/tasks')
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertEqual([t['algorithmType'] for t in response.json()], ['documents_export'])
+
+            response = client.get('/api/book/demo/tasks')
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertEqual([t['algorithmType'] for t in response.json()], ['documents_export'])
