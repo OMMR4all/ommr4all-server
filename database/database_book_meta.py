@@ -62,6 +62,20 @@ class DatabaseBookMeta(DataClassJSONMixin):
     iiifSuffix: str = '.jpg'
     # configured one-click workflow of the client; the server only stores it
     oneClickWorkflow: List[Dict[str, Any]] = field(default_factory=list)
+    # Book wide runs reserved for maintainers (EDIT_BOOK_META), see
+    # restapi.views.bookoperations.book_operation_locked. None = never configured = unlocked;
+    # the tri-state lets BookMetaView.put keep the stored value when a client puts a meta
+    # without the field instead of silently unlocking the book.
+    lockBookOperations: Optional[bool] = None
+    lockTraining: Optional[bool] = None
+
+    @property
+    def book_operations_locked(self) -> bool:
+        return bool(self.lockBookOperations)
+
+    @property
+    def training_locked(self) -> bool:
+        return bool(self.lockTraining)
 
     def algorithm_predictor_params(self, algorithm_type: AlgorithmTypes) -> AlgorithmPredictorParams:
         params = self.algorithmPredictorParams.get(algorithm_type, AlgorithmPredictorParams())

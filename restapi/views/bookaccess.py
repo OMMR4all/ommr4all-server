@@ -110,11 +110,20 @@ class BookMetaView(APIView):
         from database.database_book_meta import DatabaseBookMeta
         book = DatabaseBook(book)
         meta = DatabaseBookMeta.from_book_json(book, request.body)
+        stored = None
         if meta.updated is None:
             # clients do not send the last-modified timestamp; keep the stored one
             stored = book.get_meta()
             meta.updated = stored.updated
             meta.updatedBy = stored.updatedBy
+        # a client that does not know the operation locks must not unlock the book by
+        # putting a meta without them (they are absent, not False)
+        if meta.lockBookOperations is None or meta.lockTraining is None:
+            stored = stored if stored is not None else book.get_meta()
+            if meta.lockBookOperations is None:
+                meta.lockBookOperations = stored.lockBookOperations
+            if meta.lockTraining is None:
+                meta.lockTraining = stored.lockTraining
         book.save_json_to_meta(meta.to_dict())
         return Response()
 

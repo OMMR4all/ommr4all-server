@@ -22,6 +22,32 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def book_operation_locked(book: DatabaseBook, user, operation: str) -> bool:
+    """Whether ``user`` is barred from starting ``operation`` by this book's locks.
+
+    Write access is enough to edit pages and to run the single page algorithms of the
+    editor, but a run over the whole book overwrites pages its author never looked at and
+    a training occupies a worker for hours. A maintainer can therefore reserve both for
+    maintainers (see DatabaseBookMeta.lockBookOperations/lockTraining) -- everyone who may
+    set the lock may also run the operation, so a book can never lock out its own
+    maintainers. Exports do not modify the book and are never locked.
+    """
+    if operation == 'documents_export':
+        return False
+    meta = book.get_meta()
+    locked = meta.training_locked if operation in TRAIN_OPERATIONS else meta.book_operations_locked
+    return locked and not book.resolve_user_permissions(user).has(
+        DatabaseBookPermissionFlag.EDIT_BOOK_META)
+
+
+def book_operation_locked_error() -> Response:
+    return APIError(status.HTTP_401_UNAUTHORIZED,
+                    "Book wide operations of this book are reserved for its maintainers.",
+                    "A maintainer has locked this operation for this book.",
+                    ErrorCodes.BOOK_OPERATIONS_LOCKED,
+                    ).response()
+
+
 class BookPageSelectionView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -95,6 +121,10 @@ class BookOperationTaskView(APIView):
     # enforce WRITE here, since this ops will overwrite the files locally (workflow)
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     def delete(self, request, book, operation, task_id):
+        # a locked book is not only unstartable, its running task must also survive a
+        # writer who is watching its progress
+        if book_operation_locked(DatabaseBook(book), request.user, operation):
+            return book_operation_locked_error()
         try:
             operation_worker.stop(task_id)
             return Response(status=status.HTTP_204_NO_CONTENT)
@@ -237,6 +267,9 @@ class BookOperationView(APIView):
     def put(self, request, book, operation):
         body = json.loads(request.body)
         book = DatabaseBook(book)
+        # before op_to_task_runner: a locked operation must not even resolve its params
+        if book_operation_locked(book, request.user, operation):
+            return book_operation_locked_error()
         try:
             task_runner = BookOperationView.op_to_task_runner(operation, book, body, request.user)
         except InvalidWorkerResourceException as e:
@@ -301,6 +334,11 @@ class BookOperationModelView(APIView):
     @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
     def delete(self, request, book, operation, model):
         book = DatabaseBook(book)
+        # `operation` is the predicting algorithm, not a train_* op, so ask for the
+        # training lock directly: deleting a trained model belongs to training
+        if book.get_meta().training_locked and not book.resolve_user_permissions(request.user).has(
+                DatabaseBookPermissionFlag.EDIT_BOOK_META):
+            return book_operation_locked_error()
 
         task_runner = BookOperationView.op_to_task_runner(operation, book, {})
         # check that the model is really part of the model

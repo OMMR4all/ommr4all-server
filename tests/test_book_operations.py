@@ -1,4 +1,6 @@
+import json
 import logging
+import shutil
 import sys
 import os
 from unittest import TestCase
@@ -23,10 +25,15 @@ django.setup()
 
 from django.contrib.auth.models import User
 from django.test import TestCase as DjangoTestCase
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APITestCase
 
+from database.database_permissions import BookPermissionFlags, DatabaseBookPermissionFlag
+from restapi.models.error import ErrorCodes
 from restapi.operationworker.workerresources import TRAIN_OPERATIONS, default_n_epoch, \
     InvalidTrainerParamsException, required_locks, validate_training_books
-from restapi.views.bookoperations import BookOperationView
+from restapi.views.bookoperations import BookOperationView, book_operation_locked
 
 
 class TestBookOperations(TestCase):
@@ -287,3 +294,166 @@ class TestSkippedPagesReport(TestCase):
 
         self.assertEqual(len(result['results']), 2)
         self.assertEqual(result['skipped_pages'], [])
+
+
+class TestBookOperationLocks(APITestCase):
+    """A maintainer may reserve the book wide runs resp. the trainings of a book for
+    maintainers (DatabaseBookMeta.lockBookOperations / lockTraining). Write access then no
+    longer starts them, while editing pages and the single page algorithms of the editor --
+    which never touch these endpoints -- stay available."""
+
+    BOOK = 'operation_lock_test'
+    OPERATION = 'staffs'          # any prediction; only the name is used here
+    TRAIN_OPERATION = 'train_symbols'
+
+    def setUp(self):
+        # a scratch book: a lock left behind in the shared 'demo' fixture would break
+        # every other test that starts an operation on it
+        self.root = os.path.join(settings.PRIVATE_MEDIA_ROOT, self.BOOK)
+        shutil.rmtree(self.root, ignore_errors=True)
+        os.makedirs(os.path.join(self.root, 'pages'))
+        self.book = DatabaseBook(self.BOOK)
+
+        self.writer = User.objects.create_user(username='lock_writer', password='pw')
+        self.maintainer = User.objects.create_user(username='lock_maintainer', password='pw')
+        permissions = self.book.get_permissions()
+        permissions.get_or_add_user_permissions(
+            'lock_writer', BookPermissionFlags(DatabaseBookPermissionFlag.READ_WRITE))
+        permissions.get_or_add_user_permissions(
+            'lock_maintainer', BookPermissionFlags(DatabaseBookPermissionFlag.READ_WRITE
+                                                   | DatabaseBookPermissionFlag.EDIT_BOOK_META))
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    # helpers ------------------------------------------------------------------
+
+    def _login(self, username):
+        response = self.client.post(reverse('token_obtain_pair'),
+                                    {'username': username, 'password': 'pw'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer {0}'.format(response.data['access']))
+
+    def _set_locks(self, book_operations=None, training=None):
+        meta = self.book.get_meta()
+        meta.lockBookOperations = book_operations
+        meta.lockTraining = training
+        meta.to_file(self.book)
+
+    # the meta field ------------------------------------------------------------
+
+    def test_a_book_without_the_fields_is_unlocked(self):
+        meta = self.book.get_meta()
+        self.assertIsNone(meta.lockBookOperations)
+        self.assertIsNone(meta.lockTraining)
+        self.assertFalse(meta.book_operations_locked)
+        self.assertFalse(meta.training_locked)
+        self.assertFalse(book_operation_locked(self.book, self.writer, self.OPERATION))
+
+    def test_a_meta_put_without_the_fields_keeps_the_locks(self):
+        """A client that does not know the locks must not unlock the book by saving the
+        book settings -- absent is not False."""
+        self._set_locks(book_operations=True, training=True)
+        self._login('lock_maintainer')
+
+        meta = self.book.get_meta().to_dict()
+        del meta['lockBookOperations']
+        del meta['lockTraining']
+        response = self.client.put('/api/book/{}/meta'.format(self.BOOK), meta, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+
+        self.assertTrue(DatabaseBook(self.BOOK).get_meta().book_operations_locked)
+        self.assertTrue(DatabaseBook(self.BOOK).get_meta().training_locked)
+
+    def test_a_meta_put_can_unlock(self):
+        self._set_locks(book_operations=True, training=True)
+        self._login('lock_maintainer')
+
+        meta = self.book.get_meta().to_dict()
+        meta['lockBookOperations'] = False
+        meta['lockTraining'] = False
+        response = self.client.put('/api/book/{}/meta'.format(self.BOOK), meta, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+
+        self.assertFalse(DatabaseBook(self.BOOK).get_meta().book_operations_locked)
+        self.assertFalse(DatabaseBook(self.BOOK).get_meta().training_locked)
+
+    # who is barred -------------------------------------------------------------
+
+    def test_the_two_locks_are_independent(self):
+        self._set_locks(book_operations=True, training=False)
+        self.assertTrue(book_operation_locked(self.book, self.writer, self.OPERATION))
+        self.assertFalse(book_operation_locked(self.book, self.writer, self.TRAIN_OPERATION))
+
+        self._set_locks(book_operations=False, training=True)
+        self.assertFalse(book_operation_locked(self.book, self.writer, self.OPERATION))
+        self.assertTrue(book_operation_locked(self.book, self.writer, self.TRAIN_OPERATION))
+
+    def test_a_maintainer_is_never_locked_out(self):
+        self._set_locks(book_operations=True, training=True)
+        for operation in (self.OPERATION, self.TRAIN_OPERATION):
+            self.assertFalse(book_operation_locked(self.book, self.maintainer, operation))
+
+    def test_an_export_is_never_locked(self):
+        """Exports do not modify the book, and locking them would take away a writer's
+        only way to get the book out."""
+        self._set_locks(book_operations=True, training=True)
+        self.assertFalse(book_operation_locked(self.book, self.writer, 'documents_export'))
+
+    # the endpoint --------------------------------------------------------------
+
+    def test_a_writer_may_not_start_a_locked_run(self):
+        self._set_locks(book_operations=True)
+        self._login('lock_writer')
+
+        response = self.client.put('/api/book/{}/operation/{}/'.format(self.BOOK, self.OPERATION),
+                                   {'selection': {'count': 'all'}}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
+        self.assertEqual(json.loads(response.content)['errorCode'],
+                         ErrorCodes.BOOK_OPERATIONS_LOCKED.value)
+
+    def test_a_writer_may_not_start_a_locked_training(self):
+        self._set_locks(training=True)
+        self._login('lock_writer')
+
+        response = self.client.put(
+            '/api/book/{}/operation/{}/'.format(self.BOOK, self.TRAIN_OPERATION),
+            {'trainParams': {}}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
+        self.assertEqual(json.loads(response.content)['errorCode'],
+                         ErrorCodes.BOOK_OPERATIONS_LOCKED.value)
+
+    def test_a_writer_may_not_cancel_a_locked_run(self):
+        """The point of the lock is that a maintainer's run survives -- being unable to
+        start one but able to stop it would be pointless."""
+        self._set_locks(book_operations=True)
+        self._login('lock_writer')
+
+        response = self.client.delete(
+            '/api/book/{}/operation/{}/task/some-task-id'.format(self.BOOK, self.OPERATION))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
+        self.assertEqual(json.loads(response.content)['errorCode'],
+                         ErrorCodes.BOOK_OPERATIONS_LOCKED.value)
+
+    def test_a_writer_may_not_delete_a_model_of_a_training_locked_book(self):
+        self._set_locks(training=True)
+        self._login('lock_writer')
+
+        response = self.client.delete(
+            '/api/book/{}/operation/symbols_pc_torch/model/any'.format(self.BOOK))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
+        self.assertEqual(json.loads(response.content)['errorCode'],
+                         ErrorCodes.BOOK_OPERATIONS_LOCKED.value)
+
+    def test_a_reader_is_still_rejected_for_lacking_rights(self):
+        """The lock is an extra hurdle, not a replacement for the permission check."""
+        User.objects.create_user(username='lock_reader', password='pw')
+        self.book.get_permissions().get_or_add_user_permissions(
+            'lock_reader', BookPermissionFlags(DatabaseBookPermissionFlag.READ))
+        self._login('lock_reader')
+
+        response = self.client.put('/api/book/{}/operation/{}/'.format(self.BOOK, self.OPERATION),
+                                   {'selection': {'count': 'all'}}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED, response.content)
+        self.assertEqual(json.loads(response.content)['errorCode'],
+                         ErrorCodes.BOOK_INSUFFICIENT_RIGHTS.value)
