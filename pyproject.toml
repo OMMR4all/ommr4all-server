@@ -59,6 +59,9 @@ dependencies = [
     "unidecode>=1.4.0",
     "word-beam-search",
     "xlsxwriter>=3.2.9",
+    # streams book/page exports as a zip straight from disk instead of buffering the
+    # whole archive in memory; its sized mode yields an exact Content-Length up front
+    "zipstream-ng>=1.9.3",
 ]
 [tool.uv.sources]
 word-beam-search = { git = "https://github.com/githubharald/CTCWordBeamSearch.git", rev = "master" }

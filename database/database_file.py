@@ -1,5 +1,5 @@
 import re
-from typing import NamedTuple, List
+from typing import NamedTuple, List, Set
 from PIL import Image
 from multiprocessing import Lock
 from locked_dict.locked_dict import LockedDict
@@ -153,6 +153,28 @@ file_definitions = {
         requires=['binary_norm'],
     ),
 }
+
+def regenerable_page_filenames() -> Set[str]:
+    """File names inside a page folder that `DatabaseFile.create()` rebuilds from color_original.
+
+    Used by the book backup export to leave out everything that is only a cached
+    derivative of the original scan (all preprocessed/normalised images, their
+    thumbnails and the connected components cache). The annotations themselves
+    (pcgts, meta, statistics, page progress, annotation, monodiplus) are never in
+    here: they carry no preview and cannot be recomputed.
+    """
+    names = set()
+    for definition in file_definitions.values():
+        if definition.id == 'color_original':
+            continue  # the one image that cannot be recomputed
+        if not definition.has_preview and definition.id != 'connected_components_norm':
+            continue  # only images (and the cc cache) are derivatives
+        for output in definition.output:
+            names.add(output)
+            if definition.has_preview:
+                names.add(os.path.splitext(output)[0] + '_preview.jpg')
+    return names
+
 
 mutex_dict = LockedDict()
 

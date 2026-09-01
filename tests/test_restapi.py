@@ -350,6 +350,52 @@ class OperationTests(APITestCase):
             self.assertListEqual(files_to_expect, zip_files)
             self.assertEqual(len(zip_files), len(files_to_expect))
 
+    def test_export_backup(self):
+        import io
+        import zipfile
+        book = DatabaseBook('demo')
+
+        response = self.client.post('/api/book/{}/download/backup.zip/token'.format(book.book),
+                                    {'pages': []}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        url = response.data['url']
+        self.assertTrue(response.data['filename'].endswith('.backup.zip'), response.data['filename'])
+
+        # the browser downloads it without an Authorization header, the token is the gate
+        client = Client()
+        response = client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, url)
+        data = b''.join(response.streaming_content)
+        # the promised length is what makes the browser able to show a progress bar
+        self.assertEqual(int(response['Content-Length']), len(data))
+
+        with zipfile.ZipFile(io.BytesIO(data)) as f:
+            names = [z.filename for z in f.infolist()]
+
+        self.assertTrue(all([n.startswith(book.book + '/') for n in names]), names)
+        page = 'page_test_monodi_export_001'
+        self.assertIn('{}/pages/{}/color_original.jpg'.format(book.book, page), names)
+        self.assertIn('{}/pages/{}/pcgts.json'.format(book.book, page), names)
+        self.assertIn('{}/book_meta.json'.format(book.book), names)
+        # recomputable images and the per page edit histories are left out
+        self.assertNotIn('{}/pages/{}/binary_norm_x2.png'.format(book.book, page), names)
+        self.assertNotIn('{}/pages/{}/color_norm.jpg'.format(book.book, page), names)
+        self.assertFalse(any([n.endswith('.zip') or n.endswith('.lock') for n in names]), names)
+
+    def test_export_backup_rejects_bad_token(self):
+        book = DatabaseBook('demo')
+        client = Client()
+        url = '/api/book/{}/download/backup.zip'.format(book.book)
+        self.assertEqual(client.get(url).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(client.get(url + '?token=nonsense').status_code, status.HTTP_403_FORBIDDEN)
+
+        # a token is only valid for the book and type it was issued for
+        response = self.client.post('/api/book/{}/download/backup.zip/token'.format(book.book),
+                                    {'pages': []}, format='json')
+        token = response.data['url'].split('token=')[1]
+        self.assertEqual(client.get('/api/book/{}/download/annotations.zip?token={}'.format(book.book, token))
+                         .status_code, status.HTTP_403_FORBIDDEN)
+
     def _test_list_models(self, operation: AlgorithmTypes):
         from database.database_available_models import DatabaseAvailableModels
         from database.model import ModelsId, MetaId

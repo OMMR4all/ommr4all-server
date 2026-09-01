@@ -14,6 +14,7 @@ import json
 import logging
 import re
 import os
+import urllib.parse
 from typing import List
 logger = logging.getLogger(__name__)
 
@@ -311,99 +312,161 @@ class BooksView(APIView):
         } for meta, permission_flags in paginatedBooks], key=lambda b: b['name'])})
 
 
-class BookDownloaderView(APIView):
+DOWNLOAD_TOKEN_SALT = 'ommr4all.book.download'
+# the token travels in a query string and therefore ends up in the access log,
+# so it is deliberately only valid long enough to start the download
+DOWNLOAD_TOKEN_MAX_AGE = 600
+
+
+class BookDownloadTokenView(APIView):
+    """Hands out a short lived, signed URL for a book download.
+
+    The client authenticates with a JWT in the Authorization header, which a plain
+    browser navigation cannot send. Letting the browser fetch the archive itself is
+    what gives the user a real progress bar with speed and ETA (and keeps a multi
+    gigabyte backup out of the tab's memory), so it needs a URL that carries its own
+    proof of access.
+    """
     permission_classes = [permissions.AllowAny]
 
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def post(self, request, book, type):
-        import json, zipfile, io, os
-        pages = json.loads(request.body).get('pages', [])
+        from django.core import signing
+        body = json.loads(request.body) if request.body else {}
+        pages = body.get('pages', [])
+        full = bool(body.get('full', False))
         book = DatabaseBook(book)
-        pages = book.pages() if len(pages) == 0 else [book.page(p) for p in pages]
-        if type == 'annotations.zip':
-            s = io.BytesIO()
-            zf = zipfile.ZipFile(s, 'w')
-            for page in pages:
-                file_names = ['color_original', 'color_norm_x2', 'binary_norm_x2', 'pcgts', 'meta']
-                files = [page.file(f) for f in file_names]
 
-                if any([not f.exists() for f in files]):
-                    continue
+        # the dialog always sends every page name; a few hundred of them in a query
+        # string would run into Apache's LimitRequestLine, and "all pages" is the
+        # default anyway
+        if len(pages) > 0 and set(pages) == set(book.page_names()):
+            pages = []
 
-                for file, fn in zip(files, file_names):
-                    zf.write(file.local_path(), os.path.join(fn, page.page + file.ext()))
-
-            zf.close()
-            s.seek(0)
-            return FileResponse(s, as_attachment=True, filename=book.book + '.zip')
-        elif type == 'backup.zip':
-            s = io.BytesIO()
-            zf = zipfile.ZipFile(s, 'w')
-            files_to_ignore = [re.compile(r".*\.zip$")]
-            for root, dirs, files in os.walk(book.local_path()):
-                for file in files:
-                    if any([f.match(file) for f in files_to_ignore]):
-                        continue
-
-                    f = os.path.join(root, file)
-                    zf.write(f, os.path.join(book.book, os.path.relpath(f, book.local_path())))
-
-            zf.close()
-            s.seek(0)
-            return FileResponse(s, as_attachment=True, filename=book.book + '.backup.zip')
-        elif type == 'monodiplus.json':
-            from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
-            from database.file_formats import PcGts
-            pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
-            obj = PcgtsToMonodiConverter(pcgts).root.to_json()
-
-            s = io.BytesIO()
-            s.write(json.dumps(obj, indent=2).encode('utf-8'))
-            s.seek(0)
-            return FileResponse(s, as_attachment=True, filename=book.book + '.json')
-        elif type == 'monodiplus.zip':
-            from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
-            from database.file_formats import PcGts
-            pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
-            obj = PcgtsToMonodiConverter(pcgts).root.to_json()
-
-            s = io.BytesIO()
-            with zipfile.ZipFile(s, 'w') as zf:
-                with zf.open(book.book + '.json', 'w') as f:
-                    f.write(json.dumps(obj, indent=2).encode('utf-8'))
-
-            s.seek(0)
-            return FileResponse(s, as_attachment=True, filename=book.book + '.monodi2.zip')
-        elif type == 'mei4.zip':
-            from database.file_formats.exporter.mei.pcgts_to_mei4_exporter import PcgtsToMeiConverter
-            from database.file_formats import PcGts
-            pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
-
-            s = io.BytesIO()
-            with zipfile.ZipFile(s, 'w') as zf:
-                for p in pcgts:
-                    with zf.open(os.path.join(book.book, p.page.location.page + '.xml'), 'w') as f:
-                        PcgtsToMeiConverter(p).write(f)
-
-            s.seek(0)
-            return FileResponse(s, as_attachment=True, filename=book.book + '.mei.zip')
-        elif type == 'original_images.zip':
-            s = io.BytesIO()
-            zf = zipfile.ZipFile(s, 'w')
-            for page in pages:
-                file = page.file('color_original')
-
-                if not file.exists():
-                    continue
-
-                zf.write(file.local_path(), os.path.join(book.book, page.page + file.ext()))
-
-            zf.close()
-            s.seek(0)
-            return FileResponse(s, as_attachment=True, filename=book.book + '.zip')
+        token = signing.dumps({'u': request.user.pk, 'b': book.book, 't': type, 'p': pages, 'f': full},
+                              salt=DOWNLOAD_TOKEN_SALT)
+        # relative on purpose: the browser then downloads from the origin it is already on,
+        # which works through the dev proxy and behind a TLS terminator without having to
+        # trust any forwarded host header
+        return Response({
+            'url': '{}?token={}'.format(request.path[:-len('/token')], urllib.parse.quote(token)),
+            'filename': download_filename(book, type),
+        })
 
 
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+class BookDownloaderView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, book, type):
+        """Token authenticated download, used for native browser downloads.
+
+        Deliberately *not* decorated with require_permissions: this view is AllowAny
+        and resolve_user_permissions grants an anonymous user the book's default
+        flags, so a decorated GET would serve any publicly readable book without a
+        token at all. The signature is the only gate here.
+        """
+        from django.core import signing
+        from django.contrib.auth.models import User
+
+        try:
+            payload = signing.loads(request.query_params.get('token', ''),
+                                    salt=DOWNLOAD_TOKEN_SALT, max_age=DOWNLOAD_TOKEN_MAX_AGE)
+        except signing.BadSignature:
+            return APIError(status=status.HTTP_403_FORBIDDEN,
+                            developerMessage='Invalid or expired download token for book {}'.format(book),
+                            userMessage='This download link is invalid or has expired. Please start the download again.',
+                            errorCode=ErrorCodes.BOOK_INSUFFICIENT_RIGHTS,
+                            ).response()
+
+        if payload.get('b') != book or payload.get('t') != type:
+            return APIError(status=status.HTTP_403_FORBIDDEN,
+                            developerMessage='Download token for {}/{} used on {}/{}'.format(
+                                payload.get('b'), payload.get('t'), book, type),
+                            userMessage='This download link is invalid.',
+                            errorCode=ErrorCodes.BOOK_INSUFFICIENT_RIGHTS,
+                            ).response()
+
+        # permissions are re-resolved instead of trusted from the token, so access
+        # revoked after the token was issued takes effect immediately
+        user = User.objects.filter(pk=payload.get('u')).first()
+        db_book = DatabaseBook(book)
+        if user is None or not db_book.resolve_user_permissions(user).has(DatabaseBookPermissionFlag.READ):
+            return APIError(status=status.HTTP_401_UNAUTHORIZED,
+                            developerMessage='User {} has insufficient rights on book {}'.format(payload.get('u'), book),
+                            userMessage='Insufficient permissions to access book {}'.format(book),
+                            errorCode=ErrorCodes.BOOK_INSUFFICIENT_RIGHTS,
+                            ).response()
+
+        return build_download_response(db_book, type, payload.get('p', []), payload.get('f', False))
+
+    @require_permissions([DatabaseBookPermissionFlag.READ])
+    def post(self, request, book, type):
+        body = json.loads(request.body) if request.body else {}
+        return build_download_response(DatabaseBook(book), type,
+                                       body.get('pages', []), bool(body.get('full', False)))
+
+
+def download_filename(book: DatabaseBook, type: str) -> str:
+    """`<book title>.<type>`, e.g. "Graduel de Nevers.backup.zip"."""
+    from restapi.views.downloads import sanitize_filename
+    return '{}.{}'.format(sanitize_filename(book.get_meta().name), type)
+
+
+def build_download_response(book: DatabaseBook, type: str, page_names: List[str], full: bool = False):
+    import zipfile, io
+    from restapi.views.downloads import (annotation_entries, backup_entries, original_image_entries,
+                                         stream_zip_response)
+    pages = book.pages() if len(page_names) == 0 else [book.page(p) for p in page_names]
+    filename = download_filename(book, type)
+
+    # the file based exports are streamed from disk: they carry whole images and
+    # would otherwise be held in the wsgi process in full before anything is sent
+    if type == 'annotations.zip':
+        return stream_zip_response(annotation_entries(pages), filename)
+    elif type == 'backup.zip':
+        # a backup is always the whole book, the page selection does not apply
+        return stream_zip_response(backup_entries(book, full=full), filename)
+    elif type == 'original_images.zip':
+        return stream_zip_response(original_image_entries(book, pages), filename)
+    # the remaining exports are generated from the pcgts and are small enough to build in memory
+    elif type == 'monodiplus.json':
+        from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
+        from database.file_formats import PcGts
+        pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
+        obj = PcgtsToMonodiConverter(pcgts).root.to_json()
+
+        s = io.BytesIO()
+        s.write(json.dumps(obj, indent=2).encode('utf-8'))
+        s.seek(0)
+        return FileResponse(s, as_attachment=True, filename=filename)
+    elif type == 'monodiplus.zip':
+        from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
+        from database.file_formats import PcGts
+        pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
+        obj = PcgtsToMonodiConverter(pcgts).root.to_json()
+
+        s = io.BytesIO()
+        with zipfile.ZipFile(s, 'w') as zf:
+            with zf.open(book.book + '.json', 'w') as f:
+                f.write(json.dumps(obj, indent=2).encode('utf-8'))
+
+        s.seek(0)
+        return FileResponse(s, as_attachment=True, filename=filename)
+    elif type == 'mei4.zip':
+        from database.file_formats.exporter.mei.pcgts_to_mei4_exporter import PcgtsToMeiConverter
+        from database.file_formats import PcGts
+        pcgts = [PcGts.from_file(f) for f in [p.file('pcgts', False) for p in pages] if f.exists()]
+
+        s = io.BytesIO()
+        with zipfile.ZipFile(s, 'w') as zf:
+            for p in pcgts:
+                with zf.open(os.path.join(book.book, p.page.location.page + '.xml'), 'w') as f:
+                    PcgtsToMeiConverter(p).write(f)
+
+        s.seek(0)
+        return FileResponse(s, as_attachment=True, filename=filename)
+
+    return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 class BookRenamePagesView(APIView):
