@@ -7,6 +7,10 @@ class DatabasePermissionFlag(Enum):
     DELETE_BOOK_STYLE = 'delete_book_style'
     EDIT_BOOK_STYLE = 'edit_book_style'
 
+    ADD_SYMBOL_CLASS = 'add_symbol_class'
+    DELETE_SYMBOL_CLASS = 'delete_symbol_class'
+    EDIT_SYMBOL_CLASS = 'edit_symbol_class'
+
     CHANGE_DEFAULT_MODEL_FOR_BOOK_STYLE = 'change_default_model_for_book_style'
 
     TASKS_LIST = 'tasks_list'
@@ -26,6 +30,9 @@ class GlobalPermissions(models.Model):
             (DatabasePermissionFlag.ADD_BOOK_STYLE.value, 'Add book style'),
             (DatabasePermissionFlag.DELETE_BOOK_STYLE.value, 'Delete book style'),
             (DatabasePermissionFlag.EDIT_BOOK_STYLE.value, 'Edit book style'),
+            (DatabasePermissionFlag.ADD_SYMBOL_CLASS.value, 'Add symbol class'),
+            (DatabasePermissionFlag.DELETE_SYMBOL_CLASS.value, 'Delete symbol class'),
+            (DatabasePermissionFlag.EDIT_SYMBOL_CLASS.value, 'Edit symbol class'),
             (DatabasePermissionFlag.CHANGE_DEFAULT_MODEL_FOR_BOOK_STYLE.value, 'Change default model for book style'),
             (DatabasePermissionFlag.TASKS_LIST.value, 'List tasks'),
             (DatabasePermissionFlag.TASKS_CANCEL.value, 'Cancel a running task'),

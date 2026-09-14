@@ -26,7 +26,7 @@ from enum import Enum
 
 import json
 
-from omr.imageoperations.music_line_operations import SymbolLabel
+from omr.imageoperations.symbol_label_set import SymbolClassLabelSets
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +143,7 @@ class DatasetParams(DataClassJSONMixin):
     apply_fcn_height: Optional[int] = None
     neume_types_only: bool = False
     calamari_codec: Optional[CalamariCodec] = None
+    symbol_label_sets: Optional[SymbolClassLabelSets] = None
     text_image_color_type: str = 'binary'
 
     def mix_default(self, default_params: 'DatasetParams'):
@@ -197,15 +198,15 @@ class Dataset(ABC):
         # The df always contains one `add_mask_{i}` column per symbol head; with
         # additional_mask_columns=False the values are None, which makes the
         # segmentation trainer skip those heads' losses (zero-size tensor sentinel).
-        from omr.imageoperations.symbol_heads import SYMBOL_DETECTION_HEADS
+        from omr.imageoperations.symbol_heads import SYMBOL_DETECTION_HEAD_COUNT
         if self.params.origin_staff_line_distance == self.params.target_staff_line_distance:
             images = []
             masks = []
             data = []
-            add_masks = [[] for _ in SYMBOL_DETECTION_HEADS]
+            add_masks = [[] for _ in range(SYMBOL_DETECTION_HEAD_COUNT)]
 
             def append_additional(x):
-                for i in range(len(SYMBOL_DETECTION_HEADS)):
+                for i in range(SYMBOL_DETECTION_HEAD_COUNT):
                     if additional_mask_columns and i < len(x.additional_masks):
                         add_masks[i].append(x.additional_masks[i])
                     else:
@@ -303,7 +304,7 @@ class Dataset(ABC):
                 masks = mask_s
 
             df = pd.DataFrame(data={'images': images, 'masks': masks, 'original': data,
-                                    **{f'add_mask_{i}': add_masks[i] for i in range(len(SYMBOL_DETECTION_HEADS))}})
+                                    **{f'add_mask_{i}': add_masks[i] for i in range(SYMBOL_DETECTION_HEAD_COUNT)}})
             return df
         else:
             raise NotImplementedError()
@@ -464,20 +465,19 @@ class Dataset(ABC):
 
             return coord_g[0] / i.line_image.shape[1], coord_g[1] / i.line_image.shape[0]
         marked_symbols = self.load(callback)
+        label_sets = self.params.symbol_label_sets or SymbolClassLabelSets.builtin()
         for ind, i in enumerate(marked_symbols):
             i: RegionLineMaskData = i
             lines = []
             img = Image.fromarray(i.region)
             draw = ImageDraw.Draw(img)
             for s in i.operation.music_line.symbols:
-                if SymbolLabel.music_symbol_to_symbol_label(s) == SymbolLabel.BACKGROUND:
+                index = label_sets.main_index_of(s, self.params.keep_graphical_connection)
+                if index == 0:
                     # symbol classes without a trainable label are skipped
                     continue
-                #print(i.operation.music_line.avg_line_distance())
-                #print(i.operation.music_line.avg_line_distance() * i.line_image.shape[0])
 
                 center = convert_coord(s.coord, i, self)
-                #print(center)
                 ml_dist = i.operation.music_line.avg_line_distance()
 
                 if s.symbol_type == s.symbol_type.CLEF:
@@ -490,10 +490,8 @@ class Dataset(ABC):
                 else:
                     width = 1 * ml_dist
                     height = 1 * ml_dist
-                #print(i.line_image.shape[0] / i.line_image.shape[1])
-                #print(i.line_image.shape[1])
                 height = height * (i.line_image.shape[1] / i.line_image.shape[0])
-                class_id = SymbolLabel.music_symbol_to_symbol_label(s).value - 1
+                class_id = index - 1
                 lines.append(f"{class_id} {center[0]} {center[1]} {width} {height}")
                 #print((((center[0] - width / 2) * i.line_image.shape[1], (center[1] - height / 2) * i.line_image.shape[0])))
                 #print(((center[0] + width / 2) * i.line_image.shape[1], (center[1] + height / 2) * i.line_image.shape[0]))

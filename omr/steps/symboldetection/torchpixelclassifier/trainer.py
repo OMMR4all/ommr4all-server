@@ -39,8 +39,8 @@ from database import DatabaseBook
 
 from database.file_formats.performance.pageprogress import Locks
 from omr.steps.algorithm import TrainerCallback, AlgorithmTrainerParams, AlgorithmTrainerSettings
-from omr.imageoperations.music_line_operations import SymbolLabel
-from omr.imageoperations.symbol_heads import SYMBOL_DETECTION_HEADS, head_classes, head_color_maps
+from omr.imageoperations.symbol_heads import SYMBOL_DETECTION_HEAD_COUNT, head_classes, head_color_maps
+from omr.imageoperations.symbol_label_set import SymbolClassLabelSets
 # from ocr4all_pixel_classifier.lib.trainer import Trainer, Loss, Monitor, Architecture
 from omr.steps.symboldetection.torchpixelclassifier.meta import Meta
 # from segmentation.dataset import MemoryDataset
@@ -117,14 +117,15 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             ])
             return result
 
-        color_map = ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
-        # Requested head layout: the registry defines all available additional heads; the
+        label_sets = self.settings.dataset_params.symbol_label_sets or SymbolClassLabelSets.builtin()
+        color_map = label_sets.main_color_map()
+        # Requested head layout: the label sets define all available additional heads; the
         # additional_number_of_heads param only switches them on or off for this run.
         want_heads = self.settings.page_segmentation_torch_params.additional_number_of_heads > 0
         logger.info("Training with {} additional symbol heads".format(
-            len(SYMBOL_DETECTION_HEADS) if want_heads else 0))
-        requested_heads = len(SYMBOL_DETECTION_HEADS) if want_heads else 0
-        requested_classes = head_classes() if want_heads else []
+            SYMBOL_DETECTION_HEAD_COUNT if want_heads else 0))
+        requested_heads = SYMBOL_DETECTION_HEAD_COUNT if want_heads else 0
+        requested_classes = head_classes(label_sets) if want_heads else []
 
         def build_model_from_loaded(load, device) -> Tuple['Network', 'ModelConfiguration']:
             import copy
@@ -142,14 +143,20 @@ class PCTorchTrainer(SymbolDetectionTrainer):
                 nw_settings = config.custom_model_settings if config.use_custom_model else config.network_settings
                 nw_settings.add_number_of_heads = requested_heads
                 nw_settings.add_classes = list(requested_classes)
-                config.additional_color_maps = head_color_maps()
+                config.additional_color_maps = head_color_maps(label_sets)
                 logger.info(f"Head layout of loaded model {base_config.head_config()} != requested "
                             f"({requested_heads}, {requested_classes}): warm-starting a rebuilt model")
                 network = ModelBuilderMeta(config, device).get_model()
                 load_weights_into(network, load, device)
             if len(config.color_map) != len(color_map):
-                # heal legacy models that stored the additional color map as main color map
+                logger.info(f"Main head of the loaded model has {len(config.color_map)} classes, "
+                            f"requested {len(color_map)}: rebuilding the main head and warm-starting")
+                nw_settings = config.custom_model_settings if config.use_custom_model else config.network_settings
+                nw_settings.classes = len(color_map)
                 config.color_map = color_map
+                network = ModelBuilderMeta(config, device).get_model()
+                from segmentation.model_builder import load_weights_into
+                load_weights_into(network, load, device)
             return network, config
 
         input_transforms = Compose(remove_nones([
@@ -177,7 +184,7 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         predfined_nw_settings = PredefinedNetworkSettings(
             architecture=Architecture(self.settings.page_segmentation_torch_params.architecture),
             encoder=self.settings.page_segmentation_torch_params.encoder,
-            classes=len(SymbolLabel),
+            classes=len(label_sets.main),
             encoder_depth=self.settings.page_segmentation_torch_params.predefined_encoder_depth,
             decoder_channel=self.settings.page_segmentation_torch_params.predefined_decoder_channel,
             use_batch_norm_layer=self.settings.page_segmentation_torch_params.use_batch_norm_layer,
@@ -218,7 +225,7 @@ class PCTorchTrainer(SymbolDetectionTrainer):
                                                                                   transforms=transforms.to_dict()),
 
                                         color_map=color_map,
-                                        additional_color_maps=head_color_maps() if want_heads else None)
+                                        additional_color_maps=head_color_maps(label_sets) if want_heads else None)
             network = ModelBuilderMeta(config, device=get_default_device()).get_model()
 
         # the final head count may come from a loaded checkpoint; register the augmentation
@@ -227,7 +234,7 @@ class PCTorchTrainer(SymbolDetectionTrainer):
         n_heads, add_classes = config.head_config()
         if n_heads > 0:
             transforms.register_additional_targets([f"mask_head_{i}" for i in range(n_heads)])
-        additional_color_maps = config.additional_color_maps or (head_color_maps() if n_heads > 0 else None)
+        additional_color_maps = config.additional_color_maps or (head_color_maps(label_sets) if n_heads > 0 else None)
 
         train_data_pd = self.train_dataset.to_memory_dataset(callback, same_dim=False,
                                                              additional_mask_columns=want_heads)

@@ -311,15 +311,18 @@ class Codec:
         sequence = []
         for symbol in symbols:
             if symbol.symbol_type == SymbolType.ACCID:
-                sequence.append((symbol.symbol_type, symbol.accid_type))
+                sequence.append((symbol.symbol_type, symbol.accid_type, symbol.symbol_class))
             elif symbol.symbol_type == SymbolType.CLEF:
-                sequence.append((symbol.symbol_type, symbol.clef_type, symbol.position_in_staff))
+                sequence.append((symbol.symbol_type, symbol.clef_type, symbol.position_in_staff,
+                                 symbol.symbol_class))
             elif symbol.symbol_type == SymbolType.NOTE:
                 if note_connection_type:
                     sequence.append(
-                        (symbol.symbol_type, symbol.note_type, symbol.position_in_staff, symbol.graphical_connection))
+                        (symbol.symbol_type, symbol.note_type, symbol.position_in_staff,
+                         symbol.graphical_connection, symbol.symbol_class))
                 else:
-                    sequence.append((symbol.symbol_type, symbol.note_type, symbol.position_in_staff, True))
+                    sequence.append((symbol.symbol_type, symbol.note_type, symbol.position_in_staff,
+                                     True, symbol.symbol_class))
             else:
                 # tolerate symbol types this evaluator does not support
                 continue

@@ -23,6 +23,7 @@ from restapi.views.bookassignments import BookAssignmentsView, BookAssignmentVie
 from restapi.views.pageaccess import PageRenameView, PageProgressVerifyView, PageContentView
 from restapi.views.user import UserBookPermissionsView, UserSelfView
 from restapi.views.bookstyles import BookStyleView, BookStylesView
+from restapi.views.symbolclasses import SymbolClassView, SymbolClassesView
 from restapi.views.administrativedefaultmodels import AdministrativeDefaultModelsView, \
     AdministrativeDefaultModelsTypeView, AdministrativeDefaultModelSlotsView
 from restapi.views.administrativemodels import AdministrativeModelsView, AdministrativeModelsPruneView, \
@@ -81,6 +82,10 @@ urlpatterns = \
         # styles
         re_path(r'^book-styles/(?P<id>.+)$', BookStyleView.as_view()),
         path('book-styles', BookStylesView.as_view()),
+
+        # symbol classes
+        re_path(r'^symbol-classes/(?P<id>.+)$', SymbolClassView.as_view()),
+        path('symbol-classes', SymbolClassesView.as_view()),
 
         # tasks
         path('tasks', TasksView.as_view()),

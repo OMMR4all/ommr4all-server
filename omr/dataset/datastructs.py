@@ -21,6 +21,7 @@ class CodecType(DataClassJSONMixin):
     accid_type: Optional[AccidType] = None
     pos_in_staff: Optional[MusicSymbolPositionInStaff] = None
     graphical_connection: Optional[GraphicalConnectionType] = None
+    symbol_class: Optional[str] = None
 
 
 @dataclass
@@ -78,11 +79,14 @@ class CalamariCodec(SerializableType):
     @staticmethod
     def type_of_symbol(ms: MusicSymbol) -> CodecType:
         if ms.symbol_type == SymbolType.NOTE:
-            return CodecType(ms.symbol_type, ms.note_type, None, None, ms.position_in_staff, ms.graphical_connection)
+            return CodecType(ms.symbol_type, ms.note_type, None, None, ms.position_in_staff,
+                             ms.graphical_connection, ms.symbol_class)
         elif ms.symbol_type == SymbolType.ACCID:
-            return CodecType(ms.symbol_type, None, None, ms.accid_type, ms.position_in_staff, None)
+            return CodecType(ms.symbol_type, None, None, ms.accid_type, ms.position_in_staff, None,
+                             ms.symbol_class)
         elif ms.symbol_type == SymbolType.CLEF:
-            return CodecType(ms.symbol_type, None, ms.clef_type, None, ms.position_in_staff, None)
+            return CodecType(ms.symbol_type, None, ms.clef_type, None, ms.position_in_staff, None,
+                             ms.symbol_class)
         raise Exception()
 
     @staticmethod
@@ -108,6 +112,7 @@ class CalamariSequence:
                                    coord=coord,
                                    position_in_staff=c.pos_in_staff,
                                    graphical_connection=c.graphical_connection,
+                                   symbol_class=c.symbol_class,
                                    ))
             #print(f"I: {s} pos: {pos} Symbol: {out[-1].to_json()}")
 

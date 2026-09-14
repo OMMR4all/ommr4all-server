@@ -1,4 +1,4 @@
-from cProfile import label
+import logging
 from typing import List, Optional, Sequence
 
 import numpy as np
@@ -7,10 +7,13 @@ from database.file_formats.pcgts import *
 from database.file_formats.pcgts import MusicSymbol, SymbolPredictionConfidence, SymbolType, GraphicalConnectionType, \
     SymbolConfidence, ClefType, create_clef, create_accid, AccidType, Point
 from omr.dataset import RegionLineMaskData
-from omr.imageoperations.music_line_operations import SymbolLabel, AdditionalSymbolLabel
-from omr.imageoperations.symbol_heads import SymbolHeadSpec, SYMBOL_DETECTION_HEADS
+from omr.imageoperations.music_line_operations import SymbolLabel
+from omr.imageoperations.symbol_heads import AdditionalSymbolLabel, SymbolHeadSpec, symbol_detection_heads
+from omr.imageoperations.symbol_label_set import SymbolClassLabelSets
 from omr.steps.symboldetection.dataset import SymbolDetectionDataset
 import cv2
+
+logger = logging.getLogger(__name__)
 
 def render_prediction_labels(labels, img=None):
     from shared.pcgtscanvas import PcGtsCanvas
@@ -54,9 +57,10 @@ def render_pred_labels2(labels, img=None):
     draw = ImageDraw.Draw(pil_i)
     for i in labels:
         coord, label_t = i
-        print(label_t)
-        c = PcGtsCanvas.color_for_music_symbol(label_t.to_music_symbol(), inverted=True, default_color=(255, 255, 255))
-
+        c = (255, 255, 255)
+        if label_t < len(SymbolLabel):
+            c = PcGtsCanvas.color_for_music_symbol(SymbolLabel(label_t).to_music_symbol(), inverted=True,
+                                                   default_color=(255, 255, 255))
         x, y = coord
         draw.circle((x, y), 2, fill=c, outline=c)
     return np.array(pil_i)
@@ -64,12 +68,15 @@ def render_pred_labels2(labels, img=None):
 def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
                     dataset: SymbolDetectionDataset, probability=0.5, clef=True, min_symbol_area=4, lookup= None,
                     additional_masks: Optional[List[Optional[np.ndarray]]] = None,
-                    heads: Optional[Sequence[Optional[SymbolHeadSpec]]] = None) -> List[
+                    heads: Optional[Sequence[Optional[SymbolHeadSpec]]] = None,
+                    label_sets: Optional[SymbolClassLabelSets] = None) -> List[
     MusicSymbol]:
     # n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(((probs[:, :, 0] < 0.5) | (p > 0)).astype(np.uint8))
 
+    if label_sets is None:
+        label_sets = SymbolClassLabelSets.builtin()
     if heads is None:
-        heads = SYMBOL_DETECTION_HEADS
+        heads = symbol_detection_heads(label_sets)
 
     p = (np.argmax(probs[:, :, 1:], axis=-1) + 1) * (probs[:, :, 0] < probability)
     # per-head label maps (None if the model has no such head or it is unknown)
@@ -104,81 +111,53 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
         # compute label this the label with the highest frequency of the connected component
         area = p[y:y + h, x:x + w] * (cc[y:y + h, x:x + w] == i)
 
-        label = SymbolLabel(int(np.argmax([np.sum(area == v + 1) for v in range(len(SymbolLabel) - 1)])) + 1)
+        label_index = int(np.argmax([np.sum(area == v + 1)
+                                     for v in range(len(label_sets.main) - 1)])) + 1
+        spec = label_sets.main[label_index]
 
         # majority vote per additional head over the same connected component
         decoded_head_labels = []
-        for spec, p_head in zip(heads, head_label_maps):
-            if spec is None or p_head is None:
+        for spec_head, p_head in zip(heads, head_label_maps):
+            if spec_head is None or p_head is None:
                 continue
             area_head = p_head[y:y + h, x:x + w] * (cc[y:y + h, x:x + w] == i)
-            head_label = spec.labels(int(np.argmax([np.sum(area_head == v + 1)
-                                                    for v in range(len(spec.labels) - 1)])) + 1)
-            decoded_head_labels.append((spec, head_label))
+            head_label = spec_head.labels[int(np.argmax([np.sum(area_head == v + 1)
+                                                         for v in range(len(spec_head.labels) - 1)])) + 1]
+            decoded_head_labels.append((spec_head, head_label))
 
-        centroids_canvas[int(np.round(c.y)), int(np.round(c.x))] = label
-        centroids_adv.append(((int(np.round(c.x)), int(np.round(c.y))), label))
+        centroids_canvas[int(np.round(c.y)), int(np.round(c.x))] = label_index
+        centroids_adv.append(((int(np.round(c.x)), int(np.round(c.y))), label_index))
         # confidences
         indexes_of_cc = np.where(cc == i)
         labels_of_cc = p[indexes_of_cc]
         probs_of_cc = probs[indexes_of_cc]
         avg_prob_cc = np.mean(probs_of_cc, axis=0)
-        symbol_pred = SymbolPredictionConfidence(*avg_prob_cc.tolist())
-        if label == SymbolLabel.NOTE_START:
+        symbol_pred = SymbolPredictionConfidence.from_probabilities(avg_prob_cc.tolist())
+        if spec.symbol_type == SymbolType.NOTE:
             position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
-            # confidence_position_in_staff = m.operation.music_line.compute_confidence_position_in_staff(coord)
-            # print(confidence_position_in_staff)
             symbol = MusicSymbol(
-                symbol_type=SymbolType.NOTE,
-                coord=coord,
-                position_in_staff=position_in_staff,
-                graphical_connection=GraphicalConnectionType.NEUME_START,
-                confidence=SymbolConfidence(symbol_pred, None, )
+                symbol_type=SymbolType.NOTE, coord=coord, position_in_staff=position_in_staff,
+                graphical_connection=GraphicalConnectionType(int(spec.sub_type)),
+                confidence=SymbolConfidence(symbol_pred, None),
+                symbol_class=spec.class_id,
             )
-        elif label == SymbolLabel.NOTE_GAPPED:
-            position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
-
-            symbol = MusicSymbol(
-                symbol_type=SymbolType.NOTE,
-                coord=coord,
-                position_in_staff=position_in_staff,
-                graphical_connection=GraphicalConnectionType.GAPED,
-                confidence=SymbolConfidence(symbol_pred, None)
-
-            )
-        elif label == SymbolLabel.NOTE_LOOPED:
-            position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
-
-            symbol = MusicSymbol(
-                symbol_type=SymbolType.NOTE,
-                coord=coord,
-                position_in_staff=position_in_staff,
-                graphical_connection=GraphicalConnectionType.LOOPED,
-                confidence=SymbolConfidence(symbol_pred, None)
-
-            )
-        elif label == SymbolLabel.CLEF_C:
+        elif spec.symbol_type == SymbolType.CLEF:
             position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=clef)
-            coord_updated = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(coord.x,
-                                                                                                  position_in_staff)
-            symbol = create_clef(ClefType.C, coord=coord_updated, position_in_staff=position_in_staff,
-                                 confidence=SymbolConfidence(symbol_pred, None))
-        elif label == SymbolLabel.CLEF_F:
-            position_in_staff = m.operation.music_line.compute_position_in_staff(coord, clef=clef)
-            coord_updated = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(coord.x,
-                                                                                                  position_in_staff)
-            symbol = create_clef(ClefType.F, coord=coord_updated, position_in_staff=position_in_staff,
-                                 confidence=SymbolConfidence(symbol_pred, None))
-        elif label == SymbolLabel.ACCID_FLAT:
-            symbol = create_accid(AccidType.FLAT, coord=coord, confidence=SymbolConfidence(symbol_pred, None))
-        elif label == SymbolLabel.ACCID_SHARP:
-            symbol = create_accid(AccidType.SHARP, coord=coord, confidence=SymbolConfidence(symbol_pred, None))
-        elif label == SymbolLabel.ACCID_NATURAL:
-            symbol = create_accid(AccidType.NATURAL, coord=coord, confidence=SymbolConfidence(symbol_pred, None))
+            coord_updated = m.operation.music_line.staff_lines.compute_coord_by_position_in_staff(
+                coord.x, position_in_staff)
+            symbol = create_clef(ClefType(spec.sub_type), coord=coord_updated,
+                                 position_in_staff=position_in_staff,
+                                 confidence=SymbolConfidence(symbol_pred, None),
+                                 symbol_class=spec.class_id)
+        elif spec.symbol_type == SymbolType.ACCID:
+            symbol = create_accid(AccidType(spec.sub_type), coord=coord,
+                                  confidence=SymbolConfidence(symbol_pred, None),
+                                  symbol_class=spec.class_id)
         else:
-            raise Exception("Unknown label {} during decoding".format(label))
-        for spec, head_label in decoded_head_labels:
-            spec.apply_label(symbol, head_label)
+            logger.warning(f"Label {spec.index} ({spec.id}) is not decodable, skipping")
+            continue
+        for spec_head, head_label in decoded_head_labels:
+            spec_head.apply_label(symbol, head_label)
         symbols.append(symbol)
 
     if False:

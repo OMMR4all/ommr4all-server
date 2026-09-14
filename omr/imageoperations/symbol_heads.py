@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Callable, List, Tuple, Type, TYPE_CHECKING
+from typing import Callable, List, Tuple, TYPE_CHECKING
 
 import numpy as np
 
@@ -9,6 +9,7 @@ from database.file_formats.pcgts import Page, PageScaleReference, Line, MusicSym
 
 if TYPE_CHECKING:
     from segmentation.settings import ColorMap
+    from omr.imageoperations.symbol_label_set import SymbolLabelSpec, SymbolClassLabelSets
 
 
 class AdditionalSymbolLabel(IntEnum):
@@ -48,8 +49,10 @@ class AdditionalSymbolLabel(IntEnum):
         }[self] if self.value in [1, 2, 3, 4, 5] else None
 
 
-def draw_note_type_mask(ml: Line, img: np.ndarray, page: Page, scale: PageScaleReference):
+def draw_note_type_mask(ml: Line, img: np.ndarray, page: Page, scale: PageScaleReference,
+                        labels: List['SymbolLabelSpec']):
     import cv2
+    from omr.imageoperations.symbol_label_set import note_type_index
 
     if len(ml.staff_lines) < 2:  # at least two staff lines required
         return None
@@ -59,78 +62,59 @@ def draw_note_type_mask(ml: Line, img: np.ndarray, page: Page, scale: PageScaleR
 
     radius = max(1, p2i(ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 8)
 
-    def set(coord, label: AdditionalSymbolLabel, dx=radius, dy=radius):
-        coord = p2i(coord)
-        cv2.circle(img, tuple(coord.p.round().astype(int)), int(radius * 2), color=label.value, thickness=-1)
-
     for s in ml.symbols:
-        if s.symbol_type == SymbolType.NOTE:
-            if s.note_type == NoteType.LIQUESCENT_FOLLOWING_U:
-                set(s.coord, AdditionalSymbolLabel.LIQUESCENT_FOLLOWING_U)
-            elif s.note_type == NoteType.LIQUESCENT_FOLLOWING_D:
-                set(s.coord, AdditionalSymbolLabel.LIQUESCENT_FOLLOWING_D)
-            elif s.note_type == NoteType.APOSTROPHA:
-                set(s.coord, AdditionalSymbolLabel.APOSTROPHA)
-            elif s.note_type == NoteType.ORISCUS:
-                set(s.coord, AdditionalSymbolLabel.ORISCUS)
-            else:
-                set(s.coord, AdditionalSymbolLabel.NORMAL)
-        elif s.symbol_type == SymbolType.CLEF:
-            if s.clef_type == ClefType.F:
-                set(s.coord, AdditionalSymbolLabel.CLEF_F, dy=4 * radius)
-            elif s.clef_type == ClefType.C:
-                set(s.coord, AdditionalSymbolLabel.CLEF_C, dy=4 * radius)
-            # clef types without a trainable label are ignored (background)
-        elif s.symbol_type == SymbolType.ACCID:
-            if s.accid_type == AccidType.NATURAL:
-                set(s.coord, AdditionalSymbolLabel.ACCID_NATURAL)
-            elif s.accid_type == AccidType.FLAT:
-                set(s.coord, AdditionalSymbolLabel.ACCID_FLAT)
-            elif s.accid_type == AccidType.SHARP:
-                set(s.coord, AdditionalSymbolLabel.ACCID_SHARP)
-            # accid types without a trainable label are ignored (background)
+        index = note_type_index(s, labels)
+        if index:
+            coord = p2i(s.coord)
+            cv2.circle(img, tuple(coord.p.round().astype(int)), int(radius * 2), color=index, thickness=-1)
 
     return img
 
 
-def apply_note_type_label(symbol: MusicSymbol, label: AdditionalSymbolLabel):
-    if symbol.symbol_type == SymbolType.NOTE:
-        note_type = label.get_note_type()
-        symbol.note_type = note_type if note_type is not None else NoteType.NORMAL
+def apply_note_type_label(symbol: MusicSymbol, spec: 'SymbolLabelSpec'):
+    if symbol.symbol_type != SymbolType.NOTE:
+        return
+    symbol.note_type = NoteType(int(spec.sub_type)) if spec.sub_type else NoteType.NORMAL
+    if spec.class_id:
+        symbol.symbol_class = spec.class_id
 
 
 @dataclass(frozen=True)
 class SymbolHeadSpec:
     """One additional (optional) network head predicting an independent symbol attribute.
 
-    The main head (SymbolLabel) is fixed for checkpoint compatibility; every further
-    attribute gets its own entry in SYMBOL_DETECTION_HEADS. Head i corresponds to the
-    dataset column `add_mask_{i}` and albumentations target `mask_head_{i}`.
+    The main head (`SymbolClassLabelSets.main`) is the primary label inventory; every
+    further attribute gets its own entry in `symbol_detection_heads()`. Head i
+    corresponds to the dataset column `add_mask_{i}` and albumentations target
+    `mask_head_{i}`.
     """
     name: str
-    labels: Type[IntEnum]  # enum with get_color(); len(labels) = number of classes
-    draw_mask: Callable[[Line, np.ndarray, Page, PageScaleReference], None]  # rasterize GT labels in-place
-    apply_label: Callable[[MusicSymbol, IntEnum], None]  # set the decoded attribute on a predicted symbol
+    labels: List['SymbolLabelSpec']  # one spec per class; len(labels) = number of classes
+    # rasterize GT labels in-place
+    draw_mask: Callable[[Line, np.ndarray, Page, PageScaleReference, List['SymbolLabelSpec']], None]
+    # set the decoded attribute on a predicted symbol
+    apply_label: Callable[[MusicSymbol, 'SymbolLabelSpec'], None]
 
     def color_map(self) -> 'ColorMap':
-        from segmentation.settings import ColorMap, ClassSpec
-        return ColorMap([ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color())
-                         for i in self.labels])
+        from omr.imageoperations.symbol_label_set import _color_map
+        return _color_map(self.labels)
 
 
-NOTE_TYPE_HEAD = SymbolHeadSpec(
-    name='note_types',
-    labels=AdditionalSymbolLabel,
-    draw_mask=draw_note_type_mask,
-    apply_label=apply_note_type_label,
-)
-
-SYMBOL_DETECTION_HEADS: Tuple[SymbolHeadSpec, ...] = (NOTE_TYPE_HEAD,)
+SYMBOL_DETECTION_HEAD_COUNT = 1
 
 
-def head_color_maps() -> List['ColorMap']:
-    return [h.color_map() for h in SYMBOL_DETECTION_HEADS]
+def symbol_detection_heads(label_sets: 'SymbolClassLabelSets') -> Tuple[SymbolHeadSpec, ...]:
+    return (SymbolHeadSpec(
+        name='note_types',
+        labels=label_sets.note_type,
+        draw_mask=draw_note_type_mask,
+        apply_label=apply_note_type_label,
+    ),)
 
 
-def head_classes() -> List[int]:
-    return [len(h.labels) for h in SYMBOL_DETECTION_HEADS]
+def head_color_maps(label_sets: 'SymbolClassLabelSets') -> List['ColorMap']:
+    return [h.color_map() for h in symbol_detection_heads(label_sets)]
+
+
+def head_classes(label_sets: 'SymbolClassLabelSets') -> List[int]:
+    return [len(h.labels) for h in symbol_detection_heads(label_sets)]

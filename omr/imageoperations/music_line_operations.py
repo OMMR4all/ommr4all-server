@@ -1,6 +1,6 @@
 from omr.imageoperations.image_operation import ImageOperation, ImageOperationData, OperationOutput, ImageData, Point
 from omr.imageoperations.image_crop import ImageCropToSmallestBoxOperation
-from typing import Tuple, List, Any, Optional
+from typing import Tuple, List, Any, Optional, TYPE_CHECKING
 from database.file_formats.pcgts import Page, PageScaleReference, Line, MusicSymbol, ClefType, AccidType, \
     GraphicalConnectionType, Coords, SymbolType, BlockType, NoteType
 import numpy as np
@@ -8,8 +8,11 @@ from PIL import Image
 from copy import copy
 from enum import IntEnum
 from omr.dewarping.dummy_dewarper import Dewarper, transform
-from omr.imageoperations.symbol_heads import AdditionalSymbolLabel, SYMBOL_DETECTION_HEADS
+from omr.imageoperations.symbol_heads import symbol_detection_heads
 import logging
+
+if TYPE_CHECKING:
+    from omr.imageoperations.symbol_label_set import SymbolClassLabelSets
 
 logger = logging.getLogger(__name__)
 
@@ -50,43 +53,6 @@ class SymbolLabel(IntEnum):
                 6: [0, 0, 255],
                 7: [50, 50, 255],
                 8: [0, 0, 120]}[self.value]
-    @staticmethod
-    def music_symbol_to_symbol_label(s: MusicSymbol):
-        # Symbol classes without a trainable label (e.g. newly added classes that are
-        # not part of the SymbolLabel set yet) map to BACKGROUND, i.e. they are
-        # ignored by the pixel classifier training/prediction.
-        if s is None:
-            return SymbolLabel.BACKGROUND
-        elif s.symbol_type == SymbolType.NOTE:
-            if s.graphical_connection == GraphicalConnectionType.NEUME_START:
-                return SymbolLabel.NOTE_START
-            elif s.graphical_connection == GraphicalConnectionType.LOOPED:
-                return SymbolLabel.NOTE_LOOPED
-            elif s.graphical_connection == GraphicalConnectionType.GAPED:
-                return SymbolLabel.NOTE_GAPPED
-            else:
-                raise Exception('Invalid graphical connection type')
-        elif s.symbol_type == SymbolType.CLEF:
-            if s.clef_type == ClefType.C:
-                return SymbolLabel.CLEF_C
-            elif s.clef_type == ClefType.F:
-                return SymbolLabel.CLEF_F
-            else:
-                logger.warning('Clef type {} has no trainable label, treating as background'.format(s.clef_type))
-                return SymbolLabel.BACKGROUND
-        elif s.symbol_type == SymbolType.ACCID:
-            if s.accid_type == AccidType.NATURAL:
-                return SymbolLabel.ACCID_NATURAL
-            elif s.accid_type == AccidType.SHARP:
-                return SymbolLabel.ACCID_SHARP
-            elif s.accid_type == AccidType.FLAT:
-                return SymbolLabel.ACCID_FLAT
-            else:
-                logger.warning('Accid type {} has no trainable label, treating as background'.format(s.accid_type))
-                return SymbolLabel.BACKGROUND
-        else:
-            logger.warning('Symbol type {} has no trainable label, treating as background'.format(s.symbol_type))
-            return SymbolLabel.BACKGROUND
 
 # extract image of a staff line, and as mask, the highlighted staff lines
 class ImageExtractStaffLineImages(ImageOperation):
@@ -206,7 +172,8 @@ class ImageExtractDropCapitalsImages(ImageOperation):
 
 
 class ImageExtractDewarpedStaffLineImages(ImageOperation):
-    def __init__(self, dewarp, cut_region, pad, center, staff_lines_only, keep_graphical_connection):
+    def __init__(self, dewarp, cut_region, pad, center, staff_lines_only, keep_graphical_connection,
+                 label_sets: 'SymbolClassLabelSets'):
         super().__init__()
         self.dewarp = dewarp
         self.cut_region = cut_region
@@ -214,12 +181,14 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
         self.staff_lines_only = staff_lines_only
         self.cropper = ImageCropToSmallestBoxOperation(pad)
         self.keep_graphical_connection = keep_graphical_connection
+        self.label_sets = label_sets
 
     def apply_single(self, data: ImageOperationData, debug=False) -> OperationOutput:
         image = data.images[0].image
         labels = np.zeros(image.shape[:2], dtype=np.uint8)
         marked_symbols = np.zeros(labels.shape, dtype=np.uint8)
-        additional_masks = [np.zeros(labels.shape, dtype=np.uint8) for _ in SYMBOL_DETECTION_HEADS]
+        additional_masks = [np.zeros(labels.shape, dtype=np.uint8)
+                            for _ in symbol_detection_heads(self.label_sets)]
 
         i = 1
         s: List[List[Coords]] = []
@@ -243,8 +212,8 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
                 else:
                     data.page.page_to_image_scale(ml.coords, data.scale_reference).draw(labels, i, 0, fill=True)
                 self._symbols_to_mask(ml, marked_symbols, data.page, data.scale_reference, self.keep_graphical_connection)
-                for spec, canvas in zip(SYMBOL_DETECTION_HEADS, additional_masks):
-                    spec.draw_mask(ml, canvas, data.page, data.scale_reference)
+                for spec, canvas in zip(symbol_detection_heads(self.label_sets), additional_masks):
+                    spec.draw_mask(ml, canvas, data.page, data.scale_reference, spec.labels)
 
                 i += 1
 
@@ -373,46 +342,16 @@ class ImageExtractDewarpedStaffLineImages(ImageOperation):
 
         radius = max(1, p2i(ml.staff_lines[-1].center_y() - ml.staff_lines[0].center_y()) / len(ml.staff_lines) / 8)
 
-        def set(coord, label: SymbolLabel, dx=radius, dy=radius):
+        def set_label(coord, index: int):
             coord = p2i(coord)
-            # circle
-            cv2.circle(img, tuple(coord.p.round().astype(int)), int(radius * 2), color=label.value, thickness=-1)
-            # box
-            # img[int(coord.y - dy):int(coord.y + dy * 2), int(coord.x - dx): int(coord.x + dx * 2)] = label.value
+            cv2.circle(img, tuple(coord.p.round().astype(int)), int(radius * 2), color=index, thickness=-1)
 
         for s in ml.symbols:
             if s.missing:
                 continue
-            if s.symbol_type == SymbolType.NOTE:
-                if keep_graphical_connection and len(keep_graphical_connection) == 3:
-                    if keep_graphical_connection[1] and s.graphical_connection == GraphicalConnectionType.GAPED:
-                        set(s.coord, SymbolLabel.NOTE_GAPPED)
-                    elif keep_graphical_connection[2] and s.graphical_connection == GraphicalConnectionType.LOOPED:
-                        set(s.coord, SymbolLabel.NOTE_LOOPED)
-                    else:
-                        set(s.coord, SymbolLabel.NOTE_START)
-                else:
-                    if s.graphical_connection == GraphicalConnectionType.NEUME_START:
-                        set(s.coord, SymbolLabel.NOTE_START)
-                    elif s.graphical_connection == GraphicalConnectionType.LOOPED:
-                        set(s.coord, SymbolLabel.NOTE_LOOPED)
-                    else:
-                        set(s.coord, SymbolLabel.NOTE_GAPPED)
-
-            elif s.symbol_type == SymbolType.CLEF:
-                if s.clef_type == ClefType.F:
-                    set(s.coord, SymbolLabel.CLEF_F, dy=4 * radius)
-                elif s.clef_type == ClefType.C:
-                    set(s.coord, SymbolLabel.CLEF_C, dy=4 * radius)
-                # clef types without a trainable label are ignored (background)
-            elif s.symbol_type == SymbolType.ACCID:
-                if s.accid_type == AccidType.NATURAL:
-                    set(s.coord, SymbolLabel.ACCID_NATURAL)
-                elif s.accid_type == AccidType.FLAT:
-                    set(s.coord, SymbolLabel.ACCID_FLAT)
-                elif s.accid_type == AccidType.SHARP:
-                    set(s.coord, SymbolLabel.ACCID_SHARP)
-                # accid types without a trainable label are ignored (background)
+            index = self.label_sets.main_index_of(s, keep_graphical_connection)
+            if index:
+                set_label(s.coord, index)
 
         return img
 

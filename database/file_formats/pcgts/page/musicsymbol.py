@@ -91,11 +91,8 @@ class BasicNeumeType(IntEnum):
     OTHER = -1
 
 
-# To add a new symbol class (e.g. a new clef variant), see the guide in
-# doc/adding_symbol_classes.md. Server side, a new subtype only needs an
-# enum value here (clefs additionally need their pitch offset below); every
-# downstream consumer (exporters, training, evaluation) tolerates subtypes
-# it does not explicitly support.
+# New symbol classes are registered at runtime via `database/models/symbolclasses.py`;
+# the enums here only hold the built-in base classes a registered class refines.
 class ClefType(Enum):
     C = 'c'
     F = 'f'
@@ -160,6 +157,13 @@ class SymbolPredictionConfidence:
             'accidSharp': self.accid_sharp,
             'accidFlat': self.accid_flat,
         }
+
+    @staticmethod
+    def from_probabilities(probs: List[float]) -> 'SymbolPredictionConfidence':
+        """Per-class probabilities of the main head. Only the nine built-in classes have
+        a field here (the JSON keys are part of the client contract); probabilities of
+        registered classes beyond them are not reported."""
+        return SymbolPredictionConfidence(*probs[:9])
 
 
 class SymbolSequenceConfidence:
@@ -243,6 +247,7 @@ class MusicSymbol:
                  missing: bool = False,
                  advanced_class: AdvancedSymbolClass = AdvancedSymbolClass.normal,
                  advanced_color: AdvancedSymbolColor = AdvancedSymbolColor.black,
+                 symbol_class: Optional[str] = None,
                  ):
         self.id = s_id if s_id else str(uuid4())
         self.coord = coord if coord else Point()
@@ -259,6 +264,7 @@ class MusicSymbol:
         self.missing = missing
         self.advanced_class = advanced_class
         self.advanced_color = advanced_color
+        self.symbol_class = symbol_class
 
     def get_str_representation(self, graphical_connection: bool = False) -> str:
         if self.symbol_type == self.symbol_type.NOTE:
@@ -316,7 +322,8 @@ class MusicSymbol:
             optional_enum(d, 'advancedSymbolClass', AdvancedSymbolClass, None) if d.get(
                 'advancedSymbolClass') is not None else AdvancedSymbolClass.normal,
             optional_enum(d, 'advancedSymbolColor', AdvancedSymbolColor, None) if d.get(
-                'advancedSymbolColor') is not None else AdvancedSymbolColor.black
+                'advancedSymbolColor') is not None else AdvancedSymbolColor.black,
+            d.get('symbolClass') or None
         )
 
     def to_json(self, skip_confidence=False) -> dict:
@@ -342,6 +349,7 @@ class MusicSymbol:
         d['symbolConfidence'] = None if skip_confidence else self.symbol_confidence.to_json() if self.symbol_confidence else None
         d['advancedSymbolClass'] = self.advanced_class.value if self.advanced_class is not None else AdvancedSymbolClass.normal.value
         d['advancedSymbolColor'] = self.advanced_color.value if self.advanced_color is not None else AdvancedSymbolColor.black.value
+        d['symbolClass'] = self.symbol_class
 
         return d
 
@@ -356,12 +364,21 @@ class MusicSymbol:
         if not self.symbol_type == SymbolType.CLEF:
             raise TypeError("Expected type {} but has {}".format(SymbolType.CLEF, self.symbol_type))
 
-        clef_type_offset = self.clef_type.offset()
+        clef_type_offset = self.clef_offset()
         relative_offset = (position_in_staff - self.position_in_staff)
         note_name = NoteName((clef_type_offset + 49 + MusicSymbolPositionInStaff.LINE_2 + relative_offset) % 7)
         octave = 5 + (clef_type_offset + MusicSymbolPositionInStaff.LINE_1 + relative_offset) // 7
         octave = octave - 1 if self.clef_type == self.clef_type.F else octave
         return note_name, octave
+
+    def clef_offset(self) -> int:
+        """Pitch offset of this clef: the registered class's override, else its base clef's."""
+        if self.symbol_class:
+            from database.models.symbolclasses import SymbolClass
+            sc = SymbolClass.objects.filter(id=self.symbol_class).first()
+            if sc is not None and sc.clef_offset is not None:
+                return sc.clef_offset
+        return self.clef_type.offset()
 
     def update_note_sequence_confidence(self, previous_symbols: List['MusicSymbol'], setting, token_length,
                                         confidence_factor=0.02):
@@ -384,7 +401,8 @@ def create_clef(
         s_id: Optional[str] = None,
         coord: Point = None,
         position_in_staff: MusicSymbolPositionInStaff = MusicSymbolPositionInStaff.UNDEFINED,
-        confidence=None
+        confidence=None,
+        symbol_class: Optional[str] = None
 ):
     return MusicSymbol(
         SymbolType.CLEF,
@@ -392,7 +410,8 @@ def create_clef(
         clef_type=clef_type,
         coord=coord,
         position_in_staff=position_in_staff,
-        confidence=confidence
+        confidence=confidence,
+        symbol_class=symbol_class
 
     )
 
@@ -402,7 +421,8 @@ def create_accid(
         s_id: Optional[str] = None,
         coord: Point = None,
         position_in_staff: MusicSymbolPositionInStaff = MusicSymbolPositionInStaff.UNDEFINED,
-        confidence=None
+        confidence=None,
+        symbol_class: Optional[str] = None
 
 ):
     return MusicSymbol(
@@ -411,6 +431,7 @@ def create_accid(
         accid_type=accid_type,
         coord=coord,
         position_in_staff=position_in_staff,
-        confidence=confidence
+        confidence=confidence,
+        symbol_class=symbol_class
 
     )

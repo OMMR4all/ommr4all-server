@@ -14,8 +14,8 @@ from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, Algorith
 import cv2
 import numpy as np
 from omr.steps.symboldetection.torchpixelclassifier.meta import Meta
-from omr.imageoperations.music_line_operations import SymbolLabel
-from omr.imageoperations.symbol_heads import SYMBOL_DETECTION_HEADS
+from omr.imageoperations.symbol_heads import SYMBOL_DETECTION_HEAD_COUNT, symbol_detection_heads
+from omr.imageoperations.symbol_label_set import SymbolClassLabelSets
 from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePredictionResult
 
 from omr.steps.symboldetection.postprocessing.symbol_extraction_from_prob_map import extract_symbols, \
@@ -42,6 +42,7 @@ class PCTorchPredictor(SymbolsPredictor):
 
         with open(os.path.join(path, 'dataset_params.json'), 'r') as f:
             self.dataset_params = DatasetParams.from_json(f.read())
+        self.label_sets = self.dataset_params.symbol_label_sets or SymbolClassLabelSets.builtin()
 
         base_model = modelbuilder.get_model()
         config = modelbuilder.get_model_configuration()
@@ -50,12 +51,17 @@ class PCTorchPredictor(SymbolsPredictor):
         logger.info(f"Using device: {device}")
         self.predictor = EnsemblePredictor.from_model_config([base_model], [config])
         self.nmaskpredictor = NetworkMaskPostProcessor(self.predictor, config.color_map)
+        if len(config.color_map) != len(self.label_sets.main):
+            raise ValueError(
+                f"Model {path} has {len(config.color_map)} main classes but its "
+                f"dataset_params.json declares {len(self.label_sets.main)} symbol labels")
         # match the model's additional heads to the registry by position + class count;
         # unknown heads are ignored instead of crashing on a foreign checkpoint
         n_heads, head_cls = config.head_config()
         self.head_specs = []
+        heads = symbol_detection_heads(self.label_sets)
         for i in range(n_heads):
-            spec = SYMBOL_DETECTION_HEADS[i] if i < len(SYMBOL_DETECTION_HEADS) else None
+            spec = heads[i] if i < SYMBOL_DETECTION_HEAD_COUNT else None
             if spec is None or len(spec.labels) != head_cls[i]:
                 logger.warning(f"Model head {i} ({head_cls[i]} classes) does not match any known "
                                f"symbol head, its predictions are ignored")
@@ -97,7 +103,8 @@ class PCTorchPredictor(SymbolsPredictor):
             m: RegionLineMaskData = data
             symbols = extract_symbols(prob_map_softmax, labels, m, dataset=dataset, min_symbol_area=-1,
                                       clef=self.settings.params.use_rule_based_post_processing and self.settings.params.use_pis_clef_correction , lookup=self.look_up,
-                                      probability=0.5, additional_masks=head_softmaxes, heads=self.head_specs)
+                                      probability=0.5, additional_masks=head_softmaxes, heads=self.head_specs,
+                                      label_sets=self.label_sets)
 
             additional_symbols = filter_unique_symbols_by_coord(symbols,
                                                                 extract_symbols(prob_map_softmax, labels, m,
@@ -105,7 +112,8 @@ class PCTorchPredictor(SymbolsPredictor):
                                                                                 probability=0.95,
                                                                                 clef=self.settings.params.use_rule_based_post_processing and self.settings.params.use_pis_clef_correction,
                                                                                 min_symbol_area=4, lookup=self.look_up,
-                                                                                additional_masks=head_softmaxes, heads=self.head_specs))
+                                                                                additional_masks=head_softmaxes, heads=self.head_specs,
+                                                                                label_sets=self.label_sets))
 
             if self.settings.params.use_rule_based_post_processing:
                 if self.settings.params.use_block_layout_correction:
@@ -183,81 +191,6 @@ class PCTorchPredictor(SymbolsPredictor):
 
             progress.item_finished(pos)
             yield single_line_symbols, single_line_symbols_2
-
-    def extract_symbols123(self, probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
-                           dataset: SymbolDetectionDataset) -> List[MusicSymbol]:
-        # n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(((probs[:, :, 0] < 0.5) | (p > 0)).astype(np.uint8))
-        p = (np.argmax(probs[:, :, 1:], axis=-1) + 1) * (probs[:, :, 0] < 0.5)
-        n_labels, cc, stats, centroids = cv2.connectedComponentsWithStats(p.astype(np.uint8))
-        symbols = []
-        sorted_labels = sorted(range(1, n_labels), key=lambda i: (centroids[i, 0], -centroids[i, 1]))
-        centroids_canvas = np.zeros(p.shape, dtype=np.uint8)
-        for i in sorted_labels:
-            w = stats[i, cv2.CC_STAT_WIDTH]
-            h = stats[i, cv2.CC_STAT_HEIGHT]
-            a = stats[i, cv2.CC_STAT_AREA]
-            # if a <= 4:
-            #    continue
-            y = stats[i, cv2.CC_STAT_TOP]
-            x = stats[i, cv2.CC_STAT_LEFT]
-            c = Point(x=centroids[i, 0], y=centroids[i, 1])
-            coord = dataset.local_to_global_pos(c, m.operation.params)
-            coord = m.operation.page.image_to_page_scale(coord, m.operation.scale_reference)
-            # coord = coord.round().astype(int)
-            # compute label this the label with the hightest frequency of the connected component
-            area = p[y:y + h, x:x + w] * (cc[y:y + h, x:x + w] == i)
-            label = SymbolLabel(int(np.argmax([np.sum(area == v + 1) for v in range(len(SymbolLabel) - 1)])) + 1)
-            centroids_canvas[int(np.round(c.y)), int(np.round(c.x))] = label
-            position_in_staff = m.operation.music_line.compute_position_in_staff(coord)
-            if label == SymbolLabel.NOTE_START:
-                symbols.append(MusicSymbol(
-                    symbol_type=SymbolType.NOTE,
-                    coord=coord,
-                    position_in_staff=position_in_staff,
-                    graphical_connection=GraphicalConnectionType.NEUME_START,
-                ))
-            elif label == SymbolLabel.NOTE_GAPPED:
-                symbols.append(MusicSymbol(
-                    symbol_type=SymbolType.NOTE,
-                    coord=coord,
-                    position_in_staff=position_in_staff,
-                    graphical_connection=GraphicalConnectionType.GAPED,
-                ))
-            elif label == SymbolLabel.NOTE_LOOPED:
-                symbols.append(MusicSymbol(
-                    symbol_type=SymbolType.NOTE,
-                    coord=coord,
-                    position_in_staff=position_in_staff,
-                    graphical_connection=GraphicalConnectionType.LOOPED,
-                ))
-            elif label == SymbolLabel.CLEF_C:
-                symbols.append(create_clef(ClefType.C, coord=coord, position_in_staff=position_in_staff))
-            elif label == SymbolLabel.CLEF_F:
-                symbols.append(create_clef(ClefType.F, coord=coord, position_in_staff=position_in_staff))
-            elif label == SymbolLabel.ACCID_FLAT:
-                symbols.append(create_accid(AccidType.FLAT, coord=coord))
-            elif label == SymbolLabel.ACCID_SHARP:
-                symbols.append(create_accid(AccidType.SHARP, coord=coord))
-            elif label == SymbolLabel.ACCID_NATURAL:
-                symbols.append(create_accid(AccidType.NATURAL, coord=coord))
-            else:
-                raise Exception("Unknown label {} during decoding".format(label))
-
-        if False:
-            import matplotlib.pyplot as plt
-            f, ax = plt.subplots(6, 1, sharex='all', sharey='all')
-            ax[0].imshow(p)
-            ax[1].imshow(m.mask)
-            ax[2].imshow(render_prediction_labels(centroids_canvas, m.region))
-            ax[2].imshow(render_prediction_labels(centroids_canvas, m.region))
-
-            labels = render_prediction_labels(p, 255 - m.region)
-            ax[3].imshow(labels)
-            ax[4].imshow(m.region, cmap='gray_r')
-            ax[5].imshow(cc, cmap='gist_ncar_r')
-            plt.show()
-
-        return symbols
 
 
 if __name__ == '__main__':

@@ -55,19 +55,15 @@ class YoloTrainer(SymbolDetectionTrainer):
         super().__init__(params)
 
     def _train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
-        from omr.imageoperations.music_line_operations import SymbolLabel
+        from omr.imageoperations.symbol_label_set import SymbolClassLabelSets
 
         if callback:
             callback.resolving_files()
 
         def make_yaml(train: Path, val: Path, yaml_fname) -> Dict[int, str]:
             root = train.parent
-            lookup_dict = {}
-            for i in enumerate(SymbolLabel):
-                if i[0] == 0:
-                    continue
-
-                lookup_dict[i[0] - 1] = i[1].name.lower()
+            label_sets = self.settings.dataset_params.symbol_label_sets or SymbolClassLabelSets.builtin()
+            lookup_dict = {s.index - 1: s.id for s in label_sets.main if s.index > 0}
             yaml_dict = {
                 "path": str(root.absolute()),
                 "train": str(train.name),

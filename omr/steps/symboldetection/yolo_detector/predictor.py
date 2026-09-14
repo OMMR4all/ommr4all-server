@@ -11,7 +11,7 @@ from omr.dataset import RegionLineMaskData, DatasetParams
 from omr.steps.algorithm import AlgorithmPredictor, PredictionCallback, AlgorithmPredictorSettings, PredictionProgress
 
 from omr.steps.symboldetection.yolo_detector.meta import Meta
-from omr.imageoperations.music_line_operations import SymbolLabel
+from omr.imageoperations.symbol_label_set import SymbolClassLabelSets
 from omr.steps.symboldetection.predictor import SymbolsPredictor, SingleLinePredictionResult, PredictionResult
 
 from omr.steps.symboldetection.postprocessing.symobl_background_knwoledge_postprocessing import *
@@ -46,6 +46,7 @@ class PCTorchPredictor(SymbolsPredictor):
 
         with open(os.path.join(path, 'dataset_params.json'), 'r') as f:
             self.dataset_params = DatasetParams.from_json(f.read())
+        self.label_sets = self.dataset_params.symbol_label_sets or SymbolClassLabelSets.builtin()
 
         #base_model = modelbuilder.get_model()
         #config = modelbuilder.get_model_configuration()
@@ -104,47 +105,35 @@ class PCTorchPredictor(SymbolsPredictor):
 
                     c = box.cls
                     #print(f"la{c[0]} center: cx{cx} cy{cy}")
-                    label = SymbolLabel(c[0].cpu().numpy() + 1)
+                    class_index = int(c[0].cpu().numpy()) + 1
+                    if class_index >= len(self.label_sets.main):
+                        logger.warning(f"YOLO predicted class index {class_index} outside the "
+                                       f"{len(self.label_sets.main)} known symbol labels, skipping")
+                        continue
+                    spec = self.label_sets.main[class_index]
                     coord = Point(cx, cy)
                     coord = dataset.local_to_global_pos(coord, data.operation.params)
                     coord = data.operation.page.image_to_page_scale(coord, data.operation.scale_reference)
-                    # coord = coord.round().astype(int)
-                    # compute label this the label with the hightest frequency of the connected component
 
                     position_in_staff = data.operation.music_line.compute_position_in_staff(coord)
-                    if label == SymbolLabel.NOTE_START:
+                    if spec.symbol_type == SymbolType.NOTE:
                         symbols.append(MusicSymbol(
                             symbol_type=SymbolType.NOTE,
                             coord=coord,
                             position_in_staff=position_in_staff,
-                            graphical_connection=GraphicalConnectionType.NEUME_START,
+                            graphical_connection=GraphicalConnectionType(int(spec.sub_type)),
+                            symbol_class=spec.class_id,
                         ))
-                    elif label == SymbolLabel.NOTE_GAPPED:
-                        symbols.append(MusicSymbol(
-                            symbol_type=SymbolType.NOTE,
-                            coord=coord,
-                            position_in_staff=position_in_staff,
-                            graphical_connection=GraphicalConnectionType.GAPED,
-                        ))
-                    elif label == SymbolLabel.NOTE_LOOPED:
-                        symbols.append(MusicSymbol(
-                            symbol_type=SymbolType.NOTE,
-                            coord=coord,
-                            position_in_staff=position_in_staff,
-                            graphical_connection=GraphicalConnectionType.LOOPED,
-                        ))
-                    elif label == SymbolLabel.CLEF_C:
-                        symbols.append(create_clef(ClefType.C, coord=coord, position_in_staff=position_in_staff))
-                    elif label == SymbolLabel.CLEF_F:
-                        symbols.append(create_clef(ClefType.F, coord=coord, position_in_staff=position_in_staff))
-                    elif label == SymbolLabel.ACCID_FLAT:
-                        symbols.append(create_accid(AccidType.FLAT, coord=coord))
-                    elif label == SymbolLabel.ACCID_SHARP:
-                        symbols.append(create_accid(AccidType.SHARP, coord=coord))
-                    elif label == SymbolLabel.ACCID_NATURAL:
-                        symbols.append(create_accid(AccidType.NATURAL, coord=coord))
+                    elif spec.symbol_type == SymbolType.CLEF:
+                        symbols.append(create_clef(ClefType(spec.sub_type), coord=coord,
+                                                   position_in_staff=position_in_staff,
+                                                   symbol_class=spec.class_id))
+                    elif spec.symbol_type == SymbolType.ACCID:
+                        symbols.append(create_accid(AccidType(spec.sub_type), coord=coord,
+                                                    symbol_class=spec.class_id))
                     else:
-                        raise Exception("Unknown label {} during decoding".format(label))
+                        logger.warning(f"Label {spec.index} ({spec.id}) is not decodable, skipping")
+                        continue
 
                     #annotator.box_label(b, "")
                 #img = annotator.result()

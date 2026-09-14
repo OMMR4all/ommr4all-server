@@ -7,6 +7,7 @@ from omr.imageoperations import ImageExtractDewarpedStaffLineImages, ImageOperat
      ImageRescaleToHeightOperation, ImagePadToPowerOf2, ImageDrawRegions#, ImageApplyFCN
 
 from omr.dataset import DatasetParams, Dataset, ImageInput
+from omr.imageoperations.symbol_label_set import SymbolClassLabelSets
 
 import logging
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class SymbolDetectionDataset(Dataset):
         operations = [
             ImageLoadFromPageOperation(invert=True, files=[('gray_norm_x2', False)]),
             ImageDrawRegions(block_types=[BlockType.DROP_CAPITAL] if params.cut_region else [], color=0),
-            ImageExtractDewarpedStaffLineImages(params.dewarp, params.cut_region, params.pad, params.center, params.staff_lines_only, params.keep_graphical_connection),
+            ImageExtractDewarpedStaffLineImages(params.dewarp, params.cut_region, params.pad, params.center, params.staff_lines_only, params.keep_graphical_connection, params.symbol_label_sets or SymbolClassLabelSets.builtin()),
         ]
         if params.apply_fcn_model is not None:
             operations += [
@@ -52,7 +53,7 @@ class SymbolDetectionDatasetTorch(Dataset):
         operations = [
             ImageLoadFromPageOperation(invert=False, files=[('color_norm_x2', False)]),
             #ImageDrawRegions(block_types=[BlockType.DROP_CAPITAL] if params.cut_region else [], color=0),
-            ImageExtractDewarpedStaffLineImages(params.dewarp, params.cut_region, params.pad, params.center, params.staff_lines_only, params.keep_graphical_connection),
+            ImageExtractDewarpedStaffLineImages(params.dewarp, params.cut_region, params.pad, params.center, params.staff_lines_only, params.keep_graphical_connection, params.symbol_label_sets or SymbolClassLabelSets.builtin()),
         ]
 
 

@@ -7,6 +7,8 @@ from .trainerparams import TaskTrainerParams
 import logging
 from omr.dataset.datafiles import dataset_by_locked_pages, LockState
 from omr.steps.algorithm import TrainerCallback, AlgorithmTrainerSettings, DatasetParams
+from omr.steps.algorithmtypes import AlgorithmGroups
+from omr.imageoperations.symbol_label_set import symbol_label_sets_for_style
 from omr.dataset.dataset import PageScaleReference
 
 logger = logging.getLogger(__name__)
@@ -94,6 +96,8 @@ class TaskRunnerTrainer(TaskRunner):
             validation_data=val,
             dataset_params=DatasetParams(
                 gt_required=True,
+                symbol_label_sets=symbol_label_sets_for_style(book.get_meta().notationStyle)
+                if meta.group() == AlgorithmGroups.SYMBOLS else None,
             ),
             # None unless the request asked for a value, so the algorithm defaults apply unchanged
             params=self.params.to_trainer_params(trainer_class),
