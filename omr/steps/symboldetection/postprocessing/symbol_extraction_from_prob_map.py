@@ -5,7 +5,7 @@ import numpy as np
 from database.file_formats.pcgts import *
 
 from database.file_formats.pcgts import MusicSymbol, SymbolPredictionConfidence, SymbolType, GraphicalConnectionType, \
-    SymbolConfidence, ClefType, create_clef, create_accid, AccidType, Point
+    SymbolConfidence, ClefType, create_clef, create_accid, create_other, AccidType, Point
 from omr.dataset import RegionLineMaskData
 from omr.imageoperations.music_line_operations import SymbolLabel
 from omr.imageoperations.symbol_heads import AdditionalSymbolLabel, SymbolHeadSpec, symbol_detection_heads
@@ -153,6 +153,10 @@ def extract_symbols(probs: np.ndarray, p: np.ndarray, m: RegionLineMaskData,
             symbol = create_accid(AccidType(spec.sub_type), coord=coord,
                                   confidence=SymbolConfidence(symbol_pred, None),
                                   symbol_class=spec.class_id)
+        elif spec.symbol_type == SymbolType.OTHER:
+            symbol = create_other(spec.class_id, coord=coord,
+                                  position_in_staff=m.operation.music_line.compute_position_in_staff(coord),
+                                  confidence=SymbolConfidence(symbol_pred, None))
         else:
             logger.warning(f"Label {spec.index} ({spec.id}) is not decodable, skipping")
             continue

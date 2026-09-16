@@ -13,6 +13,10 @@ class SymbolType(Enum):
     NOTE = 'note'
     CLEF = 'clef'
     ACCID = 'accid'
+    # Symbols that are neither pitched nor pitch-defining (bar lines, custodes, ...).
+    # Such a symbol carries no sub type: it is fully described by the registered
+    # class (`database/models/symbolclasses.py`) that its `symbol_class` names.
+    OTHER = 'other'
 
 
 class NoteType(IntEnum):
@@ -267,12 +271,14 @@ class MusicSymbol:
         self.symbol_class = symbol_class
 
     def get_str_representation(self, graphical_connection: bool = False) -> str:
-        if self.symbol_type == self.symbol_type.NOTE:
+        if self.symbol_type == SymbolType.NOTE:
             return str(self.position_in_staff.value) + str(self.graphical_connection.value)
-        elif self.symbol_type == self.symbol_type.CLEF:
+        elif self.symbol_type == SymbolType.CLEF:
             return "Clef_{}".format(self.clef_type.value.upper())
-        else:
+        elif self.symbol_type == SymbolType.ACCID:
             return str(self.accid_type.name)
+        else:
+            return "Other_{}".format(self.symbol_class if self.symbol_class else 'unknown')
 
     def __repr__(self, ignore_gaped=True, melody=False):
         parts = [self.symbol_type.value]
@@ -434,4 +440,22 @@ def create_accid(
         confidence=confidence,
         symbol_class=symbol_class
 
+    )
+
+
+def create_other(
+        symbol_class: Optional[str] = None,
+        s_id: Optional[str] = None,
+        coord: Point = None,
+        position_in_staff: MusicSymbolPositionInStaff = MusicSymbolPositionInStaff.UNDEFINED,
+        confidence=None,
+):
+    """A symbol without pitch semantics, e.g. a bar line. See `SymbolType.OTHER`."""
+    return MusicSymbol(
+        SymbolType.OTHER,
+        s_id,
+        coord=coord,
+        position_in_staff=position_in_staff,
+        confidence=confidence,
+        symbol_class=symbol_class,
     )

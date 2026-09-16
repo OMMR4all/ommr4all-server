@@ -3,7 +3,9 @@ from rest_framework import serializers
 
 from database.models.bookstyles import BookStyle
 
-SYMBOL_CLASS_BASE_TYPES = ('note', 'clef', 'accid')
+# 'other' has no built-in sub types (see `SymbolType.OTHER`): such a class stands
+# for itself and must therefore carry its own glyph.
+SYMBOL_CLASS_BASE_TYPES = ('note', 'clef', 'accid', 'other')
 
 
 class SymbolClass(models.Model):
@@ -18,7 +20,8 @@ class SymbolClass(models.Model):
     style = models.ForeignKey(BookStyle, null=True, blank=True, on_delete=models.CASCADE,
                               related_name='symbol_classes')
     base_symbol_type = models.CharField(max_length=16)   # SymbolType value
-    base_sub_type = models.CharField(max_length=32)      # ClefType/AccidType value, or NoteType as str
+    # ClefType/AccidType value, or NoteType as str; always '' for base type 'other'
+    base_sub_type = models.CharField(max_length=32, blank=True, default='')
     clef_offset = models.IntegerField(null=True, blank=True)   # only meaningful for clefs
     glyph_preset = models.CharField(max_length=32, blank=True, default='')
     svg_path = models.TextField(blank=True, default='')

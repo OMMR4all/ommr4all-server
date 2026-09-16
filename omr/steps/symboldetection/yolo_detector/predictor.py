@@ -131,6 +131,9 @@ class PCTorchPredictor(SymbolsPredictor):
                     elif spec.symbol_type == SymbolType.ACCID:
                         symbols.append(create_accid(AccidType(spec.sub_type), coord=coord,
                                                     symbol_class=spec.class_id))
+                    elif spec.symbol_type == SymbolType.OTHER:
+                        symbols.append(create_other(spec.class_id, coord=coord,
+                                                    position_in_staff=position_in_staff))
                     else:
                         logger.warning(f"Label {spec.index} ({spec.id}) is not decodable, skipping")
                         continue

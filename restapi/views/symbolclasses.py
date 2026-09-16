@@ -34,8 +34,11 @@ def base_class_valid(base_symbol_type, base_sub_type) -> bool:
             NoteType(int(base_sub_type))
         elif base_symbol_type == 'clef':
             ClefType(base_sub_type)
-        else:
+        elif base_symbol_type == 'accid':
             AccidType(base_sub_type)
+        else:
+            # 'other' refines no built-in class, hence it must not claim a sub type
+            return not base_sub_type
     except (ValueError, TypeError):
         return False
     return True
@@ -59,6 +62,14 @@ def validate_common(data, exclude_id=None):
             developerMessage="Digit shortcut {} is already taken".format(data.get('digit_shortcut')),
             userMessage='The digit shortcut {} is already in use'.format(data.get('digit_shortcut')),
             errorCode=ErrorCodes.SYMBOL_CLASS_DIGIT_SHORTCUT_TAKEN,
+        ).response()
+
+    if data.get('base_symbol_type') == 'other' and not (data.get('glyph_preset') or data.get('svg_path')):
+        return APIError(
+            status=status.HTTP_400_BAD_REQUEST,
+            developerMessage="Symbol class of base type 'other' without a glyph: {}".format(data),
+            userMessage='A symbol class that is based on no built-in symbol needs its own glyph',
+            errorCode=ErrorCodes.SYMBOL_CLASS_GLYPH_REQUIRED,
         ).response()
     return None
 

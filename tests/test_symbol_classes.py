@@ -2,8 +2,8 @@ import unittest
 from django.test import TestCase as DjangoTestCase
 
 from database.file_formats.pcgts.page.musicsymbol import (
-    create_clef, ClefType, MusicSymbolPositionInStaff, NoteName, MusicSymbol, SymbolType,
-    GraphicalConnectionType, NoteType,
+    create_clef, create_other, ClefType, MusicSymbolPositionInStaff, NoteName, MusicSymbol,
+    SymbolType, GraphicalConnectionType, NoteType,
 )
 from restapi.models.error import ErrorCodes
 
@@ -121,6 +121,50 @@ class TestRegisteredSymbolClass(DjangoTestCase):
         self.assertEqual(sets.note_type_index_of(n), 11)
         self.assertEqual(MusicSymbol.from_json(n.to_json()).symbol_class, 'quilisma')
 
+    def test_other_based_class_extends_the_main_head_without_a_sub_type(self):
+        from database.file_formats.pcgts import Line
+        from database.models.symbolclasses import SymbolClass
+        from omr.imageoperations.symbol_label_set import symbol_label_sets_for_style
+
+        SymbolClass.objects.create(id='bar_line', name='Bar line', style=None,
+                                   base_symbol_type='other', base_sub_type='',
+                                   glyph_preset='bar', order=10)
+        sets = symbol_label_sets_for_style('french14')
+        self.assertEqual(len(sets.main), 10)
+        self.assertEqual(sets.main[9].class_id, 'bar_line')
+        self.assertEqual(sets.main[9].symbol_type, SymbolType.OTHER)
+        self.assertEqual(sets.main[9].sub_type, '')
+        # a shape class never occupies the note-type head
+        self.assertEqual(len(sets.note_type), 11)
+
+        s = create_other('bar_line', position_in_staff=MusicSymbolPositionInStaff.LINE_2)
+        self.assertEqual(sets.main_index_of(s), 9)
+        self.assertEqual(sets.note_type_index_of(s), 0)
+
+        d = s.to_json()
+        self.assertEqual(d['type'], 'other')
+        # no sub type travels along, neither in nor out
+        self.assertNotIn('clefType', d)
+        self.assertNotIn('accidType', d)
+        self.assertNotIn('noteType', d)
+        restored = MusicSymbol.from_json(d)
+        self.assertEqual(restored.symbol_type, SymbolType.OTHER)
+        self.assertEqual(restored.symbol_class, 'bar_line')
+
+        # and it stays unpitched while its neighbours get their note names
+        note = MusicSymbol(SymbolType.NOTE, position_in_staff=MusicSymbolPositionInStaff.LINE_2)
+        Line(symbols=[note, s]).update_note_names()
+        self.assertNotEqual(note.note_name, NoteName.UNDEFINED)
+        self.assertEqual(s.note_name, NoteName.UNDEFINED)
+
+    def test_an_other_class_without_a_registration_is_background(self):
+        from omr.imageoperations.symbol_label_set import symbol_label_sets_for_style
+
+        sets = symbol_label_sets_for_style('french14')
+        s = create_other('never_registered')
+        self.assertEqual(MusicSymbol.from_json(s.to_json()).symbol_class, 'never_registered')
+        self.assertEqual(sets.main_index_of(s), 0)
+
     def test_unknown_class_id_is_preserved_and_degrades_to_its_base(self):
         from omr.imageoperations.symbol_label_set import symbol_label_sets_for_style
 
@@ -189,6 +233,34 @@ class TestSymbolClassesRestApi(DjangoTestCase):
             self.assertEqual(response.status_code, 400, response.content)
             self.assertEqual(response.json()['errorCode'],
                              ErrorCodes.SYMBOL_CLASS_INVALID_REQUEST.value)
+
+    def test_an_other_class_needs_no_sub_type_but_a_glyph(self):
+        client = self._client(self.admin)
+        bar = {
+            'name': 'Bar line', 'style': None, 'base_symbol_type': 'other', 'base_sub_type': '',
+            'clef_offset': None, 'glyph_preset': 'bar', 'svg_path': '', 'svg_path_stroke': None,
+            'color': '', 'digit_shortcut': None, 'hidden_by_default': False, 'order': 10,
+        }
+        response = client.put('/api/symbol-classes', bar, format='json')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()['base_sub_type'], '')
+
+        # a sub type would claim a built-in class that does not exist
+        response = client.put('/api/symbol-classes', dict(bar, name='Bar 2', base_sub_type='c'),
+                              format='json')
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertEqual(response.json()['errorCode'], ErrorCodes.SYMBOL_CLASS_INVALID_REQUEST.value)
+
+        # without a base class to fall back to, the class must bring its own glyph
+        response = client.put('/api/symbol-classes', dict(bar, name='Bar 3', glyph_preset=''),
+                              format='json')
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertEqual(response.json()['errorCode'], ErrorCodes.SYMBOL_CLASS_GLYPH_REQUIRED.value)
+
+        response = client.put('/api/symbol-classes',
+                              dict(bar, name='Bar 4', glyph_preset='', svg_path='M 50 10 V 90'),
+                              format='json')
+        self.assertEqual(response.status_code, 200, response.content)
 
     def test_an_empty_name_is_rejected(self):
         response = self._client(self.admin).put('/api/symbol-classes', dict(self.CUSTODES, name=''),

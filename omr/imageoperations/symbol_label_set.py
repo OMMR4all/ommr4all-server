@@ -155,6 +155,9 @@ def main_index(s: MusicSymbol, labels: List[SymbolLabelSpec], keep_graphical_con
         sub_type = s.clef_type.value
     elif s.symbol_type == SymbolType.ACCID:
         sub_type = s.accid_type.value
+    elif s.symbol_type == SymbolType.OTHER:
+        # only ever labelled through its registered class, which the lookup above covers
+        return 0
     else:
         logger.warning('Symbol type {} has no trainable label, treating as background'.format(s.symbol_type))
         return 0
@@ -201,7 +204,8 @@ def symbol_label_sets_for_style(style_id: Optional[str]) -> SymbolClassLabelSets
     rows = SymbolClass.objects.filter(Q(style_id=style_id) | Q(style__isnull=True))
     n_custom = {'main': 0, 'note_type': 0}
     for row in rows:
-        if row.base_symbol_type in ('clef', 'accid'):
+        if row.base_symbol_type in ('clef', 'accid', 'other'):
+            # shape classes: the main head separates them from notes
             target, key = sets.main, 'main'
         elif row.base_symbol_type == 'note':
             target, key = sets.note_type, 'note_type'

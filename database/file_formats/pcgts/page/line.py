@@ -167,13 +167,11 @@ class Line(Region):
                                                                      position_in_staff=MusicSymbolPositionInStaff.LINE_0)
 
         for s in self.symbols:
+            if s.symbol_type == SymbolType.OTHER:
+                continue    # a bar line and friends carry no pitch
             if s.symbol_type == SymbolType.CLEF:
                 current_clef = s
-                s.update_note_name(current_clef, self.staff_lines)
-            elif s.symbol_type == SymbolType.NOTE:
-                s.update_note_name(current_clef, self.staff_lines)
-            else:
-                s.update_note_name(current_clef, self.staff_lines)
+            s.update_note_name(current_clef, self.staff_lines)
 
         return current_clef
 
