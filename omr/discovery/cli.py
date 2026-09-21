@@ -10,12 +10,18 @@ from omr.discovery.config import RunConfig, deep_merge, load_config
 
 
 def _parser():
-    p=argparse.ArgumentParser(description='Offline self-supervised symbol/neume discovery')
+    p=argparse.ArgumentParser(description='Offline embedding experiments for symbol annotation')
     sub=p.add_subparsers(dest='command',required=True)
     symbols=sub.add_parser('symbols',help='milestone 1: discover and cluster symbols')
     symbols.add_argument('--book'); symbols.add_argument('--pages',nargs='+')
     symbols.add_argument('--config'); symbols.add_argument('--out'); symbols.add_argument('--feature-extractor',choices=['dino','stub'])
     symbols.add_argument('--method',choices=['ink','tokencut','patch_peaks','ink+tokencut'])
+    suggest=sub.add_parser('suggest-pages',
+                           help='rank uncorrected pages for a diverse fine-tuning batch')
+    suggest.add_argument('--book'); suggest.add_argument('--pages',nargs='+')
+    suggest.add_argument('--count',type=int); suggest.add_argument('--corrected-pages',nargs='*')
+    suggest.add_argument('--config'); suggest.add_argument('--out')
+    suggest.add_argument('--feature-extractor',choices=['dino','stub'])
     neumes=sub.add_parser('neumes',help='milestone 2: group and cluster neumes')
     neumes.add_argument('--symbols-run',required=True); neumes.add_argument('--symbol-source',choices=['discovered','groundtruth'],default='discovered')
     neumes.add_argument('--geometry-only',action='store_true'); neumes.add_argument('--config'); neumes.add_argument('--out')
@@ -41,6 +47,18 @@ def _resolve(value,out_root):
 
 
 def _summary(run_dir):
+    from omr.discovery.page_selection import SUGGESTIONS_FILE
+    suggestions_path=os.path.join(run_dir,SUGGESTIONS_FILE)
+    if os.path.exists(suggestions_path):
+        with open(suggestions_path) as f: payload=json.load(f)
+        print(run_dir)
+        print('kind=page_suggestions corrected={} candidates={} suggestions={}'.format(
+            len(payload['corrected_pages']),len(payload['candidate_pages']),
+            len(payload['suggestions'])))
+        for suggestion in payload['suggestions']:
+            print('{rank}. {page} novelty={novelty_score:.4f}'.format(**suggestion))
+        print('suggestions='+suggestions_path)
+        return
     from omr.discovery.store import CandidateStore, METRICS_FILE
     store=CandidateStore.load(run_dir); metrics={}
     path=os.path.join(run_dir,METRICS_FILE)
@@ -65,7 +83,8 @@ def main(argv=None):
         else: print(text)
         return 0
     default_out=_bootstrap(); out_root=os.path.abspath(args.out or default_out)
-    from omr.discovery.runner import run_evaluation, run_neume_grouping, run_symbol_discovery
+    from omr.discovery.runner import (run_evaluation, run_neume_grouping, run_page_suggestions,
+                                      run_symbol_discovery)
     if args.command=='symbols':
         overrides={}
         if args.book is not None: overrides['book']=args.book
@@ -74,6 +93,18 @@ def main(argv=None):
         if args.method: overrides['discovery']={'method':args.method}
         cfg=load_config(args.config,overrides)
         run_dir=run_symbol_discovery(cfg,out_root,args.feature_extractor)
+    elif args.command=='suggest-pages':
+        overrides={}
+        if args.book is not None: overrides['book']=args.book
+        if args.pages is not None: overrides['pages']=args.pages
+        if args.feature_extractor: overrides['features']={'backend':args.feature_extractor}
+        page_suggestions={}
+        if args.count is not None: page_suggestions['count']=args.count
+        if args.corrected_pages is not None:
+            page_suggestions['corrected_pages']=args.corrected_pages
+        if page_suggestions: overrides['page_suggestions']=page_suggestions
+        cfg=load_config(args.config,overrides)
+        run_dir=run_page_suggestions(cfg,out_root,args.feature_extractor)
     elif args.command=='neumes':
         symbols_dir=_resolve(args.symbols_run,out_root)
         from omr.discovery.store import CandidateStore

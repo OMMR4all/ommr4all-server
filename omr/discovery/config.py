@@ -145,6 +145,21 @@ class NeumeEmbeddingConfig(DataClassJSONMixin):
 
 
 @dataclass
+class PageSuggestionConfig(DataClassJSONMixin):
+    """Embedding-based active-learning suggestions.
+
+    Pages are represented by foreground-weighted moments of their DINO patch embeddings.
+    Farthest-first traversal then selects a diverse correction batch relative to pages whose
+    symbol lock is already set. ``corrected_pages`` overrides lock-based discovery when set,
+    including an explicit empty list for an unseeded run.
+    """
+    count: int = 10
+    min_ink_density: float = 0.01
+    corrected_pages: Optional[List[str]] = None
+
+
+
+@dataclass
 class EvaluationConfig(DataClassJSONMixin):
     """PCGTS stores a single centre per symbol and no bounding box, so localisation is
     evaluated by centre distance. `derived_gt_box_staff_space` is only used to synthesise a
@@ -166,6 +181,7 @@ class RunConfig(DataClassJSONMixin):
     clustering: ClusterConfig = field(default_factory=ClusterConfig)
     grouping: GroupingConfig = field(default_factory=GroupingConfig)
     neume_embedding: NeumeEmbeddingConfig = field(default_factory=NeumeEmbeddingConfig)
+    page_suggestions: PageSuggestionConfig = field(default_factory=PageSuggestionConfig)
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
 
     def config_hash(self) -> str:

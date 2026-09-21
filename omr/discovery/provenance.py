@@ -89,7 +89,7 @@ class RunRecord(DataClassJSONMixin):
     """Everything needed to repeat a run and to judge its cost."""
     schema_version: int
     run_id: str
-    kind: str  # 'symbols' | 'neumes'
+    kind: str  # 'symbols' | 'neumes' | 'page_suggestions'
     config: RunConfig
     created_at: str = ''
     finished_at: str = ''

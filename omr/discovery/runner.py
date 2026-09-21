@@ -1,5 +1,6 @@
-"""Offline orchestration of milestone 1 (symbols) and milestone 2 (neumes)."""
+"""Offline orchestration of page suggestions and symbol/neume discovery."""
 import copy
+import json
 import logging
 import os
 from collections import defaultdict
@@ -11,6 +12,8 @@ import numpy as np
 
 from database import DatabaseBook
 from omr.discovery.clustering import cluster_candidates, cluster_neumes
+from database.file_formats.performance.pageprogress import Locks
+from database.file_write import write_text_atomic
 from omr.discovery.config import RunConfig
 from omr.discovery.discovery import DiscoveryContext, build_methods, nms, remove_staff_lines
 from omr.discovery.evaluation import (annotation_efficiency, cluster_metrics, groundtruth_candidates,
@@ -18,6 +21,14 @@ from omr.discovery.evaluation import (annotation_efficiency, cluster_metrics, gr
                                       localization_metrics, write_report)
 from omr.discovery.features import build_feature_extractor
 from omr.discovery.grouping import build_grouping_method
+from omr.discovery.page_selection import (
+    PAGE_EMBEDDING_INDEX_FILE,
+    PAGE_EMBEDDINGS_FILE,
+    SUGGESTIONS_FILE,
+    PageEmbeddingStats,
+    foreground_page_embedding,
+    select_representative_pages,
+)
 from omr.discovery.neume_embedding import embed_neumes
 from omr.discovery.provenance import (RunRecord, StageTimer, collect_environment, peak_cuda_bytes,
                                       peak_rss_bytes, seed_everything)
@@ -26,7 +37,7 @@ from omr.discovery.review import bulk_apply, reject
 from omr.discovery.schema import (Box, MaskRle, NeumeCandidate, RejectionReason, ReviewState,
                                   SymbolCandidate, SymbolFamily, SymbolLabel)
 from omr.discovery.store import (CLUSTER_DIR, METRICS_FILE, NEUME_CLUSTER_DIR, NEUME_OVERLAY_DIR,
-                                 OVERLAY_DIR, CandidateStore, utc_now)
+                                 OVERLAY_DIR, RUN_FILE, SCHEMA_VERSION, CandidateStore, utc_now)
 from omr.discovery.visualize import (cluster_contact_sheet, neume_contact_sheet,
                                      neume_page_overlay, page_overlay, safe_cluster_id)
 
@@ -202,6 +213,123 @@ def run_neume_grouping(cfg: RunConfig, symbols_run_dir: str, out_root: str,
             neume_contact_sheet(store,cluster_id,crops,os.path.join(
                 run_dir,NEUME_CLUSTER_DIR,'cluster_'+safe_cluster_id(cluster_id)+'.jpg'))
     _finish(store); run_evaluation(run_dir)
+    return run_dir
+
+def run_page_suggestions(cfg: RunConfig, out_root: str,
+                         extractor_override: Optional[str] = None) -> str:
+    """Rank uncorrected pages by embedding coverage for the next fine-tuning batch."""
+    cfg = copy.deepcopy(cfg)
+    if extractor_override:
+        cfg.features.backend = extractor_override
+    if cfg.page_suggestions.count < 1:
+        raise ValueError('page suggestion count must be positive')
+
+    seed_everything(cfg.seed)
+    book = DatabaseBook(cfg.book)
+    from database.book_index import prefill_page_progress
+    all_pages = prefill_page_progress(book)
+    by_name = {page.page: page for page in all_pages}
+
+    requested = cfg.pages or sorted(by_name)
+    missing = sorted(set(requested) - set(by_name))
+    if missing:
+        raise ValueError('pages do not exist in book {}: {}'.format(cfg.book, ', '.join(missing)))
+
+    configured_corrected = cfg.page_suggestions.corrected_pages
+    if configured_corrected is None:
+        corrected_names = sorted(page.page for page in all_pages
+                                 if page.page_progress().locked.get(Locks.SYMBOLS, False))
+        corrected_source = 'symbols_lock'
+    else:
+        missing_corrected = sorted(set(configured_corrected) - set(by_name))
+        if missing_corrected:
+            raise ValueError('corrected pages do not exist in book {}: {}'.format(
+                cfg.book, ', '.join(missing_corrected)))
+        corrected_names = sorted(set(configured_corrected))
+        corrected_source = 'config'
+
+    candidate_names = sorted(set(requested) - set(corrected_names))
+    embedded_names = sorted(set(candidate_names) | set(corrected_names))
+    pages = [by_name[name] for name in embedded_names]
+    run_id = _run_id(cfg)
+    run_dir = os.path.join(out_root, run_id)
+    os.makedirs(run_dir, exist_ok=False)
+    record = _record(cfg, run_id, 'page_suggestions', pages)
+    timer = StageTimer(record)
+    extractor = build_feature_extractor(cfg.features)
+    embeddings: Dict[str, np.ndarray] = {}
+    stats = {}
+    excluded = []
+
+    with timer('load_features'):
+        extractor.load()
+        record.feature_extractor = extractor.describe()
+        record.device = record.feature_extractor.get('device', '')
+        for page in pages:
+            expected_lines = len(page.pcgts().page.all_music_lines())
+            record.n_lines_total += expected_lines
+            if expected_lines == 0:
+                stats[page.page] = PageEmbeddingStats(page.page, 0, 0, 0.0)
+                excluded.append({'page': page.page, 'reason': 'no_music_lines'})
+                continue
+            crops = staff_crops_of_page(page, cfg.crop)
+            record.n_lines_dropped += expected_lines - len(crops)
+            embedding, page_stats = foreground_page_embedding(
+                crops, extractor, cfg.page_suggestions, cfg.discovery)
+            page_stats.page = page.page
+            stats[page.page] = page_stats
+            if embedding is None:
+                reason = 'all_crops_dropped' if not crops else 'no_symbol_foreground'
+                excluded.append({'page': page.page, 'reason': reason})
+                continue
+            embeddings[page.page] = embedding
+
+    with timer('select'):
+        suggestions = select_representative_pages(
+            embeddings, candidate_names, corrected_names, cfg.page_suggestions.count)
+        for suggestion in suggestions:
+            page_stats = stats[suggestion.page]
+            suggestion.n_music_lines = page_stats.n_music_lines
+            suggestion.n_foreground_patches = page_stats.n_foreground_patches
+
+    ordered_embedding_pages = sorted(embeddings)
+    matrix = (np.stack([embeddings[name] for name in ordered_embedding_pages])
+              if ordered_embedding_pages else np.zeros((0, 0), dtype=np.float32))
+    np.save(os.path.join(run_dir, PAGE_EMBEDDINGS_FILE), matrix.astype(np.float32))
+    write_text_atomic(os.path.join(run_dir, PAGE_EMBEDDING_INDEX_FILE), json.dumps({
+        'schema_version': SCHEMA_VERSION,
+        'pages': [
+            {'embedding_index': index, **stats[name].to_dict()}
+            for index, name in enumerate(ordered_embedding_pages)
+        ],
+    }, indent=2))
+
+    payload = {
+        'schema_version': SCHEMA_VERSION,
+        'run_id': run_id,
+        'book': cfg.book,
+        'method': 'foreground_embedding_kcenter',
+        'corrected_source': corrected_source,
+        'corrected_pages': corrected_names,
+        'embedded_corrected_pages': [name for name in corrected_names if name in embeddings],
+        'candidate_pages': candidate_names,
+        'suggestions': [suggestion.to_dict() for suggestion in suggestions],
+        'excluded_pages': excluded,
+    }
+    write_text_atomic(os.path.join(run_dir, SUGGESTIONS_FILE), json.dumps(payload, indent=2))
+    record.counts.update(
+        corrected_pages=len(corrected_names),
+        candidate_pages=len(candidate_names),
+        embedded_pages=len(embeddings),
+        suggestions=len(suggestions),
+        excluded_pages=len(excluded),
+    )
+    record.finished_at = utc_now()
+    record.peak_rss_bytes = peak_rss_bytes()
+    record.peak_cuda_bytes = peak_cuda_bytes()
+    run_payload = record.to_dict()
+    run_payload['schema_version'] = SCHEMA_VERSION
+    write_text_atomic(os.path.join(run_dir, RUN_FILE), json.dumps(run_payload, indent=2))
     return run_dir
 
 
