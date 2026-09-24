@@ -58,6 +58,10 @@ class OperationWorker:
         task_id = self.id_generator.gen()
         self.queue.put(task_id, task_runner, creator)
         return task_id
+    def put_unique(self, task_runner: TaskRunner, creator: 'User'):
+        self.task_creator()  # require creation
+        return self.queue.put_unique(self.id_generator.gen(), task_runner, creator)
+
 
     def pop_result(self, task_id: str) -> dict:
         return self.queue.pop_result(task_id)

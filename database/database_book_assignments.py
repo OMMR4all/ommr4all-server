@@ -84,7 +84,7 @@ class DatabaseBookAssignments:
         return FileLock(book.local_path(_assignments_file + '.lock'), timeout=30)
 
     @staticmethod
-    def load(book: 'DatabaseBook') -> BookAssignments:
+    def load(book: 'DatabaseBook', strict: bool = False) -> BookAssignments:
         path = DatabaseBookAssignments.path(book)
         try:
             with open(path) as f:
@@ -92,6 +92,8 @@ class DatabaseBookAssignments:
         except FileNotFoundError:
             return BookAssignments()
         except Exception as e:
+            if strict:
+                raise
             # a corrupted file must not take the whole book down
             logger.warning('Could not parse {}, treating the book as unassigned'.format(path))
             logger.exception(e)
@@ -125,7 +127,7 @@ class DatabaseBookAssignments:
     def mutate(book: 'DatabaseBook', fn: Callable[[BookAssignments], object]):
         """Locked read-modify-write. Returns whatever fn returned."""
         with _thread_lock(book), DatabaseBookAssignments.lock(book):
-            assignments = DatabaseBookAssignments.load(book)
+            assignments = DatabaseBookAssignments.load(book, strict=True)
             result = fn(assignments)
             DatabaseBookAssignments.to_file(book, assignments)
             return result

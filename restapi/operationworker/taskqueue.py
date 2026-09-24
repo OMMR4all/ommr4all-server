@@ -57,6 +57,20 @@ class TaskQueue:
                                    creator=creator,
                                    created_at=time.time(),
                                    ))
+    def put_unique(self, task_id: str, task_runner: TaskRunner, creator: 'User'):
+        """Atomically reuse an outstanding task of the same runner and identifier."""
+        with self.mutex:
+            existing = self._id_by_runner(task_runner)
+            if existing is not None:
+                return existing, False
+            self.tasks.append(Task(task_id, task_runner, TaskStatus(code=TaskStatusCodes.QUEUED),
+                                   task_result={}, creator=creator, created_at=time.time()))
+            return task_id, True
+
+    def task_for_id(self, task_id: str) -> Optional[Task]:
+        with self.mutex:
+            return next((task for task in self.tasks if task.task_id == task_id), None)
+
 
     def pop_result(self, task_id: str) -> dict:
         with self.mutex:

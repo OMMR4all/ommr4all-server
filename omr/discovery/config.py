@@ -146,17 +146,15 @@ class NeumeEmbeddingConfig(DataClassJSONMixin):
 
 @dataclass
 class PageSuggestionConfig(DataClassJSONMixin):
-    """Embedding-based active-learning suggestions.
+    """Embedding-based page suggestions from staff foreground or whole original images.
 
-    Pages are represented by foreground-weighted moments of their DINO patch embeddings.
-    Farthest-first traversal then selects a diverse correction batch relative to pages whose
-    symbol lock is already set. ``corrected_pages`` overrides lock-based discovery when set,
-    including an explicit empty list for an unseeded run.
+    ``corrected_pages`` overrides Symbols-lock reference discovery when set, including
+    an explicit empty list for centroid-seeded selection.
     """
+    method: str = 'staff_foreground'
     count: int = 10
     min_ink_density: float = 0.01
     corrected_pages: Optional[List[str]] = None
-
 
 
 @dataclass

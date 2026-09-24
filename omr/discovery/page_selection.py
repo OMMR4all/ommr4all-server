@@ -1,13 +1,9 @@
-"""Embedding-based selection of pages worth correcting for supervised fine-tuning.
-
-This path deliberately does not localise or classify symbols. It describes each page from
-foreground DINO patch embeddings and selects a diverse correction batch relative to pages that
-already provide symbol ground truth.
-"""
+"""Embedding-based diverse page selection from staff foreground or whole-page images."""
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Mapping, Optional, Tuple
 
 import numpy as np
+from PIL import Image, ImageOps
 from mashumaro.mixins.json import DataClassJSONMixin
 
 from omr.discovery.config import DiscoveryConfig, PageSuggestionConfig
@@ -39,48 +35,71 @@ class PageSuggestion(DataClassJSONMixin):
     n_foreground_patches: int = 0
 
 
-def foreground_page_embedding(crops, extractor, cfg: PageSuggestionConfig,
-                              discovery_cfg: DiscoveryConfig) -> Tuple[Optional[np.ndarray], PageEmbeddingStats]:
-    """Pool symbol-bearing patch descriptors without first detecting symbols.
-
-    Staff-line ink is removed, remaining ink density supplies the patch weights, and the first
-    two weighted moments retain both the page's typical appearance and its visual variation.
-    The result is a fixed-size, L2-normalised descriptor independent of page length.
-    """
+def _pool_weighted_moments(patches) -> Tuple[Optional[np.ndarray], int, float]:
     weighted_sum = None
     weighted_square_sum = None
     total_weight = 0.0
-    n_foreground_patches = 0
-    page = crops[0].page if crops else ''
-
-    for crop in crops:
-        feature_map = extractor.extract_feature_map(crop.image, crop.staff_space_px)
-        foreground = remove_staff_lines(crop.binary, crop.staff_lines_px, crop.staff_space_px,
-                                        discovery_cfg)
-        weights = feature_map.area_density(foreground & crop.region_mask).reshape(-1)
-        weights[weights < cfg.min_ink_density] = 0.0
-        active = weights > 0
+    n_patches = 0
+    for feature_map, weights in patches:
+        active = weights.reshape(-1) > 0
         if not np.any(active):
             continue
-
         features = feature_map.features.reshape(-1, feature_map.dim)[active].astype(np.float64)
-        active_weights = weights[active].astype(np.float64)
+        active_weights = weights.reshape(-1)[active].astype(np.float64)
         if weighted_sum is None:
             weighted_sum = np.zeros(features.shape[1], dtype=np.float64)
             weighted_square_sum = np.zeros(features.shape[1], dtype=np.float64)
         weighted_sum += np.sum(features * active_weights[:, None], axis=0)
         weighted_square_sum += np.sum(np.square(features) * active_weights[:, None], axis=0)
         total_weight += float(np.sum(active_weights))
-        n_foreground_patches += int(np.count_nonzero(active))
+        n_patches += int(np.count_nonzero(active))
 
-    stats = PageEmbeddingStats(page, len(crops), n_foreground_patches, total_weight)
     if weighted_sum is None or total_weight <= 0:
-        return None, stats
-
+        return None, n_patches, total_weight
     mean = weighted_sum / total_weight
     variance = np.maximum(weighted_square_sum / total_weight - np.square(mean), 0.0)
     descriptor = np.concatenate((mean, np.sqrt(variance))).astype(np.float32)
-    return l2_normalize(descriptor).astype(np.float32), stats
+    return l2_normalize(descriptor).astype(np.float32), n_patches, total_weight
+
+
+def foreground_page_embedding(crops, extractor, cfg: PageSuggestionConfig,
+                              discovery_cfg: DiscoveryConfig) -> Tuple[Optional[np.ndarray], PageEmbeddingStats]:
+    """Pool foreground-weighted patch moments across staff crops."""
+    def patches():
+        for crop in crops:
+            feature_map = extractor.extract_feature_map(crop.image, crop.staff_space_px)
+            foreground = remove_staff_lines(crop.binary, crop.staff_lines_px, crop.staff_space_px,
+                                            discovery_cfg)
+            weights = feature_map.area_density(foreground & crop.region_mask)
+            weights[weights < cfg.min_ink_density] = 0.0
+            yield feature_map, weights
+
+    descriptor, n_patches, total_weight = _pool_weighted_moments(patches())
+    return descriptor, PageEmbeddingStats(crops[0].page if crops else '', len(crops),
+                                          n_patches, total_weight)
+
+
+class UnreadableOriginalImage(OSError):
+    """Image decoding failed; inference failures must not be mistaken for bad images."""
+
+
+def whole_image_page_embedding(page, extractor) -> np.ndarray:
+    """Describe an original image, without reading PCGTS or staff geometry."""
+    try:
+        with Image.open(page.file('color_original').local_path()) as original:
+            image = ImageOps.exif_transpose(original).convert('RGB')
+            image.thumbnail((448, 448), Image.Resampling.LANCZOS)
+            pixels = np.asarray(image)
+    except FileNotFoundError:
+        raise
+    except (OSError, ValueError) as exc:
+        raise UnreadableOriginalImage(str(exc)) from exc
+    feature_map = extractor.extract_feature_map(pixels, 0)
+    weights = feature_map.area_density(np.ones(pixels.shape[:2], dtype=np.uint8))
+    descriptor, _, _ = _pool_weighted_moments(((feature_map, weights),))
+    if descriptor is None:
+        raise ValueError('original image has no valid feature patches')
+    return descriptor
 
 
 def _cosine_distance(left: np.ndarray, right: np.ndarray) -> float:

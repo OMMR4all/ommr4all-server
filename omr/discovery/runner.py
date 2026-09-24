@@ -27,6 +27,8 @@ from omr.discovery.page_selection import (
     SUGGESTIONS_FILE,
     PageEmbeddingStats,
     foreground_page_embedding,
+    UnreadableOriginalImage,
+    whole_image_page_embedding,
     select_representative_pages,
 )
 from omr.discovery.neume_embedding import embed_neumes
@@ -223,6 +225,11 @@ def run_page_suggestions(cfg: RunConfig, out_root: str,
         cfg.features.backend = extractor_override
     if cfg.page_suggestions.count < 1:
         raise ValueError('page suggestion count must be positive')
+    if cfg.page_suggestions.method not in ('staff_foreground', 'whole_image'):
+        raise ValueError('invalid page suggestion method: {}'.format(cfg.page_suggestions.method))
+    whole_image = cfg.page_suggestions.method == 'whole_image'
+    if whole_image:
+        cfg.features.max_input_side = min(cfg.features.max_input_side, 448)
 
     seed_everything(cfg.seed)
     book = DatabaseBook(cfg.book)
@@ -266,6 +273,19 @@ def run_page_suggestions(cfg: RunConfig, out_root: str,
         record.feature_extractor = extractor.describe()
         record.device = record.feature_extractor.get('device', '')
         for page in pages:
+            if whole_image:
+                stats[page.page] = PageEmbeddingStats(page.page, 0, 0, 0.0)
+                if not os.path.isfile(page.file('color_original').local_path()):
+                    excluded.append({'page': page.page, 'reason': 'missing_original_image'})
+                    continue
+                try:
+                    embeddings[page.page] = whole_image_page_embedding(page, extractor)
+                except FileNotFoundError:
+                    excluded.append({'page': page.page, 'reason': 'missing_original_image'})
+                except UnreadableOriginalImage as exc:
+                    logger.warning('Cannot read original image of %s: %s', page.page, exc)
+                    excluded.append({'page': page.page, 'reason': 'unreadable_original_image'})
+                continue
             expected_lines = len(page.pcgts().page.all_music_lines())
             record.n_lines_total += expected_lines
             if expected_lines == 0:
@@ -308,7 +328,7 @@ def run_page_suggestions(cfg: RunConfig, out_root: str,
         'schema_version': SCHEMA_VERSION,
         'run_id': run_id,
         'book': cfg.book,
-        'method': 'foreground_embedding_kcenter',
+        'method': 'whole_image_embedding_kcenter' if whole_image else 'foreground_embedding_kcenter',
         'corrected_source': corrected_source,
         'corrected_pages': corrected_names,
         'embedded_corrected_pages': [name for name in corrected_names if name in embeddings],

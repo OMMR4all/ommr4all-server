@@ -18,6 +18,9 @@ from database.db_errors import log_db_failure
 from restapi.models.auth import RestAPIUser
 from restapi.models.error import APIError, ErrorCodes
 from restapi.views.bookaccess import etag_response, require_permissions
+from restapi.operationworker import operation_worker, TaskStatusCodes, TaskNotFoundException
+from restapi.operationworker.taskrunners.taskrunnersuggestedassignment import (
+    TaskRunnerSuggestedAssignment, TaskRunnerSuggestedBatchAssignment)
 
 logger = logging.getLogger(__name__)
 
@@ -259,3 +262,225 @@ class BookAssignmentView(APIView):
                         'The assignment does not exist (anymore).',
                         ErrorCodes.BOOK_ASSIGNMENT_NOT_FOUND,
                         ).response()
+
+
+def _suggested_task_not_found(task_id, book):
+    return APIError(status.HTTP_406_NOT_ACCEPTABLE,
+                    'Suggested assignment task {} not found in book {}'.format(task_id, book),
+                    'This suggested assignment task is no longer available.',
+                    ErrorCodes.BOOK_ASSIGNMENT_NOT_FOUND).response()
+
+
+class SuggestedSelfAssignmentView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
+    def put(self, request, book):
+        db_book = DatabaseBook(book)
+        data = request.data if isinstance(request.data, dict) else {}
+        count = data.get('count')
+        order = db_book.page_names_on_disk()
+        total = len(order)
+        if type(count) is not int or not 1 <= count <= total:
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            'Expected an integer count between 1 and {}'.format(total),
+                            'Enter a whole number of pages between 1 and {}.'.format(total),
+                            ErrorCodes.BOOK_ASSIGNMENT_INVALID_COUNT).response()
+        has_from, has_to = 'fromPage' in data, 'toPage' in data
+        from_page, to_page = data.get('fromPage'), data.get('toPage')
+        if (has_from != has_to or (has_from and (
+                type(from_page) is not str or type(to_page) is not str
+                or from_page not in order or to_page not in order))):
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            'Range endpoints must be existing page labels in book {}'.format(book),
+                            'Select a valid From and To page in this book.',
+                            ErrorCodes.BOOK_ASSIGNMENT_INVALID_RANGE).response()
+        lookup = TaskRunnerSuggestedAssignment(
+            db_book, request.user.username, count, operation_worker.resources,
+            allow_unavailable=True)
+        existing = operation_worker.id_by_task_runner(lookup)
+        if existing:
+            return Response({'task_id': existing}, status=status.HTTP_202_ACCEPTED)
+        try:
+            runner = TaskRunnerSuggestedAssignment(
+                db_book, request.user.username, count, operation_worker.resources,
+                from_page=from_page, to_page=to_page)
+        except ValueError:
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            'Page range changed while submitting in book {}'.format(book),
+                            'The selected page range is no longer available. Refresh and try again.',
+                            ErrorCodes.BOOK_ASSIGNMENT_INVALID_RANGE).response()
+        except RuntimeError as exc:
+            return APIError(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc),
+                            'No worker is available for suggested assignments. Try again later.',
+                            ErrorCodes.OPERATION_TASK_WORKER_RESOURCE_UNAVAILABLE).response()
+        if not operation_worker.health()['healthy']:
+            return APIError(status.HTTP_503_SERVICE_UNAVAILABLE, 'Task scheduler is unavailable',
+                            'Suggested assignment workers are unavailable. Try again later.',
+                            ErrorCodes.OPERATION_TASK_WORKER_RESOURCE_UNAVAILABLE).response()
+        task_id, _ = operation_worker.put_unique(runner, request.user)
+        return Response({'task_id': task_id}, status=status.HTTP_202_ACCEPTED)
+
+    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
+    def get(self, request, book):
+        runner = TaskRunnerSuggestedAssignment(
+            DatabaseBook(book), request.user.username, 1, operation_worker.resources,
+            allow_unavailable=True)
+        return Response({'task_id': operation_worker.id_by_task_runner(runner)})
+
+
+class SuggestedSelfAssignmentTaskView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @require_permissions([DatabaseBookPermissionFlag.READ_WRITE])
+    def get(self, request, book, task_id):
+        task = operation_worker.queue.task_for_id(task_id)
+        if (task is None or task.task_runner.operation() != 'suggested_self_assignment'
+                or task.task_runner.book.book != book
+                or task.creator.username != request.user.username):
+            return _suggested_task_not_found(task_id, book)
+        try:
+            task_status = operation_worker.status(task_id)
+        except TaskNotFoundException:
+            return _suggested_task_not_found(task_id, book)
+        if task_status.code not in (TaskStatusCodes.FINISHED, TaskStatusCodes.ERROR):
+            return Response({'status': task_status.to_dict()})
+        try:
+            result = operation_worker.pop_result(task_id)
+        except TaskNotFoundException:
+            return _suggested_task_not_found(task_id, book)
+        if task_status.code == TaskStatusCodes.ERROR:
+            logger.error('Suggested assignment task %s failed: %s', task_id, result)
+            return APIError(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            'Suggested assignment failed: {}'.format(result),
+                            'Suggested assignment failed while loading the model or reading the book. '
+                            'No pages were assigned; try again or contact an administrator.',
+                            ErrorCodes.OPERATION_UNKNOWN_SERVER_ERROR).response()
+        if result.get('error') == 'insufficient_pages':
+            available = result['available']
+            return APIError(status.HTTP_409_CONFLICT,
+                            'Only {} eligible image-backed pages remain'.format(available),
+                            'Only {} eligible image-backed pages remain. Reduce the requested count.'.format(
+                                available),
+                            ErrorCodes.BOOK_ASSIGNMENT_INSUFFICIENT_PAGES).response()
+        assignment = DatabaseBookAssignments.load(DatabaseBook(book), strict=True).by_id(
+            result['assignment_id'])
+        if assignment is None:
+            return _suggested_task_not_found(task_id, book)
+        return Response({'status': task_status.to_dict(),
+                         'assignment': _single_response(request, DatabaseBook(book), assignment).data})
+
+
+class SuggestedBatchAssignmentView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @require_permissions([DatabaseBookPermissionFlag.EDIT_PERMISSIONS])
+    def get(self, request, book):
+        runner = TaskRunnerSuggestedBatchAssignment(
+            DatabaseBook(book), request.user.username, [], 1, operation_worker.resources,
+            allow_unavailable=True)
+        return Response({'task_id': operation_worker.id_by_task_runner(runner)})
+
+    @require_permissions([DatabaseBookPermissionFlag.EDIT_PERMISSIONS])
+    def put(self, request, book):
+        db_book = DatabaseBook(book)
+        data = request.data if isinstance(request.data, dict) else {}
+        usernames = data.get('usernames')
+        if (not isinstance(usernames, list) or not usernames
+                or any(not isinstance(name, str) or not name or name != name.strip()
+                       for name in usernames)
+                or len(set(usernames)) != len(usernames)
+                or User.objects.filter(username__in=usernames).count() != len(usernames)):
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            'Expected distinct existing usernames',
+                            'Select one or more distinct existing users.',
+                            ErrorCodes.BOOK_ASSIGNMENT_UNKNOWN_USER).response()
+        count = data.get('count')
+        order = db_book.page_names_on_disk()
+        if type(count) is not int or count < 1:
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            'Expected a positive integer count per user',
+                            'Enter a positive whole number of pages per user.',
+                            ErrorCodes.BOOK_ASSIGNMENT_INVALID_COUNT).response()
+        has_from, has_to = 'fromPage' in data, 'toPage' in data
+        from_page, to_page = data.get('fromPage'), data.get('toPage')
+        if (has_from != has_to or (has_from and (
+                type(from_page) is not str or type(to_page) is not str
+                or from_page not in order or to_page not in order))):
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            'Range endpoints must be existing page labels in book {}'.format(book),
+                            'Select a valid From and To page in this book.',
+                            ErrorCodes.BOOK_ASSIGNMENT_INVALID_RANGE).response()
+        lookup = TaskRunnerSuggestedBatchAssignment(
+            db_book, request.user.username, [], 1, operation_worker.resources,
+            allow_unavailable=True)
+        existing = operation_worker.id_by_task_runner(lookup)
+        if existing:
+            return Response({'task_id': existing}, status=status.HTTP_202_ACCEPTED)
+        try:
+            runner = TaskRunnerSuggestedBatchAssignment(
+                db_book, request.user.username, usernames, count, operation_worker.resources,
+                from_page=from_page, to_page=to_page)
+        except ValueError:
+            return APIError(status.HTTP_400_BAD_REQUEST,
+                            'Page range changed while submitting in book {}'.format(book),
+                            'The selected page range is no longer available. Refresh and try again.',
+                            ErrorCodes.BOOK_ASSIGNMENT_INVALID_RANGE).response()
+        except RuntimeError as exc:
+            return APIError(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc),
+                            'No worker is available for suggested assignments. Try again later.',
+                            ErrorCodes.OPERATION_TASK_WORKER_RESOURCE_UNAVAILABLE).response()
+        if not operation_worker.health()['healthy']:
+            return APIError(status.HTTP_503_SERVICE_UNAVAILABLE, 'Task scheduler is unavailable',
+                            'Suggested assignment workers are unavailable. Try again later.',
+                            ErrorCodes.OPERATION_TASK_WORKER_RESOURCE_UNAVAILABLE).response()
+        task_id, _ = operation_worker.put_unique(runner, request.user)
+        return Response({'task_id': task_id}, status=status.HTTP_202_ACCEPTED)
+
+
+class SuggestedBatchAssignmentTaskView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @require_permissions([DatabaseBookPermissionFlag.EDIT_PERMISSIONS])
+    def get(self, request, book, task_id):
+        task = operation_worker.queue.task_for_id(task_id)
+        if (task is None or task.task_runner.operation() != 'suggested_batch_assignment'
+                or task.task_runner.book.book != book
+                or task.creator.username != request.user.username):
+            return _suggested_task_not_found(task_id, book)
+        try:
+            task_status = operation_worker.status(task_id)
+        except TaskNotFoundException:
+            return _suggested_task_not_found(task_id, book)
+        if task_status.code not in (TaskStatusCodes.FINISHED, TaskStatusCodes.ERROR):
+            return Response({'status': task_status.to_dict()})
+        try:
+            result = operation_worker.pop_result(task_id)
+        except TaskNotFoundException:
+            return _suggested_task_not_found(task_id, book)
+        if task_status.code == TaskStatusCodes.ERROR:
+            logger.error('Suggested batch assignment task %s failed: %s', task_id, result)
+            return APIError(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            'Suggested batch assignment failed: {}'.format(result),
+                            'Suggested assignment failed while loading the model or reading the book. '
+                            'No pages were assigned; try again or contact an administrator.',
+                            ErrorCodes.OPERATION_UNKNOWN_SERVER_ERROR).response()
+        if result.get('error') == 'insufficient_pages':
+            available = result['available']
+            return APIError(status.HTTP_409_CONFLICT,
+                            'Only {} eligible image-backed pages remain'.format(available),
+                            'Only {} eligible image-backed pages remain. Reduce the requested count.'.format(
+                                available),
+                            ErrorCodes.BOOK_ASSIGNMENT_INSUFFICIENT_PAGES).response()
+        db_book = DatabaseBook(book)
+        stored = DatabaseBookAssignments.load(db_book, strict=True)
+        assignments = [stored.by_id(id) for id in result['assignment_ids']]
+        if any(assignment is None for assignment in assignments):
+            return _suggested_task_not_found(task_id, book)
+        existing_pages = set(db_book.page_names_on_disk())
+        rows = _page_rows(db_book, sync=False)
+        users = _users([assignment.username for assignment in assignments])
+        return Response({'status': task_status.to_dict(),
+                         'assignments': [_assignment_to_json(db_book, assignment, users,
+                                                             existing_pages, rows)
+                                         for assignment in assignments]})

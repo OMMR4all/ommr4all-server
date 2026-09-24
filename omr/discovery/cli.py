@@ -20,6 +20,7 @@ def _parser():
                            help='rank uncorrected pages for a diverse fine-tuning batch')
     suggest.add_argument('--book'); suggest.add_argument('--pages',nargs='+')
     suggest.add_argument('--count',type=int); suggest.add_argument('--corrected-pages',nargs='*')
+    suggest.add_argument('--page-method', choices=['staff_foreground', 'whole_image'])
     suggest.add_argument('--config'); suggest.add_argument('--out')
     suggest.add_argument('--feature-extractor',choices=['dino','stub'])
     neumes=sub.add_parser('neumes',help='milestone 2: group and cluster neumes')
@@ -100,6 +101,7 @@ def main(argv=None):
         if args.feature_extractor: overrides['features']={'backend':args.feature_extractor}
         page_suggestions={}
         if args.count is not None: page_suggestions['count']=args.count
+        if args.page_method is not None: page_suggestions['method']=args.page_method
         if args.corrected_pages is not None:
             page_suggestions['corrected_pages']=args.corrected_pages
         if page_suggestions: overrides['page_suggestions']=page_suggestions

@@ -19,7 +19,9 @@ from restapi.views.auth import AuthView
 from restapi.views.bookcomments import BookCommentsView, BookCommentsCountView
 from restapi.views.bookpermissions import BookPermissionsView, BookUserPermissionsView, BookGroupPermissionsView, \
     BookDefaultPermissionsView
-from restapi.views.bookassignments import BookAssignmentsView, BookAssignmentView
+from restapi.views.bookassignments import (BookAssignmentsView, BookAssignmentView,
+                                          SuggestedSelfAssignmentView, SuggestedSelfAssignmentTaskView,
+                                          SuggestedBatchAssignmentView, SuggestedBatchAssignmentTaskView)
 from restapi.views.pageaccess import PageRenameView, PageProgressVerifyView, PageContentView
 from restapi.views.user import UserBookPermissionsView, UserSelfView
 from restapi.views.bookstyles import BookStyleView, BookStylesView
@@ -102,6 +104,13 @@ urlpatterns = \
         re_path(r'^book/(?P<book>\w+)/permissions$', BookPermissionsView.as_view()),
 
         # page assignments (who is responsible for which pages of the book)
+        re_path(r'^book/(?P<book>\w+)/assignments/self/task/(?P<task_id>[0-9a-f\-]+)$',
+                SuggestedSelfAssignmentTaskView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/assignments/self$', SuggestedSelfAssignmentView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/assignments/suggested/task/(?P<task_id>[0-9a-f\-]+)$',
+                SuggestedBatchAssignmentTaskView.as_view()),
+        re_path(r'^book/(?P<book>\w+)/assignments/suggested$',
+                SuggestedBatchAssignmentView.as_view()),
         re_path(r'^book/(?P<book>\w+)/assignment/(?P<id>[0-9a-f\-]+)$', BookAssignmentView.as_view()),
         re_path(r'^book/(?P<book>\w+)/assignments$', BookAssignmentsView.as_view()),
         re_path(r'^book/(?P<book>\w+)/comments/count', BookCommentsCountView.as_view()),

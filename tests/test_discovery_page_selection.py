@@ -17,6 +17,7 @@ from database.file_formats.performance.pageprogress import Locks, PageProgress
 from omr.discovery.config import RunConfig
 from omr.discovery.page_selection import SUGGESTIONS_FILE, select_representative_pages
 from omr.discovery.runner import run_page_suggestions
+from omr.discovery.page_selection import PAGE_EMBEDDING_INDEX_FILE
 
 
 class PageCoreSetSelectionTest(unittest.TestCase):
@@ -82,11 +83,46 @@ class PageSuggestionPipelineTest(unittest.TestCase):
 
         with open(os.path.join(run_dir, SUGGESTIONS_FILE)) as handle:
             result = json.load(handle)
+        self.assertEqual(result['method'], 'foreground_embedding_kcenter')
         self.assertEqual(result['corrected_source'], 'symbols_lock')
         self.assertIn(self.corrected, result['corrected_pages'])
         self.assertIn(self.corrected, result['embedded_corrected_pages'])
         self.assertEqual([item['page'] for item in result['suggestions']], [self.candidate])
         self.assertEqual(result['suggestions'][0]['reason'], 'farthest_from_reference')
+
+    def test_whole_image_needs_no_pcgts_and_reports_missing_original(self):
+        first = 'page_test_preprocessing_001'
+        second = 'page_test_text_recognition_001'
+        missing = 'page_test_staff_line_detection_001'
+        for name in (first, second, missing):
+            path = os.path.join(self.book_path, 'pages', name, 'pcgts.json')
+            if os.path.exists(path):
+                os.remove(path)
+        os.remove(os.path.join(self.book_path, 'pages', missing, 'color_original.jpg'))
+        cfg = RunConfig(book=self.book_name, pages=[first, second, missing])
+        cfg.features.backend = 'stub'
+        cfg.page_suggestions.method = 'whole_image'
+        cfg.page_suggestions.corrected_pages = []
+        cfg.page_suggestions.count = 2
+
+        run_dir = run_page_suggestions(cfg, self.out)
+        with open(os.path.join(run_dir, SUGGESTIONS_FILE)) as handle:
+            result = json.load(handle)
+        with open(os.path.join(run_dir, PAGE_EMBEDDING_INDEX_FILE)) as handle:
+            index = json.load(handle)
+        self.assertEqual(result['method'], 'whole_image_embedding_kcenter')
+        self.assertEqual({item['page'] for item in result['suggestions']}, {first, second})
+        self.assertEqual([item['rank'] for item in result['suggestions']], [1, 2])
+        self.assertEqual(result['excluded_pages'],
+                         [{'page': missing, 'reason': 'missing_original_image'}])
+        self.assertTrue(all(row['n_music_lines'] == row['n_foreground_patches'] == 0
+                            for row in index['pages']))
+
+        repeated = run_page_suggestions(cfg, self.out)
+        with open(os.path.join(repeated, SUGGESTIONS_FILE)) as handle:
+            again = json.load(handle)
+        self.assertEqual([item['page'] for item in result['suggestions']],
+                         [item['page'] for item in again['suggestions']])
 
 
 if __name__ == '__main__':
