@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 
-from pandas.core.computation.expressions import set_test_mode
-
 import database.file_formats.pcgts as ns_pcgts
 from typing import List, NamedTuple, Union, Optional
 import json
@@ -208,27 +206,43 @@ def export_to_unsloth_dataset(pcgts_list, export_path):
     print(f"Dataset ready at {export_path}")
 
 
-
-
-
-
-
-
-
-
-
 if __name__ == "__main__":
+    import argparse
+    import os
+
+    import django
+
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ommr4all.settings')
+    django.setup()
+
     from database import DatabaseBook
 
-    b = DatabaseBook('Geesebook1_complete_fixed_ro')
-    #books = [DatabaseBook("Graduel_Part_1_gt"), DatabaseBook("Graduel_Part_2_gt"), DatabaseBook("Graduel_Part_3_gt"),]
-    #books = [DatabaseBook("Geesebook1_complete_fixed_ro")]
-    c = DatabaseBook("mul_2_rsync_gt2")
-    d = DatabaseBook("Koeln_Dombibl_1001b_part_gt")
-    e = DatabaseBook("Pa_14819_gt")
-    f = DatabaseBook("Geesebook2_andreas1")
+    DEFAULT_BOOKS = ["Geesebook1_complete_fixed_ro", "mul_2_rsync_gt2",
+                     "Koeln_Dombibl_1001b_part_gt", "Pa_14819_gt", "Geesebook2_andreas1"]
 
-    pcgts = [ns_pcgts.PcGts.from_file(x.file('pcgts'))  for y in [b,c,d,e,f] for x in y.pages()  if x.page_progress().verified_allowed()]
-    export_to_unsloth_dataset(pcgts, "/tmp/unsloth/exp2/")
-    #data = export_for_finetuning_v8(pcgts[:4])
-    #print(data)
+    parser = argparse.ArgumentParser(
+        description="Export an LLM fine-tuning dataset of the verified pages of the given books.")
+    parser.add_argument("--books", nargs="+", default=DEFAULT_BOOKS,
+                        help="books to export (default: %(default)s)")
+    parser.add_argument("--out", required=True,
+                        help="output directory; with --with-images it receives train_data.jsonl "
+                             "and images/, otherwise a single transcription.txt")
+    parser.add_argument("--with-images", action="store_true",
+                        help="write the unsloth dataset including a copy of every page image "
+                             "(without this flag only the text transcription is written)")
+    args = parser.parse_args()
+
+    pcgts = [ns_pcgts.PcGts.from_file(page.file('pcgts'))
+             for book_name in args.books
+             for page in DatabaseBook(book_name).pages()
+             if page.page_progress().verified_allowed()]
+    print(f"{len(pcgts)} verified pages in {len(args.books)} book(s)")
+
+    if args.with_images:
+        export_to_unsloth_dataset(pcgts, args.out)
+    else:
+        os.makedirs(args.out, exist_ok=True)
+        out_file = os.path.join(args.out, "transcription.txt")
+        with open(out_file, "w", encoding="utf-8") as f:
+            f.write(export_for_finetuning_v8(pcgts))
+        print(f"Transcriptions (no images) written to {out_file}")
