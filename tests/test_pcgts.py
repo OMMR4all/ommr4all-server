@@ -3,7 +3,7 @@ import os
 import logging
 import ommr4all.settings as settings
 from database.file_formats.pcgts.jsonloader import update_pcgts
-from database.file_formats.pcgts import PcGts
+from database.file_formats.pcgts import PcGts, Line, BlockType, LineStartType
 import sys
 import json
 from copy import deepcopy
@@ -26,3 +26,16 @@ class GenericTests(unittest.TestCase):
         self.assertTrue(update_pcgts(json1))
         self.maxDiff = None
         #self.assertEqual(json1, PcGts.from_json(json1, None).to_json())
+
+
+class LineStartTypeTests(unittest.TestCase):
+    def test_start_type_round_trips(self):
+        for start_type in LineStartType:
+            d = Line(start_type=start_type).to_json(BlockType.LYRICS)
+            self.assertEqual(d['startType'], start_type.value)
+            self.assertEqual(Line.from_json(d).start_type, start_type)
+
+    def test_legacy_document_start_reads_as_chant(self):
+        self.assertEqual(Line.from_json({'documentStart': True}).start_type, LineStartType.CHANT)
+        self.assertEqual(Line.from_json({'documentStart': False}).start_type, LineStartType.NONE)
+        self.assertEqual(Line.from_json({}).start_type, LineStartType.NONE)

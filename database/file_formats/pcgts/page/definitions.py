@@ -10,6 +10,12 @@ class BlockType(Enum):
     MUSIC = 'music'
 
 
+class LineStartType(Enum):
+    NONE = 'none'
+    CHANT = 'chant'      # opens a new chant/document
+    STROPHE = 'strophe'  # new strophe of the running chant; does not open a document
+
+
 class MusicSymbolPositionInStaff(IntEnum):
     UNDEFINED = -1000
 

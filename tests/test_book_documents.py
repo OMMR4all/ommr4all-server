@@ -18,6 +18,7 @@ settings.PRIVATE_MEDIA_ROOT = FIXTURE_STORAGE
 
 from database import DatabaseBook, DatabasePage  # noqa: E402
 from database.database_book_documents import DatabaseBookDocuments, PageDocumentFragment  # noqa: E402
+from database.file_formats.pcgts import LineStartType  # noqa: E402
 
 # The only fixture pages with a populated lyrics reading order
 PAGE_A = 'page_test_monodi_export_001'
@@ -55,7 +56,7 @@ class TemporaryDemoBookTestCase(TestCase):
 class TestBookDocuments(TemporaryDemoBookTestCase):
     """Tests for the per-page fragment cache behind the chant/document list.
 
-    The fixture pages carry no documentStart flags, so the test marks some
+    The fixture pages carry no line start types, so the test marks some
     reading-order lines itself.
     """
 
@@ -67,14 +68,15 @@ class TestBookDocuments(TemporaryDemoBookTestCase):
             db_page.pcgts().to_file(db_page.file('pcgts').local_path())
         # Three documents: two starting on PAGE_A (the second spans into PAGE_B),
         # one starting mid PAGE_B and running to the end of the book.
-        self._set_document_starts(self.book.page(PAGE_A), [0, 2])
-        self._set_document_starts(self.book.page(PAGE_B), [3])
+        self._set_start_types(self.book.page(PAGE_A), [0, 2])
+        self._set_start_types(self.book.page(PAGE_B), [3])
 
     @staticmethod
-    def _set_document_starts(db_page: DatabasePage, reading_order_indices: List[int]):
+    def _set_start_types(db_page: DatabasePage, reading_order_indices: List[int],
+                         start_type: LineStartType = LineStartType.CHANT):
         pcgts = db_page.pcgts()
         for i in reading_order_indices:
-            pcgts.page.reading_order.reading_order[i].document_start = True
+            pcgts.page.reading_order.reading_order[i].start_type = start_type
         pcgts.to_file(db_page.file('pcgts').local_path())
 
     @staticmethod
@@ -140,13 +142,21 @@ class TestBookDocuments(TemporaryDemoBookTestCase):
         d1 = DatabaseBookDocuments.update_book_documents_cached(self.book)
         ids1 = [doc.doc_id for doc in d1.database_documents.documents]
 
-        self._set_document_starts(self.book.page(PAGE_A), [1])
+        self._set_start_types(self.book.page(PAGE_A), [1])
         d2 = DatabaseBookDocuments.update_book_documents_cached(self.book)
         docs2 = d2.database_documents.documents
         self.assertEqual(len(docs2), 4)
         # the unchanged first and the two later documents keep their ids
         self.assertEqual(docs2[0].doc_id, ids1[0])
         self.assertEqual([docs2[2].doc_id, docs2[3].doc_id], ids1[1:])
+
+    def test_strophe_start_does_not_split_the_document(self):
+        d1 = DatabaseBookDocuments.update_book_documents_cached(self.book)
+        ids1 = [doc.doc_id for doc in d1.database_documents.documents]
+
+        self._set_start_types(self.book.page(PAGE_A), [1], LineStartType.STROPHE)
+        d2 = DatabaseBookDocuments.update_book_documents_cached(self.book)
+        self.assertEqual([doc.doc_id for doc in d2.database_documents.documents], ids1)
 
     def test_concurrent_updates_do_not_corrupt(self):
         DatabaseBookDocuments.update_book_documents_cached(self.book)
@@ -185,7 +195,7 @@ class TestBookDocuments(TemporaryDemoBookTestCase):
         _, changed = DatabaseBookDocuments.refresh(self.book)
         self.assertFalse(changed, 'a re-saved page without structural change is not a change')
 
-        self._set_document_starts(self.book.page(PAGE_A), [1])
+        self._set_start_types(self.book.page(PAGE_A), [1])
         d, changed = DatabaseBookDocuments.refresh(self.book)
         self.assertTrue(changed)
         self.assertEqual(len(d.database_documents.documents), 4)
@@ -207,7 +217,7 @@ class TestDeferredDocumentsUpdate(TestBookDocuments):
     def test_scheduled_update_refreshes_and_notifies_once(self):
         import restapi.consumers as consumers
         DatabaseBookDocuments.update_book_documents_cached(self.book)
-        self._set_document_starts(self.book.page(PAGE_A), [1])
+        self._set_start_types(self.book.page(PAGE_A), [1])
 
         with mock.patch.object(consumers, 'notify_book_documents_changed') as notify:
             # the same book queued repeatedly is collapsed into the pending set
@@ -263,7 +273,7 @@ class TestDocumentSpans(TestBookDocuments):
 
     def test_document_ending_at_a_page_break_keeps_no_extra_page(self):
         # a start on the very first line of PAGE_B ends the previous document on PAGE_A
-        self._set_document_starts(self.book.page(PAGE_B), [0])
+        self._set_start_types(self.book.page(PAGE_B), [0])
         docs = DatabaseBookDocuments.update_book_documents_cached(self.book).database_documents.documents
         ending_at_break = [d for d in docs if d.start.page_name == PAGE_A and d.end.page_name == PAGE_A]
         self.assertTrue(ending_at_break)

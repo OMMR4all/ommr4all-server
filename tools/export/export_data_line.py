@@ -41,7 +41,7 @@ def process_single_block(page, block, connections):
         parent_conn = next((c for c in connections if sc in c.syllable_connections), None)
 
         if parent_conn and parent_conn.text_region:
-            if any(getattr(tl, 'document_start', False) for tl in parent_conn.text_region.lines):
+            if any(tl.start_type == ns_pcgts.LineStartType.CHANT for tl in parent_conn.text_region.lines):
                 is_document_start = True
 
         prefix = "[NEW_CHANT] " if is_document_start and not chant_marker_placed else ""

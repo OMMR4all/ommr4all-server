@@ -15,6 +15,9 @@ class Region:
     def _compute_aabb(self):
         return self.coords.aabb()
 
+    def update_aabb(self):
+        self.aabb = self._compute_aabb()
+
     def to_json(self):
         return {
             'id': self.id,

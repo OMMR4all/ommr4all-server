@@ -1,14 +1,11 @@
-from typing import Optional
-
-from database import DatabaseBook
-from database.model import Model, MetaId, ModelsId
-from omr.steps.algorithm import AlgorithmMeta, AlgorithmPredictor, AlgorithmTrainer, Type, AlgorithmTypes, Experimenter
+from omr.steps.algorithm import AlgorithmPredictor, AlgorithmTrainer, Type, AlgorithmTypes
 from omr.steps.step import Step
 
-from ..dataset import End2EndDataset, Dataset
+from ..meta import End2EndMeta
+from ..networks import End2EndNetwork, SwinTransformerOMR
 
 
-class Meta(AlgorithmMeta):
+class Meta(End2EndMeta):
     @staticmethod
     def type() -> AlgorithmTypes:
         return AlgorithmTypes.END2END_SWIN
@@ -23,30 +20,15 @@ class Meta(AlgorithmMeta):
         from .trainer import SwinTrainer
         return SwinTrainer
 
-    @staticmethod
-    def dataset_class() -> Type[Dataset]:
-        return End2EndDataset
+    @classmethod
+    def create_network(cls, vocab_size: int, localization: bool, pretrained_backbone: bool,
+                       loc_feedback: bool = False) -> End2EndNetwork:
+        # the Swin backbone is always initialised from its pretrained weights
+        return SwinTransformerOMR(vocab_size=vocab_size, localization=localization, loc_feedback=loc_feedback)
 
     @classmethod
-    def default_model_for_style(cls, style: str) -> Optional[Model]:
-        # No internal default models exist for this algorithm; the base implementation
-        # would recurse forever on its french14 fallback.
-        models = ModelsId.from_internal(style, cls.type())
-        model = Model(MetaId(models, cls.model_dir()))
-        return model if model.exists() else None
-
-    @classmethod
-    def best_model_for_book(cls, book: Optional[DatabaseBook]) -> Optional[Model]:
-        return cls.newest_model_for_book(book)
-
-    @classmethod
-    def selected_model_for_book(cls, book: Optional[DatabaseBook]) -> Optional[Model]:
-        selected_params = cls.selected_algorithm_params_for_book(book)
-        if selected_params and selected_params.modelId:
-            model = Model(selected_params.modelId)
-            if model and model.exists():
-                return model
-        return cls.best_model_for_book(book)
+    def default_height(cls) -> int:
+        return 224
 
 
 Step.register(Meta)

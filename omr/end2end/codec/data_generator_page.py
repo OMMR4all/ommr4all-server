@@ -36,9 +36,9 @@ def export_to_unsloth_dataset(pcgts_list, export_path, melody=False, mode="page"
             page_transcriptions = []
             for block in music_blocks:
                 connections = [c for c in page.annotations.connections if c.music_region == block]
-                trans = process_single_block(page, block, connections, 0, 0, melody=melody)
+                trans = process_single_block(page, block, connections, melody=melody)
                 if trans:
-                    page_transcriptions.append(f"[NewLine]{trans}")
+                    page_transcriptions.append(f"[NewLine]{trans.text}")
 
             if not page_transcriptions: continue
 
@@ -72,7 +72,7 @@ def export_to_unsloth_dataset(pcgts_list, export_path, melody=False, mode="page"
                 combined_aabb = block.aabb.union(connected_text_regions[0].aabb)
                 left_pad, top_pad = 50, (1 / 8 * connected_text_regions[0].aabb.height())
 
-                trans = process_single_block(page, block, connections, left_pad, top_pad, melody=melody)
+                trans = process_single_block(page, block, connections, melody=melody)
                 if not trans: continue
 
                 crop_box = (
@@ -87,7 +87,7 @@ def export_to_unsloth_dataset(pcgts_list, export_path, melody=False, mode="page"
                 full_image.crop(crop_box).save(img_dir / target_filename)
 
                 filename_mapping[u_id] = f"page_{page.p_id}_block_{i}"
-                jsonl_entries.append(create_entry(target_filename, trans, "music and text from this image"))
+                jsonl_entries.append(create_entry(target_filename, trans.text, "music and text from this image"))
 
     save_jsonl(base_dir / "train_data.jsonl", jsonl_entries)
     with open(base_dir / "filename_mapping.json", "w", encoding="utf-8") as f:

@@ -49,6 +49,7 @@ class AlgorithmTypes(Enum):
     SYLLABLES_IN_ORDER = 'syllables_in_order'
 
     END2END_SWIN = "end2end_swin"
+    END2END_CONVNEXT = "end2end_convnext"
 
     DOCUMENT_ALIGNMENT = 'document_alignment'
     # Tools
@@ -100,6 +101,7 @@ class AlgorithmTypes(Enum):
             AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH,
 
             AlgorithmTypes.END2END_SWIN,
+            AlgorithmTypes.END2END_CONVNEXT,
         }
 
     def model_type(self):
@@ -152,7 +154,7 @@ class AlgorithmGroups(Enum):
             AlgorithmGroups.SYLLABLES: [AlgorithmTypes.SYLLABLES_IN_ORDER,
                                         AlgorithmTypes.SYLLABLES_FROM_TEXT_TORCH,
                                         AlgorithmTypes.SYLLABLES_FROM_TEXT],
-            AlgorithmGroups.END2END: [AlgorithmTypes.END2END_SWIN],
+            AlgorithmGroups.END2END: [AlgorithmTypes.END2END_SWIN, AlgorithmTypes.END2END_CONVNEXT],
             AlgorithmGroups.TOOLS: [AlgorithmTypes.LAYOUT_CONNECTED_COMPONENTS_SELECTION,
                                     AlgorithmTypes.DOCUMENT_ALIGNMENT, AlgorithmTypes.TEXT_LOCALISATION, AlgorithmTypes.SYMBOLS_PATTERN_MATCHER,
                                     AlgorithmTypes.SYMBOLS_SEQUENCE_CONFIDENCE_CALCULATOR],

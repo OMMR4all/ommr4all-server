@@ -13,7 +13,7 @@ from typing import Optional, Dict, List, Tuple
 
 from database.file_formats.book.document import Document, DocumentConnection
 from database.file_formats.book.documents import Documents
-from database.file_formats.pcgts import Line, Page
+from database.file_formats.pcgts import Line, Page, LineStartType
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmTypes
 from restapi.models.auth import RestAPIUser
 
@@ -65,9 +65,10 @@ class PageDocumentFragment:
             p_id=page.p_id,
             mtime=mtime,
             # the reading order (lyric lines only) is the one ordering documents are indexed in;
-            # page.all_text_lines() is a different, block-ordered list and must not be mixed in
-            lines=[FragmentLine(id=t_line.id, start=t_line.document_start,
-                                text=t_line.sentence.text(True) if t_line.document_start else '')
+            # page.all_text_lines() is a different, block-ordered list and must not be mixed in.
+            # Only a chant start opens a document; a strophe start continues the running one.
+            lines=[FragmentLine(id=t_line.id, start=t_line.start_type == LineStartType.CHANT,
+                                text=t_line.sentence.text(True) if t_line.start_type == LineStartType.CHANT else '')
                    for t_line in page.reading_order.reading_order],
         )
 

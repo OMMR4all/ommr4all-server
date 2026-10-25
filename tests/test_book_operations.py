@@ -145,9 +145,9 @@ class TestTrainingBooks(DjangoTestCase):
     def test_required_locks_of_the_training_operations(self):
         self.assertEqual([(l.label, l.lock) for l in required_locks(TRAIN_OPERATIONS['train_symbols'])],
                          [(Locks.SYMBOLS, True)])
-        # end2end needs both, so a usable page count must be an AND, not a sum per lock
+        # end2end needs all of them, so a usable page count must be an AND, not a sum per lock
         self.assertEqual(sorted([l.label.value for l in required_locks(TRAIN_OPERATIONS['train_end2end'])]),
-                         ['Symbols', 'Text'])
+                         ['Layout', 'StaffLines', 'Symbols', 'Text'])
 
     # -- endpoint -------------------------------------------------------------------------
 
@@ -263,6 +263,9 @@ class TestSkippedPagesReport(TestCase):
 
             @staticmethod
             def unlocked(page): return True
+
+            @staticmethod
+            def runnable(page): return True
 
         meta = mock.Mock()
         meta.predictor.return_value = PredictorCls

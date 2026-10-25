@@ -33,6 +33,7 @@ TRAIN_OPERATIONS: Dict[str, AlgorithmTypes] = {
     'train_layout_detector': AlgorithmTypes.LAYOUT_SIMPLE_DROP_CAPITAL_YOLO,
     'train_character_recognition': AlgorithmTypes.OCR_GUPPY,
     'train_end2end': AlgorithmTypes.END2END_SWIN,
+    'train_end2end_convnext': AlgorithmTypes.END2END_CONVNEXT,
 }
 
 

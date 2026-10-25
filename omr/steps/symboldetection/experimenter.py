@@ -138,6 +138,11 @@ class SymbolsExperimenter(Experimenter):
                 o_pcgts = output_pcgts_by_page_name[ml.line.operation.page.location.page]
                 o_pcgts.page.music_line_by_id(ml.line.operation.music_line.id).symbols = ml.symbols
 
+    def error_type_counts(self, full_predictions, evaluation_params):
+        """Error analysis of the pixel classifier pipeline (symbols in text / drop capital areas,
+        clef errors); it needs its line-based prediction results."""
+        return SymbolErrorTypeDetectionEvaluator(evaluation_params).evaluate(full_predictions)
+
     def evaluate(self, predictions, evaluation_params):
         symbols, full_predictions = predictions
         gt_symbols, pred_symbols = symbols
@@ -161,8 +166,7 @@ class SymbolsExperimenter(Experimenter):
 
         evaluator = SymbolDetectionEvaluator(evaluation_params)
         metrics, counts, acc_counts, acc_acc, total_diffs, total_diffs_count = evaluator.evaluate(gt_symbols, pred_symbols)
-        evaluator2 = SymbolErrorTypeDetectionEvaluator(evaluation_params)
-        counts1, counts2 = evaluator2.evaluate(full_predictions)
+        counts1, counts2 = self.error_type_counts(full_predictions, evaluation_params)
         melody_evaluator = SymbolMelodyEvaluator(evaluation_params)
         melody_counts, melody_acc = melody_evaluator.evaluate(gt_symbols, pred_symbols)
 

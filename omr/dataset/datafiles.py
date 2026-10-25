@@ -12,7 +12,10 @@ class EmptyDataSetException(Exception):
     pass
 
 
-def dataset_by_locked_pages(n_train, locks: List[LockState], shuffle: bool = True, datasets: List[DatabaseBook] = None) -> Tuple[List[PcGts], List[PcGts]]:
+def dataset_by_locked_pages(n_train, locks: List[LockState], shuffle: bool = True, datasets: List[DatabaseBook] = None,
+                            max_pages_per_book: Optional[int] = None) -> Tuple[List[PcGts], List[PcGts]]:
+    """`max_pages_per_book` keeps a fixed random subset of each book (independent of the global
+    random state, so every experiment of a comparison sees the same pages)."""
     logger.info("Finding PcGts files with valid ground truth")
     pcgts = []
     for dataset in (datasets if datasets else DatabaseBook.list_available()):
@@ -20,7 +23,10 @@ def dataset_by_locked_pages(n_train, locks: List[LockState], shuffle: bool = Tru
         if not dataset.exists():
             raise ValueError("Dataset '{}' does not exist at '{}'".format(dataset.book, dataset.local_path()))
 
-        for page in dataset.pages_with_lock(locks):
+        pages = dataset.pages_with_lock(locks)
+        if max_pages_per_book is not None and len(pages) > max_pages_per_book:
+            pages = random.Random(0).sample(sorted(pages, key=lambda p: p.page), max_pages_per_book)
+        for page in pages:
             pcgts.append(PcGts.from_file(page.file('pcgts')))
 
     if len(pcgts) == 0:
@@ -71,7 +77,11 @@ def generate_dataset(lock_states: List[LockState],
                      single_folds: Optional[List[int]],
                      train_books: Optional[List[str]],
                      test_books: Optional[List[str]],
-                     train_books_extend: Optional[List[str]]) -> List[GeneratedData]:
+                     train_books_extend: Optional[List[str]],
+                     max_pages_per_book: Optional[int] = None) -> List[GeneratedData]:
+    """`max_pages_per_book` limits every train book to a fixed subset of its pages. Separate
+    `test_books` always contribute all their pages; without them the test folds come from the
+    limited train books."""
     if n_train is None:
         n_train = -1
 
@@ -112,7 +122,8 @@ def generate_dataset(lock_states: List[LockState],
             prepare_single_fold(fold, all_pcgts, test_files, extend) for fold, test_files, extend in fold_train_pcgts_extend
         ]
     elif all([train_books, test_books]):
-        train_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books])
+        train_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books],
+                                                 max_pages_per_book=max_pages_per_book)
         test_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in test_books])
 
         if val_amount == 0:
@@ -137,9 +148,10 @@ def generate_dataset(lock_states: List[LockState],
             if any([test_books]):
                 logger.warning("You should only provide data to train books if you want to specify the books to use. Ignoring {}".format(test_books))
 
-            all_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books])
+            all_pcgts, _ = dataset_by_locked_pages(1, lock_states, datasets=[DatabaseBook(book) for book in train_books],
+                                                   max_pages_per_book=max_pages_per_book)
         else:
-            all_pcgts, _ = dataset_by_locked_pages(1, lock_states)
+            all_pcgts, _ = dataset_by_locked_pages(1, lock_states, max_pages_per_book=max_pages_per_book)
 
         logger.info("Starting experiment with {} files".format(len(all_pcgts)))
 

@@ -3,6 +3,7 @@ from .pitchparams import PitchDetectionParams, DEFAULT_PITCH_DETECTION_PARAMS
 from .syllable import Syllable, SyllableConnection
 from .sentence import Sentence
 from .block import BlockType, Block
+from .definitions import LineStartType
 from .line import Line
 from .staffline import StaffLines, StaffLine
 from .musicsymbol import *

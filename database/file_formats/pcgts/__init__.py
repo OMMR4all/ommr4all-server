@@ -5,4 +5,5 @@ from .page.musicsymbol import MusicSymbol, MusicSymbolPositionInStaff, create_ac
 from .page.staffline import StaffLines, StaffLine
 from .page.line import Line
 from .page.block import Block, BlockType
+from .page.definitions import LineStartType
 from .page.page import Page, PageScaleReference

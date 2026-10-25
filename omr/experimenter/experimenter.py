@@ -102,13 +102,20 @@ class ExperimenterScheduler:
             single_folds: List[int],
             train_books: List[str],
             test_books: List[str],
-            train_books_extend: List[str]
+            train_books_extend: List[str],
+            max_pages_per_book: Optional[int] = None,
             ):
         from omr.steps.step import Step
         global_args = self.global_args
         logger.info("Finding PcGts files with valid ground truth")
+        lock_states = [LockState(Locks.STAFF_LINES, True), LockState(Locks.LAYOUT, True), LockState(self.global_args.algorithm_type.group().group_2_lock_mapping(), True)]
+        # the trainer may need more GT than its group's lock (end2end: symbols *and* text), use the
+        # same pages as a training started from the client
+        trainer = Step.meta(self.global_args.algorithm_type).trainer()
+        if trainer is not None:
+            lock_states += [l for l in trainer.required_locks() if l not in lock_states]
         train_args = generate_dataset(
-            lock_states=[LockState(Locks.STAFF_LINES, True), LockState(Locks.LAYOUT, True), LockState(self.global_args.algorithm_type.group().group_2_lock_mapping(), True)],
+            lock_states=lock_states,
             n_train=n_train,
             val_amount=val_amount,
             cross_folds=cross_folds,
@@ -116,6 +123,7 @@ class ExperimenterScheduler:
             train_books=train_books,
             test_books=test_books,
             train_books_extend=train_books_extend,
+            max_pages_per_book=max_pages_per_book,
         )
 
         train_args = [SingleDataArgs(gd.fold,

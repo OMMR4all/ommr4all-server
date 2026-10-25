@@ -1,35 +1,54 @@
-import shutil
 import json
 import uuid
 from pathlib import Path
-from PIL import Image
-import shutil
-import json
-import base64
-from pathlib import Path
+from typing import Collection, Dict, List, NamedTuple, Optional
+
 from PIL import Image
 import database.file_formats.pcgts as ns_pcgts
-from database.file_formats.pcgts import Rect, MusicSymbol
+from database.file_formats.pcgts import LineStartType, MusicSymbol
+from omr.end2end.codec.codec import symbol_token
 
-import shutil
-import json
-import base64
-from pathlib import Path
-from PIL import Image
+START_MARKERS = {LineStartType.CHANT: "[NEW_CHANT]", LineStartType.STROPHE: "[NEW_STROPHE]"}
 
 
-def format_syms_1(symbol_list, page, leftpad, toppad, melody=False):
-    """Encodes music symbols into the LLM-optimized (Type|Pos|GC) format."""
+class BlockTranscription(NamedTuple):
+    text: str
+    # the symbols `text` encodes, in token order
+    symbols: List[MusicSymbol]
+
+
+def format_symbols(symbol_list: List[MusicSymbol], encoded: List[MusicSymbol], class_ids: Collection[str],
+                   melody=False) -> str:
+    """Concatenated codec tokens of `symbol_list`; appends every encoded symbol to `encoded`
+    and drops the ones the codec cannot express."""
     res = []
-
     for s in symbol_list:
-        s: MusicSymbol
-        res.append(s.__repr__(ignore_gaped=True, melody=melody))
-
+        token = symbol_token(s, class_ids, melody=melody)
+        if token is None:
+            continue
+        res.append(token)
+        encoded.append(s)
     return "".join(res)
 
 
-def process_single_block(page, block, connections, leftpad, toppad, melody=False):
+def line_start_markers(page, connections) -> Dict[int, str]:
+    """`id(syllable)` -> marker for the first connected syllable of every lyric line that starts a
+    chant or strophe. "Connected" looks at the whole page, so that a lyric line below two music
+    blocks is only marked in the first."""
+    all_connections = list(connections) + (page.annotations.connections if page is not None else [])
+    connected = {id(sc.syllable) for c in all_connections for sc in c.syllable_connections}
+    markers = {}
+    for region in {id(c.text_region): c.text_region for c in connections if c.text_region}.values():
+        for line in region.lines:
+            marker = START_MARKERS.get(line.start_type)
+            first = next((s for s in line.sentence.syllables if id(s) in connected), None)
+            if marker and first is not None:
+                markers[id(first)] = marker
+    return markers
+
+
+def process_single_block(page, block, connections, class_ids: Collection[str] = (),
+                         melody=False) -> Optional[BlockTranscription]:
     """Generates the transcription string for a specific music block."""
 
     symbols = [s for line in block.lines for s in line.symbols]
@@ -53,7 +72,8 @@ def process_single_block(page, block, connections, leftpad, toppad, melody=False
         return None
 
     line_elements = []
-    chant_marker_placed = False
+    encoded: List[MusicSymbol] = []
+    markers = line_start_markers(page, connections)
 
     first_anchor_idx = symbols.index(all_sc[0].note)
     if first_anchor_idx > 0:
@@ -64,19 +84,13 @@ def process_single_block(page, block, connections, leftpad, toppad, melody=False
             symbols_window = [symbol for symbol in symbols_window if
                               symbol.symbol_type in [symbol.symbol_type.NOTE, symbol.symbol_type.ACCID]]
         if len(symbols_window) > 0:
-            line_elements.append(f"*[{format_syms_1(symbols_window, page, leftpad, toppad, melody)}]")
+            sym_block = format_symbols(symbols_window, encoded, class_ids, melody)
+            if sym_block:
+                line_elements.append(f"*[{sym_block}]")
 
     for i, sc in enumerate(all_sc):
-        is_document_start = False
-
-        parent_conn = next((c for c in connections if sc in c.syllable_connections), None)
-
-        if parent_conn and parent_conn.text_region:
-            if any(getattr(tl, 'document_start', False) for tl in parent_conn.text_region.lines):
-                is_document_start = True
-
-        prefix = "[NEW_CHANT] " if is_document_start and not chant_marker_placed else ""
-        if prefix: chant_marker_placed = True
+        marker = markers.get(id(sc.syllable))
+        prefix = f"{marker} " if marker else ""
 
         start_pos = symbols.index(sc.note)
 
@@ -89,7 +103,7 @@ def process_single_block(page, block, connections, leftpad, toppad, melody=False
         if melody:
             symbols_window = [symbol for symbol in symbols_window if
                               symbol.symbol_type in [symbol.symbol_type.NOTE, symbol.symbol_type.ACCID]]
-        sym_block = format_syms_1(symbols_window, page, leftpad, toppad, melody=melody)
+        sym_block = format_symbols(symbols_window, encoded, class_ids, melody=melody)
         syl_text = sc.syllable.text.replace("-", "").strip() or "_"
         formatted_chunk = f"{prefix}{syl_text}[{sym_block}]"
 
@@ -102,7 +116,7 @@ def process_single_block(page, block, connections, leftpad, toppad, melody=False
 
     if line_elements:
         content = "".join(line_elements).strip()
-        return f"{content}"
+        return BlockTranscription(content, encoded)
 
     return None
 
@@ -158,7 +172,7 @@ def export_to_unsloth_dataset(pcgts_list, export_path, melody=False):
                 left_pad = 50
                 top_pad = 1 / 8 * connected_text_regions[0].aabb.height()
 
-                transcription = process_single_block(page, block, connections, left_pad, top_pad, melody=melody)
+                transcription = process_single_block(page, block, connections, melody=melody)
                 if not transcription:
                     continue
 
@@ -191,7 +205,7 @@ def export_to_unsloth_dataset(pcgts_list, export_path, melody=False):
                         {
                             "role": "assistant",
                             "content": [
-                                {"type": "text", "text": transcription}
+                                {"type": "text", "text": transcription.text}
                             ]
                         }
                     ]

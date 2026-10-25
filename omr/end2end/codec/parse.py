@@ -1,16 +1,32 @@
 import re
+from typing import Dict, Optional, TYPE_CHECKING
 
 from database.file_formats.pcgts import MusicSymbolPositionInStaff, SymbolType, GraphicalConnectionType, NoteType, \
     AccidType, MusicSymbol, ClefType, NoteName
+from omr.end2end.codec.codec import CLASS_PREFIX
+
+if TYPE_CHECKING:
+    from omr.imageoperations.symbol_label_set import SymbolLabelSpec
 
 
-def symbol_parse(tuple_str, skip_gapped=False):
+def symbol_parse(tuple_str, skip_gapped=False, class_specs: Optional[Dict[str, 'SymbolLabelSpec']] = None):
+    """Parses a codec token body (without the parentheses) into a symbol.
+
+    `class_specs` maps registered class ids to their label spec; a class token
+    (``clef|@clef_x|7``) is parsed as its base class with `symbol_class` set. A class
+    unknown to `class_specs` keeps its id but falls back to the default sub type."""
     parts = tuple_str.split('|')
 
     if not parts:
         return None
 
     main_type_str = parts[0]
+
+    symbol_class = None
+    if len(parts) > 1 and parts[1].startswith(CLASS_PREFIX):
+        symbol_class = parts[1][len(CLASS_PREFIX):]
+        spec = (class_specs or {}).get(symbol_class)
+        parts[1] = spec.sub_type if spec is not None else ''
 
     s_type = SymbolType.NOTE
     n_type = None
@@ -135,6 +151,14 @@ def symbol_parse(tuple_str, skip_gapped=False):
                     print("GraphicalConnectionType. Error")
                     pass
 
+    elif main_type_str == 'other':
+        s_type = SymbolType.OTHER
+        if len(parts) > 2:
+            try:
+                pos = MusicSymbolPositionInStaff(int(parts[2]))
+            except ValueError:
+                pass
+
     ms = MusicSymbol(
         symbol_type=s_type,
         clef_type=c_type,
@@ -144,6 +168,7 @@ def symbol_parse(tuple_str, skip_gapped=False):
         graphical_connection=gc,
         note_name=notename,
         octave=octave,
+        symbol_class=symbol_class,
     )
     return ms
 

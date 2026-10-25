@@ -96,8 +96,9 @@ class TaskRunnerTrainer(TaskRunner):
             validation_data=val,
             dataset_params=DatasetParams(
                 gt_required=True,
+                # symbol detection and end2end networks get a label / token per registered symbol class
                 symbol_label_sets=symbol_label_sets_for_style(book.get_meta().notationStyle)
-                if meta.group() == AlgorithmGroups.SYMBOLS else None,
+                if meta.group() in (AlgorithmGroups.SYMBOLS, AlgorithmGroups.END2END) else None,
             ),
             # None unless the request asked for a value, so the algorithm defaults apply unchanged
             params=self.params.to_trainer_params(trainer_class),

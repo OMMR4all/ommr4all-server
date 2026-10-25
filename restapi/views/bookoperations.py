@@ -92,6 +92,8 @@ class BookPageSelectionView(APIView):
             """Whether `predictor` would really touch `page` — mirrors TaskRunnerPrediction."""
             if not predictor.unlocked(page):
                 return False  # locked pages are never overwritten, whatever the count mode
+            if not page_selection.single_page and not predictor.runnable(page):
+                return False  # batch runs skip pages without the step's input
             if page_selection.page_count == PageCount.UNPROCESSED:
                 return predictor.unprocessed(page)
             return True  # ALL / CUSTOM, and UNLOCKED which the lock check above covers

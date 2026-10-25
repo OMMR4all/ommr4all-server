@@ -1,5 +1,5 @@
 import torch
-from torchvision import transforms
+from torchvision.transforms import v2 as transforms
 
 
 class AddGaussianNoise(object):
@@ -18,6 +18,8 @@ class AddGaussianNoise(object):
 
 
 def get_train_transforms():
+    """Photometric and mild geometric augmentation. Built on `torchvision.transforms.v2`, so a
+    call ``t(image, keypoints)`` with `tv_tensors.KeyPoints` moves the points along with the ink."""
     return transforms.Compose([
 
         transforms.RandomApply([

@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from omr.util import PerformanceCounter
 from .region import Region, Coords
-from .definitions import BlockType
+from .definitions import BlockType, LineStartType
 from .coords import Point
 from .sentence import Sentence
 from .staffline import StaffLines
@@ -24,14 +24,14 @@ class Line(Region):
                  symbols: List[MusicSymbol] = None,
 
                  additional_symbols: List[MusicSymbol] = None,
-                 document_start: bool = False,
+                 start_type: LineStartType = LineStartType.NONE,
                  ):
         # general
         self.reconstructed = reconstructed
 
         # text line
         self.sentence: Sentence = sentence if sentence else Sentence([])
-        self.document_start = document_start
+        self.start_type = start_type
 
         # music line
         self.staff_lines = staff_lines if staff_lines else StaffLines()
@@ -57,9 +57,16 @@ class Line(Region):
             StaffLines.from_json(d.get('staffLines', [])),
             [MusicSymbol.from_json(s) for s in d.get('symbols', [])],
             [MusicSymbol.from_json(s) for s in d.get('additionalSymbols', [])],
-            document_start=d.get('documentStart')
-
+            start_type=Line.start_type_from_json(d),
         )
+
+    @staticmethod
+    def start_type_from_json(d: dict) -> LineStartType:
+        if 'startType' in d:
+            return LineStartType(d['startType'])
+        # legacy files only carry a boolean flag
+        return LineStartType.CHANT if d.get('documentStart') else LineStartType.NONE
+
     def point_in_aabb(self, point):
         aabb = self.aabb
         left = aabb.left()
@@ -76,8 +83,7 @@ class Line(Region):
             **super().to_json(),
             **{
                 'reconstructed': self.reconstructed,
-                'documentStart': self.document_start,
-
+                'startType': self.start_type.value,
             },
         }
 

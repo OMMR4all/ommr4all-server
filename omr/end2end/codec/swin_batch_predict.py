@@ -11,7 +11,8 @@ import torchvision.transforms as T
 import math
 
 from omr.end2end.codec.dataset import SmartTokenizer
-from omr.end2end.codec.network import SwinTransformerOMR2d, SwinTransformerOMR
+from omr.end2end.codec.network import SwinTransformerOMR2d
+from omr.steps.end2end.networks import SwinTransformerOMR
 
 
 def get_args():

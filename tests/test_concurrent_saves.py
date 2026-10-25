@@ -86,7 +86,7 @@ class TestConcurrentSaves(TemporaryDemoBookTestCase):
         from database.database_book_documents import DatabaseBookDocuments
 
         DatabaseBookDocuments.update_book_documents_cached(self.book)
-        TestBookDocuments._set_document_starts(self.book.page(PAGE_B), [1])
+        TestBookDocuments._set_start_types(self.book.page(PAGE_B), [1])
 
         self._run_concurrently([lambda: consumers.schedule_book_documents_update(self.book)] * 10)
         for _ in range(100):

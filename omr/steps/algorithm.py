@@ -391,6 +391,12 @@ class AlgorithmPredictor(ABC):
             return True
         return not page.page_progress().locked.get(lock)
 
+    @classmethod
+    def runnable(cls, page: DatabasePage) -> bool:
+        """Whether the page carries what this step reads (e.g. staff lines, lyric regions). Batch
+        runs skip pages that do not; single-page runs from the editor are not filtered."""
+        return True
+
 
 class AlgorithmMeta(ABC):
 

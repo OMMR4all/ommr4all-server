@@ -54,7 +54,8 @@ class FinalPredictionResult(AlgorithmPredictionResult):
                     ml.coords = ic.coords
                 else:
                     pcgts.page.blocks.append(
-                        Block(type, ic.id, lines=[Line(coords=ic.coords, document_start=ic.start)])
+                        Block(type, ic.id, lines=[Line(coords=ic.coords,
+                                                       start_type=LineStartType.CHANT if ic.start else LineStartType.NONE)])
                     )
         pcgts.page.update_reading_order()
         pcgts.to_file(page.file('pcgts').local_path())

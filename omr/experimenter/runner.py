@@ -55,6 +55,8 @@ if __name__ == "__main__":
     parser.add_argument("--skip_eval", action="store_true")
     parser.add_argument("--cleanup", action="store_true", default=False)
     parser.add_argument("--n_train", default=-1, type=int)
+    parser.add_argument("--max_pages_per_book", default=None, type=int,
+                        help="use a fixed random subset of at most this many pages of every --train book")
     parser.add_argument("--n_iter", default=-1, type=int)
     parser.add_argument("--n_epoch", default=30, type=int)
 
@@ -242,4 +244,5 @@ if __name__ == "__main__":
         args.train,
         args.test,
         args.train_extend,
+        args.max_pages_per_book,
     )

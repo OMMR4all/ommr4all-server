@@ -67,9 +67,10 @@ class TaskRunnerPrediction(TaskRunner):
         pages = self.selection.get_pages(predictor_cls.unprocessed, predictor_cls.unlocked)
         if not self.selection.single_page:
             # A batch run (workflow or book operation) must never overwrite a page the user
-            # locked for this step, no matter which count mode was selected. Single-page
-            # runs come from the editor, where re-running on a locked page is deliberate.
-            pages = [p for p in pages if predictor_cls.unlocked(p)]
+            # locked for this step, no matter which count mode was selected, and skips pages
+            # that lack the step's input (e.g. no staff lines yet). Single-page runs come from
+            # the editor, where re-running on a locked page is deliberate.
+            pages = [p for p in pages if predictor_cls.unlocked(p) and predictor_cls.runnable(p)]
         logger.debug("Algorithm {} processing {} pages".format(self.algorithm_type.name, len(pages)))
 
         all_results = list(abc_detector.predict(pages, Callback()))

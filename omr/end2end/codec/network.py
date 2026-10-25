@@ -130,42 +130,6 @@ class SwinTransformerOMR2d(nn.Module):
         return self.head(out)
 
 
-class SwinTransformerOMR(nn.Module):
-    def __init__(self, vocab_size, d_model=256, nhead=4, num_layers=4):
-        super().__init__()
-
-        print("Lade Swin Transformer Backbone...")
-        self.backbone = SwinModel.from_pretrained("microsoft/swin-tiny-patch4-window7-224")
-
-        self.feature_dim = 768
-
-        self.adapter = nn.Linear(self.feature_dim, d_model)
-
-        self.pos_encoder = PositionalEncoding(d_model)
-        self.embedding = nn.Embedding(vocab_size, d_model)
-        decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead, batch_first=True)
-        self.decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_layers)
-        self.head = nn.Linear(d_model, vocab_size)
-
-        self.d_model = d_model
-
-    def forward(self, img, tgt):
-        outputs = self.backbone(img)
-
-        features = outputs.last_hidden_state
-
-        memory = self.adapter(features)
-
-        memory = self.pos_encoder(memory)
-
-        tgt_emb = self.pos_encoder(self.embedding(tgt) * math.sqrt(self.d_model))
-        tgt_mask = torch.triu(torch.ones(tgt.size(1), tgt.size(1)) * float('-inf'), diagonal=1).to(tgt.device)
-        pad_mask = (tgt == 0)
-
-        out = self.decoder(tgt_emb, memory, tgt_mask=tgt_mask, tgt_key_padding_mask=pad_mask)
-        return self.head(out)
-
-
 class ResNetTransformer(nn.Module):
     def __init__(self, vocab_size, d_model=256, nhead=4, num_layers=4, dropout=0.2):
         super(ResNetTransformer, self).__init__()
