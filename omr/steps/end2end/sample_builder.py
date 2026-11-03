@@ -9,6 +9,8 @@ from database.file_formats.pcgts import PcGts, BlockType
 from database.file_formats.pcgts.page import Block, Line, Page
 from database.file_formats.pcgts.page.annotations import Connection
 from omr.dataset import DatasetCallback
+from omr.dataset.sample_store import Blob, BlobStore
+from omr.dataset.spill import DatasetSpill
 from omr.end2end.codec.data_generator import process_single_block
 
 logger = logging.getLogger(__name__)
@@ -23,14 +25,15 @@ CropBox = Tuple[float, float, float, float]
 class Sample(NamedTuple):
     """Plain data only (no PcGts references), so that data loader workers receive it cheaply
     whatever their multiprocessing start method."""
-    # the crop, scaled to the network input height and JPEG encoded to keep large datasets in memory
-    image_jpeg: bytes
+    # the crop, scaled to the network input height and JPEG encoded to keep large datasets in
+    # memory; held by a `Blob`, which points at a file instead once the dataset is spilled
+    image_blob: Blob
     gt: str
     # per symbol token of `gt`, in order: its position as a fraction (x, y) of the crop width and height
     symbol_locs: List[Tuple[float, float]]
 
     def image(self) -> Image.Image:
-        return Image.open(io.BytesIO(self.image_jpeg)).convert('RGB')
+        return Image.open(self.image_blob.open()).convert('RGB')
 
 
 def find_text_region_for_music_block(page: Page, block: Block,
@@ -129,8 +132,14 @@ def build_training_samples(pcgts_list: List[PcGts],
                            target_height: int,
                            class_ids: Collection[str] = (),
                            callback: Optional[DatasetCallback] = None,
-                           melody: bool = False) -> List[Sample]:
+                           melody: bool = False,
+                           spill: Optional[DatasetSpill] = None) -> List[Sample]:
+    """The crops of every music block with its lyrics, as one `Sample` each.
+
+    The crops are kept in memory unless they exceed the budget of `spill`, in which case they
+    are written into its scratch directory (which must outlive the training)."""
     samples = []
+    blobs = BlobStore(spill)
     if callback:
         callback.loading_started(len(pcgts_list))
 
@@ -158,7 +167,8 @@ def build_training_samples(pcgts_list: List[PcGts],
             box = compute_crop_box(page, block, text_region)
             locs = [page_point_to_crop_fraction(page, box, s.coord.x, s.coord.y) for s in transcription.symbols]
             image = scale_to_height(full_image.crop(box), target_height)
-            samples.append(Sample(image_jpeg=encode_jpeg(image), gt=transcription.text, symbol_locs=locs))
+            samples.append(Sample(image_blob=blobs.add(encode_jpeg(image)),
+                                  gt=transcription.text, symbol_locs=locs))
 
         if callback:
             callback.loading(i + 1, len(pcgts_list))

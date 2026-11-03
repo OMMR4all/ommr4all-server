@@ -1,6 +1,7 @@
 import csv
 import os
 import json
+import shutil
 import tempfile
 
 import loguru
@@ -8,6 +9,7 @@ import torch
 from PIL import Image
 import numpy as np
 from omr.dataset.datastructs import CalamariCodec
+from omr.dataset.sample_store import write_line_samples
 from omr.steps.symboldetection.trainer import SymbolDetectionTrainer
 
 if __name__ == '__main__':
@@ -69,29 +71,24 @@ class OMRTrainer(SymbolDetectionTrainer):
         from ommr4all.settings import BASE_DIR
         from omr.steps.symboldetection.sequence_to_sequence_guppy.arch import train_model
 
-        def create_tempfiles(dir: str, dataset: Tuple[List[np.array], List[str]], type="train",
-                                      subfolder: str = "train"):
-            header = ["filename", "words"]
-            path = os.path.join(dir, type, subfolder)
-            os.makedirs(path, exist_ok=True)
-            with open(os.path.join(path, "labels.csv"), 'w', encoding='UTF8') as labels_csv:
-                csv_writer = csv.writer(labels_csv)
-                csv_writer.writerow(header)
-                for ind, (image, gt) in enumerate(zip(dataset[0], dataset[1])):
-                    Image.fromarray(image).save(os.path.join(path, str(ind) + ".png"))
-                    with open(os.path.join(path, str(ind) + ".txt"), 'w', encoding='UTF8') as gt_txt:
-                        gt_txt.write(gt)
-                    csv_writer.writerow([os.path.join(str(ind) + ".png"), gt])
-
-        train_dataset = self.train_dataset.to_guppy_symbol_line__dataset(train=True, callback=callback, only_with_gt=True)
-        val_dataset = self.validation_dataset.to_guppy_symbol_line__dataset(train=True, callback=callback, only_with_gt=True)
-
-        val_dataset = train_dataset if len(val_dataset[0]) == 0 else val_dataset
         with tempfile.TemporaryDirectory() as dirpath:
             loguru.logger.info(f"Creating temporary train directory at {dirpath}")
 
-            create_tempfiles(dirpath, train_dataset, type="", subfolder="train")
-            create_tempfiles(dirpath, val_dataset, type="", subfolder="test")
+            # the samples are written one by one as they are built: guppyocr reads them from
+            # disk anyway, so the whole dataset never has to fit into memory
+            n_train = write_line_samples(
+                os.path.join(dirpath, "train"),
+                self.train_dataset.iter_guppy_symbol_line_samples(train=True, callback=callback,
+                                                                  only_with_gt=True))
+            n_val = write_line_samples(
+                os.path.join(dirpath, "test"),
+                self.validation_dataset.iter_guppy_symbol_line_samples(train=True, callback=callback,
+                                                                       only_with_gt=True))
+            loguru.logger.info(f"Training samples: {n_train}, validation samples: {n_val}")
+            if n_val == 0:
+                # no validation data: validate on the training data, as before
+                shutil.rmtree(os.path.join(dirpath, "test"))
+                shutil.copytree(os.path.join(dirpath, "train"), os.path.join(dirpath, "test"))
             from guppyocr.train_calamares import TrainingOpts
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             #print(self.params.model_to_load().local_file('model_best.pth'))

@@ -75,7 +75,7 @@ class PCTorchPredictor(SymbolsPredictor):
         from segmentation.network_postprocessor import MaskPredictionResult
         from segmentation.preprocessing.source_image import SourceImage
         dataset = SymbolDetectionDatasetTorch(pcgts_files, self.dataset_params)
-        df = dataset.to_memory_dataset(train=False)
+        df, _ = dataset.to_memory_dataset(train=False)
         clefs = []
         progress = PredictionProgress.for_lines(callback, pcgts_files, list(df['original']))
         progress.start()

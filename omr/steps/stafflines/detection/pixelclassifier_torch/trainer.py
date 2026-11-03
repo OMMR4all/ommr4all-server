@@ -5,10 +5,11 @@ import albumentations
 import matplotlib.pyplot as plt
 import pandas as pd
 from albumentations.pytorch import ToTensorV2
-from segmentation.datasets.dataset import MemoryDataset
+from segmentation.datasets.dataset import MaskDataset, MemoryDataset
 from segmentation.modules import Architecture
 from torch.utils.data import DataLoader
 
+from omr.dataset.spill import loader_workers
 from omr.imageoperations.music_line_operations import SymbolLabel
 from omr.steps.callback import SegmentationProcessTrainCallback
 from omr.steps.stafflines.detection.trainer import StaffLineDetectionTrainer
@@ -65,7 +66,11 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
 
         if callback:
             callback.resolving_files()
-        train_data = self.train_dataset.to_memory_dataset(callback)
+        # the samples stay in memory while they fit the budget and are written to the spill's
+        # scratch directory (removed when `train()` returns) once they do not
+        spill = self.dataset_spill()
+        train_data, train_spilled = self.train_dataset.to_memory_dataset(callback, spill=spill,
+                                                                         keep_original=False)
 
         color_map = ColorMap([ClassSpec(label=0, name="background", color=[255, 255, 255]),
                               ClassSpec(label=1, name="line", color=[255, 0, 0])])
@@ -99,11 +104,20 @@ class BasicStaffLinesTrainerTorch(StaffLineDetectionTrainer):
         #    val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
         #else:
 
-        train_data = MemoryDataset(df=train_data, transforms=transforms.get_train_transforms(), scale_area=9999999999)
-        val_data = MemoryDataset(self.validation_dataset.to_memory_dataset(callback),
-                                 transforms=transforms.get_test_transforms(), scale_area=9999999999)
-        train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
-        val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
+        val_data, val_spilled = self.validation_dataset.to_memory_dataset(callback, spill=spill,
+                                                                          keep_original=False)
+        # MaskDataset is MemoryDataset reading the spilled files instead of arrays
+        train_data = (MaskDataset if train_spilled else MemoryDataset)(
+            df=train_data, transforms=transforms.get_train_transforms(), scale_area=9999999999)
+        val_data = (MaskDataset if val_spilled else MemoryDataset)(
+            df=val_data, transforms=transforms.get_test_transforms(), scale_area=9999999999)
+        # decoding the spilled PNGs in workers overlaps it with the GPU step; these samples are
+        # whole pages, so use one worker even when `processes` is unset (-1)
+        workers = loader_workers(max(self.params.processes, 1)) if spill.spilled else 0
+        train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True,
+                                  num_workers=workers, persistent_workers=workers > 0)
+        val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False,
+                                num_workers=workers, persistent_workers=workers > 0)
         if len(val_data) == 0:
             val_loader = train_loader
         predfined_nw_settings = PredefinedNetworkSettings(

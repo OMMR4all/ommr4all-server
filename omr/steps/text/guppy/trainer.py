@@ -1,4 +1,5 @@
 import csv
+import shutil
 from typing import Optional, Type, Dict, List, Tuple
 
 import numpy as np
@@ -8,6 +9,7 @@ from guppyocr.train_calamares import train_model
 from database.file_formats.pcgts import BlockType
 from database.file_formats.performance.pageprogress import Locks
 from omr.dataset import DatasetParams, LyricsNormalization
+from omr.dataset.sample_store import write_line_samples
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 from database import DatabaseBook
 import os
@@ -68,21 +70,6 @@ class PytorchGuppyyTrainer(TextTrainerBase):
 
         from guppyocr.train_calamares import train_model
 
-        def create_tempfiles(dir: str, dataset: Tuple[List[np.array], List[str]], type="train",
-                                      subfolder: str = "train"):
-            header = ["filename", "words"]
-            path = os.path.join(dir, type, subfolder)
-            os.makedirs(path, exist_ok=True)
-            with open(os.path.join(path, "labels.csv"), 'w', encoding='UTF8') as labels_csv:
-                csv_writer = csv.writer(labels_csv)
-                csv_writer.writerow(header)
-                for ind, (image, gt) in enumerate(zip(dataset[0], dataset[1])):
-                    uuid_ = uuid.uuid4()
-                    Image.fromarray(image).save(os.path.join(path, str(ind) +str(uuid_)+ ".png"))
-                    with open(os.path.join(path, str(ind) + str(uuid_)+ ".txt"), 'w', encoding='UTF8') as gt_txt:
-                        gt_txt.write(gt)
-                    csv_writer.writerow([os.path.join(str(ind)+ str(uuid_)+ ".png"), gt])
-
         from omr.steps.text.guppy.progress import report_training_progress
 
         n_epoch = max(int(self.settings.params.n_epoch or 0), 1)
@@ -98,16 +85,26 @@ class PytorchGuppyyTrainer(TextTrainerBase):
             # runner divides by total_iters without a guard.
             callback.init(n_epoch, early_stopping)
 
-        train_dataset = self.train_dataset.to_text_line_nautilus_dataset(train=True, callback=callback, only_with_gt=True)
-        val_dataset = self.validation_dataset.to_text_line_nautilus_dataset(train=True, callback=callback, only_with_gt=True)
-        #print("Lneghtd")
-        #print(len(val_dataset[0]))
-        val_dataset = train_dataset if len(val_dataset[0]) == 0 else val_dataset
         with tempfile.TemporaryDirectory() as dirpath:
             loguru.logger.info(f"Creating temporary train directory at {dirpath}")
 
-            create_tempfiles(dirpath, train_dataset, type="", subfolder="train")
-            create_tempfiles(dirpath, val_dataset, type="", subfolder="test")
+            # the samples are written one by one as they are built: guppyocr reads them from
+            # disk anyway, so the whole dataset never has to fit into memory
+            n_train = write_line_samples(
+                os.path.join(dirpath, "train"),
+                self.train_dataset.iter_text_line_nautilus_samples(train=True, callback=callback,
+                                                                   only_with_gt=True),
+                unique_names=True)
+            n_val = write_line_samples(
+                os.path.join(dirpath, "test"),
+                self.validation_dataset.iter_text_line_nautilus_samples(train=True, callback=callback,
+                                                                        only_with_gt=True),
+                unique_names=True)
+            loguru.logger.info(f"Training samples: {n_train}, validation samples: {n_val}")
+            if n_val == 0:
+                # no validation data: validate on the training data, as before
+                shutil.rmtree(os.path.join(dirpath, "test"))
+                shutil.copytree(os.path.join(dirpath, "train"), os.path.join(dirpath, "test"))
             from guppyocr.train_calamares import TrainingOpts
             training_opts = TrainingOpts(
                 output=self.settings.model.path,

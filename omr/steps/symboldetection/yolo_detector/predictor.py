@@ -59,7 +59,7 @@ class PCTorchPredictor(SymbolsPredictor):
     def _predict(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) -> Generator[
         SingleLinePredictionResult, None, None]:
         dataset = SymbolDetectionDatasetTorch(pcgts_files, self.dataset_params)
-        df = dataset.to_memory_dataset(train=False)
+        df, _ = dataset.to_memory_dataset(train=False)
         clefs = []
         from ultralytics import YOLO
 

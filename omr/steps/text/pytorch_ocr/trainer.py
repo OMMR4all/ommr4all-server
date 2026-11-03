@@ -1,4 +1,5 @@
 import csv
+import shutil
 from typing import Optional, Type, Dict, List, Tuple
 
 import numpy as np
@@ -7,6 +8,7 @@ from nautilus_ocr.train import train
 from database.file_formats.pcgts import BlockType
 from database.file_formats.performance.pageprogress import Locks
 from omr.dataset import DatasetParams, LyricsNormalization
+from omr.dataset.sample_store import write_line_samples
 from omr.steps.symboldetection.sequencetosequence.params import CalamariParams
 from database import DatabaseBook
 import os
@@ -96,33 +98,23 @@ class PytorchTrainer(TextTrainerBase):
         opt = os.path.join(BASE_DIR, 'omr', 'steps', 'text', 'pytorch_ocr',
                            'network_config', 'ocr_config.yaml')
 
-        def create_nautilus_tempfiles(dir: str, dataset: Tuple[List[np.array], List[str]], type="train",
-                                      subfolder: str = "train"):
-            header = ["filename", "words"]
-            path = os.path.join(dir, type, subfolder)
-            os.makedirs(path, exist_ok=True)
-            with open(os.path.join(path, "labels.csv"), 'w', encoding='UTF8') as labels_csv:
-                csv_writer = csv.writer(labels_csv)
-                csv_writer.writerow(header)
-                for ind, (image, gt) in enumerate(zip(dataset[0], dataset[1])):
-                    if "#" in gt:
-                        print("skip")
-                    else:
-                        Image.fromarray(image).save(os.path.join(path, str(ind) + ".png"))
-                        with open(os.path.join(path, str(ind) + ".txt"), 'w', encoding='UTF8') as gt_txt:
-                            gt_txt.write(gt)
-                        csv_writer.writerow([os.path.join(str(ind) + ".png"), gt])
-
-        train_dataset = self.train_dataset.to_text_line_nautilus_dataset(train=True, callback=callback)
-        val_dataset = self.validation_dataset.to_text_line_nautilus_dataset(train=False, callback=callback)
-        val_dataset = train_dataset if len(val_dataset[0]) == 0 else val_dataset
         with tempfile.TemporaryDirectory() as dirpath:
             loguru.logger.info(f"Creating temporary train directory at {dirpath}")
-            print(self.params.load)
 
-            # exit()
-            create_nautilus_tempfiles(dirpath, train_dataset, type="train", subfolder="train")
-            create_nautilus_tempfiles(dirpath, val_dataset, type="val", subfolder="val")
+            # the samples are written one by one as they are built, so the whole dataset
+            # never has to fit into memory (the training library reads them from disk)
+            n_train = write_line_samples(
+                os.path.join(dirpath, "train", "train"),
+                self.train_dataset.iter_text_line_nautilus_samples(train=True, callback=callback))
+            n_val = write_line_samples(
+                os.path.join(dirpath, "val", "val"),
+                self.validation_dataset.iter_text_line_nautilus_samples(train=False, callback=callback))
+            loguru.logger.info(f"Training samples: {n_train}, validation samples: {n_val}")
+            if n_val == 0:
+                # no validation data: validate on the training data, as before
+                shutil.rmtree(os.path.join(dirpath, "val", "val"))
+                shutil.copytree(os.path.join(dirpath, "train", "train"),
+                                os.path.join(dirpath, "val", "val"))
 
             # opt = get_config(opt, os.path.join(dirpath, "train"), os.path.join(dirpath, "val"),
             #                 load='' if not self.params.model_to_load() else self.params.model_to_load().local_file(

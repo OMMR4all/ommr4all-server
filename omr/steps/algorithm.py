@@ -6,8 +6,11 @@ from database import DatabaseBook, DatabasePage
 from database.file_formats import PcGts
 from database.file_formats.performance import LockState
 from omr.dataset import DatasetCallback, Dataset
-from typing import Optional, List, Type, Union, Generator
+from typing import Optional, List, Type, Union, Generator, TYPE_CHECKING
 from omr.experimenter.experimenter import Experimenter
+
+if TYPE_CHECKING:
+    from omr.dataset.spill import DatasetSpill
 
 from .algorithmtrainerparams import AlgorithmTrainerSettings, AlgorithmTrainerParams, DatasetParams
 from .algorithmpreditorparams import AlgorithmPredictorSettings, AlgorithmPredictorParams
@@ -159,6 +162,10 @@ class PredictionProgress:
 
 
 class AlgorithmTrainer(ABC):
+    # scratch space of the current run, see `dataset_spill`; a class attribute so that
+    # `train()` also works for subclasses that do not run this `__init__`
+    _spill: Optional['DatasetSpill'] = None
+
     @staticmethod
     @abstractmethod
     def meta() -> Type['AlgorithmMeta']:
@@ -198,6 +205,17 @@ class AlgorithmTrainer(ABC):
         self.train_dataset = self.meta().dataset_class()(self.settings.train_data, self.settings.dataset_params)
         self.validation_dataset = self.meta().dataset_class()(self.settings.validation_data,
                                                               self.settings.dataset_params)
+
+    def dataset_spill(self) -> 'DatasetSpill':
+        """The memory budget and scratch directory shared by the datasets of this run.
+
+        Datasets are built from the PcGts files on every run and kept in memory; once they
+        exceed the budget the sample stores write them into the spill's directory instead
+        (see `omr.dataset.spill`). It is closed when `train()` returns."""
+        if self._spill is None:
+            from omr.dataset.spill import dataset_spill
+            self._spill = dataset_spill()
+        return self._spill
 
     def train(self, target_book: Optional[DatabaseBook] = None, callback: Optional[TrainerCallback] = None):
         class CallbackInterception(TrainerCallback):
@@ -255,9 +273,15 @@ class AlgorithmTrainer(ABC):
         training_info = self._training_info(target_book)
         self.settings.model.save_training_info(training_info)
 
-        self._pre_train()
-        self._train(target_book, CallbackInterception(self))
-        self._post_train(target_book)
+        try:
+            self._pre_train()
+            self._train(target_book, CallbackInterception(self))
+            self._post_train(target_book)
+        finally:
+            # samples spilled to disk must stay readable until the last epoch is done, so the
+            # scratch directory is only removed here (also on an aborted training)
+            if self._spill is not None:
+                self._spill.close()
 
         self.settings.model.save_meta()
         training_info.finished = datetime.datetime.now()

@@ -8,9 +8,10 @@ import torch
 from albumentations import Compose, ShiftScaleRotate, Affine, RandomGamma, RandomBrightnessContrast
 from albumentations.pytorch import ToTensorV2
 from loguru import logger
-from segmentation.datasets.dataset import MemoryDataset
+from segmentation.datasets.dataset import MaskDataset, MemoryDataset
 from segmentation.modules import Architecture
 
+from omr.dataset.spill import loader_workers
 from omr.steps.callback import SegmentationProcessTrainCallback
 from omr.steps.symboldetection.torchpixelclassifier.params import remove_nones
 from segmentation.callback import ModelWriterCallback
@@ -236,39 +237,50 @@ class PCTorchTrainer(SymbolDetectionTrainer):
             transforms.register_additional_targets([f"mask_head_{i}" for i in range(n_heads)])
         additional_color_maps = config.additional_color_maps or (head_color_maps(label_sets) if n_heads > 0 else None)
 
-        train_data_pd = self.train_dataset.to_memory_dataset(callback, same_dim=False,
-                                                             additional_mask_columns=want_heads)
-        val_data_pd = self.validation_dataset.to_memory_dataset(callback, additional_mask_columns=want_heads)
-        train_data = MemoryDataset(df=train_data_pd, transforms=transforms.get_train_transforms(),
-                                   additional_color_maps=additional_color_maps)
-        val_data = MemoryDataset(df=val_data_pd, transforms=transforms.get_test_transforms(),
-                                 additional_color_maps=additional_color_maps)
-        train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True)
-        val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False)
-        logging.info(f"Training samples: {len(train_data)}, Validation samples: {len(val_data)}")
-        if len(val_data) == 0:
-            val_loader = train_loader
-        mw = ModelWriterCallback(network, config, save_path=Path(self.settings.model.path), prefix="",
-                                 metric_watcher_index=0)
-        callbacks = [mw, pc_callback]
-        trainer = NetworkTrainer(network, NetworkTrainSettings(classes=len(color_map),
-                                                               optimizer=Optimizers("adam"),
-                                                               learningrate_seghead=self.params.l_rate,
-                                                               learningrate_encoder=self.params.l_rate,
-                                                               learningrate_decoder=self.params.l_rate,
-                                                               batch_accumulation=1,
-                                                               processes=self.params.processes,
-                                                               metrics=[Metrics("accuracy")],
-                                                               watcher_metric_index=0,
-                                                               loss=Losses.cross_entropy_loss,
-                                                               additional_heads=n_heads,
-                                                               additional_classes=list(add_classes),
-                                                               ), get_default_device(),
-                                 callbacks=callbacks, debug_color_map=config.color_map)
+        # the samples stay in memory while they fit the budget and are written to the spill's
+        # scratch directory once they do not; MaskDataset is MemoryDataset reading those files
+        with self.dataset_spill() as spill:
+            train_data_pd, train_spilled = self.train_dataset.to_memory_dataset(
+                callback, same_dim=False, additional_mask_columns=want_heads,
+                spill=spill, keep_original=False)
+            val_data_pd, val_spilled = self.validation_dataset.to_memory_dataset(
+                callback, additional_mask_columns=want_heads, spill=spill, keep_original=False)
+            train_data = (MaskDataset if train_spilled else MemoryDataset)(
+                df=train_data_pd, transforms=transforms.get_train_transforms(),
+                additional_color_maps=additional_color_maps)
+            val_data = (MaskDataset if val_spilled else MemoryDataset)(
+                df=val_data_pd, transforms=transforms.get_test_transforms(),
+                additional_color_maps=additional_color_maps)
+            # decoding the spilled PNGs in workers overlaps it with the GPU step
+            workers = loader_workers(self.params.processes) if spill.spilled else 0
+            train_loader = DataLoader(dataset=train_data, batch_size=1, shuffle=True,
+                                      num_workers=workers, persistent_workers=workers > 0)
+            val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False,
+                                    num_workers=workers, persistent_workers=workers > 0)
+            logging.info(f"Training samples: {len(train_data)}, Validation samples: {len(val_data)}")
+            if len(val_data) == 0:
+                val_loader = train_loader
+            mw = ModelWriterCallback(network, config, save_path=Path(self.settings.model.path), prefix="",
+                                     metric_watcher_index=0)
+            callbacks = [mw, pc_callback]
+            trainer = NetworkTrainer(network, NetworkTrainSettings(classes=len(color_map),
+                                                                   optimizer=Optimizers("adam"),
+                                                                   learningrate_seghead=self.params.l_rate,
+                                                                   learningrate_encoder=self.params.l_rate,
+                                                                   learningrate_decoder=self.params.l_rate,
+                                                                   batch_accumulation=1,
+                                                                   processes=self.params.processes,
+                                                                   metrics=[Metrics("accuracy")],
+                                                                   watcher_metric_index=0,
+                                                                   loss=Losses.cross_entropy_loss,
+                                                                   additional_heads=n_heads,
+                                                                   additional_classes=list(add_classes),
+                                                                   ), get_default_device(),
+                                     callbacks=callbacks, debug_color_map=config.color_map)
 
-        os.makedirs(os.path.dirname(self.settings.model.path), exist_ok=True)
+            os.makedirs(os.path.dirname(self.settings.model.path), exist_ok=True)
 
-        trainer.train_epochs(train_loader=train_loader, val_loader=val_loader, n_epoch=self.params.n_epoch, lr_schedule=None)
+            trainer.train_epochs(train_loader=train_loader, val_loader=val_loader, n_epoch=self.params.n_epoch, lr_schedule=None)
 
 
 if __name__ == '__main__':

@@ -10,7 +10,7 @@ from matplotlib.colors import LinearSegmentedColormap
 
 from database.file_formats.pcgts import PcGts, Line, PageScaleReference, Point, BlockType
 import numpy as np
-from typing import List, Tuple, Generator, Union, Optional, Any
+from typing import List, Tuple, Generator, Union, Optional, Any, TYPE_CHECKING
 from omr.dataset import RegionLineMaskData
 from tqdm import tqdm
 import logging
@@ -27,6 +27,9 @@ from enum import Enum
 import json
 
 from omr.imageoperations.symbol_label_set import SymbolClassLabelSets
+
+if TYPE_CHECKING:
+    from omr.dataset.spill import DatasetSpill
 
 logger = logging.getLogger(__name__)
 
@@ -194,29 +197,36 @@ class Dataset(ABC):
         return self.load(callback)
 
     def to_memory_dataset(self, callback: Optional[DatasetCallback] = None, same_dim=False, train=False,
-                          additional_mask_columns=True):
+                          additional_mask_columns=True, spill: Optional['DatasetSpill'] = None,
+                          keep_original=True):
+        """The image/mask samples of this dataset as `(df, spilled)`.
+
+        `df` holds numpy arrays and is read by `segmentation.datasets.dataset.MemoryDataset`;
+        once the dataset exceeds the memory budget of `spill` the samples are written into its
+        scratch directory and `df` holds their paths instead, to be read by `MaskDataset`
+        (`spilled` says which one). Without a `spill` everything stays in memory.
+
+        The `original` column keeps every sample's `RegionLineMaskData`, which pins the full
+        page image of its page: the trainers pass `keep_original=False`, only the predictors
+        need it to map the results back onto the page.
+        """
         # The df always contains one `add_mask_{i}` column per symbol head; with
         # additional_mask_columns=False the values are None, which makes the
         # segmentation trainer skip those heads' losses (zero-size tensor sentinel).
         from omr.imageoperations.symbol_heads import SYMBOL_DETECTION_HEAD_COUNT
+        from omr.dataset.sample_store import ImageMaskStore
         if self.params.origin_staff_line_distance == self.params.target_staff_line_distance:
-            images = []
-            masks = []
-            data = []
-            add_masks = [[] for _ in range(SYMBOL_DETECTION_HEAD_COUNT)]
-
-            def append_additional(x):
-                for i in range(SYMBOL_DETECTION_HEAD_COUNT):
-                    if additional_mask_columns and i < len(x.additional_masks):
-                        add_masks[i].append(x.additional_masks[i])
-                    else:
-                        add_masks[i].append(None)
+            if same_dim and spill is not None:
+                # padding to the width of the widest sample needs all samples at once
+                raise NotImplementedError("same_dim cannot be combined with spilling to disk")
+            store = ImageMaskStore(spill, head_count=SYMBOL_DETECTION_HEAD_COUNT,
+                                   keep_original=keep_original)
             # import matplotlib.pyplot as plt
             # cmap = plt.get_cmap('Set1')
             # color_map = ColorMap(
             #    [ClassSpec(label=i.value, name=i.name.lower(), color=i.get_color()) for i in SymbolLabel])
 
-            for ind, x in enumerate(self.load(callback)):
+            for ind, x in enumerate(self.iter_samples(callback)):
                 from PIL import Image
                 # rgba_img = cmap(x.mask)
                 # rgb_img = np.delete(rgba_img, 3, 2)*255
@@ -245,26 +255,16 @@ class Dataset(ABC):
                 #ax[2].imshow(np.stack(((x.mask2,)  ), axis = -1), interpolation='nearest', cmap=cmap0)
 
                 #plt.show()
-                if True and train:
-                    if np.unique(x.mask).shape[0] > 1:
-                        t_image = x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region
-                        images.append(t_image)
-                        masks.append(x.mask)
-                        data.append(x)
-                        append_additional(x)
-                        #plt.imshow(t_image)
-                        #plt.show()
-                else:
-                    t_image = x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region
-                    t_image = t_image
-                    images.append(t_image)
-                    masks.append(x.mask)
-                    data.append(x)
-                    append_additional(x)
-
-                    #plt.imshow(t_image)
-                    #plt.show()
+                if train and np.unique(x.mask).shape[0] <= 1:
+                    continue
+                t_image = x.line_image if self.params.image_input == ImageInput.LINE_IMAGE else x.region
+                store.add(t_image, x.mask,
+                          x.additional_masks if additional_mask_columns else [],
+                          original=x)
+                #plt.imshow(t_image)
+                #plt.show()
             if same_dim:
+                images, masks, add_masks = store.images, store.masks, store.add_masks
                 images_s = []
                 mask_s = []
                 max_width = 0
@@ -300,15 +300,15 @@ class Dataset(ABC):
                         h, w = i.shape[:2]
                         dif = max_width - w
                         head_masks[n] = np.pad(i, ((0, 0), (0, dif)), 'constant', constant_values=0)
-                images = images_s
-                masks = mask_s
+                store.images = images_s
+                store.masks = mask_s
 
-            df = pd.DataFrame(data={'images': images, 'masks': masks, 'original': data,
-                                    **{f'add_mask_{i}': add_masks[i] for i in range(SYMBOL_DETECTION_HEAD_COUNT)}})
-            return df
+            logger.info(f"Loaded {len(store)} samples"
+                        + (f" ({spill.bytes >> 20} MB)" if spill is not None else "")
+                        + (f" into {spill.dir}" if store.spilled else ""))
+            return store.to_dataframe(), store.spilled
         else:
             raise NotImplementedError()
-            pass
 
     def to_drop_capital_dataset(self, train=False, callback: Optional[DatasetCallback] = None):
         from omr.steps.layout.drop_capitals.torch_dataset import DropCapitalDataset
@@ -560,6 +560,33 @@ class Dataset(ABC):
         """
         return images, gts
 
+    def iter_text_line_nautilus_samples(self, train=False, callback: Optional[DatasetCallback] = None,
+                                        only_with_gt=False) -> Generator[Tuple[np.ndarray, str], None, None]:
+        """`(image, gt)` of every text line, one at a time.
+
+        The OCR trainers write every sample into a temp directory for their training library,
+        so streaming keeps a single line image in memory instead of the whole dataset."""
+        def get_input_image(d: RegionLineMaskData):
+            if self.params.cut_region:
+                return d.line_image
+            else:
+                return d.region
+
+        def extract_text(data: RegionLineMaskData):
+            if not data.operation.text_line:
+                return None
+
+            text = data.operation.text_line.text(with_drop_capital=False)
+            return LyricsNormalizationProcessor(self.params.lyrics_normalization).apply(text)
+
+        for line in self.iter_samples(callback):
+            gt = extract_text(line)
+            if gt is None or "#" in gt:
+                continue
+            if only_with_gt and train and len(gt) == 0:
+                continue
+            yield 255 - get_input_image(line).astype(np.uint8), gt
+
     def to_text_line_nautilus_dataset(self, train=False, callback: Optional[DatasetCallback] = None, only_with_gt=False):
         lines = self.load(callback)
         #from omr.steps.text.hyphenation.hyphenator import CombinedHyphenator, HyphenDicts
@@ -601,6 +628,25 @@ class Dataset(ABC):
 
         return (images, gts)
 
+    def iter_guppy_symbol_line_samples(self, train=False, callback: Optional[DatasetCallback] = None,
+                                       only_with_gt=False) -> Generator[Tuple[np.ndarray, str], None, None]:
+        """`(image, calamari encoded symbols)` of every music line, one at a time; see
+        `iter_text_line_nautilus_samples` for why this streams."""
+        def get_input_image(d: RegionLineMaskData):
+            if self.params.cut_region:
+                return d.line_image
+            elif self.params.masks_as_input:
+                hot = d.operation.images[3].image
+                hot[:, :, 0] = (d.line_image if self.params.cut_region else d.region)
+                return hot.transpose([1, 0, 2])
+            else:
+                return d.region
+
+        for d in self.iter_samples(callback):
+            sequence = d.calamari_sequence(self.params.calamari_codec)
+            gt = sequence.calamari_neume_types_str if self.params.neume_types_only else sequence.calamari_str
+            yield get_input_image(d).astype(np.uint8), gt
+
     def to_guppy_symbol_line__dataset(self, train=False, callback: Optional[DatasetCallback] = None, only_with_gt=False):
         marked_symbols = self.load(callback)
         import tempfile
@@ -638,6 +684,17 @@ class Dataset(ABC):
             self.loaded = list(self._load(callback))
 
         return self.loaded
+
+    def iter_samples(self, callback: Optional[DatasetCallback] = None) -> Generator[RegionLineMaskData, None, None]:
+        """Streams the samples instead of caching them in `self.loaded` like `load()` does.
+
+        Training datasets are consumed exactly once, and every sample holds its line image,
+        its masks and (via `operation`) the full page image of its page: keeping the cache
+        alive on top of the sample store the trainer builds doubles the memory needed."""
+        if self.loaded is not None:
+            yield from self.loaded
+        else:
+            yield from self._load(callback)
 
     def _load(self, callback: Optional[DatasetCallback]) -> Generator[RegionLineMaskData, None, None]:
         def wrapper(g):

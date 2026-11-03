@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from database.file_formats.pcgts import PcGts
 from omr.dataset import Dataset, DatasetParams, DatasetCallback
@@ -6,6 +6,9 @@ from omr.imageoperations import ImageOperationList
 from omr.imageoperations.symbol_label_set import SymbolClassLabelSets, SymbolLabelSpec
 
 from .sample_builder import Sample, build_training_samples
+
+if TYPE_CHECKING:
+    from omr.dataset.spill import DatasetSpill
 
 
 def registered_class_specs(label_sets: Optional[SymbolClassLabelSets]) -> List[SymbolLabelSpec]:
@@ -26,6 +29,8 @@ class End2EndDataset(Dataset):
         params.gt_required = True
         super().__init__(pcgts, params)
 
-    def to_end2end_samples(self, callback: Optional[DatasetCallback] = None) -> List[Sample]:
+    def to_end2end_samples(self, callback: Optional[DatasetCallback] = None,
+                           spill: Optional['DatasetSpill'] = None) -> List[Sample]:
         class_ids = {s.class_id for s in registered_class_specs(self.params.symbol_label_sets)}
-        return build_training_samples(self.files, self.params.height, class_ids, callback)
+        return build_training_samples(self.files, self.params.height, class_ids, callback,
+                                      spill=spill)

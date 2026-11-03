@@ -1,7 +1,6 @@
 import logging
 import math
 import os
-import shutil
 from abc import ABC
 from typing import List, Optional
 
@@ -13,6 +12,7 @@ from database import DatabaseBook
 from database.file_formats.performance.pageprogress import Locks
 from omr.dataset import DatasetParams
 from omr.dataset.datafiles import EmptyDataSetException, LockState
+from omr.dataset.spill import loader_workers
 from omr.end2end.codec.augmentation import get_train_transforms
 from omr.end2end.codec.codec import codec_lines, merge_codec_lines, read_codec, write_codec
 from omr.end2end.codec.dataset import SmartTokenizer
@@ -51,24 +51,6 @@ SELECT_WITH_LOC_LOSS = False
 LOC_FEEDBACK = True
 # std of the jitter on the fed-back GT locations during training, in units of the input height
 LOC_FEEDBACK_NOISE = 0.02
-# DataLoader workers pass every batch through /dev/shm (Docker default: 64 MB)
-MIN_SHM_BYTES = 1 << 30
-
-
-def loader_workers(requested: int) -> int:
-    """`requested` data loader workers, or 0 if /dev/shm is too small to hold their batches;
-    running out of shm crashes training with "unable to allocate shared memory"."""
-    if requested <= 0:
-        return 0
-    try:
-        free = shutil.disk_usage('/dev/shm').free
-    except OSError:
-        return requested
-    if free < MIN_SHM_BYTES:
-        logger.warning(f"Only {free >> 20} MB free in /dev/shm, loading data in the main process. "
-                       f"Give the container more (docker: shm_size / --shm-size) to use {requested} workers.")
-        return 0
-    return requested
 
 
 class End2EndTrainerBase(AlgorithmTrainer, ABC):
@@ -115,8 +97,11 @@ class End2EndTrainerBase(AlgorithmTrainer, ABC):
         if callback:
             callback.resolving_files()
 
-        train_samples = self.train_dataset.to_end2end_samples(callback)
-        val_samples = self.validation_dataset.to_end2end_samples(callback)
+        # the crops stay in memory while they fit the budget and are written to the spill's
+        # scratch directory (removed when `train()` returns) once they do not
+        spill = self.dataset_spill()
+        train_samples = self.train_dataset.to_end2end_samples(callback, spill=spill)
+        val_samples = self.validation_dataset.to_end2end_samples(callback, spill=spill)
         if len(train_samples) == 0:
             raise EmptyDataSetException()
         if len(val_samples) == 0:
