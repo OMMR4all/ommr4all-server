@@ -8,7 +8,6 @@ from typing import NamedTuple, List
 this_dir = os.path.dirname(os.path.realpath(__file__))
 root_dir = os.path.abspath(os.path.join(this_dir, '..'))
 python = sys.executable
-pip = os.path.join(os.path.dirname(python), 'pip')
 CI_JOB_TOKEN = os.environ.get('CI_JOB_TOKEN')
 
 
@@ -57,8 +56,8 @@ def main():
     os.chdir(root_dir)
 
     if args.mode == 'setup':
-        subprocess.check_call([pip, 'install', 'tensorflow~=2.4.0' if not args.gpu else 'tensorflow_gpu~=2.4.0'])
-        subprocess.check_call([pip, 'install', '-r', 'requirements.txt'])
+        # Dependencies come from the uv workspace at the deploy root now
+        # (`uv sync --locked`), not from a per-module requirements.txt.
 
         with tempfile.TemporaryDirectory() as d:
             for repo, url, hash in repos:
