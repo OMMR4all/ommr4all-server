@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from database.database_page_meta import DatabasePageMeta
     from database.file_formats.performance.pageprogress import PageProgress
     from database.file_formats.performance.statistics import Statistics
+    from database.page_content import PageContent
 
 
 class DatabasePage:
@@ -44,6 +45,7 @@ class DatabasePage:
         self._meta: Optional['DatabasePageMeta'] = meta
         self._pcgts: Optional['PcGts'] = pcgts
         self._page_progress: Optional['PageProgress'] = page_progress
+        self._page_content: Optional['PageContent'] = None
         self._page_statistics: Optional['Statistics'] = page_statistics
 
     def __eq__(self, other):
@@ -148,6 +150,29 @@ class DatabasePage:
         self._page_progress.to_json_file(self.file('page_progress').local_path())
         logger.debug('Successfully saved page progress file to {}'.format(self.file('page_progress').local_path()))
         self.mark_updated(user)
+
+    def page_content(self) -> 'PageContent':
+        """Structural counts of this page (see database/page_content.py).
+
+        Answers the `unprocessed`/`runnable` predicates of the algorithm steps without
+        parsing the pcgts: the counts come from the page index, prefilled in bulk by
+        prefill_pages for a whole-book run and read here for a single page. An in-memory
+        pcgts -- the editor posts one for its single-page operations -- always wins, since
+        the index only knows the last saved state."""
+        if self._pcgts is not None:
+            from database.page_content import PageContent
+            return PageContent.from_page(self._pcgts.page)
+        if self._page_content is None:
+            from database.book_index import page_content
+            self._page_content = page_content(self)
+        return self._page_content
+
+    def set_page_content(self, page_content: 'PageContent'):
+        self._page_content = page_content
+
+    def has_page_content(self) -> bool:
+        """True if page_content() will not hit disk (loaded, or derivable from a pcgts)."""
+        return self._page_content is not None or self._pcgts is not None
 
     def pcgts(self, create_if_not_existing=True) -> 'PcGts':
         if not self._pcgts:

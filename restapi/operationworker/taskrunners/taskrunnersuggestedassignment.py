@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Tuple
 
 from database import DatabaseBook
-from database.book_index import prefill_page_progress
+from database.book_index import prefill_pages
 from database.database_book_assignments import (DatabaseBookAssignments, PageAssignment,
                                                   sort_pages_in_book_order)
 from database.file_formats.performance.pageprogress import Locks
@@ -77,7 +77,7 @@ class TaskRunnerSuggestedAssignment(TaskRunner):
         return result
 
     def _run_for_users(self, task: Task, com_queue: Queue, usernames: list[str]) -> dict:
-        pages = prefill_page_progress(self.book)
+        pages = prefill_pages(self.book)
         if self.range_pages is not None:
             pages = [page for page in pages if page.page in self.range_pages]
         # Fail before expensive inference if the assignment file cannot be parsed.
@@ -107,7 +107,7 @@ class TaskRunnerSuggestedAssignment(TaskRunner):
         def apply(assignments):
             # Re-read progress under the same file lock as the assignment write. These are
             # fresh page objects, not the pre-inference progress cache.
-            current = prefill_page_progress(self.book)
+            current = prefill_pages(self.book)
             if self.range_pages is not None:
                 current = [page for page in current if page.page in self.range_pages]
             owned = {name for assignment in assignments.assignments for name in assignment.pages}

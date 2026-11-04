@@ -78,7 +78,7 @@ class LayoutAnalysisPredictor(AlgorithmPredictor):
 
     @classmethod
     def unprocessed(cls, page: DatabasePage) -> bool:
-        return len(page.pcgts().page.text_blocks()) == 0
+        return page.page_content().n_text_blocks == 0
 
     def _predict_each_page(self, pcgts_files: List[PcGts], callback: Optional[PredictionCallback] = None) \
             -> Generator[AlgorithmPredictionResult, None, None]:

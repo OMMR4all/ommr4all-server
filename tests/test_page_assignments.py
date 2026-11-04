@@ -763,7 +763,7 @@ class PageAssignmentsTestCase(APITestCase):
         with patch('restapi.operationworker.taskrunners.taskrunnersuggestedassignment.'
                    'build_feature_extractor', side_effect=lambda config: Extractor()), patch(
                 'restapi.operationworker.taskrunners.taskrunnersuggestedassignment.'
-                'prefill_page_progress',
+                'prefill_pages',
                 side_effect=lambda book: [book.page(name) for name in PAGES]):
             threads = [threading.Thread(target=run, args=(username,))
                        for username in ('user', 'assignee')]

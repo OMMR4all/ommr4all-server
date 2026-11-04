@@ -41,8 +41,8 @@ class TaskRunnerPositionInStaff(TaskRunner):
     def run(self, task: Task, com_queue: Queue) -> dict:
         # one index backed pass, so that the lock of every page is known without parsing
         # page_progress.json once per page
-        from database.book_index import prefill_page_progress
-        pages = prefill_page_progress(self.book)
+        from database.book_index import prefill_pages
+        pages = prefill_pages(self.book)
         n_total = len(pages)
 
         def progress(n_processed: int):

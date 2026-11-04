@@ -45,7 +45,7 @@ class SymbolsPredictor(AlgorithmPredictor, ABC):
 
     @classmethod
     def unprocessed(cls, page: DatabasePage) -> bool:
-        return all([len(l.symbols) == 0 for l in page.pcgts().page.all_music_lines()])
+        return not page.page_content().has_music_symbols
 
     def predict(self, pages: List[DatabasePage], callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
         pcgts_files = [p.pcgts() for p in pages]

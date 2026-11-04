@@ -99,26 +99,31 @@ class PageSelection:
             self.total_pages = len(self.pcgts)
             return [DatabasePage(self.book, 'in_memory', skip_validation=True, pcgts=pcgts) for pcgts in self.pcgts]
 
-        # One index-backed pass over the book instead of a page_progress.json parse per
-        # page: both the `unlocked` predicate and the verified filter below read the
-        # progress, and this endpoint runs on every render of the workflow tab.
-        from database.book_index import prefill_page_progress
-        book_pages = prefill_page_progress(self.book)
+        # One index-backed pass over the book instead of a page_progress.json parse and a
+        # pcgts parse per page: the `unlocked` predicate and the verified filter below read
+        # the progress, `unprocessed`/`runnable` read the structural counts, and this
+        # endpoint runs on every render of the workflow tab.
+        from database.book_index import prefill_pages
+        book_pages = prefill_pages(self.book)
         self.total_pages = len(book_pages)
         by_name = {p.page: p for p in book_pages}
 
         def with_progress(pages: List[DatabasePage]) -> List[DatabasePage]:
-            # Keep the caller's page object and only fill in the progress. The caller may
+            # Keep the caller's page object and only fill in the index data. The caller may
             # carry state the index cannot rebuild -- above all an in-memory pcgts posted
             # by the editor for a single-page operation (OperationView.op_to_task_runner).
             # Replacing the object here made every predictor re-read pcgts.json from disk,
             # so chaining layout -> symbols in the editor ran on the last saved state.
             for p in pages:
-                if p.has_page_progress():
-                    continue
                 indexed = by_name.get(p.page)
-                if indexed is not None:
+                if indexed is None:
+                    continue
+                if not p.has_page_progress():
                     p.set_page_progress(indexed.page_progress())
+                if not p.has_page_content():
+                    # page_content() prefers an in-memory pcgts anyway, so this only
+                    # pre-empts the disk read for pages that carry none
+                    p.set_page_content(indexed.page_content())
             return list(pages)
 
         def page_count_pages() -> List[DatabasePage]:

@@ -268,7 +268,7 @@ class StaffLineCorrectionPredictor(AlgorithmPredictor):
     def unprocessed(cls, page: DatabasePage) -> bool:
         # Anything with staves can be corrected; there is no state marking a page as
         # already corrected, so "unprocessed" means "has something to correct".
-        return len(page.pcgts().page.music_blocks()) > 0
+        return page.page_content().n_music_blocks > 0
 
 
 if __name__ == '__main__':

@@ -41,6 +41,10 @@ class PageIndex(models.Model):
     counts = models.JSONField(null=True, blank=True)
     counts_mtime = models.BigIntegerField(default=0)
 
+    # structural counts of pcgts.json (see database/page_content.py); null = not yet computed.
+    # Kept here so the batch predicates of a whole-book page selection never parse a pcgts.
+    content = models.JSONField(null=True, blank=True)
+
     # raw page.comments payload of pcgts.json ({'comments': [...]}); null = page has none.
     # Kept here so the comments views never have to parse a whole book of pcgts files.
     comments = models.JSONField(null=True, blank=True)

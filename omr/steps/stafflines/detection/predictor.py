@@ -63,4 +63,4 @@ class StaffLinePredictor(AlgorithmPredictor, ABC):
 
     @classmethod
     def unprocessed(cls, page: DatabasePage) -> bool:
-        return len(page.pcgts().page.music_blocks()) == 0
+        return page.page_content().n_music_blocks == 0

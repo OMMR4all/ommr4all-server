@@ -124,9 +124,7 @@ class Predictor(AlgorithmPredictor):
 
     @classmethod
     def unprocessed(cls, page: DatabasePage) -> bool:
-        if not page.pcgts():
-            return True
-        return len(page.pcgts().page.annotations.connections) == 0
+        return page.page_content().connections == 0
 
     def predict(self, pages: List[DatabasePage],
                 callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:

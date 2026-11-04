@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, List, Optional
 from django.utils import timezone
 
 from database.models.book_index import BookIndex, PageIndex, BookDocumentsIndex
+from database.page_content import PageContent
 
 if TYPE_CHECKING:
     from database.database_book import DatabaseBook
@@ -160,6 +161,7 @@ def index_page(db_page: 'DatabasePage', book_row: Optional[BookIndex] = None, fo
         # largest one in the page directory
         pcgts_json = _read_pcgts_json(pcgts_path) if pcgts_mtime > 0 else None
         defaults['has_symbols'] = _has_symbols(pcgts_json)
+        defaults['content'] = PageContent.from_pcgts_json(pcgts_json).to_dict()
         comments = _comments(pcgts_json)
         defaults['comments'] = comments
         defaults['comments_count'] = len(comments.get('comments', []))
@@ -271,7 +273,8 @@ def list_books_for_user(user, flag) -> list:
 
 
 PAGE_ROW_FIELDS = ('name', 'pcgts_mtime', 'progress_mtime', 'has_symbols', 'verified',
-                   'progress_locks', 'counts', 'counts_mtime', 'comments', 'comments_count')
+                   'progress_locks', 'counts', 'counts_mtime', 'comments', 'comments_count',
+                   'content')
 
 
 @dataclass(frozen=True)
@@ -292,6 +295,7 @@ class PageRow:
     counts_mtime: int
     comments: Optional[dict]
     comments_count: int
+    content: Optional[dict]
 
     @staticmethod
     def from_model(row: PageIndex) -> 'PageRow':
@@ -360,22 +364,78 @@ def pages_with_lock(db_book: 'DatabaseBook', locks) -> list:
             if all(bool((row.progress_locks or {}).get(label, False)) == lock for label, lock in wanted)]
 
 
-def prefill_page_progress(db_book: 'DatabaseBook') -> list:
-    """DatabasePages of the book with their page_progress preloaded from the index.
+def _store_page_contents(db_book: 'DatabaseBook', contents: dict):
+    """Write a whole book's backfilled counts in one transaction.
 
-    Callers can then run the progress-based predicates (`verified`, `unlocked`) over a
-    whole book without opening — or, via create_if_not_existing, writing — a single
-    page_progress.json. The index rows are stat-validated, so the values are the same
-    ones PageProgress.from_json_file would return."""
+    An UPDATE per page is an fsync per page on sqlite, and the backfill runs over every
+    page of the book at once. Like every index write it is best-effort: a failure rolls
+    the batch back and the next read recomputes it."""
+    from django.db import transaction
+    try:
+        with transaction.atomic():
+            for name, content in contents.items():
+                PageIndex.objects.filter(book__name=db_book.book, name=name).update(content=content)
+    except Exception as e:
+        logger.warning('Could not store the page content of {} ({} page(s))'.format(
+            db_book.book, len(contents)))
+        logger.exception(e)
+
+
+def page_contents(db_book: 'DatabaseBook', rows: List[PageRow]) -> dict:
+    """{page name: PageContent} of the given rows, backfilling the ones that carry none.
+
+    Rows written before `content` existed (or by an older PageContent version) are
+    recomputed here, once per page, like book_comments does, instead of requiring a
+    reindex of every book."""
+    out, missing = {}, {}
+    for row in rows:
+        content = PageContent.from_dict(row.content)
+        if content is None:
+            content = PageContent.from_pcgts_json(
+                _read_pcgts_json(db_book.page(row.name).local_file_path('pcgts.json'))
+                if row.pcgts_mtime > 0 else None)
+            missing[row.name] = content.to_dict()
+        out[row.name] = content
+    if missing:
+        _store_page_contents(db_book, missing)
+    return out
+
+
+def page_content(db_page: 'DatabasePage') -> PageContent:
+    """The structural counts of a single page, from its (freshly indexed) row.
+
+    Used by DatabasePage.page_content() for pages that were not prefilled in bulk; falls
+    back to reading the pcgts json when the index is unavailable."""
+    row = safe_index_page(db_page)
+    content = PageContent.from_dict(row.content) if row is not None else None
+    if content is None:
+        content = PageContent.from_pcgts_json(
+            _read_pcgts_json(db_page.local_file_path('pcgts.json')))
+        if row is not None:
+            _store_page_fields(db_page.book, db_page.page, content=content.to_dict())
+    return content
+
+
+def prefill_pages(db_book: 'DatabaseBook') -> list:
+    """DatabasePages of the book with their page_progress and structural counts preloaded.
+
+    Callers can then run the progress-based predicates (`verified`, `unlocked`) and the
+    content-based ones (`unprocessed`, `runnable`) over a whole book without opening (or,
+    via create_if_not_existing, writing) a single page_progress.json and without parsing
+    a single pcgts.json. The index rows are stat-validated, so the values are the same ones
+    PageProgress.from_json_file and a full PcGts parse would return."""
     from database.file_formats.performance.pageprogress import Locks, PageProgress
+    rows = sync_book_pages(db_book)
+    contents = page_contents(db_book, rows)
     pages = []
-    for row in sync_book_pages(db_book):
+    for row in rows:
         page = db_book.page(row.name)
         locks = row.progress_locks or {}
         page.set_page_progress(PageProgress(
             locked={l: bool(locks.get(l.value, False)) for l in Locks},
             verified=row.verified,
         ))
+        page.set_page_content(contents[row.name])
         pages.append(page)
     return pages
 

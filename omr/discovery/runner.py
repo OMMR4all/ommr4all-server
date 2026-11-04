@@ -233,8 +233,8 @@ def run_page_suggestions(cfg: RunConfig, out_root: str,
 
     seed_everything(cfg.seed)
     book = DatabaseBook(cfg.book)
-    from database.book_index import prefill_page_progress
-    all_pages = prefill_page_progress(book)
+    from database.book_index import prefill_pages
+    all_pages = prefill_pages(book)
     by_name = {page.page: page for page in all_pages}
 
     requested = cfg.pages or sorted(by_name)

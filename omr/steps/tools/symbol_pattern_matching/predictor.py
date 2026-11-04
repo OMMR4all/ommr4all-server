@@ -77,7 +77,7 @@ class MelodicPatternPredictor(AlgorithmPredictor):
     @classmethod
     def unprocessed(cls, page: 'DatabasePage') -> bool:
         try:
-            return len(page.pcgts_cached().page.music_blocks()) > 0
+            return page.page_content().n_music_blocks > 0
         except Exception:
             return False
 

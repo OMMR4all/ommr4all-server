@@ -381,7 +381,7 @@ class End2EndPredictor(AlgorithmPredictor, ABC):
 
     @classmethod
     def unprocessed(cls, page: DatabasePage) -> bool:
-        return all(len(l.symbols) == 0 for l in page.pcgts().page.all_music_lines())
+        return not page.page_content().has_music_symbols
 
     @classmethod
     def unlocked(cls, page: DatabasePage) -> bool:
@@ -393,9 +393,8 @@ class End2EndPredictor(AlgorithmPredictor, ABC):
     def runnable(cls, page: DatabasePage) -> bool:
         # reads a music block together with its lyrics: needs staff lines and the lyric regions
         # of the layout step, otherwise it would only overwrite the page with music-only guesses
-        p = page.pcgts().page
-        return any(len(l.staff_lines) > 0 for l in p.all_music_lines()) and \
-            len(p.blocks_of_type([BlockType.LYRICS])) > 0
+        content = page.page_content()
+        return content.has_staff_lines and content.n_blocks(BlockType.LYRICS) > 0
 
     def _predict_crops(self, images: List[Image.Image]) -> List[Decoded]:
         """Runs the network on combined music+lyric crops: per crop the codec string and, if the

@@ -331,8 +331,7 @@ class LLMTextPredictor(AlgorithmPredictor):
 
     @classmethod
     def unprocessed(cls, page: DatabasePage) -> bool:
-        return any(len(l.sentence.syllables) == 0
-                   for l in page.pcgts().page.all_lines_by_type(LLM_TEXT_BLOCK_TYPES))
+        return page.page_content().n_lines_without_syllables(LLM_TEXT_BLOCK_TYPES) > 0
 
     def predict(self, pages: List[DatabasePage],
                 callback: Optional[PredictionCallback] = None) -> AlgorithmPredictionResultGenerator:
