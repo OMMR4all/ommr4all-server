@@ -26,12 +26,12 @@ repos: List[Repo] = [
     Repo(
         'ommr4all-line-detection',
         'https://github.com/OMMR4all/ommr4all-line-detection.git',
-        'ddf41e10e42134c90944a81595d69e84221555cb'
+        '2e45ca86e64fbf0d4c9ac7906650b4a61f706b1f'
     ),
     Repo(
         'ommr4all-layout-analysis',
         'https://github.com/OMMR4all/ommr4all-layout-analysis.git',
-        'da161e76d5a08d8335d9969596c4500b44bebd47',
+        'c3e0c2f1bf2e41e1c49f26a4abd0bd691b859827',
     ),
     Repo(
         'ommr4all-page-segmentation',
