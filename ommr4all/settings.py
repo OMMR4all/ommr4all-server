@@ -37,11 +37,17 @@ SECRET_KEY = (os.environ.get('DJANGO_SECRET_KEY') or '').strip() or _SECRET_KEY_
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
 
 def _csv_env(name: str) -> List[str]:
     return [value.strip() for value in (os.environ.get(name) or '').split(',') if value.strip()]
+
+
+# The host names Django answers to, comma separated, e.g. "ommr4all.example.org,localhost".
+# run_deploy.py rewrites the fallback of this line to ["*"], which is what a deployment
+# behind a reverse proxy or an ingress needs -- that proxy decides which names reach us.
+# Set OMMR4ALL_ALLOWED_HOSTS when the app is exposed directly, to reject requests with a
+# forged Host header.
+ALLOWED_HOSTS = _csv_env('OMMR4ALL_ALLOWED_HOSTS') or []
 
 
 # Behind a TLS terminating reverse proxy -- the usual production setup: nginx/Apache on 443
