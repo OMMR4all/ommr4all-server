@@ -108,12 +108,14 @@ class DropCapitalTrainer(LayoutTrainerBase):
                                                                          callback=callback)
 
             from ultralytics import YOLO
+            from omr.steps.pretrained import yolo_base_weights
 
             # Load the model.
             #model = YOLO("/home/alexanderh/Downloads/yolov8n_layout_camerarius.pt")
-            # Load default model
+            # Load default model; the base checkpoint is downloaded into the weights cache,
+            # not into the working directory (see omr/steps/pretrained.py)
             if self.params.model_to_load() is None:
-                model = YOLO("yolov8n.pt")
+                model = YOLO(yolo_base_weights("yolov8n.pt"))
             else:
                 model = YOLO(self.params.model_to_load().local_file('best.pt'))
             # Training.

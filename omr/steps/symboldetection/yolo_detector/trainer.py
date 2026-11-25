@@ -86,9 +86,11 @@ class YoloTrainer(SymbolDetectionTrainer):
             val_dataset = self.validation_dataset.to_yolo_symbol_dataset(train=False, train_path=val_path,
                                                                          callback=callback)
             from ultralytics import YOLO
+            from omr.steps.pretrained import yolo_base_weights
 
-            # Load the model.
-            model = YOLO("yolo11n.pt")
+            # Load the model. The base checkpoint is downloaded into the weights cache,
+            # not into the working directory (see omr/steps/pretrained.py).
+            model = YOLO(yolo_base_weights("yolo11n.pt"))
             os.makedirs(os.path.dirname(self.settings.model.path), exist_ok=True)
 
             # Training.
