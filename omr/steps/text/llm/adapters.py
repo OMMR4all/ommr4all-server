@@ -277,6 +277,31 @@ class HuggingFaceVLMAdapter(LLMOCRAdapter):
     # cache loaded models across predictor instances, keyed by model id
     _CACHE: Dict[str, Tuple[object, object]] = {}
 
+    # How the weights are loaded, for cards where the defaults do not fit. Chandra 2 is 4B
+    # parameters, i.e. ~8 GB in bf16 plus the activations for a page image; on an 11 GB card
+    # that is tight, and 'auto' then offloads layers to the CPU, which is very slow.
+    #   OMMR4ALL_LLM_LOCAL_DTYPE       'auto' (default), 'float16', 'bfloat16', 'float32'
+    #   OMMR4ALL_LLM_LOCAL_DEVICE_MAP  'auto' (default), 'cuda:0' to forbid offloading,
+    #                                  'balanced', ... (anything transformers accepts)
+    DTYPE_ENV = 'OMMR4ALL_LLM_LOCAL_DTYPE'
+    DEVICE_MAP_ENV = 'OMMR4ALL_LLM_LOCAL_DEVICE_MAP'
+
+    @classmethod
+    def _dtype(cls):
+        name = (os.environ.get(cls.DTYPE_ENV) or '').strip() or 'auto'
+        if name == 'auto':
+            return 'auto'
+        import torch
+        dtype = getattr(torch, name, None)
+        if not isinstance(dtype, torch.dtype):
+            logger.warning("Ignoring %s=%r, not a torch dtype", cls.DTYPE_ENV, name)
+            return 'auto'
+        return dtype
+
+    @classmethod
+    def _device_map(cls):
+        return (os.environ.get(cls.DEVICE_MAP_ENV) or '').strip() or 'auto'
+
     @classmethod
     def is_available(cls) -> bool:
         import importlib.util
@@ -295,12 +320,14 @@ class HuggingFaceVLMAdapter(LLMOCRAdapter):
                 raise RuntimeError(
                     "The '{}' text transcription requires a GPU; refusing to run on CPU.".format(self.model))
             from transformers import AutoProcessor, AutoModelForImageTextToText
-            logger.info("Loading HuggingFace VLM '%s' (this may take a while)", self.model)
+            dtype, device_map = self._dtype(), self._device_map()
+            logger.info("Loading HuggingFace VLM '%s' (dtype=%s, device_map=%s; this may take "
+                        "a while)", self.model, dtype, device_map)
             processor = AutoProcessor.from_pretrained(self.model, trust_remote_code=True)
             model = AutoModelForImageTextToText.from_pretrained(
                 self.model,
-                dtype='auto',
-                device_map='auto' if torch.cuda.is_available() else None,
+                dtype=dtype,
+                device_map=device_map,
                 trust_remote_code=True,
             )
             model.eval()
