@@ -37,7 +37,10 @@ def _bootstrap():
     os.environ.setdefault('DJANGO_SETTINGS_MODULE','ommr4all.settings')
     import django; django.setup()
     from django.conf import settings
-    return os.environ.get('OMMR4ALL_DISCOVERY_OUT',os.path.join(str(settings.BASE_DIR),'storage_discovery'))
+    # `or`, not a get() default: docker compose always *defines* the variable, usually as the
+    # empty string, and os.path.abspath('') is the working directory, not the default below
+    return (os.environ.get('OMMR4ALL_DISCOVERY_OUT') or '').strip() \
+        or os.path.join(str(settings.BASE_DIR),'storage_discovery')
 
 
 def _resolve(value,out_root):
