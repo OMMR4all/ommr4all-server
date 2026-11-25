@@ -17,6 +17,7 @@ from omr.end2end.codec.augmentation import get_train_transforms
 from omr.end2end.codec.codec import codec_lines, merge_codec_lines, read_codec, write_codec
 from omr.end2end.codec.dataset import SmartTokenizer
 from omr.steps.algorithm import AlgorithmTrainer, AlgorithmTrainerParams, TrainerCallback
+from omr.steps.amp import autocast_dtype
 
 from .dataset import registered_class_specs
 from .model_io import has_loc_feedback, load_pretrained, symbol_token_ids
@@ -165,8 +166,9 @@ class End2EndTrainerBase(AlgorithmTrainer, ABC):
         step = 0
         train_criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.PAD, label_smoothing=LABEL_SMOOTHING)
         val_criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.PAD)
-        amp_dtype = (torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16) \
-            if device.type == 'cuda' else None
+        # bf16 only where the hardware has it (sm_80+), fp16 below that -- see omr/steps/amp.py
+        amp_dtype = autocast_dtype(device)
+        logger.info(f"End2End training in {amp_dtype or 'fp32'} on {device}")
         scaler = torch.amp.GradScaler('cuda', enabled=amp_dtype == torch.float16)
 
         def run_batch(imgs, widths, tgts, locs, criterion, feedback_noise=0.0):

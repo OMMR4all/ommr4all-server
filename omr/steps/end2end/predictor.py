@@ -22,6 +22,7 @@ from omr.end2end.codec.dataset import SmartTokenizer
 from omr.end2end.codec.parse import symbol_parse
 from omr.steps.algorithm import AlgorithmPredictor, AlgorithmPredictorSettings, AlgorithmPredictionResult, \
     AlgorithmPredictionResultGenerator, PredictionCallback, PredictionProgress
+from omr.steps.amp import autocast_dtype
 
 from .dataset import registered_class_specs
 from .model_io import has_loc_feedback, has_localization, symbol_token_ids
@@ -419,8 +420,10 @@ class End2EndPredictor(AlgorithmPredictor, ABC):
         rows = n * k  # hypothesis h of crop i is row i * k + h
         widths = torch.tensor([t.shape[2] for t in tensors], device=device)
         symbol_ids = torch.tensor(sorted(self.symbol_ids), device=device)
-        amp = torch.autocast(device.type, dtype=torch.bfloat16,
-                             enabled=device.type == 'cuda' and torch.cuda.is_bf16_supported())
+        # bf16 only where the hardware has it (sm_80+), fp16 below that; the pointer head and
+        # its soft-argmax force fp32 themselves (networks.py) -- see omr/steps/amp.py
+        amp_dtype = autocast_dtype(device)
+        amp = torch.autocast(device.type, dtype=amp_dtype, enabled=amp_dtype is not None)
         with torch.no_grad(), amp:
             enc = model.encode(imgs, widths)
             enc = enc._replace(**{f: getattr(enc, f).repeat_interleave(k, dim=0)
