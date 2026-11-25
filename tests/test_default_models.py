@@ -2,6 +2,8 @@ import logging
 import os
 import shutil
 import sys
+import tempfile
+from io import StringIO
 
 import ommr4all.settings as settings
 
@@ -16,6 +18,7 @@ import django
 django.setup()
 
 from django.contrib.auth.models import User
+from django.core.management import call_command
 from django.test import TestCase as DjangoTestCase
 from rest_framework.test import APIClient
 
@@ -138,3 +141,64 @@ class TestDefaultModelSlots(DjangoTestCase):
             '/api/administrative/default_models/type/staff_lines_pc_torch/style/french14',
             {'id': 'i/french14/staff_lines_pc_torch/staff_lines_pc_torch'}, format='json')
         self.assertEqual(response.status_code, 401, response.content)
+
+
+class TestRelocatedDefaultModels(DjangoTestCase):
+    """OMMR4ALL_DEFAULT_MODELS_ROOT moves the writable part of internal_storage to a volume.
+
+    settings.DEFAULT_MODELS_ROOT is read at call time, so patching the attribute is enough
+    (the variable itself is only read when settings are imported).
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='ommr4all-default-models-')
+        self.shipped = settings.DEFAULT_MODELS_ROOT
+        settings.DEFAULT_MODELS_ROOT = self.tmp
+
+    def tearDown(self):
+        settings.DEFAULT_MODELS_ROOT = self.shipped
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_model_paths_follow_the_setting(self):
+        from database.database_available_models import DatabaseAvailableModels
+        from database.model.definitions import ModelsId
+        self.assertEqual(ModelsId.from_internal('french14', AlgorithmTypes.STAFF_LINES_PC_Torch).path(),
+                         os.path.join(self.tmp, 'french14'))
+        self.assertTrue(DatabaseAvailableModels.local_default_model_path_for_style('french14')
+                        .startswith(self.tmp))
+
+    def test_read_only_assets_stay_in_the_checkout(self):
+        # dictionaries, hyphenation and keyboards are never written and must not move
+        from database.database_internal import DEFAULT_VIRTUAL_KEYBOARDS
+        self.assertTrue(DEFAULT_VIRTUAL_KEYBOARDS.startswith(settings.INTERNAL_STORAGE_ROOT))
+
+    def test_seeding_copies_missing_models_and_keeps_existing_ones(self):
+        own = os.path.join(self.tmp, 'french14', 'text_guppy')
+        os.makedirs(own)
+        with open(os.path.join(own, 'meta.json'), 'w') as f:
+            f.write('{"id": "set-by-the-admin"}')
+
+        call_command('seed_default_models', stdout=StringIO(), stderr=StringIO())
+
+        # the administrator's model survives, everything else is seeded from the image
+        with open(os.path.join(own, 'meta.json')) as f:
+            self.assertIn('set-by-the-admin', f.read())
+        for style in os.listdir(self.shipped):
+            for model_dir in os.listdir(os.path.join(self.shipped, style)):
+                self.assertTrue(os.path.isdir(os.path.join(self.tmp, style, model_dir)),
+                                '{}/{} was not seeded'.format(style, model_dir))
+
+    def test_seeding_is_idempotent_and_leaves_no_temporaries(self):
+        call_command('seed_default_models', stdout=StringIO(), stderr=StringIO())
+        out = StringIO()
+        call_command('seed_default_models', stdout=out, stderr=StringIO())
+        self.assertIn('0 seeded', out.getvalue())
+        self.assertEqual([], [p for p in os.listdir(os.path.join(self.tmp, 'french14'))
+                              if p.endswith('.seeding')])
+
+    def test_seeding_in_place_does_nothing(self):
+        settings.DEFAULT_MODELS_ROOT = self.shipped
+        out = StringIO()
+        call_command('seed_default_models', stdout=out, stderr=StringIO())
+        self.assertIn('nothing to seed', out.getvalue())
+        self.assertEqual([], os.listdir(self.tmp))

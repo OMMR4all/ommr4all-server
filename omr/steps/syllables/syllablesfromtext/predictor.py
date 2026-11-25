@@ -30,8 +30,9 @@ class SyllablesFromTextPredictor(SyllablesPredictor):
         super().__init__(settings)
 
         meta = Step.meta(AlgorithmTypes.OCR_CALAMARI)
-        from ommr4all.settings import BASE_DIR
-        model = Model(MetaId.from_custom_path(BASE_DIR + '/internal_storage/default_models/fraktur/text_calamari/', meta.type()))
+        from ommr4all.settings import DEFAULT_MODELS_ROOT
+        model = Model(MetaId.from_custom_path(os.path.join(DEFAULT_MODELS_ROOT, 'fraktur', 'text_calamari') + os.sep,
+                                              meta.type()))
         print(model.path)
         settings = AlgorithmPredictorSettings(
             model=model,

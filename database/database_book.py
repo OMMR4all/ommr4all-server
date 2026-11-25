@@ -121,10 +121,10 @@ class DatabaseBook:
         return DatabasePage(self, page)
 
     def local_default_models_path(self, sub=''):
-        return os.path.join(settings.BASE_DIR, 'internal_storage', 'default_models', self.get_meta().notationStyle, sub)
+        return os.path.join(settings.DEFAULT_MODELS_ROOT, self.get_meta().notationStyle, sub)
 
     def local_default_virtual_keyboards_path(self, sub=''):
-        return os.path.join(settings.BASE_DIR, 'internal_storage', 'default_virtual_keyboards', sub)
+        return os.path.join(settings.INTERNAL_STORAGE_ROOT, 'default_virtual_keyboards', sub)
 
     def local_models_path(self, sub=''):
         return self.local_path(os.path.join('models', sub))

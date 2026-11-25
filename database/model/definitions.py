@@ -82,7 +82,10 @@ class ModelsId(NamedTuple):
         if self.storage.type == StorageType.EXTERNAL:
             return os.path.join(self.storage.path(), self.book, 'models', Step.create_meta(self.algorithm_type).model_dir())
         elif self.storage.type == StorageType.INTERNAL:
-            return os.path.join(self.storage.path(), 'default_models', self.notation_style)
+            # DEFAULT_MODELS_ROOT, not <internal_storage>/default_models: the default models
+            # are writable and may sit on a volume (see settings.py). The id stays 'i/...',
+            # so stored ids keep resolving wherever the directory currently is.
+            return os.path.join(ommr4all_settings.DEFAULT_MODELS_ROOT, self.notation_style)
         else:
             return self.storage.path()
 

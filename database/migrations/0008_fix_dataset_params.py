@@ -3,7 +3,7 @@ from database import DatabaseBook
 import json
 import logging
 import os
-from ommr4all.settings import BASE_DIR
+from ommr4all.settings import DEFAULT_MODELS_ROOT, SHIPPED_DEFAULT_MODELS_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +46,11 @@ def fix_dataset_params(apps, schema_editor):
                 path = os.path.join(alg_dir, model, 'dataset_params.json')
                 fix_file(path)
 
-    # default models
-    default_models = os.path.join(BASE_DIR, 'internal_storage', 'default_models')
-    if os.path.exists(default_models):
+    # default models: the shipped ones and, when they were seeded onto a volume
+    # (OMMR4ALL_DEFAULT_MODELS_ROOT), that copy as well. fix_file is idempotent.
+    for default_models in {SHIPPED_DEFAULT_MODELS_ROOT, DEFAULT_MODELS_ROOT}:
+        if not os.path.exists(default_models):
+            continue
         for t in os.listdir(default_models):
             t_dir = os.path.join(default_models, t)
             for alg in os.listdir(t_dir):

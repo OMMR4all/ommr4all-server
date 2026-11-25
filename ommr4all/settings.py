@@ -237,6 +237,23 @@ PRIVATE_MEDIA_URL = '/storage/'
 # re-import settings) see the same storage root as the parent, e.g. in tests
 PRIVATE_MEDIA_ROOT = os.environ.get('OMMR4ALL_STORAGE_ROOT', os.path.join(BASE_DIR, 'storage'))
 
+# Assets shipped with the server: dictionaries, hyphenation, virtual keyboards, the monodi
+# renderer. Read only at runtime, so they stay inside the checkout.
+INTERNAL_STORAGE_ROOT = os.path.join(BASE_DIR, 'internal_storage')
+
+# The default models per notation style, the one part of internal_storage that is *written*
+# at runtime: the admin sets a default (restapi/views/administrativedefaultmodels.py), every
+# prediction records a usage.json next to the model it loaded (database/model/model.py), and
+# the admin model view deletes in there. Inside the checkout that means the data lives in the
+# image: gone after a container/pod restart, and not writable by the Apache workers either,
+# since the deployed tree belongs to root. Point this at a volume to keep it.
+# `manage.py seed_default_models` copies the shipped models into the target on start.
+DEFAULT_MODELS_ROOT = (os.environ.get('OMMR4ALL_DEFAULT_MODELS_ROOT') or '').strip() \
+    or os.path.join(INTERNAL_STORAGE_ROOT, 'default_models')
+
+# Where the shipped models come from when seeding the directory above
+SHIPPED_DEFAULT_MODELS_ROOT = os.path.join(INTERNAL_STORAGE_ROOT, 'default_models')
+
 DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
 
 

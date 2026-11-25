@@ -88,9 +88,10 @@ class Predictor(AlgorithmPredictor):
         super().__init__(settings)
 
         meta = Step.meta(AlgorithmTypes.OCR_NAUTILUS)
-        from ommr4all.settings import BASE_DIR
+        from ommr4all.settings import DEFAULT_MODELS_ROOT
         model = Model(
-            MetaId.from_custom_path(BASE_DIR + '/internal_storage/default_models/french14/text_nautilus/', meta.type()))
+            MetaId.from_custom_path(os.path.join(DEFAULT_MODELS_ROOT, 'french14', 'text_nautilus') + os.sep,
+                                    meta.type()))
         settings = AlgorithmPredictorSettings(
             model=model,
         )

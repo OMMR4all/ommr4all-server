@@ -19,7 +19,7 @@ from rest_framework.views import APIView
 
 import ommr4all.settings as settings
 from database.database_book import DatabaseBook
-from database.model import Model, ModelTrainingInfo, Storage
+from database.model import Model, ModelTrainingInfo
 from database.model.definitions import StorageType
 from omr.steps.algorithmtypes import AlgorithmTypes
 from .auth import DatabasePermissionFlag, require_admin
@@ -37,7 +37,7 @@ PROTECTION_IS_DEFAULT = 'is_default'
 
 
 def _default_models_root() -> str:
-    return os.path.join(Storage(StorageType.INTERNAL).path(), 'default_models')
+    return settings.DEFAULT_MODELS_ROOT
 
 
 def _algorithm_types_of(model_dir: str) -> List[str]:
