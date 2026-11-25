@@ -26,7 +26,13 @@ class TorchImportWatcher:
 # See https://docs.djangoproject.com/en/2.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'x_d3fxz--fi$9ediyggs(re5e&f2^csom_6&+rjw&&%s(doyka'
+# The literal below is the development key; run_deploy.py replaces it with a random one at
+# deploy time. DJANGO_SECRET_KEY wins over both, which is what a container deployment needs:
+# the baked-in key changes with every image build, and because the key also signs the JWTs
+# (SIMPLE_JWT["SIGNING_KEY"] and JWT_SECRET_KEY below) a rebuild would otherwise log out
+# every user. Blank is treated as unset -- docker compose always *defines* the variable.
+_SECRET_KEY_FALLBACK = 'x_d3fxz--fi$9ediyggs(re5e&f2^csom_6&+rjw&&%s(doyka'
+SECRET_KEY = (os.environ.get('DJANGO_SECRET_KEY') or '').strip() or _SECRET_KEY_FALLBACK
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
