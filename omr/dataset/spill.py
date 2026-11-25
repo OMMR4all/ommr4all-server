@@ -6,6 +6,11 @@ stores (`omr.dataset.sample_store`) collect and, once the budget is exhausted, h
 temporary directory to write the samples into instead. Everything collected so far is
 flushed as well, so the memory is actually reclaimed.
 
+The free memory is the smaller of what the machine reports and what this process' memory
+cgroup still allows (`cgroup_headroom`). In a container the two differ by a lot: psutil sees
+the whole host, so 40 % of that can be well above the container's limit, and the kernel then
+OOM-kills the training instead of letting it spill to disk.
+
 Configuration:
     OMMR4ALL_DATASET_MEMORY_BUDGET_MB   bytes to keep in RAM before spilling; 0 spills
                                         immediately (useful to test the disk path).
@@ -34,6 +39,13 @@ FREE_MEMORY_CHECK_INTERVAL = 50
 # DataLoader workers pass every batch through /dev/shm (Docker default: 64 MB)
 MIN_SHM_BYTES = 1 << 30
 
+# Where to look for this process' memory cgroup. Inside a container the mount is already
+# scoped to it, so the files of the root group describe the container.
+CGROUP_ROOT = '/sys/fs/cgroup'
+# A cgroup v1 limit is a huge number rather than a word when nothing is limited; anything
+# above this is not a real limit (v2 says 'max' instead).
+CGROUP_UNLIMITED_ABOVE = 1 << 52  # 4 PiB
+
 
 def loader_workers(requested: int) -> int:
     """`requested` data loader workers, or 0 if /dev/shm is too small to hold their batches;
@@ -51,13 +63,84 @@ def loader_workers(requested: int) -> int:
     return requested
 
 
+def _read_file(path: str) -> Optional[str]:
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+def _read_int(path: str) -> Optional[int]:
+    raw = _read_file(path)
+    if raw is None or raw == 'max':  # cgroup v2 writes 'max' for "no limit"
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    return None if value >= CGROUP_UNLIMITED_ABOVE else value
+
+
+def _stat_value(path: str, key: str) -> int:
+    """One key of a cgroup `memory.stat` file, 0 when absent."""
+    for line in (_read_file(path) or '').splitlines():
+        name, _, value = line.partition(' ')
+        if name == key:
+            try:
+                return int(value)
+            except ValueError:
+                return 0
+    return 0
+
+
+def cgroup_headroom(root: Optional[str] = None) -> Optional[int]:
+    """Bytes this process' memory cgroup still allows, or None when it is unlimited.
+
+    The limit is what matters in a container: psutil reports the host's free memory, which
+    may be far above it, and exceeding the cgroup limit is an OOMKill, not a swap-out.
+    The page cache counted in the current usage is mostly reclaimable (the trainers read
+    every page image), so the inactive file pages are added back - otherwise a run that
+    has touched a lot of images would look like it has no memory left at all.
+    """
+    root = root or CGROUP_ROOT  # read at call time so tests can point it at a fixture
+    v2_max = os.path.join(root, 'memory.max')
+    if os.path.exists(v2_max):
+        limit = _read_int(v2_max)
+        if limit is None:
+            return None
+        usage = _read_int(os.path.join(root, 'memory.current')) or 0
+        reclaimable = _stat_value(os.path.join(root, 'memory.stat'), 'inactive_file')
+    else:
+        v1 = os.path.join(root, 'memory')
+        limit = _read_int(os.path.join(v1, 'memory.limit_in_bytes'))
+        if limit is None:
+            return None
+        usage = _read_int(os.path.join(v1, 'memory.usage_in_bytes')) or 0
+        reclaimable = _stat_value(os.path.join(v1, 'memory.stat'), 'total_inactive_file')
+
+    return max(0, limit - max(0, usage - reclaimable))
+
+
 def available_memory() -> Optional[int]:
+    """The memory a dataset may still grow into: the machine's and the cgroup's, whichever
+    is smaller. None when neither can be determined."""
+    values = []
     try:
         import psutil
-        return psutil.virtual_memory().available
+        values.append(psutil.virtual_memory().available)
     except Exception as e:  # psutil is a hard dependency, but never fail a training over this
         logger.debug(f"Could not determine the available memory: {e}")
-        return None
+
+    try:
+        headroom = cgroup_headroom()
+    except Exception as e:
+        logger.debug(f"Could not read the cgroup memory limit: {e}")
+        headroom = None
+    if headroom is not None:
+        values.append(headroom)
+
+    return min(values) if values else None
 
 
 def default_budget_bytes() -> int:
