@@ -12,6 +12,7 @@ from database.file_formats.pcgts.page import Block, Line, MusicSymbol, Page, Sen
     Syllable, SyllableConnection
 from database.file_formats.pcgts.page.annotations import Annotations, Connection, SyllableConnector
 from database.file_formats.pcgts.page.coords import Coords
+from database.page_content import PageContent
 from omr.end2end.codec.codec import codec_lines, merge_codec_lines, write_codec
 from omr.end2end.codec.data_generator import process_single_block
 from omr.end2end.codec.dataset import SmartTokenizer
@@ -240,7 +241,12 @@ class TestRunnablePages(unittest.TestCase):
         blocks = [Block(BlockType.MUSIC, lines=[Line(coords=rect(0.05, 0.1, 0.6, 0.19), staff_lines=sl)])]
         if lyrics:
             blocks.append(Block(BlockType.LYRICS, lines=[Line(coords=rect(0.05, 0.2, 0.6, 0.25))]))
-        return SimpleNamespace(pcgts=lambda: SimpleNamespace(page=Page(blocks=blocks)))
+        page = Page(blocks=blocks)
+        # the batch predicates answer from the page index, never from a full pcgts parse, so
+        # page_content is what the fixture has to provide (PageContent.from_page defines the
+        # counts the stored row mirrors)
+        return SimpleNamespace(pcgts=lambda: SimpleNamespace(page=page),
+                               page_content=lambda: PageContent.from_page(page))
 
     def test_batch_runs_need_staff_lines_and_lyric_regions(self):
         self.assertTrue(End2EndPredictor.runnable(self.page(staff_lines=True, lyrics=True)))
