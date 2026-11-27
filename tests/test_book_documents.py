@@ -53,6 +53,43 @@ class TemporaryDemoBookTestCase(TestCase):
         self._tmp.cleanup()
 
 
+class TestUnreadableDocumentsFile(TemporaryDemoBookTestCase):
+    """book_documents.json is derived data, so a broken file must not be fatal.
+
+    An interrupted copy of a book folder leaves it empty, and json.load then raised right
+    out of the documents endpoint: a permanent 500 on /api/book/<book>/documents with no way
+    to recover from the UI, even though every document can be rebuilt from the pages.
+    """
+
+    def _write(self, content: str):
+        path = self.book.local_path('book_documents.json')
+        with open(path, 'w') as f:
+            f.write(content)
+        return path
+
+    def test_an_empty_file_is_rebuilt(self):
+        self._write('')
+        documents = DatabaseBookDocuments.update_book_documents_cached(self.book)
+        self.assertIsNotNone(documents.database_documents)
+        # and the file is valid json again afterwards
+        with open(self.book.local_path('book_documents.json')) as f:
+            self.assertIn('database_documents', json.load(f))
+
+    def test_a_truncated_file_is_rebuilt(self):
+        self._write('{"database_documents": {"documents": [{"doc_i')
+        self.assertIsNotNone(
+            DatabaseBookDocuments.update_book_documents_cached(self.book).database_documents)
+
+    def test_a_file_that_is_not_json_at_all_is_rebuilt(self):
+        self._write('<html>503 from a proxy</html>')
+        self.assertIsNotNone(
+            DatabaseBookDocuments.update_book_documents_cached(self.book).database_documents)
+
+    def test_load_of_a_missing_file_still_yields_an_empty_set(self):
+        os.remove(self._write('{}'))
+        self.assertIsNone(DatabaseBookDocuments.load(self.book).database_documents)
+
+
 class TestBookDocuments(TemporaryDemoBookTestCase):
     """Tests for the per-page fragment cache behind the chant/document list.
 

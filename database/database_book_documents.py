@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 
@@ -16,6 +17,8 @@ from database.file_formats.book.documents import Documents
 from database.file_formats.pcgts import Line, Page, LineStartType
 from omr.steps.algorithmpreditorparams import AlgorithmPredictorParams, AlgorithmTypes
 from restapi.models.auth import RestAPIUser
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -125,7 +128,15 @@ class DatabaseBookDocuments:
         try:
             with open(path) as f:
                 d = DatabaseBookDocuments.from_book_json(book, json.load(f))
-        except FileNotFoundError as e:
+        except FileNotFoundError:
+            d = DatabaseBookDocuments(b_id=book.book)
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            # The file is derived from the pages and refresh() rebuilds it right after this,
+            # so an unreadable one must be treated like a missing one. It is empty or
+            # truncated after an interrupted copy of the book folder, and raising here means
+            # the documents endpoint answers 500 forever with no way out from the UI.
+            logger.warning('Rebuilding %s from the pages, the file could not be read: %s',
+                           path, e)
             d = DatabaseBookDocuments(b_id=book.book)
 
         return d
