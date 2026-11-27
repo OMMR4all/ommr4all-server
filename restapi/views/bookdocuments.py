@@ -1,9 +1,6 @@
 import base64
 import io
 import json
-import os
-import re
-import subprocess
 import zipfile
 
 from PIL import Image
@@ -29,11 +26,11 @@ from database.file_formats.exporter.document_export import (
     document_file_name, mei_files_of_document, monodi_json_of_document, monodi_notes_of_document,
 )
 from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
+from database.file_formats.exporter.monodi import svg_render
 from database.file_formats.pcgts import PageScaleReference
-from ommr4all.settings import BASE_DIR
 from omr.util import PerformanceCounter
 from restapi.consumers import notify_book_documents_changed, update_book_documents_and_notify
-from restapi.models.error import APIError, ErrorCodes
+from restapi.models.error import APIError, ErrorCodes, MonodiSvgRenderAPIError
 from restapi.views.bookaccess import require_permissions
 from restapi.views.pageaccess import require_lock
 import requests as python_request
@@ -205,12 +202,12 @@ class DocumentsSVGView(APIView):
         pages = [DatabasePage(book, x) for x in document.pages_names]
         pcgts = [DatabaseFile(page, 'pcgts', create_if_not_existing=True).page.pcgts() for page in pages]
         root = PcgtsToMonodiConverter(pcgts, document=document).root
-        script_path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'monodi_svg_render', 'bin', 'one-shot')
-        proc = subprocess.run([script_path, "-", "-w", width], input=str(json.dumps(root.to_json())),
-                              stdout=subprocess.PIPE, universal_newlines=True, stderr=subprocess.PIPE)
-        str_result = proc.stdout
-        reg = re.match(r".*(<svg.*</svg>).*", str_result, flags=re.DOTALL).group(1)
-        return HttpResponse(reg, content_type="image/svg+xml")
+        try:
+            svg = svg_render.render(json.dumps(root.to_json()), width)
+        except svg_render.MonodiSvgRenderError as e:
+            logger.error('Could not render document %s of %s: %s', document.doc_id, book.book, e)
+            return MonodiSvgRenderAPIError(str(e)).response()
+        return HttpResponse(svg, content_type="image/svg+xml")
 
 
 class DocumentsMidiView(APIView):

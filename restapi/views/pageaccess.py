@@ -10,6 +10,7 @@ from rest_framework import status, permissions
 from database import *
 from database.file_formats.exporter.midi.simple_midi import SimpleMidiExporter
 from database.file_formats.exporter.monodi.monodi2_exporter import PcgtsToMonodiConverter
+from database.file_formats.exporter.monodi import svg_render
 from database.file_formats.performance.pageprogress import PageProgress
 from database.file_formats.performance.statistics import Statistics
 from database.file_formats.pcgts import PcGts
@@ -124,8 +125,6 @@ class PageSVGView(APIView):
 
     @require_permissions([DatabaseBookPermissionFlag.READ])
     def get(self, request, book, page, width):
-        import subprocess
-        from ommr4all.settings import BASE_DIR
         # with PerformanceCounter(function_name="book"):
         book = DatabaseBook(book)
         # with PerformanceCounter(function_name="page"):
@@ -134,16 +133,14 @@ class PageSVGView(APIView):
         file = DatabaseFile(page, 'pcgts', create_if_not_existing=True)
         # with PerformanceCounter(function_name="monodi_conversion"):
         root = PcgtsToMonodiConverter([file.page.pcgts_cached()]).root
-        script_path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'monodi_svg_render', 'bin', 'one-shot')
-        # proc = subprocess.run([script_path, "-", "-w", width], input=str(json.dumps(root.to_json())),
-        #                      capture_output=True, text=True)
         # with PerformanceCounter(function_name="javamonodi_render"):
-
-        proc = subprocess.run([script_path, "-", "-w", width], input=str(json.dumps(root.to_json())),
-                              stdout=subprocess.PIPE, universal_newlines=True, stderr=subprocess.PIPE)
-        str_result = proc.stdout
-        reg = re.match(r".*(<svg.*</svg>).*", str_result, flags=re.DOTALL).group(1)
-        return HttpResponse(reg, content_type="image/svg+xml")
+        try:
+            svg = svg_render.render(json.dumps(root.to_json()), width)
+        except svg_render.MonodiSvgRenderError as e:
+            # loguru, so .format() rather than %s-style lazy arguments (as above)
+            logger.error('Could not render page {}/{} to SVG: {}'.format(book.book, page.page, e))
+            return MonodiSvgRenderAPIError(str(e)).response()
+        return HttpResponse(svg, content_type="image/svg+xml")
 
 
 class PageMidiView(APIView):

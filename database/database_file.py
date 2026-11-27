@@ -400,15 +400,11 @@ class DatabaseFile:
                 with open(self.local_path(), 'w') as f:
                     json.dump(root.to_json(), f, ensure_ascii=False, indent=4)
             elif self.definition.id == 'monodiplus_svg':
-                path = DatabaseFile(self.page, 'monodiplus').local_path()
-                from ommr4all.settings import BASE_DIR
-                script_path = os.path.join(BASE_DIR, 'internal_storage', 'resources', 'monodi_svg_render', 'bin',
-                                           'one-shot')
-                import subprocess
-                proc = subprocess.Popen([script_path, path, "-o", self.local_path()], stdout=subprocess.PIPE)
-                result, err = proc.communicate()
-                # error code in the java script is to be ignored for now
-                exit_code = proc.wait()
+                from database.file_formats.exporter.monodi import svg_render
+                # raises MonodiSvgRenderError, e.g. when the machine has no Java runtime --
+                # which used to leave an empty/absent svg behind without any complaint
+                svg_render.render_file(DatabaseFile(self.page, 'monodiplus').local_path(),
+                                       self.local_path())
             else:
                 raise Exception("Cannot create file for {}".format(self.definition.id))
 

@@ -82,6 +82,7 @@ class ErrorCodes(IntEnum):
 
     # Monodi related
     MONODI_LOGIN_REQUIRED = 65000
+    MONODI_SVG_RENDER_FAILED = 65001
     NO_MATCHING_CREDENTIALS_FOUND = 66000
     ERROR_ON_IMPORTING_DOCUMENTS = 67000
     ERROR_ON_UPDATING_DOCUMENT = 68000
@@ -110,6 +111,24 @@ class DatabaseUnavailableAPIError(APIError):
                          'The server database is temporarily unavailable. '
                          'Your work is not lost, please retry in a moment.',
                          ErrorCodes.SERVER_DATABASE_UNAVAILABLE,
+                         )
+
+
+class MonodiSvgRenderAPIError(APIError):
+    """The notation preview could not be rendered.
+
+    The renderer is a JVM tool bundled in internal_storage, so the usual cause is a machine
+    without a Java runtime -- a deployment problem, not something the user did wrong. 500
+    rather than 503: retrying does not help until someone installs it, and the detail goes
+    into the server log (see database/file_formats/exporter/monodi/svg_render.py).
+    """
+    def __init__(self, detail: str):
+        from rest_framework import status
+        super().__init__(status.HTTP_500_INTERNAL_SERVER_ERROR,
+                         'Monodi SVG rendering failed: {}'.format(detail),
+                         'The notation preview could not be rendered on the server. '
+                         'Please notify the administrator.',
+                         ErrorCodes.MONODI_SVG_RENDER_FAILED,
                          )
 
 
